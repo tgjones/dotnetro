@@ -88,15 +88,21 @@ rootCommand.SetAction(parseResult =>
     // zero copies are inserted on every existing function. Runs right after isel,
     // before the other copy-inserting passes and RA. See OperandLegalizationPass.
     passMgr.AddPass(new OperandLegalizationPass(target.RegisterInfo));
-    passMgr.AddPass(new PhiEliminationPass(target.BranchLowering));
     if (Environment.GetEnvironmentVariable("IRIE_SSA_RA") == "1")
     {
-        // SSA-based allocator (Hack/Braun-Hack): replaces TwoAddress + coalescer +
-        // graph-colouring RA. Enabled by IRIE_SSA_RA=1. See SsaRegisterAllocatorPass.
+        // SSA-based allocator (Hack/Braun-Hack): runs on TRUE SSA form — block
+        // parameters still intact — so PhiEliminationPass does NOT run on this
+        // path. The allocator is responsible for its own phi-aware colouring and
+        // SSA destruction (still being built out; today only straight-line /
+        // phi-free functions are handled). Replaces PhiElimination + TwoAddress +
+        // coalescer + graph-colouring RA. Enabled by IRIE_SSA_RA=1. See
+        // SsaRegisterAllocatorPass.
         passMgr.AddPass(new SsaRegisterAllocatorPass(target.RegisterInfo));
     }
     else
     {
+        // Conventional SSA destruction up front, then the non-SSA allocator chain.
+        passMgr.AddPass(new PhiEliminationPass(target.BranchLowering));
         passMgr.AddPass(new TwoAddressInstructionPass());
         // Coalesce vreg↔vreg pseudo.copies before allocation — the llvm-mos
         // RegisterCoalescer slot (after TwoAddress/LiveIntervals, before the
