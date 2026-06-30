@@ -120,7 +120,13 @@ rootCommand.SetAction(parseResult =>
         // when the colourer is retired (greedy-RA plan endgame).
         if (Environment.GetEnvironmentVariable("IRIE_COALESCE") == "1")
             passMgr.AddPass(new RegisterCoalescerPass(target.RegisterInfo));
-        passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo));
+        // Select the greedy allocator (llvm-mos RegAllocGreedy port) with IRIE_GREEDY=1;
+        // unset = graph-colouring default (the validation oracle). This standing
+        // selector re-establishes the corpus measurement loop for the greedy
+        // end-goal. The recommended config is IRIE_GREEDY=1 WITHOUT IRIE_COALESCE
+        // (the aggressive coalescer is only safe with a fuller SplitKit; see memory).
+        var useGreedy = Environment.GetEnvironmentVariable("IRIE_GREEDY") == "1";
+        passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo, useGreedy));
     }
     // Target branch-folding passes run on physreg-only MIR after RA and before
     // CopyElimination — the llvm-mos Control Flow Optimizer slot (after the VReg
