@@ -105,24 +105,83 @@ So the lever is **step 5**, not a better hint.
    at each use), i.e. **step 5**, not step 2. All step-2 code reverted; tree clean at
    greedy **325**. Do not re-attempt hint-ordering tweaks — go to step 5.
 
-3. **Investigate `memory/global-rw` (13 vs 10) specifically.** It is the load-fold /
-   relocation case, not pure carrier placement — confirm whether the regression is
-   placement or a lost `adc.abs`/`lda` fold once the value is relocated; fix at root
-   (keep the relocated load result foldable) rather than papering with a hint.
+3. **INVESTIGATED (2026-07-01): `memory/global-rw` (13 vs 10) is NOT a lost fold —
+   it is the same placement-arbitration problem as step 2.** The `adc.abs` /
+   `adc.abs @counter+1` load-folds are BOTH intact in the greedy output; the fold
+   hypothesis is falsified. The 3 extra instructions are pure register placement.
+   Single-block. The result `%3` is used twice (`st.abs @counter` + `core.return`),
+   so its two byte-results relocate off `$a` (the adc reg) into `%30` (low) and
+   `%31` (high). The return needs low in `$a` and high in `$x`. `%30`'s downstream
+   copy target is `$a` (return-low, excluded — it is the adc register), so `%30` has
+   no valid GPR copy-hint and falls to the blind `_shortRangeGprs` order `[$x,$y,$a]`
+   → grabs **`$x`**. `%31`'s downstream copy target genuinely IS `$x` (return-high),
+   but `%30` (lower id, processed first) already took it, so `%31` → `$y`, and the
+   return then needs a `$y→$x` move with no direct path → `sty $02 ; ldx $02` bounce
+   (+2), plus the high arg `%5` gets spilled to zp (`stx $02 ; lda $02`, +1 vs the
+   colourer's `txa`). llvm gets low→`$y` / high→`$x` because its
+   `getRegAllocationHints` + assignment order lets the value that genuinely wants
+   `$x` (`%31`) claim it and pushes the hintless value (`%30`) to `$y`. The reverted
+   step-2 scoring did NOT fix this (global-rw stayed 13): `%30` still processes first
+   and its only copy partner `$a` is excluded, so it still grabs `$x`. **Root cause =
+   greedy assigns largest/lowest-id first with no global view of which register a
+   *later* interfering value needs more — the region-split / SpillPlacement lever
+   (step 5), not a fold fix.** So step 3 folds into step 5; there is nothing
+   independent to fix here.
 
-4. **Flip the default + delete the colourer — only once greedy ≥ colourer on the
-   corpus.** Make `useGreedy` the default (drop the gate), then in ONE change delete
+   **Also TRIED + REVERTED (2026-07-01): missed-hint eviction (`RAGreedy::tryAssign`
+   + `canEvictHintInterference`).** Added the llvm path where a value that finds a
+   free non-hint register instead evicts an EQUAL-weight interference off its copy
+   hint (the normal evict rung needs strictly lighter), gated on the victim being
+   spillable / older-cascade / reassignable / not holding that reg as its own
+   satisfied hint. Measured: global-rw 13→**11** (the `%31`-reclaims-`$x` fix worked)
+   but loop-counter 42→**46** — net **327**, +2 worse. AND it is UNFAITHFUL: llvm's
+   `canEvictInterferenceBasedOnCost` REFUSES hint-eviction when evictor and victim
+   are both single-block (`!MaxCost.isMax() && IsLocal && intervalIsInOneMBB(Intf)`,
+   `EnableLocalReassign` off by default) — global-rw is single-block, so llvm does
+   NOT use hint-eviction there; it gets that result from `getRegAllocationHints` +
+   assignment order. Adding the faithful local guard loses the global-rw win and
+   keeps the loop-counter loss = strictly worse. Reverted; tree clean at 325.
+
+   **CONSOLIDATED CONCLUSION (2026-07-01, after 3 measured attempts): individual
+   faithful greedy mechanisms wash out in isolation.** Copy-cost hints (327/416),
+   hint-eviction (327) each help 1–2 corpus cases and hurt 1–2 others — because the
+   mechanisms are coupled and llvm's quality comes from ALL of them running together
+   WITH region split and the exact cost model (lexicographic `EvictionCost`,
+   local-range guards, accurate `BlockFrequency` weights, and constant
+   rematerialization). There is no cheap subset. Do not keep bolting on single
+   mechanisms — the next real move is step 5 as a coherent whole, or accept the +10
+   residual and NOT flip the default.
+
+4. **BLOCKED (greedy is +10 behind the colourer: 325 vs 315).** Flip the default +
+   delete the colourer — only once greedy ≥ colourer on the corpus. Steps 2–3 did
+   not close the gap (they fold into step 5), so this stays blocked until step 5
+   lands. Make `useGreedy` the default (drop the gate), then in ONE change delete
    `GraphColouringAllocator`, the 3 isel load funnels, and
    `InsertRelocationCopiesForConstrainedDefs` (funnel removal is free once greedy
    splits the load results), plus the dead split-insertion kinds. Regenerate every
    pinned golden with `dotnet run --project src/DotLit -- --regenerate` and verify
    under `dotnet test` (both Debug and Release).
 
-5. **Optional later (only if measured to help):** a real SlotIndex/segment SplitKit
-   (llvm `SplitEditor` proper) → then `RegisterCoalescerPass` can finally be wired
-   into the greedy path for the last few %. NOTE: do NOT wire the aggressive
-   coalescer into greedy before that — it CRASHES greedy (the use-redirect splits
-   can't separate a coalesced multi-role mega-vreg; falsified-hypothesis in memory).
+5. **THE CONFIRMED LEVER (promoted from "optional" 2026-07-01).** Steps 2–3 proved
+   the whole residual is here. Region split as a coherent whole:
+   - **`getRegAllocationHints` + hint-driven assignment/eviction** with llvm's EXACT
+     cost model (lexicographic `EvictionCost`; the single-block local-range guard;
+     accurate `BlockFrequency`-weighted spill weights) — NOT the piecemeal versions
+     tried in steps 2–3, which regress because they lack the guards.
+   - **`tryRegionSplit`** (EdgeBundles + SpillPlacement): decide GPR-vs-zp PER REGION
+     globally instead of per-value greedily — the thing that lets a carrier hold a
+     GPR across blocks without over-subscribing the 3 GPRs.
+   - **Rematerialization of constants** in the spill path so a cross-block
+     `arith.constant 0` is re-emitted (`ldy #0` / `cpx #0`) instead of parked in a
+     register/zp (early-return).
+   - a real SlotIndex/segment SplitKit (llvm `SplitEditor` proper) → then
+     `RegisterCoalescerPass` can finally be wired into the greedy path for the last
+     few %. NOTE: do NOT wire the aggressive coalescer into greedy before that — it
+     CRASHES greedy (the use-redirect splits can't separate a coalesced multi-role
+     mega-vreg; falsified-hypothesis in memory).
+
+   This is a substantial, coherent piece — scope it as its own plan, not incremental
+   bolt-ons (the lesson of steps 2–3).
 
 ## Guardrails
 
