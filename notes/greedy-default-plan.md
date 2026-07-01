@@ -53,25 +53,57 @@ the 4 cases above are where it is *worse than llvm* (global-rw 1.30, early-retur
 ONLY to `_splitProducts` (instruction-local relocation temps). Cross-block CARRIERS
 (a value live across blocks) miss it, so they fall to the `Anyi8` default order,
 which puts the abundant zp pool ahead of the 3 scarce GPRs → carrier lands in zp
-(`lda`/`sta`, 2B) instead of a GPR (`tay`/`tya`, 1B). The faithful llvm fix is the
-`getRegAllocationHints` SUMMED copy-cost SCORE per candidate (score each candidate by
-total move cost across the value's copies), not a binary "is-carrier → prefer GPR"
-flag — that blunt version (C1) was tried and reverted as net-neutral (helped
-early-return/loop-counter, hurt if-else/global-rw, total unchanged).
+(`lda`/`sta`, 2B) instead of a GPR (`tay`/`tya`, 1B).
+
+**The candidate-ordering fix does not work — measured, see step 2.** The
+hypothesis here was that a faithful `getRegAllocationHints` SUMMED copy-cost SCORE
+would close it. It was implemented faithfully and **regressed** the corpus (327
+ungated / 416 cross-block-gated, both > the 325 no-hint baseline). The real cause of
+the residual is the **absence of region splitting**: greedy places each value once,
+whole, largest-first, so any GPR preference (blunt C1 flag *or* faithful summed
+score) over-subscribes the 3 GPRs — non-carrier values grab them first and the
+carrier spills. llvm avoids this via `tryRegionSplit` (EdgeBundles + SpillPlacement),
+which decides GPR-vs-zp per REGION globally, plus rematerialization of constants.
+So the lever is **step 5**, not a better hint.
 
 ## Steps
 
 1. **DONE (this session): re-establish the measurement loop.** `IRIE_GREEDY=1`
    selector wired; baseline captured above.
 
-2. **Close the cross-block residual — faithful summed copy-cost hints.** In
-   `GreedyRegisterAllocator.PreferenceOrder` (and/or `CopyHintColours`), score each
-   candidate physreg by the total copy cost across the value's copies (GPR↔GPR =
-   `tay`/`tya` cheap; GPR↔zp = `lda`/`sta` dearer), mirroring
-   `MOSRegisterInfo::getRegAllocationHints`. Apply to cross-block carriers, not just
-   split products. Re-run the report after each change; **target greedy ≤ 315 (≥
-   colourer) and ideally ≤ llvm on the 4 cases.** Determinism: every tie-break on
-   ascending vreg id.
+2. **TRIED + REVERTED (2026-07-01): faithful summed copy-cost hints — measured
+   NET-NEGATIVE, so the residual is NOT a candidate-ordering problem.** Implemented
+   the full `MOSRegisterInfo::getRegAllocationHints` port faithfully: a
+   `TargetRegisterInfo.CopyCost(dest, src)` hook (MOS6502 override = llvm-mos
+   `copyCost` under the size-Average mode: $a↔$x/$y = 3, $x↔$y = 10, GPR↔zp = 5,
+   zp↔zp = 14), and a `ScoredCopyHints` prefix in `PreferenceOrder` that scores each
+   allowed candidate by summed `worstCost − thisCost` over the value's copies (exact
+   copy partner wins; GPRs outrank zp for a value copied to/from a GPR), ties broken
+   on the allowed order. **Two variants measured, both WORSE than the 325 no-hint
+   greedy baseline:**
+   - **Ungated** (score every value with a known-physreg copy partner): **327**.
+     Wins loop-counter 42→**39** (now beats colourer 40 *and* llvm 65), fibonacci
+     52→51, select 12→11 — but loses early-return 33→**37**, many-args 36→**38**,
+     if-else 32→33. Net **+2**. Root cause of the losses: without llvm's global
+     region-split to arbitrate GPR pressure, the score pulls **short-lived args and
+     in-block chain temps** into the 3 scarce GPRs, starving the carrier that then
+     spills to zp. `many-args` (a single-block straight-line i16 chain that was
+     byte-identical to llvm at 36) flipped its whole accumulator from `tay/tax` GPRs
+     to `sta/lda` zp — the exact opposite of the hint's intent — because non-carrier
+     values grabbed the registers first.
+   - **Gated to cross-block carriers** (`referenced in ≥2 blocks`): **416**
+     (+20.9%), catastrophic — forcing *long* cross-block values into GPRs makes them
+     interfere with the whole arithmetic chain and spill massively.
+
+   **Conclusion: candidate ordering is not the lever.** This confirms + sharpens the
+   earlier C1 "wash" finding ([[project_greedy_ra_plan]]): the wins are real (a
+   loop-carried accumulator genuinely wants a durable GPR) but greedy without
+   **region splitting** (`tryRegionSplit` / EdgeBundles / SpillPlacement) cannot
+   place hints without over-subscribing 3 GPRs. The residual is a **splitting +
+   rematerialization** problem (early-return's regression is a rematerializable
+   `arith.constant 0` held across blocks that llvm re-emits as `ldy #0` / `cpx #0`
+   at each use), i.e. **step 5**, not step 2. All step-2 code reverted; tree clean at
+   greedy **325**. Do not re-attempt hint-ordering tweaks — go to step 5.
 
 3. **Investigate `memory/global-rw` (13 vs 10) specifically.** It is the load-fold /
    relocation case, not pure carrier placement — confirm whether the regression is
