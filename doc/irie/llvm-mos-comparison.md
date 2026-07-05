@@ -2,13 +2,12 @@
 
 # Irie vs llvm-mos — MOS6502 codegen
 
-Irie emits **-8.4%** instructions vs llvm-mos (**315** vs **344**, ratio **0.92**) across **17/47** corpus cases.
+Irie emits **-9.0%** instructions vs llvm-mos (**313** vs **344**, ratio **0.91**) across **17/47** corpus cases.
 
 Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).
 
 | Category | Case | Status | llvm-mos | Irie | Δ | Ratio | |
 | --- | --- | --- | --: | --: | --: | --: | :-: |
-| pressure | live-across-call | converted | 23 | 24 | +1 | 1.04 | 🔴 |
 | control-flow | early-return | converted | 28 | 29 | +1 | 1.04 | 🔴 |
 | realistic | fibonacci | converted | 50 | 51 | +1 | 1.02 | 🔴 |
 | basics | add-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ |
@@ -22,6 +21,7 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | control-flow | select | converted | 12 | 12 | 0 | 1.00 | ⚪ |
 | memory | global-rw | converted | 10 | 10 | 0 | 1.00 | ⚪ |
 | widths | truncate | converted | 3 | 3 | 0 | 1.00 | ⚪ |
+| pressure | live-across-call | converted | 23 | 22 | -1 | 0.96 | 🟢 |
 | control-flow | common-subexpr | converted | 39 | 36 | -3 | 0.92 | 🟢 |
 | control-flow | if-else | converted | 36 | 32 | -4 | 0.89 | 🟢 |
 | control-flow | loop-counter | converted | 65 | 40 | -25 | 0.62 | 🟢 |
@@ -57,117 +57,6 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | widths | zero-extend | blocked | 6 | — | — | — |  |
 
 ## Per-case assembly
-
-<details>
-<summary>pressure/live-across-call — llvm-mos 23, Irie 24, ratio 1.04</summary>
-
-llvm-mos (23):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "live-across-call.c"
-    .section    .text.live_across_call,"ax",@progbits
-    .globl    live_across_call                ; -- Begin function live_across_call
-    .type    live_across_call,@function
-live_across_call:                       ; @live_across_call
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc16
-    sta    __rc20
-    stx    __rc21
-    jsr    g
-    clc
-    adc    __rc20
-    tay
-    txa
-    adc    __rc21
-    tax
-    tya
-    sta    __rc16
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    live_across_call, .Lfunc_end0-live_across_call
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (24):
-
-```asm
-g:
-    RTS
-
-live_across_call:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    TYA
-    STA $15
-    STX $14
-    JSR g
-    CLC
-    ADC $15
-    TAY
-    TXA
-    ADC $14
-    TAX
-    TYA
-    TAY
-    PLA
-    STA $15
-    PLA
-    STA $14
-    TYA
-    RTS
-```
-
-</details>
 
 <details>
 <summary>control-flow/early-return — llvm-mos 28, Irie 29, ratio 1.04</summary>
@@ -1370,6 +1259,115 @@ Irie (3):
 truncate:
     CLC
     ADC $02
+    RTS
+```
+
+</details>
+
+<details>
+<summary>pressure/live-across-call — llvm-mos 23, Irie 22, ratio 0.96</summary>
+
+llvm-mos (23):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "live-across-call.c"
+    .section    .text.live_across_call,"ax",@progbits
+    .globl    live_across_call                ; -- Begin function live_across_call
+    .type    live_across_call,@function
+live_across_call:                       ; @live_across_call
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc16
+    sta    __rc20
+    stx    __rc21
+    jsr    g
+    clc
+    adc    __rc20
+    tay
+    txa
+    adc    __rc21
+    tax
+    tya
+    sta    __rc16
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    live_across_call, .Lfunc_end0-live_across_call
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (22):
+
+```asm
+g:
+    RTS
+
+live_across_call:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    TYA
+    STA $15
+    STX $14
+    JSR g
+    CLC
+    ADC $15
+    TAY
+    TXA
+    ADC $14
+    TAX
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
     RTS
 ```
 

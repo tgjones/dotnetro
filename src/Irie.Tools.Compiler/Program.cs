@@ -140,6 +140,11 @@ rootCommand.SetAction(parseResult =>
     // expansion.
     passMgr.AddPass(new FrameAccessLoweringPass(target.FrameLowering));
     passMgr.AddPass(new PrologueEpilogueInsertionPass(target.RegisterInfo, target.FrameLowering));
+    // CopyPropagation — the llvm-mos `machine-cp` slot (after PEI, before pseudo
+    // expansion). Cleans up redundant/dead physreg copies left by RA + the ABI +
+    // PEI's prologue/epilogue shuttle, while every copy is still a uniform,
+    // side-effect-free pseudo.copy. See CopyPropagationPass.
+    passMgr.AddPass(new CopyPropagationPass(target.RegisterInfo));
     passMgr.AddPass(new PseudoExpansionPass(target.PseudoExpander));
     // Target late-optimization passes run on the final expanded physreg-only
     // stream — the llvm-mos `mos-late-opt` slot (after post-RA pseudo

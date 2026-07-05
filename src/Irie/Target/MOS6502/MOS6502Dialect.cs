@@ -299,6 +299,14 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Op.FrameLoadByte  => FrameLoadByteInfo,
             MOS6502Op.FrameStoreByte => FrameStoreByteInfo,
 
+            // Hardware-stack push/pull, emitted bare by PEI (no operands). PLA
+            // pulls into $a and sets N/Z from the pulled byte; PHA pushes $a.
+            // Modelling these def/use lists is what lets post-PEI liveness (e.g.
+            // CopyPropagationPass) see that a PLA kills the prior $a, so a copy
+            // into $a immediately before it is dead.
+            MOS6502Op.Pla => PlaInfo,
+            MOS6502Op.Pha => PhaInfo,
+
             // Loads and register transfers update N/Z from the byte they move
             // (the 6502 LDA/LDX/LDY/TAX/TAY/TXA/TYA/TSX all set N and Z; TXS
             // does NOT touch the flags, so it is deliberately absent). The
@@ -329,6 +337,18 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Registers.N,
             MOS6502Registers.Z,
         ]);
+
+    // PLA: pulls the top hardware-stack byte into $a and sets N/Z from it.
+    private static readonly DialectInstructionInfo PlaInfo = new(
+        ImplicitDefs: [
+            MOS6502Registers.A,
+            MOS6502Registers.N,
+            MOS6502Registers.Z,
+        ]);
+
+    // PHA: pushes $a onto the hardware stack (a pure use of $a, no flag effect).
+    private static readonly DialectInstructionInfo PhaInfo = new(
+        ImplicitUses: [MOS6502Registers.A]);
 
     // Abstract frame byte accesses. The scratch each expansion uses is declared
     // here as implicit defs to document the clobber contract; the instruction

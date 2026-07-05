@@ -1,3 +1,4 @@
+using Irie.Dialects.Pseudo;
 using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
@@ -12,9 +13,17 @@ namespace Irie.Target.MOS6502;
 // accumulator, so the save loop must borrow `$a`. But `$a` holds arg0's low byte
 // on entry (a live-in) and the return value's byte0 at the `rts`. `$y` is never
 // a CC argument or return register under CC_MOS, so it is provably dead at both
-// points; we shuttle the live `$a` through `$y` (`tay` … `tya`) around the spill
-// loop. This is a pure post-RA pass — no scratch scavenging, no `$a`-evacuation
-// into a zp slot (which is what `llc --target=mos -Os` does instead).
+// points; we shuttle the live `$a` through `$y` around the spill loop. This is a
+// pure post-RA pass — no scratch scavenging, no `$a`-evacuation into a zp slot
+// (which is what `llc --target=mos -Os` does instead).
+//
+// The shuttle is emitted as a generic pseudo.copy (not a concrete tay/tya),
+// mirroring llvm-mos's PEI emitting generic COPY. Frame lowering stays oblivious
+// to where values live — it never inspects the surrounding code. If RA happened
+// to leave the preserved byte in `$y` already, the shuttle's `$y = copy $a`
+// becomes a redundant round-trip, which the target-independent
+// CopyPropagationPass (running post-PEI, the machine-cp analogue) folds away —
+// keeping that cleverness out of frame lowering.
 public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
 {
     public override bool IsReturnInstruction(MirInstruction instr)
@@ -41,7 +50,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         // lda/pha loop.
         var preserveA = entryBlock.LiveIns.Contains(MOS6502Registers.A);
         if (preserveA)
-            EmitTransfer(builder, MOS6502Op.Tay, MOS6502Registers.Y, MOS6502Registers.A);
+            EmitCopy(builder, MOS6502Registers.Y, MOS6502Registers.A);
 
         // saved is ascending; push in ascending order (popped in descending).
         foreach (var reg in saved)
@@ -55,7 +64,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         }
 
         if (preserveA)
-            EmitTransfer(builder, MOS6502Op.Tya, MOS6502Registers.A, MOS6502Registers.Y);
+            EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
     }
 
     public override void EmitCalleeSavedRestores(
@@ -73,7 +82,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         // the rts) through $y while $a is borrowed for the pla/sta loop.
         var preserveA = ReturnUses(returnInstr, MOS6502Registers.A);
         if (preserveA)
-            EmitTransfer(builder, MOS6502Op.Tay, MOS6502Registers.Y, MOS6502Registers.A);
+            EmitCopy(builder, MOS6502Registers.Y, MOS6502Registers.A);
 
         // Restore in descending order — LIFO, the reverse of the spill order.
         for (var i = saved.Count - 1; i >= 0; i--)
@@ -87,7 +96,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         }
 
         if (preserveA)
-            EmitTransfer(builder, MOS6502Op.Tya, MOS6502Registers.A, MOS6502Registers.Y);
+            EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
     }
 
     // --- Frame-access lowering (the eliminateFrameIndex analogue) ------------
@@ -260,8 +269,15 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             new PhysicalReg(MOS6502Registers.X, IsDefinition: false));
     }
 
-    private static void EmitTransfer(MirBuilder builder, MOS6502Op op, int dst, int src)
-        => builder.BuildInstruction(MOS6502Dialect.OpRef(op),
+    // Emit the $a↔$y shuttle as a generic pseudo.copy rather than a concrete
+    // tay/tya. This mirrors llvm-mos's PEI, which emits generic COPY and defers
+    // the TA/T_A lowering to postrapseudos: the copy is side-effect-free (no N/Z
+    // clobber), so the post-PEI CopyPropagationPass can fold a redundant shuttle
+    // round-trip (e.g. when RA already parked the preserved byte in $y) without
+    // any flag-liveness reasoning. PseudoExpansion lowers the survivors to
+    // tay/tya, so unoptimized output is byte-identical to the old form.
+    private static void EmitCopy(MirBuilder builder, int dst, int src)
+        => builder.BuildInstruction(PseudoDialect.OpRef(PseudoOp.Copy),
             new PhysicalReg(dst, IsDefinition: true),
             new PhysicalReg(src, IsDefinition: false));
 
