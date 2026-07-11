@@ -104,6 +104,12 @@ rootCommand.SetAction(parseResult =>
         // Conventional SSA destruction up front, then the non-SSA allocator chain.
         passMgr.AddPass(new PhiEliminationPass(target.BranchLowering));
         passMgr.AddPass(new TwoAddressInstructionPass());
+        // Sink rematerializable defs (constants, symbol bytes) into their sole
+        // use block before allocation — the llvm-mos `machine-sink` analogue.
+        // Relieves entry-block pressure so long-lived values (arguments) keep the
+        // scarce real registers instead of being evicted to zero page. See
+        // RematerializableSinkPass.
+        passMgr.AddPass(new RematerializableSinkPass());
         // Coalesce vreg↔vreg pseudo.copies before allocation — the llvm-mos
         // RegisterCoalescer slot (after TwoAddress/LiveIntervals, before the
         // allocator). Deletes a copy by merging its two ends' live ranges when they

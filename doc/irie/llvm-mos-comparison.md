@@ -2,13 +2,12 @@
 
 # Irie vs llvm-mos — MOS6502 codegen
 
-Irie emits **-9.0%** instructions vs llvm-mos (**313** vs **344**, ratio **0.91**) across **17/47** corpus cases.
+Irie emits **-9.9%** instructions vs llvm-mos (**310** vs **344**, ratio **0.90**) across **17/47** corpus cases.
 
 Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).
 
 | Category | Case | Status | llvm-mos | Irie | Δ | Ratio | |
 | --- | --- | --- | --: | --: | --: | --: | :-: |
-| control-flow | early-return | converted | 28 | 29 | +1 | 1.04 | 🔴 |
 | realistic | fibonacci | converted | 50 | 51 | +1 | 1.02 | 🔴 |
 | basics | add-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ |
 | basics | add-i32 | converted | 14 | 14 | 0 | 1.00 | ⚪ |
@@ -22,6 +21,7 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | memory | global-rw | converted | 10 | 10 | 0 | 1.00 | ⚪ |
 | widths | truncate | converted | 3 | 3 | 0 | 1.00 | ⚪ |
 | pressure | live-across-call | converted | 23 | 22 | -1 | 0.96 | 🟢 |
+| control-flow | early-return | converted | 28 | 26 | -2 | 0.93 | 🟢 |
 | control-flow | common-subexpr | converted | 39 | 36 | -3 | 0.92 | 🟢 |
 | control-flow | if-else | converted | 36 | 32 | -4 | 0.89 | 🟢 |
 | control-flow | loop-counter | converted | 65 | 40 | -25 | 0.62 | 🟢 |
@@ -57,135 +57,6 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | widths | zero-extend | blocked | 6 | — | — | — |  |
 
 ## Per-case assembly
-
-<details>
-<summary>control-flow/early-return — llvm-mos 28, Irie 29, ratio 1.04</summary>
-
-llvm-mos (28):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "early-return.c"
-    .section    .text.early_return,"ax",@progbits
-    .globl    early_return                    ; -- Begin function early_return
-    .type    early_return,@function
-early_return:                           ; @early_return
-; %bb.0:
-    cpx    #0
-    bmi    .LBB0_4
-; %bb.1:
-    tay
-    txa
-    inc    __rc3
-    dec    __rc3
-    bmi    .LBB0_5
-; %bb.2:
-    clc
-    tya
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    ldx    __rc5
-    bmi    .LBB0_5
-; %bb.3:
-    tax
-    tya
-    clc
-    adc    __rc4
-    tay
-    txa
-    adc    __rc5
-    jmp    .LBB0_5
-.LBB0_4:
-    ldy    #0
-    tya
-.LBB0_5:
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    early_return, .Lfunc_end0-early_return
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (29):
-
-```asm
-early_return:
-    STA $07
-    STX $06
-    LDY #$00
-    LDX #$00
-    LDA $06
-    BMI .bb4
-.bb1:
-    LDA $03
-    BMI .bb5
-.bb2:
-    CLC
-    LDA $07
-    ADC $02
-    TAY
-    LDA $06
-    ADC $03
-    TAX
-    LDA $05
-    BMI .bb4
-.bb3:
-    CLC
-    TYA
-    ADC $04
-    TAY
-    TXA
-    ADC $05
-    TAX
-.bb4:
-    TYA
-    RTS
-.bb5:
-    LDY $07
-    LDX $06
-    JMP .bb4
-```
-
-</details>
 
 <details>
 <summary>realistic/fibonacci — llvm-mos 50, Irie 51, ratio 1.02</summary>
@@ -1369,6 +1240,132 @@ live_across_call:
     STA $14
     TYA
     RTS
+```
+
+</details>
+
+<details>
+<summary>control-flow/early-return — llvm-mos 28, Irie 26, ratio 0.93</summary>
+
+llvm-mos (28):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "early-return.c"
+    .section    .text.early_return,"ax",@progbits
+    .globl    early_return                    ; -- Begin function early_return
+    .type    early_return,@function
+early_return:                           ; @early_return
+; %bb.0:
+    cpx    #0
+    bmi    .LBB0_4
+; %bb.1:
+    tay
+    txa
+    inc    __rc3
+    dec    __rc3
+    bmi    .LBB0_5
+; %bb.2:
+    clc
+    tya
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    ldx    __rc5
+    bmi    .LBB0_5
+; %bb.3:
+    tax
+    tya
+    clc
+    adc    __rc4
+    tay
+    txa
+    adc    __rc5
+    jmp    .LBB0_5
+.LBB0_4:
+    ldy    #0
+    tya
+.LBB0_5:
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    early_return, .Lfunc_end0-early_return
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (26):
+
+```asm
+early_return:
+    TAY
+    TXA
+    BMI .bb5
+.bb1:
+    LDA $03
+    BMI .bb4
+.bb2:
+    CLC
+    TYA
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    TAX
+    LDA $05
+    BMI .bb4
+.bb3:
+    CLC
+    TYA
+    ADC $04
+    TAY
+    TXA
+    ADC $05
+    TAX
+.bb4:
+    TYA
+    RTS
+.bb5:
+    LDY #$00
+    LDX #$00
+    JMP .bb4
 ```
 
 </details>

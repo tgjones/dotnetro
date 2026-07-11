@@ -454,7 +454,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
     // can be recomputed at any program point with no dependencies. This catches
     // selected constants (`pseudo.copy <imm>`) and symbol-address bytes
     // (`mos6502.lda.imm.sym* @g`). (Appel §11.4 "rematerialization".)
-    private static bool IsRematerializable(MirInstruction def)
+    internal static bool IsRematerializable(MirInstruction def)
     {
         var dialect = DialectRegistry.ById(def.Opcode.Dialect);
         if (!dialect.IsSideEffectFree(def.Opcode.Code)) return false;

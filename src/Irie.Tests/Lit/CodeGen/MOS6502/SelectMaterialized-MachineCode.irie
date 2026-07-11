@@ -63,14 +63,17 @@ bb0(%0 : i8, %1 : i8):
 
 ; --- abs(x) = x <s 0 ? -x : x — a select over two computed values. -----------
 ; The `-x` (subi 0, x) is single-use and feeds only the true arm, so arm-sinking
-; moves it into bb1 (computed only on the negative path) — see the SBC in bb1.
-; Sinking it out of the entry block also keeps the cmpi adjacent to the cond_br.
+; moves it into the negative-path block (.bb2) — see the SBC there. The constant
+; 0 it subtracts from is likewise SUNK into .bb2 by RematerializableSinkPass (the
+; llvm-mos `machine-sink` analogue) as `LDA #$00`, right where SBC needs it,
+; rather than being materialized into a register in the entry block and kept live
+; across the branch. So on the fast (non-negative) path the entry block is just
+; `CMP #$00 ; BMI` and falls through to a bare `RTS`.
 ; Because the diamond is formed before the legalizer, the `x <s 0` compare is
 ; normalized to the optimal high-byte sign test (CMP #$00 + BMI), not an EOR bias.
-; The CMP #$00 is then dropped by MOS6502LateOptimization (the preceding LDA $02
-; already set N), leaving just LDA + BMI.
+; (CMP #$00 stays here: x is a raw live-in with no preceding flag-setting load
+; for MOS6502LateOptimization to fold into.)
 ; CHECK: select_abs8:
-; CHECK:     LDX #$00
 ; CHECK:     CMP #$00
 ; CHECK:     BMI .bb2
 ; CHECK: .bb1:
@@ -78,7 +81,7 @@ bb0(%0 : i8, %1 : i8):
 ; CHECK: .bb2:
 ; CHECK:     SEC
 ; CHECK:     STA $02
-; CHECK:     TXA
+; CHECK:     LDA #$00
 ; CHECK:     SBC $02
 ; CHECK:     RTS
 
