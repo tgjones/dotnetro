@@ -1,0 +1,167 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/pressure/many-calls
+; Four calls, with all four args needing to survive every call. Maximal
+; caller-saved pressure: forces a cluster of spills around the JSRs; watch
+; where Irie parks the live args across each call.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/pressure/many-calls.s; close gaps via irie-report.
+
+; CHECK: g:
+; CHECK:     RTS
+; CHECK:
+; CHECK: many_calls:
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
+; CHECK:     LDA $16
+; CHECK:     PHA
+; CHECK:     LDA $17
+; CHECK:     PHA
+; CHECK:     LDA $18
+; CHECK:     PHA
+; CHECK:     LDA $19
+; CHECK:     PHA
+; CHECK:     LDA $1A
+; CHECK:     PHA
+; CHECK:     LDA $1B
+; CHECK:     PHA
+; CHECK:     LDA $1C
+; CHECK:     PHA
+; CHECK:     LDA $1D
+; CHECK:     PHA
+; CHECK:     LDA $1E
+; CHECK:     PHA
+; CHECK:     LDA $1F
+; CHECK:     PHA
+; CHECK:     TYA
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDY $02
+; CHECK:     STY $16
+; CHECK:     LDY $03
+; CHECK:     STY $18
+; CHECK:     LDY $04
+; CHECK:     STY $1B
+; CHECK:     LDY $05
+; CHECK:     STY $1C
+; CHECK:     LDY $06
+; CHECK:     STY $1E
+; CHECK:     LDY $07
+; CHECK:     STY $1F
+; CHECK:     JSR g
+; CHECK:     STA $19
+; CHECK:     STX $17
+; CHECK:     LDA $16
+; CHECK:     LDX $18
+; CHECK:     JSR g
+; CHECK:     STA $03
+; CHECK:     STX $02
+; CHECK:     CLC
+; CHECK:     LDA $19
+; CHECK:     ADC $03
+; CHECK:     STA $1D
+; CHECK:     LDA $17
+; CHECK:     ADC $02
+; CHECK:     STA $1A
+; CHECK:     LDA $1B
+; CHECK:     LDX $1C
+; CHECK:     JSR g
+; CHECK:     STA $19
+; CHECK:     STX $17
+; CHECK:     LDA $1E
+; CHECK:     LDX $1F
+; CHECK:     JSR g
+; CHECK:     STA $03
+; CHECK:     STX $02
+; CHECK:     CLC
+; CHECK:     LDA $19
+; CHECK:     ADC $03
+; CHECK:     STA $03
+; CHECK:     LDA $17
+; CHECK:     ADC $02
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     LDA $1D
+; CHECK:     ADC $03
+; CHECK:     TAY
+; CHECK:     LDA $1A
+; CHECK:     ADC $02
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $14
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $15
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $16
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $18
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $1B
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $1C
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $1E
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $1F
+; CHECK:     TAX
+; CHECK:     PLA
+; CHECK:     STA $1F
+; CHECK:     PLA
+; CHECK:     STA $1E
+; CHECK:     PLA
+; CHECK:     STA $1D
+; CHECK:     PLA
+; CHECK:     STA $1C
+; CHECK:     PLA
+; CHECK:     STA $1B
+; CHECK:     PLA
+; CHECK:     STA $1A
+; CHECK:     PLA
+; CHECK:     STA $19
+; CHECK:     PLA
+; CHECK:     STA $18
+; CHECK:     PLA
+; CHECK:     STA $17
+; CHECK:     PLA
+; CHECK:     STA $16
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @g : (i16) -> i16 {
+bb0(%0 : i16):
+    core.return %0
+}
+func @many_calls : (i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16):
+    %4 : i16 = call.func @g, %0
+    %5 : i16 = call.func @g, %1
+    %6 : i16 = arith.addi %4, %5
+    %7 : i16 = call.func @g, %2
+    %8 : i16 = call.func @g, %3
+    %9 : i16 = arith.addi %7, %8
+    %10 : i16 = arith.addi %6, %9
+    %11 : i16 = arith.addi %10, %0
+    %12 : i16 = arith.addi %11, %1
+    %13 : i16 = arith.addi %12, %2
+    %14 : i16 = arith.addi %13, %3
+    core.return %14
+}
