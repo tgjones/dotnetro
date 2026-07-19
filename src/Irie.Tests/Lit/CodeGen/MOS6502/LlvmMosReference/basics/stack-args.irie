@@ -1,0 +1,119 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/basics/stack-args
+; Ten i16 args (20 bytes) overflow the 16-byte CC_MOS register budget ($a, $x,
+; $zp2..$zp15): the last two params (i, j) arrive as caller-placed stack
+; arguments, addressed directly off the live RC0/RC1 soft stack pointer
+; (MOS6502CallLowering.LowerFormalArguments / MOS6502FrameLowering
+; .LowerCallerStackArgAccess) rather than through a materialized pointer pair.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/basics/stack-args.s; close gaps via irie-report.
+
+; CHECK: stack_args:
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
+; CHECK:     LDA $16
+; CHECK:     PHA
+; CHECK:     TYA
+; CHECK:     STA $10
+; CHECK:     LDY #$00
+; CHECK:     LDA ($00),Y
+; CHECK:     STA $11
+; CHECK:     LDY #$01
+; CHECK:     LDA ($00),Y
+; CHECK:     STA $14
+; CHECK:     LDY #$02
+; CHECK:     LDA ($00),Y
+; CHECK:     STA $16
+; CHECK:     LDY #$03
+; CHECK:     LDA ($00),Y
+; CHECK:     STA $15
+; CHECK:     CLC
+; CHECK:     LDA $10
+; CHECK:     ADC $02
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $03
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $04
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $05
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $06
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $07
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $08
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $09
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $0A
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $0B
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $0C
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $0D
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $0E
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $0F
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $11
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $14
+; CHECK:     TAX
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $16
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $15
+; CHECK:     TAX
+; CHECK:     PLA
+; CHECK:     STA $16
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @stack_args : (i16, i16, i16, i16, i16, i16, i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16, %4 : i16, %5 : i16, %6 : i16, %7 : i16, %8 : i16, %9 : i16):
+    %10 : i16 = arith.addi %0, %1
+    %11 : i16 = arith.addi %10, %2
+    %12 : i16 = arith.addi %11, %3
+    %13 : i16 = arith.addi %12, %4
+    %14 : i16 = arith.addi %13, %5
+    %15 : i16 = arith.addi %14, %6
+    %16 : i16 = arith.addi %15, %7
+    %17 : i16 = arith.addi %16, %8
+    %18 : i16 = arith.addi %17, %9
+    core.return %18
+}

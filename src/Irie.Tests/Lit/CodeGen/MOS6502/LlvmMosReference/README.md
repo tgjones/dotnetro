@@ -47,7 +47,7 @@ Irie limitation, then the faithful mirror compiles on its own.
 Filenames match the corpus basename (`add-i16.irie` ↔
 `ext/llvm-mos-reference/basics/add-i16.{c,s,txt}`) so `irie-report` can pair them.
 
-## Converted (17 tests)
+## Converted (19 tests)
 
 | Corpus case | Test |
 |-------------|------|
@@ -58,12 +58,14 @@ Filenames match the corpus basename (`add-i16.irie` ↔
 | basics/add-i32 | `add-i32` |
 | basics/sub-i16 | `sub-i16` |
 | basics/many-args | `many-args` |
+| basics/stack-args | `stack-args` |
 | control-flow/select (+ coalescing/redundant-copy) | `select` |
 | control-flow/early-return | `early-return` |
 | control-flow/if-else (exact abs-diff) | `if-else` |
 | control-flow/common-subexpr | `common-subexpr` |
 | control-flow/loop-counter | `loop-counter` |
 | pressure/live-across-call | `live-across-call` |
+| pressure/many-calls | `many-calls` |
 | realistic/fibonacci | `fibonacci` |
 | memory/global-rw (constant delta) | `global-rw` |
 | widths/truncate | `truncate` |
@@ -82,7 +84,6 @@ doubles as a punch-list (and `irie-report` flags each as uncovered):
 
 | Reason | Corpus cases |
 |--------|--------------|
-| **Memory-spill lowering not wired to `--emit=asm`** — when register pressure exhausts even the zero-page register file, RA falls back to a memory `pseudo.spill`/`pseudo.reload`, which survive to `PseudoExpansionPass` and throw. (RA now first tries `TrySplitToRegister` — keep the value in zp and copy it into a GPR at each constraining use, the llvm-mos greedy `tryInstructionSplit` analogue — so only *genuine* pressure reaches the memory path. The static-stack placement that lowers the memory spill pseudos is not yet on the asm path.) | pressure/many-calls *(genuine spill)* |
 | **No `arith` multiply** | basics/chain-arith, control-flow/nested-loop, pressure/pressure-high, memory/struct-pass, realistic/factorial-recursive |
 | **No divide/modulo** | realistic/gcd |
 | **No shift op** | constraints/shift-const, constraints/shift-var |
@@ -91,7 +92,7 @@ doubles as a punch-list (and `irie-report` flags each as uncovered):
 | **`cast.zext`/`cast.sext` to i32 not legalized** | widths/zero-extend, widths/sign-extend, widths/mixed-widths |
 | **`mem.load`/`mem.store` only accept `mem.symbol` addresses** (no arbitrary i16 pointers / frame slots) | memory/ptr-deref, memory/array-index, control-flow/loop-sum-array, realistic/strlen, memory/two-pointer-copy |
 | **multi-way control flow (switch)** — only a single two-way cmp+branch fusion exists | control-flow/switch |
-| **aggregate / sret ABI not modelled** | basics/stack-args, memory/struct-return, memory/struct-return-sret |
+| **aggregate / sret ABI not modelled** | memory/struct-return, memory/struct-return-sret |
 
 ### Pairing caveat
 

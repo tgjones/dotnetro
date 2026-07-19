@@ -2,7 +2,7 @@
 
 # Irie vs llvm-mos — MOS6502 codegen
 
-Irie emits **-9.9%** instructions vs llvm-mos (**310** vs **344**, ratio **0.90**) across **17/47** corpus cases.
+Irie emits **-16.8%** instructions vs llvm-mos (**536** vs **644**, ratio **0.83**) across **19/47** corpus cases.
 
 Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).
 
@@ -24,9 +24,10 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | control-flow | early-return | converted | 28 | 26 | -2 | 0.93 | 🟢 |
 | control-flow | common-subexpr | converted | 39 | 36 | -3 | 0.92 | 🟢 |
 | control-flow | if-else | converted | 36 | 32 | -4 | 0.89 | 🟢 |
+| basics | stack-args | converted | 122 | 92 | -30 | 0.75 | 🟢 |
+| pressure | many-calls | converted | 178 | 134 | -44 | 0.75 | 🟢 |
 | control-flow | loop-counter | converted | 65 | 40 | -25 | 0.62 | 🟢 |
 | basics | chain-arith | blocked | 51 | — | — | — |  |
-| basics | stack-args | blocked | 122 | — | — | — |  |
 | coalescing | commutative | blocked | 8 | — | — | — |  |
 | coalescing | copy-passthrough | blocked | 1 | — | — | — |  |
 | coalescing | redundant-copy | blocked | 12 | — | — | — |  |
@@ -44,7 +45,6 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | memory | struct-return | blocked | 14 | — | — | — |  |
 | memory | struct-return-sret | blocked | 99 | — | — | — |  |
 | memory | two-pointer-copy | blocked | 47 | — | — | — |  |
-| pressure | many-calls | blocked | 178 | — | — | — |  |
 | pressure | pressure-high | blocked | 230 | — | — | — |  |
 | pressure | pressure-i16 | blocked | 55 | — | — | — |  |
 | pressure | pressure-i64 | blocked | 392 | — | — | — |  |
@@ -175,16 +175,16 @@ Irie (51):
 
 ```asm
 fibonacci:
-    STA $07
+    STA $05
     STX $0A
     LDA #$00
-    STA $06
-    LDA #$00
-    STA $05
-    LDA #$01
     STA $09
     LDA #$00
     STA $08
+    LDA #$01
+    STA $07
+    LDA #$00
+    STA $06
     LDA #$00
     STA $04
     LDA #$00
@@ -201,19 +201,19 @@ fibonacci:
     BCC .bb3
     BNE .bb2
     LDA $04
-    CMP $07
+    CMP $05
     BCC .bb3
 .bb2:
-    LDA $06
-    LDX $05
+    LDA $09
+    LDX $08
     RTS
 .bb3:
     CLC
-    LDA $06
-    ADC $09
+    LDA $09
+    ADC $07
     TAX
-    LDA $05
-    ADC $08
+    LDA $08
+    ADC $06
     TAY
     CLC
     LDA $04
@@ -222,12 +222,12 @@ fibonacci:
     LDA $03
     ADC #$00
     STA $03
-    LDA $09
-    STA $06
-    LDA $08
-    STA $05
-    STX $09
-    STY $08
+    LDA $07
+    STA $09
+    LDA $06
+    STA $08
+    STX $07
+    STY $06
     JMP .bb1
 ```
 
@@ -1225,14 +1225,14 @@ live_across_call:
     LDA $15
     PHA
     TYA
-    STA $15
-    STX $14
+    STA $14
+    STX $15
     JSR g
     CLC
-    ADC $15
+    ADC $14
     TAY
     TXA
-    ADC $14
+    ADC $15
     TAX
     PLA
     STA $15
@@ -1686,6 +1686,667 @@ abs_diff:
 </details>
 
 <details>
+<summary>basics/stack-args — llvm-mos 122, Irie 92, ratio 0.75</summary>
+
+llvm-mos (122):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "stack-args.c"
+    .section    .text.stack_args,"ax",@progbits
+    .globl    stack_args                      ; -- Begin function stack_args
+    .type    stack_args,@function
+stack_args:                             ; @stack_args
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    __rc23
+    pha
+    lda    __rc16
+    ldy    __rc24
+    sty    .Lstack_args_sstk               ; 1-byte Folded Spill
+    ldy    __rc25
+    sty    .Lstack_args_sstk+1             ; 1-byte Folded Spill
+    ldy    #0
+    clc
+    pha
+    lda    __rc0
+    sta    __rc18
+    lda    __rc1
+    sta    __rc19
+    pla
+    pha
+    lda    __rc0
+    adc    #1
+    sta    __rc20
+    lda    __rc1
+    adc    #0
+    sta    __rc21
+    clc
+    lda    __rc0
+    adc    #2
+    sta    __rc22
+    lda    __rc1
+    adc    #0
+    sta    __rc23
+    clc
+    lda    __rc0
+    adc    #3
+    sta    __rc24
+    lda    __rc1
+    adc    #0
+    sta    __rc25
+    pla
+    clc
+    adc    __rc2
+    sta    __rc2
+    txa
+    adc    __rc3
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc4
+    sta    __rc2
+    lda    __rc3
+    adc    __rc5
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc6
+    sta    __rc2
+    lda    __rc3
+    adc    __rc7
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc8
+    sta    __rc2
+    lda    __rc3
+    adc    __rc9
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc10
+    sta    __rc2
+    lda    __rc3
+    adc    __rc11
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc12
+    sta    __rc2
+    lda    __rc3
+    adc    __rc13
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc14
+    sta    __rc2
+    lda    __rc3
+    adc    __rc15
+    sta    __rc3
+    clc
+    lda    __rc2
+    adc    (__rc18),y
+    sta    __rc2
+    lda    __rc3
+    adc    (__rc20),y
+    tax
+    lda    __rc2
+    clc
+    adc    (__rc22),y
+    sta    __rc2
+    txa
+    adc    (__rc24),y
+    tax
+    lda    __rc2
+    sta    __rc16
+    ldy    .Lstack_args_sstk+1             ; 1-byte Folded Reload
+    sty    __rc25
+    ldy    .Lstack_args_sstk               ; 1-byte Folded Reload
+    sty    __rc24
+    pla
+    sta    __rc23
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    stack_args, .Lfunc_end0-stack_args
+                                        ; -- End function
+    .type    .Lstatic_stack,@object          ; @static_stack
+    .section    .noinit..Lstatic_stack,"aw",@nobits
+.Lstatic_stack:
+    .zero    2
+    .size    .Lstatic_stack, 2
+
+.Lstack_args_sstk = .Lstatic_stack
+    .size    .Lstack_args_sstk, 2
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    .addrsig_sym .Lstatic_stack
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (92):
+
+```asm
+stack_args:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    LDA $16
+    PHA
+    TYA
+    STA $10
+    LDY #$00
+    LDA ($00),Y
+    STA $11
+    LDY #$01
+    LDA ($00),Y
+    STA $14
+    LDY #$02
+    LDA ($00),Y
+    STA $16
+    LDY #$03
+    LDA ($00),Y
+    STA $15
+    CLC
+    LDA $10
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    TAX
+    CLC
+    TYA
+    ADC $04
+    TAY
+    TXA
+    ADC $05
+    TAX
+    CLC
+    TYA
+    ADC $06
+    TAY
+    TXA
+    ADC $07
+    TAX
+    CLC
+    TYA
+    ADC $08
+    TAY
+    TXA
+    ADC $09
+    TAX
+    CLC
+    TYA
+    ADC $0A
+    TAY
+    TXA
+    ADC $0B
+    TAX
+    CLC
+    TYA
+    ADC $0C
+    TAY
+    TXA
+    ADC $0D
+    TAX
+    CLC
+    TYA
+    ADC $0E
+    TAY
+    TXA
+    ADC $0F
+    TAX
+    CLC
+    TYA
+    ADC $11
+    TAY
+    TXA
+    ADC $14
+    TAX
+    CLC
+    TYA
+    ADC $16
+    TAY
+    TXA
+    ADC $15
+    TAX
+    PLA
+    STA $16
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>pressure/many-calls — llvm-mos 178, Irie 134, ratio 0.75</summary>
+
+llvm-mos (178):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "many-calls.c"
+    .section    .text.many_calls,"ax",@progbits
+    .globl    many_calls                      ; -- Begin function many_calls
+    .type    many_calls,@function
+many_calls:                             ; @many_calls
+; %bb.0:
+    sta    __rc16
+    clc
+    lda    __rc0
+    adc    #246
+    sta    __rc0
+    lda    __rc1
+    adc    #255
+    sta    __rc1
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    __rc23
+    pha
+    lda    __rc16
+    pha
+    lda    __rc24
+    ldy    #7
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc25
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc26
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc27
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc28
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc29
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc30
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    lda    __rc31
+    dey
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    pla
+    sta    __rc24
+    stx    __rc25
+    ldy    __rc2
+    sty    __rc27
+    ldy    __rc3
+    sty    __rc20
+    ldy    __rc4
+    sty    __rc26
+    ldy    __rc5
+    sty    __rc21
+    ldy    __rc6
+    sty    __rc22
+    ldy    __rc7
+    sty    __rc23
+    jsr    g
+    ldy    #8
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    txa
+    iny
+    sta    (__rc0),y                       ; 1-byte Folded Spill
+    ldx    __rc20
+    lda    __rc27
+    jsr    g
+    sta    __rc28
+    stx    __rc29
+    ldx    __rc21
+    lda    __rc26
+    jsr    g
+    sta    __rc30
+    stx    __rc31
+    ldx    __rc23
+    lda    __rc22
+    jsr    g
+    sta    __rc2
+    stx    __rc3
+    lda    __rc27
+    clc
+    adc    __rc24
+    tax
+    lda    __rc20
+    adc    __rc25
+    sta    __rc4
+    clc
+    txa
+    adc    __rc26
+    sta    __rc5
+    lda    __rc4
+    adc    __rc21
+    sta    __rc4
+    clc
+    lda    __rc5
+    adc    __rc22
+    sta    __rc8
+    lda    __rc4
+    adc    __rc23
+    sta    __rc4
+    ldy    #8
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc5
+    clc
+    lda    __rc8
+    adc    __rc5
+    sta    __rc5
+    lda    __rc4
+    pha
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc4
+    pla
+    adc    __rc4
+    sta    __rc4
+    clc
+    lda    __rc5
+    adc    __rc28
+    sta    __rc5
+    lda    __rc4
+    adc    __rc29
+    sta    __rc4
+    clc
+    lda    __rc5
+    adc    __rc30
+    tay
+    lda    __rc4
+    adc    __rc31
+    tax
+    clc
+    tya
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    tax
+    tya
+    sta    __rc16
+    ldy    #0
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc31
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc30
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc29
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc28
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc27
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc26
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc25
+    iny
+    lda    (__rc0),y                       ; 1-byte Folded Reload
+    sta    __rc24
+    pla
+    sta    __rc23
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    clc
+    lda    __rc0
+    adc    #10
+    sta    __rc0
+    lda    __rc1
+    adc    #0
+    sta    __rc1
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    many_calls, .Lfunc_end0-many_calls
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (134):
+
+```asm
+g:
+    RTS
+
+many_calls:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    LDA $16
+    PHA
+    LDA $17
+    PHA
+    LDA $18
+    PHA
+    LDA $19
+    PHA
+    LDA $1A
+    PHA
+    LDA $1B
+    PHA
+    LDA $1C
+    PHA
+    LDA $1D
+    PHA
+    LDA $1E
+    PHA
+    LDA $1F
+    PHA
+    TYA
+    STA $14
+    STX $16
+    LDY $02
+    STY $18
+    LDY $03
+    STY $19
+    LDY $04
+    STY $1B
+    LDY $05
+    STY $1C
+    LDY $06
+    STY $1E
+    LDY $07
+    STY $1F
+    JSR g
+    STA $17
+    STX $15
+    LDA $18
+    LDX $19
+    JSR g
+    STA $03
+    STX $02
+    CLC
+    LDA $17
+    ADC $03
+    STA $1D
+    LDA $15
+    ADC $02
+    STA $1A
+    LDA $1B
+    LDX $1C
+    JSR g
+    STA $17
+    STX $15
+    LDA $1E
+    LDX $1F
+    JSR g
+    STA $03
+    STX $02
+    CLC
+    LDA $17
+    ADC $03
+    STA $03
+    LDA $15
+    ADC $02
+    STA $02
+    CLC
+    LDA $1D
+    ADC $03
+    TAY
+    LDA $1A
+    ADC $02
+    TAX
+    CLC
+    TYA
+    ADC $14
+    TAY
+    TXA
+    ADC $16
+    TAX
+    CLC
+    TYA
+    ADC $18
+    TAY
+    TXA
+    ADC $19
+    TAX
+    CLC
+    TYA
+    ADC $1B
+    TAY
+    TXA
+    ADC $1C
+    TAX
+    CLC
+    TYA
+    ADC $1E
+    TAY
+    TXA
+    ADC $1F
+    TAX
+    PLA
+    STA $1F
+    PLA
+    STA $1E
+    PLA
+    STA $1D
+    PLA
+    STA $1C
+    PLA
+    STA $1B
+    PLA
+    STA $1A
+    PLA
+    STA $19
+    PLA
+    STA $18
+    PLA
+    STA $17
+    PLA
+    STA $16
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
 <summary>control-flow/loop-counter — llvm-mos 65, Irie 40, ratio 0.62</summary>
 
 llvm-mos (65):
@@ -1973,199 +2634,6 @@ chain_arith:                            ; @chain_arith
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
     .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>basics/stack-args — llvm-mos 122, Irie —</summary>
-
-llvm-mos (122):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "stack-args.c"
-    .section    .text.stack_args,"ax",@progbits
-    .globl    stack_args                      ; -- Begin function stack_args
-    .type    stack_args,@function
-stack_args:                             ; @stack_args
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    __rc23
-    pha
-    lda    __rc16
-    ldy    __rc24
-    sty    .Lstack_args_sstk               ; 1-byte Folded Spill
-    ldy    __rc25
-    sty    .Lstack_args_sstk+1             ; 1-byte Folded Spill
-    ldy    #0
-    clc
-    pha
-    lda    __rc0
-    sta    __rc18
-    lda    __rc1
-    sta    __rc19
-    pla
-    pha
-    lda    __rc0
-    adc    #1
-    sta    __rc20
-    lda    __rc1
-    adc    #0
-    sta    __rc21
-    clc
-    lda    __rc0
-    adc    #2
-    sta    __rc22
-    lda    __rc1
-    adc    #0
-    sta    __rc23
-    clc
-    lda    __rc0
-    adc    #3
-    sta    __rc24
-    lda    __rc1
-    adc    #0
-    sta    __rc25
-    pla
-    clc
-    adc    __rc2
-    sta    __rc2
-    txa
-    adc    __rc3
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc4
-    sta    __rc2
-    lda    __rc3
-    adc    __rc5
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc6
-    sta    __rc2
-    lda    __rc3
-    adc    __rc7
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc8
-    sta    __rc2
-    lda    __rc3
-    adc    __rc9
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc10
-    sta    __rc2
-    lda    __rc3
-    adc    __rc11
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc12
-    sta    __rc2
-    lda    __rc3
-    adc    __rc13
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc14
-    sta    __rc2
-    lda    __rc3
-    adc    __rc15
-    sta    __rc3
-    clc
-    lda    __rc2
-    adc    (__rc18),y
-    sta    __rc2
-    lda    __rc3
-    adc    (__rc20),y
-    tax
-    lda    __rc2
-    clc
-    adc    (__rc22),y
-    sta    __rc2
-    txa
-    adc    (__rc24),y
-    tax
-    lda    __rc2
-    sta    __rc16
-    ldy    .Lstack_args_sstk+1             ; 1-byte Folded Reload
-    sty    __rc25
-    ldy    .Lstack_args_sstk               ; 1-byte Folded Reload
-    sty    __rc24
-    pla
-    sta    __rc23
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    stack_args, .Lfunc_end0-stack_args
-                                        ; -- End function
-    .type    .Lstatic_stack,@object          ; @static_stack
-    .section    .noinit..Lstatic_stack,"aw",@nobits
-.Lstatic_stack:
-    .zero    2
-    .size    .Lstatic_stack, 2
-
-.Lstack_args_sstk = .Lstatic_stack
-    .size    .Lstack_args_sstk, 2
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    .addrsig_sym .Lstatic_stack
     ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
     .globl    __do_init_stack
 ```
@@ -3887,246 +4355,6 @@ two_pointer_copy:                       ; @two_pointer_copy
     rts
 .Lfunc_end0:
     .size    two_pointer_copy, .Lfunc_end0-two_pointer_copy
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>pressure/many-calls — llvm-mos 178, Irie —</summary>
-
-llvm-mos (178):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "many-calls.c"
-    .section    .text.many_calls,"ax",@progbits
-    .globl    many_calls                      ; -- Begin function many_calls
-    .type    many_calls,@function
-many_calls:                             ; @many_calls
-; %bb.0:
-    sta    __rc16
-    clc
-    lda    __rc0
-    adc    #246
-    sta    __rc0
-    lda    __rc1
-    adc    #255
-    sta    __rc1
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    __rc23
-    pha
-    lda    __rc16
-    pha
-    lda    __rc24
-    ldy    #7
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc25
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc26
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc27
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc28
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc29
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc30
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    lda    __rc31
-    dey
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    pla
-    sta    __rc24
-    stx    __rc25
-    ldy    __rc2
-    sty    __rc27
-    ldy    __rc3
-    sty    __rc20
-    ldy    __rc4
-    sty    __rc26
-    ldy    __rc5
-    sty    __rc21
-    ldy    __rc6
-    sty    __rc22
-    ldy    __rc7
-    sty    __rc23
-    jsr    g
-    ldy    #8
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    txa
-    iny
-    sta    (__rc0),y                       ; 1-byte Folded Spill
-    ldx    __rc20
-    lda    __rc27
-    jsr    g
-    sta    __rc28
-    stx    __rc29
-    ldx    __rc21
-    lda    __rc26
-    jsr    g
-    sta    __rc30
-    stx    __rc31
-    ldx    __rc23
-    lda    __rc22
-    jsr    g
-    sta    __rc2
-    stx    __rc3
-    lda    __rc27
-    clc
-    adc    __rc24
-    tax
-    lda    __rc20
-    adc    __rc25
-    sta    __rc4
-    clc
-    txa
-    adc    __rc26
-    sta    __rc5
-    lda    __rc4
-    adc    __rc21
-    sta    __rc4
-    clc
-    lda    __rc5
-    adc    __rc22
-    sta    __rc8
-    lda    __rc4
-    adc    __rc23
-    sta    __rc4
-    ldy    #8
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc5
-    clc
-    lda    __rc8
-    adc    __rc5
-    sta    __rc5
-    lda    __rc4
-    pha
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc4
-    pla
-    adc    __rc4
-    sta    __rc4
-    clc
-    lda    __rc5
-    adc    __rc28
-    sta    __rc5
-    lda    __rc4
-    adc    __rc29
-    sta    __rc4
-    clc
-    lda    __rc5
-    adc    __rc30
-    tay
-    lda    __rc4
-    adc    __rc31
-    tax
-    clc
-    tya
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    tax
-    tya
-    sta    __rc16
-    ldy    #0
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc31
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc30
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc29
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc28
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc27
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc26
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc25
-    iny
-    lda    (__rc0),y                       ; 1-byte Folded Reload
-    sta    __rc24
-    pla
-    sta    __rc23
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    clc
-    lda    __rc0
-    adc    #10
-    sta    __rc0
-    lda    __rc1
-    adc    #0
-    sta    __rc1
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    many_calls, .Lfunc_end0-many_calls
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits

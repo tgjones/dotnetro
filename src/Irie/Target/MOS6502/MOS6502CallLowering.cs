@@ -1,3 +1,4 @@
+using Irie.Dialects.Pseudo;
 using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
@@ -54,7 +55,11 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         int[] originalParameters,
         MirBuilder builder)
     {
+        // regIdx walks the CC_MOS register budget (ArgRegs); once it's exhausted,
+        // remaining bytes are caller-placed stack arguments, addressed by their
+        // own sequential 0-based position (stackIdx) — see LowerStackArgByte.
         var regIdx = 0;
+        var stackIdx = 0;
         foreach (var paramVreg in originalParameters)
         {
             var annotation = function.GetVRegAnnotation(paramVreg);
@@ -63,9 +68,8 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
                     $"AbiLowering: entry-block parameter %{paramVreg} has non-typed annotation {annotation}");
 
             var byteCount = ByteCount(typed.Type);
-            EnsureRegBudget(regIdx + byteCount);
 
-            if (byteCount == 1)
+            if (byteCount == 1 && regIdx < ArgRegs.Length)
             {
                 var physReg = ArgRegs[regIdx++];
                 builder.AddLiveIn(physReg);
@@ -73,15 +77,76 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
                 continue;
             }
 
+            if (byteCount == 1)
+            {
+                var stackVreg = LowerStackArgByte(function, builder, stackIdx++);
+                builder.BuildInstruction(PseudoDialect.OpRef(PseudoOp.Copy),
+                    new VirtualReg(paramVreg, IsDefinition: true),
+                    new VirtualReg(stackVreg, IsDefinition: false));
+                continue;
+            }
+
             var byteVregs = new int[byteCount];
             for (var i = 0; i < byteCount; i++)
             {
-                var physReg = ArgRegs[regIdx++];
-                builder.AddLiveIn(physReg);
-                byteVregs[i] = builder.BuildCopyFromPhysicalRegister(physReg, IRType.I8);
+                if (regIdx < ArgRegs.Length)
+                {
+                    var physReg = ArgRegs[regIdx++];
+                    builder.AddLiveIn(physReg);
+                    byteVregs[i] = builder.BuildCopyFromPhysicalRegister(physReg, IRType.I8);
+                }
+                else
+                {
+                    byteVregs[i] = LowerStackArgByte(function, builder, stackIdx++);
+                }
             }
             builder.BuildMergeInto(paramVreg, byteVregs);
         }
+    }
+
+    // Materialize one caller-placed stack-argument byte at 0-based stack
+    // position `k` (LSB-first across the overflow portion of the parameter
+    // list) into a fresh flexible vreg. Mints a CallerStackArg FrameSlot and
+    // emits the target's already-abstract, virtual-register-based frame-access
+    // op directly — the same shape MOS6502InstructionSelector.SelectMemLoadByteAt
+    // would otherwise build for an ordinary local — so it needs no changes to
+    // that dispatch logic and flows through LegalizerPass/InstructionSelectorPass
+    // untouched, the same way LowerCall's mos6502.jsr.abs already does.
+    private static int LowerStackArgByte(MirFunction function, MirBuilder builder, int k)
+    {
+        var slot = new FrameSlot(function.FrameSlots.Count, IRType.I8, $"{function.Name}_stackarg{k}")
+        {
+            StackId = MOS6502FrameStackIds.CallerStackArg,
+            Offset = k,
+        };
+        function.FrameSlots.Add(slot);
+
+        var valueVreg = function.CreateVirtualRegisterInClass(
+            MOS6502RegisterClass.Ac, MOS6502RegisterClass.GetName(MOS6502RegisterClass.Ac)!);
+        builder.BuildInstruction(
+            MOS6502Dialect.OpRef(MOS6502Op.FrameLoadByte),
+            new VirtualReg(valueVreg, IsDefinition: true),
+            new Symbol(slot.SymbolName),
+            new Immediate(0),
+            new PhysicalReg(MOS6502Registers.Y, IsDefinition: true, IsImplicit: true));
+
+        // Funnel out of $a into a fresh, ORDINARY typed vreg — deliberately not
+        // a classed one (unlike MOS6502InstructionSelector.SelectMemLoadByteAt's
+        // otherwise-identical Anyi8 funnel-out): this result feeds
+        // BuildMergeInto below, and LegalizationArtifactCombiner.TryCombineUnmerge
+        // only folds unmerge(merge(...)) when every merge source is a plain
+        // TypedVReg (its type-equality check reads AnnotationType, which returns
+        // null for a ClassedVReg). A classed source silently blocks the fold,
+        // leaving a wide i16 vreg alive all the way to RA. Matching the shape
+        // the register-sourced path already produces (also a plain TypedVReg)
+        // keeps stack-sourced and register-sourced bytes interchangeable here.
+        var resultVreg = function.CreateVirtualRegister(IRType.I8);
+        builder.BuildInstruction(
+            PseudoDialect.OpRef(PseudoOp.Copy),
+            new VirtualReg(resultVreg, IsDefinition: true),
+            new VirtualReg(valueVreg, IsDefinition: false));
+
+        return resultVreg;
     }
 
     public override void LowerReturn(

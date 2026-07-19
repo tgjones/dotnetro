@@ -285,6 +285,16 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         if (queryOperand == null) return;
 
         var annotation = function.GetVRegAnnotation(queryOperand.Id);
+        // An already-classed def vreg means this instruction was already
+        // target-selected before the legalizer ran (e.g. a stack-argument
+        // mos6502.frame.load.byte built directly by MOS6502CallLowering during
+        // AbiLoweringPass, ahead of InstructionSelectorPass). Ordinarily only
+        // ops with no vreg operands at all (like mos6502.jsr.abs) survive to the
+        // legalizer pre-selected; this one carries a vreg specifically so RA can
+        // still place its result normally. Nothing left to legalize — skip it,
+        // the same way an already-selected op with no vreg operands is skipped
+        // above via queryOperand == null.
+        if (annotation is ClassedVReg) return;
         if (annotation is not TypedVReg typed)
             throw new InvalidOperationException(
                 $"Legalizer: vreg %{queryOperand.Id} has non-typed annotation {annotation}");

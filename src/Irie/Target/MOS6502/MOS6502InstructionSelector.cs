@@ -1068,15 +1068,20 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // address get pinned to these adjacent zero-page slots so LDA/STA ($zp),Y
     // can use them without an RA-aware register-pair model.
     //
-    // Pinned to RC0/RC1 because those are reserved (excluded from the Imag8
+    // Pinned to RC18/RC19 because those are reserved (excluded from the Imag8
     // allocatable pool in MOS6502RegisterInfo). If we used in-pool slots the
     // RA would freely reuse them as spill destinations between consecutive
     // mem ops on the same global, clobbering the pointer mid-sequence. RC0/RC1
-    // are nominally the soft-stack pointer per CC_MOS, but no current pass
-    // touches them; when frame slots / spilling land in step 11+, either pick
-    // a different scratch pair or move the soft stack pointer.
-    private const int PointerZpLo = 12; // MOS6502Registers.RC(0)
-    private const int PointerZpHi = 13; // MOS6502Registers.RC(1)
+    // are excluded from this role (unlike the original design) because they are
+    // now the live CC_MOS soft stack pointer: MOS6502CallLowering addresses
+    // caller-placed stack arguments through them (LowerCallerStackArgAccess),
+    // so they must survive across ordinary mem accesses. RC18/RC19 — the top of
+    // the caller-saved range, not RC20..RC31 — is deliberate: reserving out of
+    // the callee-saved end instead would have shrunk that pool from 12 to 10
+    // registers, which regressed the pressure/many-calls corpus case into an
+    // unimplemented spill crash (see MOS6502RegisterInfo.Imag8Regs).
+    private const int PointerZpLo = 30; // MOS6502Registers.RC(18)
+    private const int PointerZpHi = 31; // MOS6502Registers.RC(19)
 
     // mem.load.byte_at %p, <offset> → lda.indy through a zero-page pointer pair.
     // Only handles the case where %p is defined by `mem.symbol @name`; other

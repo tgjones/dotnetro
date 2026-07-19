@@ -240,8 +240,9 @@ public sealed class MOS6502ParallelCopyPass : MirFunctionPass
     // Hands out distinct scratch zero-page slots, avoiding: every register that
     // appears in the run, every register live out of the run (still needed by a
     // later instruction or a successor block), and the reserved slots (RC0/RC1
-    // soft-stack, RC30/RC31 indirect-call target pointer). Each slot is handed out
-    // at most once per run so concurrently-live saved values never collide.
+    // soft-stack, RC18/RC19 indirect-Y pointer scratch, RC30/RC31 indirect-call
+    // target pointer). Each slot is handed out at most once per run so
+    // concurrently-live saved values never collide.
     private sealed class ScratchAllocator
     {
         private readonly HashSet<int> _used = [];
@@ -253,6 +254,8 @@ public sealed class MOS6502ParallelCopyPass : MirFunctionPass
             foreach (var r in liveOut) _used.Add(r);
             _used.Add(MOS6502Registers.RC(0));
             _used.Add(MOS6502Registers.RC(1));
+            _used.Add(MOS6502Registers.RC(18));
+            _used.Add(MOS6502Registers.RC(19));
             _used.Add(MOS6502Registers.RC(30));
             _used.Add(MOS6502Registers.RC(31));
         }

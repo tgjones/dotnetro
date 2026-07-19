@@ -357,21 +357,28 @@ public sealed class MOS6502Dialect : Dialect
     // reserve them. No tied operands.
     //
     // The load defines its value in $a (Ac) — where lda.indy / lda.zp lands it —
-    // and clobbers $y plus the $rc0/$rc1 pointer pair (the indirect-Y path).
+    // and clobbers $y plus the $rc18/$rc19 pointer pair (the indirect-Y path).
     //
     // The store's value is a use in $a (Ac), PRESERVED through the expansion: the
-    // absolute path builds the $rc0/$rc1 pointer pair via $x (ldx/stx, not
+    // absolute path builds the $rc18/$rc19 pointer pair via $x (ldx/stx, not
     // lda/sta) precisely so the value byte already sitting in $a survives until
-    // the sta.indy. The store therefore clobbers $x, $y, $rc0, $rc1 — but NOT $a
-    // (it is a preserved use, not a clobber).
+    // the sta.indy. The store therefore clobbers $x, $y, $rc18, $rc19 — but NOT
+    // $a (it is a preserved use, not a clobber).
+    //
+    // A CallerStackArg-flavored frame.load.byte (stack-argument access, built
+    // directly by MOS6502CallLowering pre-legalization) is narrower than this:
+    // it only ever clobbers $y, since MOS6502FrameLowering.LowerCallerStackArgAccess
+    // reads the live RC0/RC1 soft stack pointer rather than rebuilding a pointer
+    // into it. That instance declares its own (smaller) explicit implicit-def
+    // list rather than this shared per-opcode default.
     //
     //   %v : ac = frame.load.byte  @slot, #off   (def[0]=value)
     //             frame.store.byte  @slot, #off, %v : ac
     private static readonly DialectInstructionInfo FrameLoadByteInfo = new(
-        ImplicitDefs: [MOS6502Registers.Y, MOS6502Registers.RC(0), MOS6502Registers.RC(1)]);
+        ImplicitDefs: [MOS6502Registers.Y, MOS6502Registers.RC(18), MOS6502Registers.RC(19)]);
 
     private static readonly DialectInstructionInfo FrameStoreByteInfo = new(
-        ImplicitDefs: [MOS6502Registers.X, MOS6502Registers.Y, MOS6502Registers.RC(0), MOS6502Registers.RC(1)]);
+        ImplicitDefs: [MOS6502Registers.X, MOS6502Registers.Y, MOS6502Registers.RC(18), MOS6502Registers.RC(19)]);
 
     // The `mos6502.adc` addressing-mode variants (`adc.zp`, `adc.imm`,
     // `adc.abs`). 2 defs + 3 uses; use[0] is tied to def[0]. All addressing

@@ -101,12 +101,21 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
 
     // --- Frame-access lowering (the eliminateFrameIndex analogue) ------------
     //
-    // The indirect-Y scratch the absolute path uses: the $rc0/$rc1 zero-page
-    // pointer pair (matching MOS6502InstructionSelector's PointerZpLo/Hi) plus
-    // $y for the indexed offset. These are the physregs the abstract frame op
-    // declares clobbered, so they are free here without scavenging.
-    private static readonly int PointerZpLo = MOS6502Registers.RC(0); // physreg 12 → $00
-    private static readonly int PointerZpHi = MOS6502Registers.RC(1); // physreg 13 → $01
+    // The indirect-Y scratch the absolute path uses: a zero-page pointer pair
+    // (matching MOS6502InstructionSelector's PointerZpLo/Hi) plus $y for the
+    // indexed offset. These are the physregs the abstract frame op declares
+    // clobbered, so they are free here without scavenging.
+    //
+    // Pinned to RC18/RC19 (not RC0/RC1): RC0/RC1 are the CC_MOS soft stack
+    // pointer and must stay live across ordinary code so LowerCallerStackArgAccess
+    // can address caller-placed stack arguments through them. RC18/RC19 sit at
+    // the top of the caller-saved range and are excluded from both
+    // MOS6502RegisterInfo's allocatable Imag8 pool and its callee-saved set — see
+    // that file for why the callee-saved end (RC20..RC31, which would otherwise
+    // look like a natural home next to the indirect-call trampoline's RC30/RC31
+    // CallTargetLo/Hi) was rejected: it regressed the many-calls corpus case.
+    private static readonly int PointerZpLo = MOS6502Registers.RC(18); // physreg 30 → $12
+    private static readonly int PointerZpHi = MOS6502Registers.RC(19); // physreg 31 → $13
 
     public override bool IsFrameAccess(MirInstruction instr)
         => instr.Opcode.Dialect == MOS6502Dialect.Id
@@ -114,12 +123,16 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
 
     // Expand one mos6502.frame.{load,store}.byte into the concrete sequence that
     // addresses the slot, chosen from the slot's StackId (the eliminateFrameIndex
-    // analogue). Two placements:
-    //   ZeroPage  — a direct lda.zp/sta.zp against the slot's promoted absolute
-    //               zero-page address (slot.Offset + byteOffset). No pointer pair,
-    //               no $y, no indirect-Y.
-    //   default   — the absolute global + indirect-Y path: build the $rc0/$rc1
-    //               pointer pair and set $y to the offset, then LDA/STA ($rc0),Y.
+    // analogue). Three placements:
+    //   ZeroPage       — a direct lda.zp/sta.zp against the slot's promoted
+    //                    absolute zero-page address (slot.Offset + byteOffset).
+    //                    No pointer pair, no $y, no indirect-Y.
+    //   CallerStackArg — a caller-placed stack argument, addressed directly off
+    //                    the live RC0/RC1 soft stack pointer (no pointer pair to
+    //                    build — see LowerCallerStackArgAccess).
+    //   default        — the absolute global + indirect-Y path: build the
+    //                    PointerZpLo/Hi pointer pair and set $y to the offset,
+    //                    then LDA/STA (PointerZpLo),Y.
     public override void LowerFrameAccess(
         MirFunction function, MirInstruction instr, MirBuilder builder)
     {
@@ -131,6 +144,8 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
 
         if (slot.StackId == MOS6502FrameStackIds.ZeroPage)
             LowerZeroPageAccess(builder, op, slot, offset, valueReg);
+        else if (slot.StackId == MOS6502FrameStackIds.CallerStackArg)
+            LowerCallerStackArgAccess(builder, op, slot, offset, valueReg);
         else
             LowerAbsoluteAccess(builder, op, symbol, offset, valueReg);
 
@@ -197,6 +212,35 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             new PhysicalReg(PointerZpLo, IsDefinition: false),
             new PhysicalReg(MOS6502Registers.A, IsDefinition: false),
             new PhysicalReg(PointerZpHi, IsDefinition: false, IsImplicit: true),
+            new PhysicalReg(MOS6502Registers.Y, IsDefinition: false, IsImplicit: true));
+    }
+
+    // Caller-placed stack argument access. Unlike LowerAbsoluteAccess, no
+    // pointer needs building at all: RC0/RC1 already *is* the right pointer —
+    // the live CC_MOS soft stack pointer the caller set up before the call —
+    // so this only sets $y to the slot's offset and addresses off RC0/RC1
+    // directly. Reads RC0/RC1 as USES, never as defs: this access must not
+    // disturb the live SP.
+    private static void LowerCallerStackArgAccess(
+        MirBuilder builder, MOS6502Op op, FrameSlot slot, long offset, int valueReg)
+    {
+        EmitLoadY(builder, slot.Offset + offset);
+        if (op == MOS6502Op.FrameLoadByte)
+        {
+            builder.BuildInstruction(
+                MOS6502Dialect.OpRef(MOS6502Op.LdaIndY),
+                new PhysicalReg(valueReg, IsDefinition: true),
+                new PhysicalReg(MOS6502Registers.RC(0), IsDefinition: false),
+                new PhysicalReg(MOS6502Registers.RC(1), IsDefinition: false, IsImplicit: true),
+                new PhysicalReg(MOS6502Registers.Y, IsDefinition: false, IsImplicit: true));
+            return;
+        }
+
+        builder.BuildInstruction(
+            MOS6502Dialect.OpRef(MOS6502Op.StaIndY),
+            new PhysicalReg(MOS6502Registers.RC(0), IsDefinition: false),
+            new PhysicalReg(valueReg, IsDefinition: false),
+            new PhysicalReg(MOS6502Registers.RC(1), IsDefinition: false, IsImplicit: true),
             new PhysicalReg(MOS6502Registers.Y, IsDefinition: false, IsImplicit: true));
     }
 

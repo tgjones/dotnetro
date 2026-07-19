@@ -8,10 +8,27 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     private static readonly int[] XcRegs    = [MOS6502Registers.X];
     private static readonly int[] YcRegs    = [MOS6502Registers.Y];
     private static readonly int[] CcRegs    = [MOS6502Registers.C];
-    // RC0/RC1 reserved as soft stack pointer per CC_MOS; allocatable range is RC2..RC31.
-    private static readonly int[] Imag8Regs = Enumerable.Range(2, 30)
-        .Select(MOS6502Registers.RC)
-        .ToArray();
+    // RC0/RC1 reserved as the soft stack pointer per CC_MOS; RC18/RC19 reserved as
+    // momentary pointer scratch (MOS6502FrameLowering/MOS6502InstructionSelector's
+    // PointerZpLo/Hi). Both pairs are excluded from the allocatable range, not
+    // just from RA's normal preference order: unlike an ordinary Imag8 register,
+    // these are written and read back within a single, tightly-sequenced
+    // expansion with no vreg standing in for the value in between, so RA must
+    // never be free to plant an unrelated live value there in the gap.
+    //
+    // RC18/RC19 — the top of the CALLER-saved range (RC2..RC19), not RC20..RC31
+    // — is a deliberate choice, not an arbitrary one: excluding a register from
+    // Imag8Regs also excludes it from CalleeSavedRegs below (CalleeSavedRegs is
+    // Imag8Regs' RC20.. tail), and a register excluded from CalleeSavedRegs no
+    // longer gets PEI's save/restore treatment. Reserving out of RC20..RC31
+    // instead would shrink the callee-saved pool from 12 to 10 registers,
+    // starving cross-call register pressure — this regressed the pressure/many-
+    // calls corpus case into an unimplemented pseudo.spill crash when tried.
+    // Reserving out of the caller-saved end costs only caller-saved capacity,
+    // which no current corpus case is anywhere near exhausting.
+    private static readonly int[] Imag8Regs =
+        [.. Enumerable.Range(2, 16).Select(MOS6502Registers.RC),
+         .. Enumerable.Range(20, 12).Select(MOS6502Registers.RC)];
     // Anyi8: any 8-bit register (A, X, Y, or Imag8). Used for values that can be
     // stored in any 8-bit location but aren't constrained to a specific
     // architectural register.
@@ -131,8 +148,9 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
 
     // The CC_MOS callee-saved registers: RC20..RC31 (zero page $14..$1F), the
     // cross-call register pool — the complement of the caller-saved RC2..RC19
-    // scratch range. Matches MOS_CSR in llvm-mos. A clobbering callee saves and
-    // restores these in its prologue/epilogue.
+    // scratch range (RC18/RC19 excepted — reserved pointer scratch, see
+    // Imag8Regs above). Matches MOS_CSR in llvm-mos. A clobbering callee saves
+    // and restores these in its prologue/epilogue.
     public override ReadOnlySpan<int> GetCalleeSavedRegisters() => CalleeSavedRegs;
 
     private static readonly int[] CalleeSavedRegs = Enumerable.Range(20, 12)

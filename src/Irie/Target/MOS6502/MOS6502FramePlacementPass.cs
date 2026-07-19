@@ -77,6 +77,15 @@ public sealed class MOS6502FramePlacementPass : Pass
             var within = 0;
             foreach (var slot in function.FrameSlots)
             {
+                // A CallerStackArg slot isn't this function's own storage — it's a
+                // read into the *caller's* dynamically-positioned stack-argument
+                // space (see MOS6502CallLowering.LowerFormalArguments). Promoting
+                // it here would double-book zero-page window space against
+                // unrelated live data; mirrors how llvm-mos's MOSZeroPageAlloc
+                // structurally excludes fixed (negative-index) stack-argument
+                // objects from its candidate scan.
+                if (slot.StackId != FrameSlot.DefaultStackId) continue;
+
                 slot.StackId = MOS6502FrameStackIds.ZeroPage;
                 slot.Offset = WindowStart + baseOf + within;
                 if (globalsByName.TryGetValue(slot.SymbolName, out var global))
@@ -86,12 +95,16 @@ public sealed class MOS6502FramePlacementPass : Pass
         }
     }
 
-    // size(f) = total bytes of f's frame slots.
+    // size(f) = total bytes of f's frame slots eligible for zero-page placement.
+    // A CallerStackArg slot is excluded — see the skip in the colouring loop above.
     private static int FrameSize(MirFunction function)
     {
         var size = 0;
         foreach (var slot in function.FrameSlots)
+        {
+            if (slot.StackId != FrameSlot.DefaultStackId) continue;
             size += slot.Type.SizeInBits / 8;
+        }
         return size;
     }
 }
