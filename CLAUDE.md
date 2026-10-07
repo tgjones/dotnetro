@@ -55,7 +55,7 @@ CI runs `dotnet test --solution src` in both Debug and Release configurations.
     → Target.PackageImage  (BBC Micro: single-file DFS .ssd)
 ```
 
-`CompilerDriver.Compile` (`DotNetro.Compiler`) wires this together for `dnrc`; `Irie.Tools.Compiler` (`iriec`) builds a similar pipeline for MIR text input. **The two pass lists are maintained by hand and have drifted** (e.g. `iriec` runs `OperandLegalizationPass`, `RematerializableSinkPass` and `CopyPropagationPass`; `dnrc` does not), so a pass change can affect lit goldens (`iriec`) and emulator-executed programs (`dnrc`) differently — check both.
+`CompilerDriver.Compile` (`DotNetro.Compiler`) wires this together for `dnrc`; `Irie.Tools.Compiler` (`iriec`) handles MIR text input. **Both build their pass list from the single `PipelineBuilder.AddStandardPipeline` (`Irie/Passes/PipelineBuilder.cs`)**, so add or reorder passes there — lit goldens and emulator-executed programs exercise the same passes.
 
 ### Key Projects
 
