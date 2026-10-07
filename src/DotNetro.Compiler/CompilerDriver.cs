@@ -58,7 +58,7 @@ public static class CompilerDriver
         target.AddPostPseudoExpansionPasses(passMgr);
         // Final pass: fill the copy-scratch vregs PseudoExpansion mints (e.g. for
         // immediate→zp moves) with GPRs dead at each point, then lower them. Must
-        // run last so no vregs survive into machine-code emission (plan §3.6).
+        // run last so no vregs survive into machine-code emission.
         passMgr.AddPass(new RegisterScavengingPass(target.RegisterInfo, target.PseudoExpander));
         // Target final passes run after scavenging — the llvm-mos block-placement
         // slot. Block-placement drops fall-through jmps (making CFG edges

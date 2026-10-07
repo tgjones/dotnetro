@@ -1,6 +1,6 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
-; Step 16 (plan §6 G5): brfalse lowers to `arith.cmpi <eq>, %x, <0>` + cf.cond_br.
+; Step 16: brfalse lowers to `arith.cmpi <eq>, %x, <0>` + cf.cond_br.
 ; Verify the eq-against-constant-0 path end-to-end at i8, i16, and i32. The
 ; constant 0 operand is folded directly into an immediate compare
 ; (`CMP #$00`) — one per operand byte — by MOS6502InstructionSelector, so no

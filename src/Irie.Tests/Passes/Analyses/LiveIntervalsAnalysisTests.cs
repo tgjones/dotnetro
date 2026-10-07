@@ -8,7 +8,6 @@ using Irie.Target.MOS6502;
 namespace Irie.Tests.Passes.Analyses;
 
 // Phase-1 tests for the new physreg-aware LiveIntervals analysis (with holes).
-// See notes/register-allocator-redesign-plan.md §3.1 / §7 "Phase 1".
 //
 // Sub-slot numbering reminder (LiveIntervals header): each instruction owns two
 // points — UseSlot = 2*index (operands read here) and DefSlot = 2*index+1

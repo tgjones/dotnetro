@@ -1,6 +1,6 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
-; Step 15 (plan §6 step 3b): multi-byte arith.cmpi + cf.cond_br fusion for
+; Step 15: multi-byte arith.cmpi + cf.cond_br fusion for
 ; i32 operands. The MOS6502 instruction selector widens the cmpi+cond_br
 ; into a chain of per-byte CMPs (high-to-low) interleaved with BCC/BNE
 ; exits whose targets are determined by the predicate. The unmerged byte

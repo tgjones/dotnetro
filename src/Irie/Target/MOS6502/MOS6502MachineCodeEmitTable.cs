@@ -1,7 +1,7 @@
 namespace Irie.Target.MOS6502;
 
 // How a single MIR operand position translates into a MachineCode operand
-// byte (or no operand at all). See notes/mir-to-machinecode-plan.md §2.2.
+// byte (or no operand at all).
 public enum EmitOperandKind
 {
     // No operand byte. The instruction encodes as a single opcode byte; any
@@ -44,9 +44,6 @@ public sealed record EmitRule(
 // instruction selector + addressing-mode selector + pseudo expander can
 // actually produce. Get(op) throws for any opcode not yet covered — that
 // failure is the signal that the table needs growing when isel grows.
-//
-// See notes/mir-to-machinecode-plan.md §2.2 for the operand-index reasoning
-// behind each entry.
 public static class MOS6502MachineCodeEmitTable
 {
     private static readonly Dictionary<MOS6502Op, EmitRule> Table = new()
@@ -229,5 +226,5 @@ public static class MOS6502MachineCodeEmitTable
         : throw new KeyNotFoundException(
             $"MOS6502MachineCodeEmitTable: no emit rule for {op}. " +
             "If instruction selection or addressing-mode selection now produces this opcode, " +
-            "add a rule here (see notes/mir-to-machinecode-plan.md §2.2 and §7).");
+            "add a rule here.");
 }

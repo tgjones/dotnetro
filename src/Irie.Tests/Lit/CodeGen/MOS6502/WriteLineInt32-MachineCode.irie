@@ -4,7 +4,7 @@
 ; followed by CR. Hand-written, fully-lowered MOS6502 MIR (the generic i32
 ; magnitude loop overruns the spill-free register allocator). Ported from
 ; BbcMicroCodeGenerator.CompileSystemConsoleWriteLineInt32. The i32 argument
-; arrives LSB-first in $a, $x, $zp2, $zp3 per CC_MOS. Plan §6 step 6.
+; arrives LSB-first in $a, $x, $zp2, $zp3 per CC_MOS.
 ;
 ; We spot-check the structural landmarks: the value bytes copied into working
 ; zero-page, the sign test (the redundant `CMP #$00` after `LDA $07` is dropped

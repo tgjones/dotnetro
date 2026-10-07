@@ -2,7 +2,7 @@ namespace Irie.Mir.Binary;
 
 internal static class MirBinaryFormat
 {
-    // ASCII "IRI3" — chosen per the unified-IR plan; the trailing digit is the
+    // ASCII "IRI3": the trailing digit is the
     // major format generation, not a version.
     internal static readonly byte[] Magic = [(byte)'I', (byte)'R', (byte)'I', (byte)'3'];
 

@@ -6,7 +6,7 @@ namespace Irie.Passes;
 // Walks each function's instructions in order, asking the target's selector
 // to lower each one. Mirrors the old Irie.CodeGen.Passes.InstructionSelectorPass.
 //
-// Per the unified-IR plan, selection commits each vreg to a register class:
+// Selection commits each vreg to a register class:
 // new defs are created via CreateVirtualRegisterInClass and existing vreg uses
 // are converted from TypedVReg to ClassedVReg via ReclassifyVirtualRegister.
 public sealed class InstructionSelectorPass(Irie.Target.InstructionSelector selector) : MirFunctionPass

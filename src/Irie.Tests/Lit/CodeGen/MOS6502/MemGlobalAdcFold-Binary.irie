@@ -3,8 +3,7 @@
 
 ; A single-use absolute load feeding an add folds into the ALU's memory operand:
 ; `x + g` reads the global directly with `ADC g` / `ADC g+1` (no separate LDA),
-; mirroring llvm-mos m_FoldedLdAbs. (Stage B of
-; notes/mos6502-absolute-addressing-plan.md.) The load is operand `b` here, so
+; mirroring llvm-mos m_FoldedLdAbs. The load is operand `b` here, so
 ; this exercises the direct (non-commuted) fold path; global-rw exercises the
 ; commuted path where the load is operand `a`.
 

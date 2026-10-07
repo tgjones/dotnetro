@@ -26,10 +26,6 @@
 ; The `pseudo.return` is lowered to `mos6502.rts` with implicit-uses of every
 ; physreg defined by a preceding `pseudo.copy` in the same block (i.e. the
 ; return physregs ABI lowering populated).
-;
-; Physreg names are still uppercase here — the lowercase rename is deferred to
-; step 17 of notes/unified-ir-plan.md. The v2 engine lit tests use the `-v2`
-; suffix until the old engine is retired.
 
 ; CHECK: func @TestFunction : (i32, i32) -> i32 {
 ; CHECK: bb0():

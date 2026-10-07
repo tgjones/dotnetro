@@ -123,7 +123,7 @@ rootCommand.SetAction(parseResult =>
         // conservative coalescer + (not-yet-lowered) store/reload spill cannot absorb
         // the extra register pressure aggressive pre-coalescing creates. So this runs
         // only when explicitly enabled, alongside the greedy path. Remove the gate
-        // when the colourer is retired (greedy-RA plan endgame).
+        // when the colourer is retired.
         if (Environment.GetEnvironmentVariable("IRIE_COALESCE") == "1")
             passMgr.AddPass(new RegisterCoalescerPass(target.RegisterInfo));
         // Select the greedy allocator (llvm-mos RegAllocGreedy port) with IRIE_GREEDY=1;
@@ -159,7 +159,7 @@ rootCommand.SetAction(parseResult =>
     // Register scavenging runs LAST: PseudoExpansion mints copy-scratch vregs
     // (e.g. for immediate→zp moves), and this pass assigns each the cheapest GPR
     // dead at that point and drives the final lowering, leaving no vregs behind
-    // (plan §3.6, llvm-mos order: RA → pseudo expansion → scavenging).
+    // (llvm-mos order: RA → pseudo expansion → scavenging).
     passMgr.AddPass(new RegisterScavengingPass(target.RegisterInfo, target.PseudoExpander));
     // Target final passes run after scavenging — the llvm-mos block-placement
     // slot. Block-placement drops fall-through jmps (making CFG edges implicit),

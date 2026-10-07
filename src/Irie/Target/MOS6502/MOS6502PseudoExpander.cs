@@ -11,10 +11,10 @@ namespace Irie.Target.MOS6502;
 //
 // Direct moves cover the common cases (transfer instructions for A↔X/Y, load/
 // store-zp for A/X/Y ↔ RC, immediate loads for A/X/Y). Pairs the 6502 can't do
-// in one instruction ("impossible pairs" in unified-IR plan §5.6) go through a
+// in one instruction ("impossible pairs") go through a
 // scratch register.
 //
-// Copy scratch (plan §3.6): a copy that needs a temporary register/slot to
+// Copy scratch: a copy that needs a temporary register/slot to
 // lower is NOT lowered eagerly through a hardcoded $a. Instead it is re-emitted
 // as a 3-operand "scratch form" `pseudo.copy %dst, %src, %scratch` whose third
 // operand is a FRESH virtual register. The post-RA RegisterScavengingPass then

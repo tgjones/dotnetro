@@ -9,7 +9,7 @@ namespace Irie.Passes;
 // at slot-creation time, conventionally `<func>_local<i>`).
 //
 // Runs before the legalizer so the rest of the pipeline only ever sees
-// mem.symbol — plan §4.5 allows positioning anywhere between PhiElimination
+// mem.symbol — it may be positioned anywhere between PhiElimination
 // and ISel, but running early simplifies the pipeline by collapsing the
 // frame-addr concept before legalization / instruction selection look at
 // the IR.

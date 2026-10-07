@@ -21,8 +21,7 @@ public abstract class Target
 
     // Allocatable-register / class metadata for the unified-MIR register
     // allocator. The same TargetRegisterInfo type used by the legacy CodeGen
-    // pipeline (per unified-IR plan §9: "TargetRegisterInfo.cs → kept under
-    // Target/").
+    // pipeline.
     public abstract TargetRegisterInfo RegisterInfo { get; }
 
     // Display name for a physical-register ID. Used by MirWriter to print

@@ -5,8 +5,7 @@ namespace Irie.Tests.Target.MOS6502;
 public sealed class MOS6502MachineCodeEmitTableTests
 {
     // The seven entries the current pipeline actually produces, with the
-    // opcode byte and operand interpretation each MIR op lowers to. Mirrors
-    // the table in notes/mir-to-machinecode-plan.md §2.2.
+    // opcode byte and operand interpretation each MIR op lowers to.
     // expectedOperandIndex == -1 stands in for null; attribute arguments
     // can't carry a Nullable<int> directly.
     [Test]

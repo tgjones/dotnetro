@@ -33,7 +33,7 @@ namespace Irie.Passes;
 // result into the flexible class (`Anyi8` ⊇ `Imag8`), no use is class-disjoint
 // and this pass inserts ZERO copies on every existing function. It is wired in
 // unconditionally precisely because it is provably a no-op until those funnels
-// are removed (greedy-RA plan Stage 4b).
+// are removed.
 public sealed class OperandLegalizationPass : MirFunctionPass
 {
     private readonly TargetRegisterInfo _registerInfo;

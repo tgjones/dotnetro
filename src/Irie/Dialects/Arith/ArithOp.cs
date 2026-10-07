@@ -8,8 +8,7 @@ public enum ArithOp : ushort
     // %r = arith.subi %a, %b
     SubI,
 
-    // %cond = arith.cmpi <pred>, %a, %b   (predicate encoding TBD — see
-    // notes/unified-ir-plan.md open questions #1)
+    // %cond = arith.cmpi <pred>, %a, %b   (predicate is an ArithCmpPredicate)
     CmpI,
 
     // %r, %cout = arith.addi_with_carry %a, %b, %cin

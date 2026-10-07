@@ -37,15 +37,15 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     // (tie-break) preference order. It is deliberately zp-pool-FIRST: that is the
     // right default for a LONG-lived value, which should sit in the abundant
     // zero-page file and leave the three scarce architectural registers ($a/$x/$y)
-    // free for the arithmetic chain (plan §2 lever #4, §3.5). The allocator's
+    // free for the arithmetic chain. The allocator's
     // cost-driven colour selection (GraphColouringAllocator.ColourPreferenceOrder)
     // overrides this order for SHORT-lived values, promoting $y/$x ahead of the zp
     // pool so a brief cross-instruction value lands in a real register the way the
     // llvm-mos references do (e.g. add-i16 parks its low result byte in $y).
     //
-    // $y was added in register-allocator-redesign Phase 5 to close the "$y gap".
+    // $y was added to close the "$y gap".
     // It competes with indexed addressing as the index register, but `mem.*`
-    // indexed forms do not exist yet (plan §8); when they do, the instruction
+    // indexed forms do not exist yet; when they do, the instruction
     // selector's explicit `$y` operands already become fixed LiveIntervals
     // segments that interfere with any data vreg parked in $y, so data use of $y
     // cannot collide with an index need. $y is ordered LAST among the real
@@ -94,7 +94,7 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     // copy emitted while $a holds a live parameter byte gets $x or $y instead —
     // no eviction, where the old RA scratch-clobber model forced $a free. See
     // MOS6502PseudoExpander (the only producer of scratch-needing copies today)
-    // and RegisterScavengingPass (plan §3.6).
+    // and RegisterScavengingPass.
     public override ReadOnlySpan<int> GetScratchGprCandidates() => ScratchGprs;
 
     private static readonly int[] ScratchGprs =
@@ -128,7 +128,7 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
         (a == MOS6502Registers.Y && b == MOS6502Registers.X);
 
     // The scarce architectural GPRs to prefer for SHORT-lived flexible values
-    // (plan §3.5). Ordered $x, $y, $a:
+    // Ordered $x, $y, $a:
     //   * $x / $y first because they are the natural home for a brief value that
     //     must survive across the next arithmetic instruction (the references park
     //     add-i16's relocated low result byte in $y while the high byte is added

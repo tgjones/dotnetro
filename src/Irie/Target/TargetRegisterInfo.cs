@@ -87,8 +87,7 @@ public abstract class TargetRegisterInfo
     // This REPLACES the old GetPseudoCopyScratchClobbers hook (deleted): copy
     // scratch is no longer modelled during register allocation at all. The
     // allocator allocates as if copies were free; the scavenger picks scratch
-    // afterwards with exact post-RA liveness (plan §3.6, mirroring llvm-mos's
-    // MOSPostRAScavenging). The benefit: scratch can be $x/$y when those are
+    // afterwards with exact post-RA liveness. The benefit: scratch can be $x/$y when those are
     // dead, instead of forcing $a free for every copy.
     public virtual ReadOnlySpan<int> GetScratchGprCandidates() => default;
 
@@ -104,14 +103,13 @@ public abstract class TargetRegisterInfo
     // Locations the scavenger may use to *emergency-save* a live scratch register
     // when no scratch candidate is free across a copy's point: it picks one of
     // these that is itself dead there, saves the chosen GPR into it, performs the
-    // copy, and restores the GPR (plan §3.4/§3.6 minimal save/restore). On the
+    // copy, and restores the GPR. On the
     // MOS6502 these are the spare zero-page slots — a memory store/load needs no
     // further scratch. Empty by default (no emergency path available).
     public virtual ReadOnlySpan<int> GetEmergencyScratchSaveSlots() => default;
 
     // The scarce architectural general-purpose registers, in the order to PREFER
-    // them for SHORT-lived flexible values (register-allocator-redesign Phase 5;
-    // plan §3.5). These are the cheap real registers ($a/$x/$y on the MOS6502)
+    // them for SHORT-lived flexible values. These are the cheap real registers ($a/$x/$y on the MOS6502)
     // that the abundant memory/zero-page pool surrounds. The allocator's
     // cost-driven colour selection promotes these ahead of the memory pool for a
     // value whose live range is short (does not span the arithmetic chain), and

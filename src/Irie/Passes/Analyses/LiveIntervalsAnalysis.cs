@@ -6,8 +6,7 @@ namespace Irie.Passes.Analyses;
 // LiveIntervalsAnalysis — builds the physreg-aware LiveIntervals (with holes).
 // =============================================================================
 //
-// This analysis is the Phase-1 foundation of the register-allocator redesign
-// (notes/register-allocator-redesign-plan.md §3.1). It REPLACES the coarse
+// This analysis is the Phase-1 foundation of the register-allocator redesign. It REPLACES the coarse
 // vreg-only LivenessAnalysis — but only in Phase 2; this phase merely stands it
 // up alongside the old one and proves it reproduces the old pass's ad-hoc
 // physreg-interference conclusions (ComputeClobberSlots /

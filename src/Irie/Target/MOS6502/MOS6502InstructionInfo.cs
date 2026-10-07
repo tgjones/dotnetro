@@ -3,7 +3,7 @@ namespace Irie.Target.MOS6502;
 // Byte-opcode (0..0xFF) → (mnemonic, addressing mode) table used by
 // MOS6502AssemblyParser / MOS6502AssemblyWriter for the human-readable
 // assembly text format. The legacy CodeGen-pipeline TargetInstructionInfo
-// base has been retired (per unified-IR plan §10 step 17); this class is now
+// base has been retired; this class is now
 // a self-contained lookup table for the MachineCode text emitter only.
 public sealed class MOS6502InstructionInfo
 {

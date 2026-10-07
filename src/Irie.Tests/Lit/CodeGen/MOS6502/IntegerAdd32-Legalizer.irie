@@ -9,10 +9,6 @@
 ; the per-byte chain are folded by the LegalizationArtifactCombiner against
 ; the surrounding ABI-lowering artifacts, so the chain feeds directly off the
 ; parameter-byte copies and into the return-byte copies.
-;
-; Physical-register names are still uppercase here — the `$a`/`$x`/`$rc2`
-; rename is deferred to step 17 of notes/unified-ir-plan.md. The new v2
-; engine lit tests use the `-v2` suffix until the old engine is retired.
 
 ; CHECK: func @TestFunction : (i32, i32) -> i32 {
 ; CHECK: bb0():

@@ -1,6 +1,6 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
-; Step 16 (plan §6 G5): brtrue lowers to `arith.cmpi <ne>, %x, <0>` + cf.cond_br.
+; Step 16: brtrue lowers to `arith.cmpi <ne>, %x, <0>` + cf.cond_br.
 ; Verify the ne-against-constant-0 path end-to-end at i8, i16, and i32. This is
 ; the regression guard for the frontend's `brtrue`.
 ;

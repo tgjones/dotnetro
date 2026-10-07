@@ -4,7 +4,7 @@
 ; target-specific (there is no generic "call ROM address" op), so the body is
 ; a hand-written `mos6502.jsr.abs` to a fixed ROM vector + `mos6502.rts`. The
 ; char/args arrive in $a/$x/$y per CC_MOS and are preserved into the JSR
-; because nothing between the live-in and the JSR clobbers them. Plan §6 step 6.
+; because nothing between the live-in and the JSR clobbers them.
 
 ; CHECK: oswrch:
 ; CHECK:     JSR $FFEE

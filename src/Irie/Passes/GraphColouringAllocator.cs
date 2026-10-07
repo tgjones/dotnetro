@@ -57,7 +57,7 @@ namespace Irie.Passes;
 // (2) for a SHORT-lived value, the scarce architectural GPRs ($x/$y/$a) — the
 // cost-driven Phase-5 preference, see ColourPreferenceOrder — then (3) the
 // node's class default (zp-first) allocatable order. Every tier iterates in a
-// fixed order, so the characterization lit tests stay stable (plan §8).
+// fixed order, so the characterization lit tests stay stable.
 internal sealed class GraphColouringAllocator
 {
     private readonly MirFunction _function;
@@ -191,7 +191,7 @@ internal sealed class GraphColouringAllocator
     }
 
     // =========================================================================
-    // Class intersection (replaces the deleted widen passes — plan §3.2 interim)
+    // Class intersection (replaces the deleted widen passes)
     // =========================================================================
     //
     // A vreg's allocatable registers are the intersection of the register
@@ -206,7 +206,7 @@ internal sealed class GraphColouringAllocator
     // class — keeps the broad set its annotation's class allows. In practice the
     // annotation class already is the operand class for our dialects, so the
     // intersection mostly just reproduces the annotation's allocatable set; the
-    // machinery is here so a future broad-class isel (plan §3.2 preferred path)
+    // machinery is here so a future broad-class isel
     // needs no RA change. The crucial behaviour difference from the old pass is
     // that we no longer WIDEN single-physreg `ac`/`xc` annotations to `any8`:
     // coalescing, not widening, is what frees those values to live elsewhere.
@@ -228,7 +228,7 @@ internal sealed class GraphColouringAllocator
         // NOT widen its result to `any8` (doing so let the result land in $x,
         // which an LDA cannot target — a real miscompile). Only a value touched
         // exclusively by copies is safe to widen; everything else keeps its
-        // selected single-physreg class as a hard constraint. (Plan §3.2: the
+        // selected single-physreg class as a hard constraint. (The
         // intersection-in-RA interim path; the "preferred" path of moving these
         // constraints into isel would make the declared OperandClasses complete
         // and retire this scan, but that is deferred.)
@@ -401,7 +401,7 @@ internal sealed class GraphColouringAllocator
         // These are exactly the copies TwoAddress (tied operands), PhiElim (phi
         // copies), AbiLowering (livein / call-relocation copies) and isel
         // (constraint copies into pinned physregs) emit. Coalescing folds them
-        // all through one mechanism (plan §3.3).
+        // all through one mechanism.
         //
         // Built BEFORE interference so the move-self-interference suppression
         // below can consult the move set.
@@ -1072,8 +1072,7 @@ internal sealed class GraphColouringAllocator
                 _colour[v] = _colour[GetAlias(v)];
     }
 
-    // The order in which to try colours for a node (plan §3.5 — register
-    // preference / cost). Three tiers, tried in order:
+    // The order in which to try colours for a node. Three tiers, tried in order:
     //
     //   1. COPY/COALESCE HINTS DOMINATE. For each move this node is related to,
     //      if the OTHER end is already coloured with an allowed colour, prefer it
@@ -1093,9 +1092,7 @@ internal sealed class GraphColouringAllocator
     //        * LONG range   → keep the class's default zp-first order, so a value
     //          carried across many arithmetic ops (a loop-carried phi, a long
     //          chain temporary) sits in the abundant zero-page file and leaves all
-    //          three GPRs free for the ADC/SBC/CMP chain that NEEDS them (plan §2
-    //          lever #4: "keep $a free for arithmetic, prefer the zp pool for
-    //          long-lived values").
+    //          three GPRs free for the ADC/SBC/CMP chain that NEEDS them.
     //      Cheaper-but-overflowing GPR demand falls back to memory naturally: the
     //      first short value to be coloured grabs a GPR, the next short value whose
     //      range overlaps it interferes and drops to zp — exactly how the
@@ -1106,7 +1103,7 @@ internal sealed class GraphColouringAllocator
     //
     // All tiers are filtered to the node's allowed set, and every iteration order
     // is deterministic (moves by index, GPR list and allowed list in fixed order)
-    // so the characterization lit tests stay stable (plan §8).
+    // so the characterization lit tests stay stable.
     private IEnumerable<int> ColourPreferenceOrder(int node)
     {
         var allowed = _allowedColours[node];
@@ -1199,7 +1196,7 @@ internal sealed class GraphColouringAllocator
 
     // The maximum number of GPR-pressuring (see IsArithmeticOp) instructions a
     // value's live range may span and still count as SHORT — i.e. cheap enough to
-    // favour a scarce architectural register over the zero-page pool (plan §3.5).
+    // favour a scarce architectural register over the zero-page pool.
     //
     // Why "GPR-chain ops spanned" and not raw slot length: on this target the
     // pressure on the GPRs comes from the ADC/SBC/CMP/EOR chain, each link of
@@ -1212,7 +1209,7 @@ internal sealed class GraphColouringAllocator
     // block that GPR for the whole chain (and starve the post-RA copy-scavenger of
     // scratch); such values belong in the abundant zp file.
     //
-    // The threshold is 3, tuned against the corpus (plan §6):
+    // The threshold is 3, tuned against the corpus:
     //   * add-i32's low result byte spans exactly 3 ADC links and the reference
     //     keeps it in $y — so the threshold must admit a 3-span as short.
     //   * an i32 (4-byte) compare's high operand bytes each span 4 CMP links; at

@@ -4,9 +4,7 @@
 ; become CC_MOS live-ins + per-byte `pseudo.copy` from physregs, reassembled
 ; into the original parameter vreg via `pseudo.merge`. The `core.return %v` is
 ; split per-byte via `pseudo.unmerge`, copied into the return physregs, and
-; replaced with a `pseudo.return`. (Physical-register names are still
-; uppercase here — the `$a`/`$x`/`$zp2` rename is deferred to step 17 of
-; notes/unified-ir-plan.md.)
+; replaced with a `pseudo.return`.
 
 ; CHECK: func @TestFunction : (i32, i32) -> i32 {
 ; CHECK: bb0():

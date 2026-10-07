@@ -4,7 +4,7 @@ namespace Irie.Dialects.Cast;
 
 // The `cast` dialect carries typed integer conversions emitted by the IL
 // frontend before the legalizer turns them into byte-level slice / merge
-// artifacts. See plan §2.5.
+// artifacts.
 public sealed class CastDialect : Dialect
 {
     public static new DialectId Id { get; private set; }

@@ -14,8 +14,7 @@ namespace Irie.Passes;
 // structure, the simplify/coalesce/freeze/select loop, Briggs' conservative
 // coalescing test and George's precoloured test are all taken directly from
 // that chapter. A reader who has not written a register allocator should be
-// able to follow the algorithm from the comments here together with the
-// "Reader's primer" in notes/register-allocator-redesign-plan.md.
+// able to follow the algorithm from the comments here.
 //
 // Input:  post-isel, post-PhiElim, post-TwoAddress MIR. Every vreg has a
 //         ClassedVReg annotation; no block parameters; tied uses already
@@ -40,7 +39,7 @@ namespace Irie.Passes;
 //     INTERSECTION of the register classes implied by all its defs and uses
 //     (AllowedRegistersOf below). A value that is only ever `ac` keeps $a; a
 //     value that is `ac` at one use but `any8` elsewhere is free to colour
-//     anywhere $a/$x/zp. This is plan §3.2's sanctioned "interim path":
+//     anywhere $a/$x/zp. This is the interim path:
 //     compute the class-intersection in RA rather than relocating constraint
 //     copies into isel.
 //
@@ -75,7 +74,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
         // the move the coalescer then relocates onto whatever register is free
         // (the reference parks it in $y; we park it in the zp pool). It is the
         // standard "result must vacate a constrained reg" shape; the coalescer
-        // consumes it exactly like the tied-operand and phi copies (plan §3.3).
+        // consumes it exactly like the tied-operand and phi copies.
         //
         // (This is the surviving, genuinely-load-bearing remnant of the old
         // InsertResultPreservationCopies: without an explicit move in the IR no
@@ -196,7 +195,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
     }
 
     // =========================================================================
-    // Spilling (register-allocator redesign Phase 4; plan §3.4)
+    // Spilling
     // =========================================================================
     //
     // For each vreg the colourer could not place, we lower it to memory: the
@@ -378,12 +377,11 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
     // def's result into the slot right after the def; reload it into a fresh
     // tiny vreg before each use.
     //
-    // ---- The abstract spill-slot SHAPE (the contract; plan §3.4 & §8) --------
+    // ---- The abstract spill-slot SHAPE (the contract) -----------------------
     // A spill slot is a `MirFunction.FrameSlot(Index, Type, SymbolName)` — the
     // SAME representation FrameLoweringPass and the future static-stack pass
-    // already consume (notes/mos6502-codegen-quality-plan.md: "MirFunction.FrameSlots
-    // … FrameLoweringPass materialises each slot as a zero-init MirGlobal and
-    // rewrites mem.frame_addr <i> → mem.symbol @<slot_name>"). RA mints the slot
+    // already consume (FrameLoweringPass materialises each slot as a zero-init
+    // MirGlobal and rewrites mem.frame_addr <i> → mem.symbol @<slot_name>). RA mints the slot
     // (index + i8 type + unique symbol name) but assigns it NO physical address.
     // The store/reload are emitted as the post-RA pseudo ops `pseudo.spill
     // <slot>, $reg` and `$reg = pseudo.reload <slot>`, which carry only the
@@ -392,7 +390,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
     // store/load once it has coloured the call graph — exactly Layer 3 of the
     // static-stack plan ("Rewrite slot accesses to lda.zp/sta.zp at the assigned
     // address"). This decoupling — RA mints abstract slots, static-stack places
-    // them — is what lets RA run before static-stack (plan §8).
+    // them — is what lets RA run before static-stack.
     //
     // We emit dedicated `pseudo.spill`/`pseudo.reload` ops rather than generic
     // `mem.store`/`mem.load` because RA runs AFTER legalization and instruction

@@ -5,7 +5,7 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Passes;
 
-// Tests for the post-RA RegisterScavengingPass (plan §3.6). The pass assigns a
+// Tests for the post-RA RegisterScavengingPass. The pass assigns a
 // physical GPR to each copy-scratch vreg that pseudo expansion left behind (the
 // 3-operand "scratch form" pseudo.copy), preferring a GPR that is DEAD at the
 // copy's point, then drives the target's final lowering.
@@ -135,7 +135,7 @@ public sealed class RegisterScavengingTests
 
     // -------------------------------------------------------------------------
     // 4. All three GPRs live across the copy → no scratch is free → the emergency
-    //    save/restore path (plan §3.4/§3.6) saves a GPR into a dead zero-page slot
+    //    save/restore path saves a GPR into a dead zero-page slot
     //    around the copy: `STA $save ; LDA #imm ; STA $dst ; LDA $save`.
     // -------------------------------------------------------------------------
     [Test]

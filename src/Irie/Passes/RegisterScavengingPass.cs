@@ -10,7 +10,7 @@ namespace Irie.Passes;
 // left behind by pseudo expansion, then drives their final lowering.
 // =============================================================================
 //
-// Why this pass exists (plan §3.6, mirroring llvm-mos's MOSPostRAScavenging).
+// Why this pass exists:
 // Some target moves need a temporary register to lower — on the MOS6502 an
 // immediate-into-zero-page copy expands to `LD? #imm ; ST? $zp`, which needs a
 // GPR. WHICH GPR is free is a post-allocation fact: it depends on what the
@@ -37,7 +37,7 @@ namespace Irie.Passes;
 //
 // Pipeline position: it runs AFTER PseudoExpansionPass (which mints the scratch
 // vregs) and is the final pass, so no vregs survive into machine-code emission.
-// This matches llvm-mos's order (RA → pseudo expansion → scavenging; plan §3.6).
+// This matches llvm-mos's order (RA → pseudo expansion → scavenging).
 //
 // Spilling note: if no scratch GPR is ever dead at a copy's point, the
 // scavenger would need to save/restore one through an emergency frame slot. Real
@@ -102,7 +102,7 @@ public sealed class RegisterScavengingPass(
             {
                 // No scratch is free across the copy: emergency save/restore. Pick
                 // a scratch GPR anyway, save it into a dead zero-page slot, do the
-                // copy, then restore it (plan §3.4/§3.6 minimal save/restore).
+                // copy, then restore it.
                 EmergencyExpand(copy, scratchOperandIndex, scratchIsDef, candidates, intervals, builder);
             }
         }
@@ -161,7 +161,7 @@ public sealed class RegisterScavengingPass(
     // the first candidate GPR, save it into a zero-page slot that IS dead here, do
     // the copy using that GPR, then restore it. The save (`ST? $zp`) and restore
     // (`LD? $zp`) are themselves register↔zero-page copies that need no further
-    // scratch, so they bottom out cleanly (plan §3.4/§3.6 minimal save/restore).
+    // scratch, so they bottom out cleanly.
     private void EmergencyExpand(
         MirInstruction copy, int scratchOperandIndex, bool scratchIsDef,
         ReadOnlySpan<int> candidates, LiveIntervals intervals, MirBuilder builder)

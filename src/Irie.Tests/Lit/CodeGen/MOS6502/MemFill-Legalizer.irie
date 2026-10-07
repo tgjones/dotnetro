@@ -3,7 +3,7 @@
 ; Checks the legalizer's Custom path for mem.fill: a small known count is
 ; unrolled into N consecutive mem.store.byte_at calls, all writing the
 ; same byte vreg. Larger counts would lower to a loop (not yet implemented;
-; the active tests use sizes ≤ 8 per plan §4.6).
+; the active tests use sizes ≤ 8).
 ;
 ; The frame slot lowers via FrameLoweringPass (which runs first), so by
 ; the time Legalizer sees the IR the address comes from mem.symbol.

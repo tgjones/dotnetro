@@ -14,7 +14,7 @@ public enum CastOp : ushort
     Trunc,
 
     // %y : iN = cast.zext %x : iM     (M < N, zero-extend)
-    //   Listed for completeness (plan §2.5). Not yet implemented — added
+    //   Listed for completeness. Not yet implemented — added
     //   when a test needs it.
     Zext,
 

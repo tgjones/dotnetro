@@ -2,7 +2,7 @@
 
 ; Checks the unified-MIR pipeline output after the target-private
 ; MOS6502AddressingModeSelector pass — the first post-RA target pass added
-; by MOS6502TargetV2.AddPostRegisterAllocationPasses. The adcs already carry
+; by MOS6502Target.AddPostRegisterAllocationPasses. The adcs already carry
 ; their concrete addressing-mode form (`mos6502.adc.zp`, selected directly by
 ; isel — there is no pre-AMS `mos6502.adc`), so AMS leaves the whole chain
 ; untouched here. The pass still refines other families (cmp, the StAbs store);

@@ -7,8 +7,7 @@ namespace Irie.Passes.Analyses;
 // =============================================================================
 //
 // This is the *result* type produced by LiveIntervalsAnalysis. It is the
-// foundation the redesigned register allocator (see
-// notes/register-allocator-redesign-plan.md §3.1) builds on. Appel, *Modern
+// foundation the register allocator builds on. Appel, *Modern
 // Compiler Implementation* ch. 11, is the reference for the terminology
 // ("live range", "interference", "interval"); this file follows it.
 //
@@ -55,9 +54,7 @@ namespace Irie.Passes.Analyses;
 // instruction N (segment ending at base_N) and a fresh value defined at the same
 // instruction N (segment starting at base_N + 1) do NOT overlap — the half-open
 // windows [.., base_N) and [base_N+1, ..) are disjoint. That is exactly the
-// def/use sharing the single-slot scheme could not express. (Plan §5,
-// "Instruction numbering granularity"; plan §7 Phase 1 flags this as the call to
-// make here.)
+// def/use sharing the single-slot scheme could not express.
 //
 // A value that is BOTH used and re-defined by the same instruction (a tied
 // operand: read at the use point, written back at the def point) has a segment

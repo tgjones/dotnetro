@@ -6,7 +6,7 @@ namespace Irie.Target.MOS6502;
 // - Imag8: imaginary 8-bit zero-page registers (RC0..RCn)
 // - Anyi8: any 8-bit register (A, X, Y, or Imag8). Used for values that can be
 //   stored in any 8-bit location but aren't constrained to a specific one. $y was
-//   added to this class in register-allocator-redesign Phase 5 (plan §3.5): the
+//   added to this class because the
 //   llvm-mos references use $a/$x/$y freely for data, whereas Irie previously
 //   parked everything in the zero-page pool and never touched $y.
 public static class MOS6502RegisterClass
@@ -29,7 +29,7 @@ public static class MOS6502RegisterClass
     // copy-through-A and defeat the point. Mirrors llvm-mos's `GPR`-classed
     // store-value operand on `STAbs`.
     // Status-flag classes for the new MIR dialect (one class per flag is the
-    // first-cut layout per unified-IR plan §6 / open question #2; can be unified
+    // first-cut layout; can be unified
     // later if RA freedom is never needed).
     public const int Nc    = 8;  // N flag
     public const int Zc    = 9;  // Z flag

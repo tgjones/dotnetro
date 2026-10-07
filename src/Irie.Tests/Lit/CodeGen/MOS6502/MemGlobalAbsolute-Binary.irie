@@ -4,7 +4,7 @@
 ; A 16-bit load+store of a global resolves to ABSOLUTE addressing (lda/sta of the
 ; symbol directly), not a runtime zero-page pointer + (zp),Y. The high byte uses
 ; a symbol with a +1 offset (g+1), which must round-trip through asm text AND the
-; binary encoder. (Stage A of notes/mos6502-absolute-addressing-plan.md.)
+; binary encoder.
 
 ; CHECK: load_store_global:
 ; CHECK:     LDA g

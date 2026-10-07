@@ -4,7 +4,7 @@ namespace Irie.Target.MOS6502;
 
 // Two-pass encoder: pass 1 walks the module assigning absolute addresses to
 // functions, local labels, and instructions; pass 2 uses the layout tables to
-// emit the actual 6502 byte stream. See notes/mir-to-binary-plan.md §2.1.
+// emit the actual 6502 byte stream.
 public sealed class MOS6502BinaryEncoder
 {
     // Function name → absolute start address. Resolves ExternalRef in pass 2.

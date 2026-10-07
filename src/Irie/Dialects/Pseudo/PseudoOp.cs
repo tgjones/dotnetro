@@ -33,8 +33,7 @@ public enum PseudoOp : ushort
     // ---- Spill / reload (register-allocator Phase 4) --------------------------
     //
     // These are the ABSTRACT spill-slot store/reload the register allocator
-    // mints when it runs out of registers (notes/register-allocator-redesign-
-    // plan.md §3.4). They are emitted POST register allocation, so both operands
+    // mints when it runs out of registers. They are emitted POST register allocation, so both operands
     // are concrete physical registers; the only abstract thing is the frame-slot
     // index, which references a MirFunction.FrameSlot. RA does NOT assign that
     // slot a physical address — a post-RA frame-placement pass decides every

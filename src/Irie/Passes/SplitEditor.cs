@@ -58,8 +58,7 @@ internal sealed class SplitEditor(MirFunction function, TargetRegisterInfo regis
     // Reference: llvm SplitKit.cpp SplitEditor open/enter/leave/use/finish, but
     // collapsed to a single IR-edit primitive (the reanalysis architecture drops
     // incremental liveness; PhiElimination already ran so there are no PHIs /
-    // block args to repair — see notes/generic-relocation-pass-plan.md, "The
-    // split primitive").
+    // block args to repair).
     //
     // This GENERALIZES RelocateAcrossClobber (above): instead of redirecting uses
     // by the program-order slot window (producingDefSlot, nextDefSlot) — which is

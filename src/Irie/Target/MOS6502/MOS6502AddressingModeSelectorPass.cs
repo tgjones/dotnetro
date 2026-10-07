@@ -11,8 +11,8 @@ namespace Irie.Target.MOS6502;
 // concrete form directly since the choice follows from the operand kind.)
 //
 // Lives entirely under the target — added to the pipeline by
-// MOS6502TargetV2.AddPostRegisterAllocationPasses. Per unified-IR plan §5.5
-// there is no generic "addressing mode selection" stage; the pipeline simply
+// MOS6502Target.AddPostRegisterAllocationPasses.
+// There is no generic "addressing mode selection" stage; the pipeline simply
 // calls Target.AddPostRegisterAllocationPasses between CopyElimination and
 // PseudoExpansion and the target inserts whatever it wants.
 //

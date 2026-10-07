@@ -23,10 +23,9 @@ namespace Irie.Passes;
 //
 // If pred has more than one successor (its terminator is a `cf.cond_br`, which
 // has a taken and a fall-through edge), inserting the copies before the shared
-// terminator would run them on *both* edges. That is the bug described in the
-// register-allocator redesign plan §1.4 / §5: a `cf.cond_br` carrying block-args
-// on an edge leaves stray vregs after RA because the copies landed in the wrong
-// place.
+// terminator would run them on *both* edges. That would leave stray vregs after RA for a
+// `cf.cond_br` carrying block-args on one edge, because the copies landed in the
+// wrong place.
 //
 // The standard fix is **critical-edge splitting**: for any edge whose source has
 // multiple successors, we insert a fresh intermediate block on that edge. The

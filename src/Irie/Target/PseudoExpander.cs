@@ -7,7 +7,7 @@ namespace Irie.Target;
 // addressing-mode selection) and asks the target to lower it to real target
 // instructions based on the concrete source/destination physregs.
 //
-// Per unified-IR plan §5.6 / §6: the table of (src kind, dst kind) → target ops
+// The table of (src kind, dst kind) → target ops
 // is wholly target-specific. The generic pass provides only the iteration and
 // the insertion-point bookkeeping.
 public abstract class PseudoExpander
