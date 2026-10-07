@@ -47,7 +47,7 @@ Irie limitation, then the faithful mirror compiles on its own.
 Filenames match the corpus basename (`add-i16.irie` ↔
 `ext/llvm-mos-reference/basics/add-i16.{c,s,txt}`) so `irie-report` can pair them.
 
-## Converted (19 tests)
+## Converted (23 tests)
 
 | Corpus case | Test |
 |-------------|------|
@@ -59,7 +59,7 @@ Filenames match the corpus basename (`add-i16.irie` ↔
 | basics/sub-i16 | `sub-i16` |
 | basics/many-args | `many-args` |
 | basics/stack-args | `stack-args` |
-| control-flow/select (+ coalescing/redundant-copy) | `select` |
+| control-flow/select | `select` |
 | control-flow/early-return | `early-return` |
 | control-flow/if-else (exact abs-diff) | `if-else` |
 | control-flow/common-subexpr | `common-subexpr` |
@@ -70,11 +70,10 @@ Filenames match the corpus basename (`add-i16.irie` ↔
 | memory/global-rw (constant delta) | `global-rw` |
 | widths/truncate | `truncate` |
 | constraints/inc-dec | `inc-dec` |
-
-### Equivalent / duplicate (collapse to a converted test)
-- coalescing/copy-passthrough ≈ `identity-i8` (collapses to a passthrough in SSA)
-- coalescing/commutative ≈ `add-i16` (identical MIR)
-- coalescing/swap ≈ `sub-i16` straight-line
+| coalescing/commutative (identical MIR shape to `add-i16`) | `commutative` |
+| coalescing/copy-passthrough (identical MIR shape to `identity-i8`, but i16) | `copy-passthrough` |
+| coalescing/redundant-copy (identical MIR shape to `select`) | `redundant-copy` |
+| coalescing/swap (identical MIR shape to `sub-i16`, operands swapped) | `swap` |
 
 ## Blocked — by reason
 

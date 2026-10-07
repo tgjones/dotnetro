@@ -2,7 +2,7 @@
 
 # Irie vs llvm-mos — MOS6502 codegen
 
-Irie emits **-16.8%** instructions vs llvm-mos (**536** vs **644**, ratio **0.83**) across **19/47** corpus cases.
+Irie emits **-16.0%** instructions vs llvm-mos (**568** vs **676**, ratio **0.84**) across **23/47** corpus cases.
 
 Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).
 
@@ -16,6 +16,10 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | basics | many-args | converted | 36 | 36 | 0 | 1.00 | ⚪ |
 | basics | ret-const | converted | 3 | 3 | 0 | 1.00 | ⚪ |
 | basics | sub-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ |
+| coalescing | commutative | converted | 8 | 8 | 0 | 1.00 | ⚪ |
+| coalescing | copy-passthrough | converted | 1 | 1 | 0 | 1.00 | ⚪ |
+| coalescing | redundant-copy | converted | 12 | 12 | 0 | 1.00 | ⚪ |
+| coalescing | swap | converted | 11 | 11 | 0 | 1.00 | ⚪ |
 | constraints | inc-dec | converted | 4 | 4 | 0 | 1.00 | ⚪ |
 | control-flow | select | converted | 12 | 12 | 0 | 1.00 | ⚪ |
 | memory | global-rw | converted | 10 | 10 | 0 | 1.00 | ⚪ |
@@ -28,10 +32,6 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | pressure | many-calls | converted | 178 | 134 | -44 | 0.75 | 🟢 |
 | control-flow | loop-counter | converted | 65 | 40 | -25 | 0.62 | 🟢 |
 | basics | chain-arith | blocked | 51 | — | — | — |  |
-| coalescing | commutative | blocked | 8 | — | — | — |  |
-| coalescing | copy-passthrough | blocked | 1 | — | — | — |  |
-| coalescing | redundant-copy | blocked | 12 | — | — | — |  |
-| coalescing | swap | blocked | 11 | — | — | — |  |
 | constraints | bitops | blocked | 30 | — | — | — |  |
 | constraints | compare-flags | blocked | 47 | — | — | — |  |
 | constraints | shift-const | blocked | 26 | — | — | — |  |
@@ -808,6 +808,323 @@ sub_i16:
     TAY
     TXA
     SBC $03
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/commutative — llvm-mos 8, Irie 8, ratio 1.00</summary>
+
+llvm-mos (8):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "commutative.c"
+    .section    .text.commutative,"ax",@progbits
+    .globl    commutative                     ; -- Begin function commutative
+    .type    commutative,@function
+commutative:                            ; @commutative
+; %bb.0:
+    clc
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    commutative, .Lfunc_end0-commutative
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (8):
+
+```asm
+commutative:
+    CLC
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/copy-passthrough — llvm-mos 1, Irie 1, ratio 1.00</summary>
+
+llvm-mos (1):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "copy-passthrough.c"
+    .section    .text.copy_passthrough,"ax",@progbits
+    .globl    copy_passthrough                ; -- Begin function copy_passthrough
+    .type    copy_passthrough,@function
+copy_passthrough:                       ; @copy_passthrough
+; %bb.0:
+    rts
+.Lfunc_end0:
+    .size    copy_passthrough, .Lfunc_end0-copy_passthrough
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (1):
+
+```asm
+copy_passthrough:
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/redundant-copy — llvm-mos 12, Irie 12, ratio 1.00</summary>
+
+llvm-mos (12):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "redundant-copy.c"
+    .section    .text.redundant_copy,"ax",@progbits
+    .globl    redundant_copy                  ; -- Begin function redundant_copy
+    .type    redundant_copy,@function
+redundant_copy:                         ; @redundant_copy
+; %bb.0:
+    stx    __rc6
+    ldx    __rc6
+    bne    .LBB0_2
+; %bb.1:
+    tax
+    beq    .LBB0_3
+.LBB0_2:
+    ldx    __rc2
+    ldy    __rc3
+    stx    __rc4
+    sty    __rc5
+.LBB0_3:
+    ldx    __rc5
+    lda    __rc4
+    rts
+.Lfunc_end0:
+    .size    redundant_copy, .Lfunc_end0-redundant_copy
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (12):
+
+```asm
+redundant_copy:
+    TAY
+    TXA
+    BNE .bb2
+    TYA
+    BNE .bb2
+.bb1:
+    LDA $04
+    STA $02
+    LDA $05
+    STA $03
+.bb2:
+    LDA $02
+    LDX $03
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/swap — llvm-mos 11, Irie 11, ratio 1.00</summary>
+
+llvm-mos (11):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "swap.c"
+    .section    .text.swap_diff,"ax",@progbits
+    .globl    swap_diff                       ; -- Begin function swap_diff
+    .type    swap_diff,@function
+swap_diff:                              ; @swap_diff
+; %bb.0:
+    sta    __rc4
+    stx    __rc5
+    lda    __rc2
+    sec
+    sbc    __rc4
+    tay
+    lda    __rc3
+    sbc    __rc5
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    swap_diff, .Lfunc_end0-swap_diff
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (11):
+
+```asm
+swap_diff:
+    STA $05
+    STX $04
+    SEC
+    LDA $02
+    SBC $05
+    TAY
+    LDA $03
+    SBC $04
     TAX
     TYA
     RTS
@@ -2630,289 +2947,6 @@ chain_arith:                            ; @chain_arith
     rts
 .Lfunc_end0:
     .size    chain_arith, .Lfunc_end0-chain_arith
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>coalescing/commutative — llvm-mos 8, Irie —</summary>
-
-llvm-mos (8):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "commutative.c"
-    .section    .text.commutative,"ax",@progbits
-    .globl    commutative                     ; -- Begin function commutative
-    .type    commutative,@function
-commutative:                            ; @commutative
-; %bb.0:
-    clc
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    commutative, .Lfunc_end0-commutative
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>coalescing/copy-passthrough — llvm-mos 1, Irie —</summary>
-
-llvm-mos (1):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "copy-passthrough.c"
-    .section    .text.copy_passthrough,"ax",@progbits
-    .globl    copy_passthrough                ; -- Begin function copy_passthrough
-    .type    copy_passthrough,@function
-copy_passthrough:                       ; @copy_passthrough
-; %bb.0:
-    rts
-.Lfunc_end0:
-    .size    copy_passthrough, .Lfunc_end0-copy_passthrough
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>coalescing/redundant-copy — llvm-mos 12, Irie —</summary>
-
-llvm-mos (12):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "redundant-copy.c"
-    .section    .text.redundant_copy,"ax",@progbits
-    .globl    redundant_copy                  ; -- Begin function redundant_copy
-    .type    redundant_copy,@function
-redundant_copy:                         ; @redundant_copy
-; %bb.0:
-    stx    __rc6
-    ldx    __rc6
-    bne    .LBB0_2
-; %bb.1:
-    tax
-    beq    .LBB0_3
-.LBB0_2:
-    ldx    __rc2
-    ldy    __rc3
-    stx    __rc4
-    sty    __rc5
-.LBB0_3:
-    ldx    __rc5
-    lda    __rc4
-    rts
-.Lfunc_end0:
-    .size    redundant_copy, .Lfunc_end0-redundant_copy
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>coalescing/swap — llvm-mos 11, Irie —</summary>
-
-llvm-mos (11):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "swap.c"
-    .section    .text.swap_diff,"ax",@progbits
-    .globl    swap_diff                       ; -- Begin function swap_diff
-    .type    swap_diff,@function
-swap_diff:                              ; @swap_diff
-; %bb.0:
-    sta    __rc4
-    stx    __rc5
-    lda    __rc2
-    sec
-    sbc    __rc4
-    tay
-    lda    __rc3
-    sbc    __rc5
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    swap_diff, .Lfunc_end0-swap_diff
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits

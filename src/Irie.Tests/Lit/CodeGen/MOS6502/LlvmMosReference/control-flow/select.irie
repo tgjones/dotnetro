@@ -1,7 +1,7 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; Corpus: llvm-mos-reference/control-flow/select
-; cond ? a : b as a diamond with a merge-block phi (also covers
+; cond ? a : b as a diamond with a merge-block phi (same MIR shape as
 ; coalescing/redundant-copy). Exercises PhiElimination + cross-block
 ; allocation.
 ;

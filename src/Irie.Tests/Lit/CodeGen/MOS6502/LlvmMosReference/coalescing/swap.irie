@@ -1,0 +1,30 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/coalescing/swap
+; A value swap creates a copy cycle (a<-b, b<-a). The allocator cannot coalesce
+; both copies away; it must break the cycle, classically via a temp register.
+; In SSA form the swap is just a renaming (t=a, a=b, b=t means the final
+; a-b is b0-a0), so this is the same subtraction as sub-i16 with the operand
+; order flipped by the swap.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/coalescing/swap.s; close gaps via irie-report.
+
+; CHECK: swap_diff:
+; CHECK:     STA $05
+; CHECK:     STX $04
+; CHECK:     SEC
+; CHECK:     LDA $02
+; CHECK:     SBC $05
+; CHECK:     TAY
+; CHECK:     LDA $03
+; CHECK:     SBC $04
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @swap_diff : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = arith.subi %1, %0
+    core.return %2
+}

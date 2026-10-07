@@ -1,0 +1,16 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/coalescing/copy-passthrough
+; A chain of copies (a -> x -> y -> result). A good coalescer collapses the
+; whole chain so the input register is reused directly as the output register.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/coalescing/copy-passthrough.s; close gaps via irie-report.
+
+; CHECK: copy_passthrough:
+; CHECK:     RTS
+
+func @copy_passthrough : (i16) -> i16 {
+bb0(%0 : i16):
+    core.return %0
+}

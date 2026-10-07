@@ -1,0 +1,25 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/coalescing/commutative
+; (a + b) where the result is needed but a and b are not reused. A commutative
+; op lets the allocator pick either operand for the tied $a slot to minimize
+; moves -- a coalescing degree of freedom subtraction would not offer.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/coalescing/commutative.s; close gaps via irie-report.
+
+; CHECK: commutative:
+; CHECK:     CLC
+; CHECK:     ADC $02
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $03
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @commutative : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = arith.addi %0, %1
+    core.return %2
+}

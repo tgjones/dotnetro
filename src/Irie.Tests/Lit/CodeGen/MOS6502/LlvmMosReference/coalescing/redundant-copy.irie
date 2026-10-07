@@ -1,0 +1,38 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/coalescing/redundant-copy
+; Two independent values that are conditionally returned. The phi at the join
+; wants both incoming values coalesced into the same return register; whether
+; that succeeds depends on the copy-elimination quality.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/coalescing/redundant-copy.s; close gaps via irie-report.
+
+; CHECK: redundant_copy:
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     BNE .bb2
+; CHECK:     TYA
+; CHECK:     BNE .bb2
+; CHECK: .bb1:
+; CHECK:     LDA $04
+; CHECK:     STA $02
+; CHECK:     LDA $05
+; CHECK:     STA $03
+; CHECK: .bb2:
+; CHECK:     LDA $02
+; CHECK:     LDX $03
+; CHECK:     RTS
+
+func @redundant_copy : (i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16):
+    %3 : i16 = arith.constant 0
+    %4 : i1 = arith.cmpi ne, %0, %3
+    cf.cond_br %4, bb1(), bb2()
+bb1():
+    cf.br bb3(%1)
+bb2():
+    cf.br bb3(%2)
+bb3(%5 : i16):
+    core.return %5
+}
