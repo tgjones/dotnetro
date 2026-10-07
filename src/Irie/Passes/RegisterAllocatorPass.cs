@@ -58,7 +58,7 @@ namespace Irie.Passes;
 // candidate") in the hope a colour is free when we pop it. A genuine select
 // failure — a popped node with no free colour — becomes an actual spill, which
 // SpillVregs (below) rewrites to memory traffic before the colouring is re-run.
-public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool useGreedy = false) : MirFunctionPass
+public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : MirFunctionPass
 {
     public override string Name => "RegisterAllocator";
 
@@ -102,17 +102,6 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
         // a temp's only use is the constraining one, so splitting it again would
         // just mint another copy in front of the same use, forever.
         var reconciliationTemps = new HashSet<int>();
-        // Greedy-engine per-vreg stages, persisted across rounds (a deferred or
-        // split range keeps its stage). Unused by the colouring engine.
-        var greedyStages = new Dictionary<int, LiveRangeStage>();
-        // Greedy-engine instruction-split products, persisted across rounds so a
-        // reconciliation temp is never itself re-split. Unused by the colourer.
-        var greedySplitProducts = new HashSet<int>();
-        // Greedy-engine well-founded termination measure from the PREVIOUS split
-        // round (total constrained-class live-range length). Each split round must
-        // strictly reduce it; long.MaxValue = no split round seen yet. Unused by
-        // the colourer.
-        var previousSplitMeasure = long.MaxValue;
         LiveIntervals intervals;
         Dictionary<int, int>? assignment;
         IReadOnlyList<int> spilledVregs;
@@ -135,55 +124,17 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
             // mutates the IR.
             intervals = new LiveIntervalsAnalysis().Compute(function);
 
-            if (useGreedy)
-            {
-                var greedy = new GreedyRegisterAllocator(
-                    function, registerInfo, intervals, greedyStages, greedySplitProducts,
-                    unspillable, round);
-                assignment = greedy.Run();
-                spilledVregs = greedy.SpilledVregs;
-
-                // Terminating stage ladder (Stage R2): a RELOCATION split round —
-                // the constrained-def-result / incumbent / relocatable-phys-clobber
-                // kinds, the only ones that could loop (the Mode-B failure: a donor
-                // whose across-clobber liveness never shrinks) — MUST strictly
-                // reduce the well-founded measure: the count of constrained vregs
-                // still spanning a clobber. Each relocation clears exactly one such
-                // span, so the count strictly decreases and is bounded below by
-                // zero. If it ever fails to, the relocation is not making progress:
-                // fail loudly here, at the cause, rather than spinning to the round
-                // cap. (The other split kinds terminate by their own construction —
-                // split products are never re-split — so they are not policed here;
-                // their measure can legitimately differ round to round.)
-                if (assignment == null && greedy.DidSplit && greedy.LastSplitWasRelocation)
-                {
-                    if (greedy.ConstrainedRangeMeasure >= previousSplitMeasure)
-                        throw new InvalidOperationException(
-                            $"RegisterAllocator: greedy relocation split for @{function.Name} did " +
-                            $"not reduce the constrained-clobber-span count (was " +
-                            $"{previousSplitMeasure}, now {greedy.ConstrainedRangeMeasure}) — " +
-                            $"non-terminating split.");
-                    previousSplitMeasure = greedy.ConstrainedRangeMeasure;
-                }
-            }
-            else
-            {
-                var allocator = new GraphColouringAllocator(
-                    function, registerInfo, intervals, unspillable);
-                assignment = allocator.Run();
-                spilledVregs = allocator.SpilledVregs;
-            }
+            var allocator = new GraphColouringAllocator(
+                function, registerInfo, intervals, unspillable);
+            assignment = allocator.Run();
+            spilledVregs = allocator.SpilledVregs;
 
             if (assignment != null)
                 break; // allocated successfully — no actual spills this round.
 
-            // Allocation edited the IR (a spill — or, under greedy, a split that
-            // left SpilledVregs empty). Relieve each actual spill. Preferred order
-            // (mirrors llvm-mos greedy: split-to-register before spill-to-memory):
-            // rematerialize cheap defs, else split the live range into the zp
-            // register file (TrySplitToRegister), else fall back to memory. An
-            // empty spill list (a pure split edit) makes this a no-op and we just
-            // reanalyse.
+            // Relieve each actual spill. Preferred order: rematerialize cheap
+            // defs, else split the live range into the zp register file
+            // (TrySplitToRegister), else fall back to memory.
             SpillVregs(function, spilledVregs, unspillable, reconciliationTemps);
         }
 
@@ -584,8 +535,8 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo, bool 
     //
     // Cross-block: a value live OUT of the defining block (the case the deleted
     // isel out-funnels covered by renaming ALL uses up front) is redirected
-    // slot-precisely, mirroring SplitEditor.RelocateAcrossClobber and LLVM's
-    // SplitKit/SplitEditor (which work off SlotIndex numbering, NOT a CFG walk):
+    // slot-precisely, mirroring LLVM's SplitKit/SplitEditor (which work off
+    // SlotIndex numbering, NOT a CFG walk):
     // a use of the constrained value is any use whose use-slot lies strictly
     // after the producing def's def-slot and strictly before the value's NEXT
     // def (so a later, unrelated re-definition's value is untouched). Because

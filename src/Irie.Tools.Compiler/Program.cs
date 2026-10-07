@@ -88,52 +88,16 @@ rootCommand.SetAction(parseResult =>
     // zero copies are inserted on every existing function. Runs right after isel,
     // before the other copy-inserting passes and RA. See OperandLegalizationPass.
     passMgr.AddPass(new OperandLegalizationPass(target.RegisterInfo));
-    if (Environment.GetEnvironmentVariable("IRIE_SSA_RA") == "1")
-    {
-        // SSA-based allocator (Hack/Braun-Hack): runs on TRUE SSA form — block
-        // parameters still intact — so PhiEliminationPass does NOT run on this
-        // path. The allocator is responsible for its own phi-aware colouring and
-        // SSA destruction (still being built out; today only straight-line /
-        // phi-free functions are handled). Replaces PhiElimination + TwoAddress +
-        // coalescer + graph-colouring RA. Enabled by IRIE_SSA_RA=1. See
-        // SsaRegisterAllocatorPass.
-        passMgr.AddPass(new SsaRegisterAllocatorPass(target.RegisterInfo));
-    }
-    else
-    {
-        // Conventional SSA destruction up front, then the non-SSA allocator chain.
-        passMgr.AddPass(new PhiEliminationPass(target.BranchLowering));
-        passMgr.AddPass(new TwoAddressInstructionPass());
-        // Sink rematerializable defs (constants, symbol bytes) into their sole
-        // use block before allocation — the llvm-mos `machine-sink` analogue.
-        // Relieves entry-block pressure so long-lived values (arguments) keep the
-        // scarce real registers instead of being evicted to zero page. See
-        // RematerializableSinkPass.
-        passMgr.AddPass(new RematerializableSinkPass());
-        // Coalesce vreg↔vreg pseudo.copies before allocation — the llvm-mos
-        // RegisterCoalescer slot (after TwoAddress/LiveIntervals, before the
-        // allocator). Deletes a copy by merging its two ends' live ranges when they
-        // do not interfere; physreg copies are left as allocation hints. See
-        // RegisterCoalescerPass.
-        //
-        // GATED OFF by default (IRIE_COALESCE=1 to enable). The coalescer is
-        // AGGRESSIVE (non-interference joining, faithful to llvm), which only pays
-        // off with a SPLITTING allocator: it is the prerequisite for the greedy
-        // bring-up. The current default allocator is the graph-COLOURER, whose
-        // conservative coalescer + (not-yet-lowered) store/reload spill cannot absorb
-        // the extra register pressure aggressive pre-coalescing creates. So this runs
-        // only when explicitly enabled, alongside the greedy path. Remove the gate
-        // when the colourer is retired.
-        if (Environment.GetEnvironmentVariable("IRIE_COALESCE") == "1")
-            passMgr.AddPass(new RegisterCoalescerPass(target.RegisterInfo));
-        // Select the greedy allocator (llvm-mos RegAllocGreedy port) with IRIE_GREEDY=1;
-        // unset = graph-colouring default (the validation oracle). This standing
-        // selector re-establishes the corpus measurement loop for the greedy
-        // end-goal. The recommended config is IRIE_GREEDY=1 WITHOUT IRIE_COALESCE
-        // (the aggressive coalescer is only safe with a fuller SplitKit; see memory).
-        var useGreedy = Environment.GetEnvironmentVariable("IRIE_GREEDY") == "1";
-        passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo, useGreedy));
-    }
+    // Conventional SSA destruction up front, then the allocator chain.
+    passMgr.AddPass(new PhiEliminationPass(target.BranchLowering));
+    passMgr.AddPass(new TwoAddressInstructionPass());
+    // Sink rematerializable defs (constants, symbol bytes) into their sole
+    // use block before allocation — the llvm-mos `machine-sink` analogue.
+    // Relieves entry-block pressure so long-lived values (arguments) keep the
+    // scarce real registers instead of being evicted to zero page. See
+    // RematerializableSinkPass.
+    passMgr.AddPass(new RematerializableSinkPass());
+    passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo));
     // Target branch-folding passes run on physreg-only MIR after RA and before
     // CopyElimination — the llvm-mos Control Flow Optimizer slot (after the VReg
     // rewriter, before copy-opt). MOS6502 uses this for empty-block elimination.

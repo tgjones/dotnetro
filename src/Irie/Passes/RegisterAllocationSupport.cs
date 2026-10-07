@@ -9,14 +9,8 @@ namespace Irie.Passes;
 // =============================================================================
 //
 // The class-intersection ("allowed colours") computation and the
-// referenced-vreg collection are needed identically by BOTH allocator engines:
-// the graph-colouring `GraphColouringAllocator` and the greedy
-// `GreedyRegisterAllocator`. This is the canonical copy, used by the greedy
-// engine. The colourer still carries its own equivalent private copy for now —
-// it is the *default* allocator and is left untouched during the greedy
-// bring-up; the two converge when the colourer is retired (greedy-RA plan
-// Stage 4), at which point this becomes the only copy. Until then the logic in
-// the two must stay in lockstep (it is stable and not edited during bring-up).
+// referenced-vreg collection, plus register-set helpers shared by the
+// allocator-adjacent passes (OperandLegalizationPass).
 internal static class RegisterAllocationSupport
 {
     // -------------------------------------------------------------------------
