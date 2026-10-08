@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 50
-- **Implemented and lit-covered:** 31
+- **Implemented:** 61
+- **Implemented and lit-covered:** 50
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -18,7 +18,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `add` | ✅ | ✅ |
 | `add.ovf` | ❌ | — |
 | `add.ovf.un` | ❌ | — |
-| `and` | ❌ | — |
+| `and` | ✅ | ✅ |
 | `arglist` | ❌ | — |
 | `beq` | ❌ | — |
 | `beq.s` | ❌ | — |
@@ -45,19 +45,19 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `br.s` | ✅ | ✅ |
 | `break` | ❌ | — |
 | `brfalse` | ✅ | ❌ |
-| `brfalse.s` | ✅ | ❌ |
+| `brfalse.s` | ✅ | ✅ |
 | `brtrue` | ✅ | ❌ |
 | `brtrue.s` | ✅ | ✅ |
 | `call` | ✅ | ✅ |
 | `calli` | ❌ | — |
 | `callvirt` | ✅ | ✅ |
 | `castclass` | ❌ | — |
-| `ceq` | ❌ | — |
-| `cgt` | ❌ | — |
-| `cgt.un` | ❌ | — |
+| `ceq` | ✅ | ✅ |
+| `cgt` | ✅ | ✅ |
+| `cgt.un` | ✅ | ✅ |
 | `ckfinite` | ❌ | — |
 | `clt` | ✅ | ✅ |
-| `clt.un` | ❌ | — |
+| `clt.un` | ✅ | ✅ |
 | `constrained` | ❌ | — |
 | `conv.i` | ✅ | ❌ |
 | `conv.i1` | ❌ | — |
@@ -111,16 +111,16 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldarg.s` | ✅ | ❌ |
 | `ldarga` | ❌ | — |
 | `ldarga.s` | ❌ | — |
-| `ldc.i4` | ✅ | ❌ |
+| `ldc.i4` | ✅ | ✅ |
 | `ldc.i4.0` | ✅ | ✅ |
 | `ldc.i4.1` | ✅ | ✅ |
 | `ldc.i4.2` | ✅ | ✅ |
 | `ldc.i4.3` | ✅ | ✅ |
-| `ldc.i4.4` | ✅ | ❌ |
+| `ldc.i4.4` | ✅ | ✅ |
 | `ldc.i4.5` | ✅ | ✅ |
-| `ldc.i4.6` | ❌ | — |
-| `ldc.i4.7` | ❌ | — |
-| `ldc.i4.8` | ❌ | — |
+| `ldc.i4.6` | ✅ | ✅ |
+| `ldc.i4.7` | ✅ | ✅ |
+| `ldc.i4.8` | ✅ | ❌ |
 | `ldc.i4.m1` | ✅ | ✅ |
 | `ldc.i4.s` | ✅ | ✅ |
 | `ldc.i8` | ❌ | — |
@@ -157,9 +157,9 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldloc` | ❌ | — |
 | `ldloc.0` | ✅ | ✅ |
 | `ldloc.1` | ✅ | ✅ |
-| `ldloc.2` | ✅ | ❌ |
-| `ldloc.3` | ✅ | ❌ |
-| `ldloc.s` | ✅ | ❌ |
+| `ldloc.2` | ✅ | ✅ |
+| `ldloc.3` | ✅ | ✅ |
+| `ldloc.s` | ✅ | ✅ |
 | `ldloca` | ❌ | — |
 | `ldloca.s` | ✅ | ✅ |
 | `ldnull` | ❌ | — |
@@ -180,8 +180,8 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `newarr` | ❌ | — |
 | `newobj` | ✅ | ✅ |
 | `nop` | ✅ | ✅ |
-| `not` | ❌ | — |
-| `or` | ❌ | — |
+| `not` | ✅ | ✅ |
+| `or` | ✅ | ✅ |
 | `pop` | ❌ | — |
 | `readonly` | ❌ | — |
 | `refanytype` | ❌ | — |
@@ -217,9 +217,9 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stloc` | ❌ | — |
 | `stloc.0` | ✅ | ✅ |
 | `stloc.1` | ✅ | ✅ |
-| `stloc.2` | ✅ | ❌ |
-| `stloc.3` | ✅ | ❌ |
-| `stloc.s` | ✅ | ❌ |
+| `stloc.2` | ✅ | ✅ |
+| `stloc.3` | ✅ | ✅ |
+| `stloc.s` | ✅ | ✅ |
 | `stobj` | ❌ | — |
 | `stsfld` | ✅ | ✅ |
 | `sub` | ❌ | — |
@@ -232,4 +232,4 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `unbox` | ❌ | — |
 | `unbox.any` | ❌ | — |
 | `volatile` | ❌ | — |
-| `xor` | ❌ | — |
+| `xor` | ✅ | ✅ |

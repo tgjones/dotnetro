@@ -31,6 +31,13 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
                 var instr = block.Instructions[i];
                 if (!IsCmpAgainstZero(instr, out var comparedReg)) continue;
 
+                // `cmp #0` also defines C (always set: A >= 0 unsigned), which a
+                // load/transfer does not. llvm-mos only folds its N/Z-only
+                // CmpZero pseudo; here the compare is shared with the unsigned
+                // ladder (`uge`/`ult` against a zero byte), whose bcc/bcs read C.
+                // Keep the compare while a later instruction still reads C.
+                if (CarryIsReadAfter(block, i)) continue;
+
                 // Scan backward for the producer of comparedReg. Stop at the
                 // first N/Z clobber (mirrors llvm-mos's `modifiesRegister(NZ)`
                 // bail-out): if that clobber IS the producer we fold, otherwise
@@ -55,6 +62,24 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
                 }
             }
         }
+    }
+
+    // True when an instruction after `index` in the block reads $c before $c is
+    // redefined. A C live-out past the block end is not tracked: every compare
+    // the selector emits is consumed by a branch in its own block.
+    private static bool CarryIsReadAfter(MirBlock block, int index)
+    {
+        for (var k = index + 1; k < block.Instructions.Count; k++)
+        {
+            var next = block.Instructions[k];
+            foreach (var operand in next.Operands)
+                if (operand is PhysicalReg { IsDefinition: false, Id: MOS6502Registers.C })
+                    return true;
+            foreach (var operand in next.Operands)
+                if (operand is PhysicalReg { IsDefinition: true, Id: MOS6502Registers.C })
+                    return false;
+        }
+        return false;
     }
 
     // Matches `mos6502.cmp.imm $r, #0` — the selector always picks the concrete

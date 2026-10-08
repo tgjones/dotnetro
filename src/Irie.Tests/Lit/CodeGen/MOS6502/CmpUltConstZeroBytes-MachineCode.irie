@@ -1,0 +1,43 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Regression: an unsigned wide compare against a small constant tests the upper
+; bytes against 0 with `cmp #0` and then branches on the carry (BCC/BNE ladder).
+; MOS6502LateOptimizationPass used to drop a `cmp #0` whenever the compared
+; register came straight from a load/transfer (its N/Z are already right), but the
+; compare also defines C, which the BCC/BCS read — so the ladder branched on a
+; stale carry. The compare must stay while a later instruction reads C.
+
+; CHECK: UltConst:
+; CHECK:     TAY
+; CHECK:     LDA $03
+; CHECK:     CMP #$00
+; CHECK:     BCC .bb1
+; CHECK:     BNE .bb3
+; CHECK:     LDA $02
+; CHECK:     CMP #$00
+; CHECK:     BCC .bb1
+; CHECK:     BNE .bb3
+; CHECK:     TXA
+; CHECK:     CMP #$00
+; CHECK:     BCC .bb1
+; CHECK:     BNE .bb3
+; CHECK:     TYA
+; CHECK:     CMP #$03
+; CHECK:     BCS .bb3
+; CHECK: .bb1:
+; CHECK:     LDA #$01
+; CHECK: .bb2:
+; CHECK:     RTS
+
+func @UltConst : (i32) -> i8 {
+bb0(%0 : i32):
+    %1 : i32 = arith.constant 3
+    %2 : i1 = arith.cmpi ult, %0, %1
+    cf.cond_br %2, bb1(), bb2()
+bb1():
+    %3 : i8 = arith.constant 1
+    core.return %3
+bb2():
+    %4 : i8 = arith.constant 0
+    core.return %4
+}

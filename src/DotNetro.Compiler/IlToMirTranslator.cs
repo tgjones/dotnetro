@@ -485,7 +485,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 PrimitiveTypeCode.Void => IRType.Void,
                 PrimitiveTypeCode.Boolean => IRType.I8,
                 PrimitiveTypeCode.Byte => IRType.I8,
-                PrimitiveTypeCode.Int32 => IRType.I32,
+                PrimitiveTypeCode.Int32 or PrimitiveTypeCode.UInt32 => IRType.I32,
                 PrimitiveTypeCode.IntPtr or PrimitiveTypeCode.UIntPtr => IRType.I16,
                 // A managed string / object is a heap reference: a 16-bit pointer
                 // on the 6502 (the pointer @ReadLine returns / @WriteLineString
@@ -676,6 +676,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldc_i4_3: PushConstant(3); break;
                     case ILOpCode.Ldc_i4_4: PushConstant(4); break;
                     case ILOpCode.Ldc_i4_5: PushConstant(5); break;
+                    case ILOpCode.Ldc_i4_6: PushConstant(6); break;
+                    case ILOpCode.Ldc_i4_7: PushConstant(7); break;
+                    case ILOpCode.Ldc_i4_8: PushConstant(8); break;
                     case ILOpCode.Ldc_i4_m1: PushConstant(-1); break;
                     case ILOpCode.Ldc_i4_s: PushConstant(ilReader.ReadSByte()); break;
                     case ILOpCode.Ldc_i4: PushConstant(ilReader.ReadInt32()); break;
@@ -686,7 +689,11 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
                     case ILOpCode.Not: TranslateNot(); break;
 
-                    case ILOpCode.Clt: TranslateClt(); break;
+                    case ILOpCode.Ceq: TranslateCompare(ArithCmpPredicate.Eq); break;
+                    case ILOpCode.Cgt: TranslateCompare(ArithCmpPredicate.Sgt); break;
+                    case ILOpCode.Cgt_un: TranslateCompare(ArithCmpPredicate.Ugt); break;
+                    case ILOpCode.Clt: TranslateCompare(ArithCmpPredicate.Slt); break;
+                    case ILOpCode.Clt_un: TranslateCompare(ArithCmpPredicate.Ult); break;
 
                     case ILOpCode.Stloc_0: TranslateStloc(0); break;
                     case ILOpCode.Stloc_1: TranslateStloc(1); break;
@@ -787,6 +794,11 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateRet();
                         break;
 
+                    case var _ when TryGetCompareBranch(opCode, out var cmpPredicate, out var cmpShort):
+                        TranslateCompareBranch(
+                            _currentBlock, ReadBranchTarget(ref ilReader, cmpShort), cmpPredicate);
+                        break;
+
                     default:
                         throw new NotSupportedException(
                             $"IL→MIR: opcode {opCode} is not supported yet (method {_method.UniqueName}).");
@@ -832,6 +844,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Brtrue:
                     case ILOpCode.Brfalse:
                         target = scan.ReadInt32() + scan.Offset;
+                        break;
+                    case var _ when TryGetCompareBranch(opCode, out _, out var cmpShort):
+                        target = ReadBranchTarget(ref scan, cmpShort);
                         break;
                     default:
                         SkipOperand(ref scan, opCode);
@@ -949,6 +964,9 @@ internal sealed class IlToMirTranslator : IDisposable
                         case ILOpCode.Ret:
                             endsWithReturn = true;
                             break;
+                        case var _ when TryGetCompareBranch(opCode, out _, out var cmpShort):
+                            succ.Add(ReadBranchTarget(ref scan, cmpShort));
+                            break;
                         default:
                             SkipOperand(ref scan, opCode);
                             break;
@@ -1031,6 +1049,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     break;
                 case ILOpCode.Br: case ILOpCode.Brtrue: case ILOpCode.Brfalse:
                     reader.ReadInt32();
+                    break;
+                case var _ when TryGetCompareBranch(opCode, out _, out var cmpShort):
+                    if (cmpShort) reader.ReadSByte(); else reader.ReadInt32();
                     break;
                 default:
                     SkipOperand(ref reader, opCode);
@@ -1133,7 +1154,7 @@ internal sealed class IlToMirTranslator : IDisposable
         private int[] _parameterVregs = [];
 
         // The block currently being emitted into. Normally tracks the IL
-        // basic-block leader, but a value-used compare (TranslateClt's diamond)
+        // basic-block leader, but a value-used compare (TranslateCompare's diamond)
         // splits the current block and redirects this to the merge block so
         // subsequent IL emits after the materialised 0/1 result.
         private MirBlock _currentBlock = null!;
@@ -1259,15 +1280,6 @@ internal sealed class IlToMirTranslator : IDisposable
             EmitBranchTo(from, BlockAt(target));
         }
 
-        // clt → arith.cmpi <slt>, %a, %b → i1, pushed onto the eval stack.
-        // (cge, used by bge, would be sge — added when a test needs it.)
-        //
-        // The cmpi is left unmaterialised: if an immediately-following
-        // brtrue/brfalse consumes it, TranslateCondBranch builds a cf.cond_br on
-        // it and Irie's isel fuses the pair (loop-condition path). If instead the
-        // i1 is consumed as a *value* (e.g. passed to Console.WriteLine(bool)),
-        // TranslateCall materialises it into a concrete 0/1 i8 via a cond_br
-        // diamond (see MaterialiseCompare).
         // and / or / xor: both operands must have the same integer width. A
         // value-used compare (i1) is first materialised to its 0/1 i8, so
         // `(a < b) & (c < d)` combines two bytes.
@@ -1309,16 +1321,112 @@ internal sealed class IlToMirTranslator : IDisposable
                 : value;
         }
 
-        private void TranslateClt()
+        // ceq/cgt/cgt.un/clt/clt.un → arith.cmpi <pred>, %a, %b → i1, pushed onto
+        // the eval stack.
+        //
+        // The cmpi is left unmaterialised: if an immediately-following
+        // brtrue/brfalse consumes it, TranslateCondBranch builds a cf.cond_br on
+        // it and Irie's isel fuses the pair (loop-condition path). If instead the
+        // i1 is consumed as a *value* (e.g. passed to Console.WriteLine(bool)),
+        // TranslateCall materialises it into a concrete 0/1 i8 via a cond_br
+        // diamond (see MaterialiseCompare). An i1 *operand* (comparing two
+        // compares) is materialised to its 0/1 i8 first.
+        private void TranslateCompare(ArithCmpPredicate predicate)
         {
-            var right = _stack.Pop();
-            var left = _stack.Pop();
+            // Roslyn lowers `a != b`, `a <= b`, `a >= b` (and `!(a < b)`) as
+            // `<compare>; ldc.i4.0; ceq`: an i1 compared for equality with a
+            // constant 0/1. That is just the i1 or its logical negation — an
+            // arith.not, which isel strips at the consuming cf.cond_br — so do
+            // not widen the i1 to a byte only to compare it against an i32.
+            if (predicate == ArithCmpPredicate.Eq
+                && _stack.Count >= 2
+                && _stack.ToArray() is [{ Type: var topType, Vreg: var topVreg }, { Type: var belowType, Vreg: var belowVreg }, ..]
+                && TryFoldBoolCompare(belowType, belowVreg, topType, topVreg) is { } folded)
+            {
+                _stack.Pop();
+                _stack.Pop();
+                _stack.Push(folded);
+                return;
+            }
+
+            var right = PopMaterialised();
+            var left = PopMaterialised();
             if (!left.Type.Equals(right.Type))
                 throw new NotSupportedException(
-                    $"IL→MIR: clt of mismatched types {left.Type} and {right.Type}.");
+                    $"IL→MIR: compare of mismatched types {left.Type} and {right.Type}.");
 
-            var result = _builder.BuildCmpI(ArithCmpPredicate.Slt, left.Vreg, right.Vreg);
+            var result = _builder.BuildCmpI(predicate, left.Vreg, right.Vreg);
             _stack.Push(new StackValue(result, IRType.I1));
+        }
+
+        // `i1 == 0` → not(i1), `i1 == 1` → i1 (in either operand order); null when
+        // the operands are not an i1 and a constant 0/1.
+        private StackValue? TryFoldBoolCompare(IRType leftType, int leftVreg, IRType rightType, int rightVreg)
+        {
+            if (rightType.Equals(IRType.I1)) (leftType, leftVreg, rightType, rightVreg) = (rightType, rightVreg, leftType, leftVreg);
+            if (!leftType.Equals(IRType.I1)) return null;
+            if (_function.GetDefinition(rightVreg) is not { } def
+                || def.Opcode != ArithDialect.OpRef(ArithOp.Constant)
+                || def.Operands is not [_, Immediate { Value: var value and (0 or 1) }])
+                return null;
+
+            if (value == 1) return new StackValue(leftVreg, IRType.I1);
+
+            var negated = _function.CreateVirtualRegister(IRType.I1);
+            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.Not),
+                new VirtualReg(negated, IsDefinition: true),
+                new VirtualReg(leftVreg, IsDefinition: false));
+            return new StackValue(negated, IRType.I1);
+        }
+
+        // The ECMA-335 compare-and-branch family (beq, bge, bgt, ble, blt, bne.un,
+        // bge.un, bgt.un, ble.un, blt.un, each with a short form): the signed /
+        // unsigned / equality predicate the fused compare tests. Float
+        // unordered semantics of the `.un` forms are not modelled (no floats).
+        private static bool TryGetCompareBranch(
+            ILOpCode opCode, out ArithCmpPredicate predicate, out bool isShort)
+        {
+            isShort = opCode is ILOpCode.Beq_s or ILOpCode.Bge_s or ILOpCode.Bgt_s
+                or ILOpCode.Ble_s or ILOpCode.Blt_s or ILOpCode.Bne_un_s
+                or ILOpCode.Bge_un_s or ILOpCode.Bgt_un_s or ILOpCode.Ble_un_s
+                or ILOpCode.Blt_un_s;
+            switch (opCode)
+            {
+                case ILOpCode.Beq or ILOpCode.Beq_s:       predicate = ArithCmpPredicate.Eq;  return true;
+                case ILOpCode.Bge or ILOpCode.Bge_s:       predicate = ArithCmpPredicate.Sge; return true;
+                case ILOpCode.Bgt or ILOpCode.Bgt_s:       predicate = ArithCmpPredicate.Sgt; return true;
+                case ILOpCode.Ble or ILOpCode.Ble_s:       predicate = ArithCmpPredicate.Sle; return true;
+                case ILOpCode.Blt or ILOpCode.Blt_s:       predicate = ArithCmpPredicate.Slt; return true;
+                case ILOpCode.Bne_un or ILOpCode.Bne_un_s: predicate = ArithCmpPredicate.Ne;  return true;
+                case ILOpCode.Bge_un or ILOpCode.Bge_un_s: predicate = ArithCmpPredicate.Uge; return true;
+                case ILOpCode.Bgt_un or ILOpCode.Bgt_un_s: predicate = ArithCmpPredicate.Ugt; return true;
+                case ILOpCode.Ble_un or ILOpCode.Ble_un_s: predicate = ArithCmpPredicate.Ule; return true;
+                case ILOpCode.Blt_un or ILOpCode.Blt_un_s: predicate = ArithCmpPredicate.Ult; return true;
+            }
+            predicate = default;
+            return false;
+        }
+
+        // Displacement of a branch whose operand is a 1-byte (short) or 4-byte
+        // offset from the end of the instruction.
+        private static int ReadBranchTarget(ref BlobReader reader, bool isShort)
+            => isShort ? reader.ReadSByte() + reader.Offset : reader.ReadInt32() + reader.Offset;
+
+        // beq/bge/…: pop two values, compare with `predicate`, branch to `target`
+        // when it holds, else fall through. The cmpi is built directly at the end
+        // of the block so isel fuses it with the cf.cond_br (no i1 is
+        // materialised), exactly as for `clt; brtrue`.
+        private void TranslateCompareBranch(MirBlock from, int target, ArithCmpPredicate predicate)
+        {
+            // Resolve the fall-through from the block the branch started in: an
+            // i1 operand's materialisation (PopMaterialised) moves _currentBlock
+            // to a synthetic merge block with no IL offset.
+            var fallThrough = NextBlockAfter(from);
+            TranslateCompare(predicate);
+            var cond = _stack.Pop();
+
+            _builder.SetInsertionPointAtEnd(_currentBlock);
+            EmitCondBr(cond.Vreg, BlockAt(target), fallThrough);
         }
 
         // Build the cond_br diamond that turns an i1 compare result (defined by a
@@ -1409,7 +1517,13 @@ internal sealed class IlToMirTranslator : IDisposable
             // brfalse: invert the two edges.
             var trueEdge = branchIfTrue ? targetBlock : fallThrough;
             var falseEdge = branchIfTrue ? fallThrough : targetBlock;
+            EmitCondBr(condVreg, trueEdge, falseEdge);
+        }
 
+        // cf.cond_br %cond, trueEdge(locals), falseEdge(locals) at the builder's
+        // insertion point, threading the current locals as block arguments.
+        private void EmitCondBr(int condVreg, MirBlock trueEdge, MirBlock falseEdge)
+        {
             _builder.BuildInstruction(
                 CfDialect.OpRef(CfOp.CondBr),
                 new VirtualReg(condVreg, IsDefinition: false),
