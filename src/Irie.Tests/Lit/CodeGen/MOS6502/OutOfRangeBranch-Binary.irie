@@ -24,6 +24,7 @@
 
 func @TooFar : () -> void {
 bb0():
+    [liveins: $0]
     mos6502.cmp.imm $0, 0, implicit-def $6, implicit-def $8, implicit-def $5
     mos6502.beq bb1, implicit $8
     mos6502.clc

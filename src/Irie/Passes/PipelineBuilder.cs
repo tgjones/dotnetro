@@ -38,6 +38,7 @@ public static class PipelineBuilder
         // RematerializableSinkPass.
         passMgr.AddPass(new RematerializableSinkPass());
         passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo));
+        passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
         // Target branch-folding passes run on physreg-only MIR after RA and before
         // CopyElimination — the llvm-mos Control Flow Optimizer slot (after the VReg
         // rewriter, before copy-opt). MOS6502 uses this for empty-block elimination.
@@ -70,6 +71,7 @@ public static class PipelineBuilder
         // so it must run after scavenging, which still needs the explicit-jmp CFG to
         // compute physreg liveness.
         target.AddFinalPasses(passMgr);
+        passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo, finalLowering: true));
         // Tail-duplication runs last — after the target's block-placement — to
         // rebalance trivial shared return tails left by ReturnMergePass (the
         // llvm-mos `tailduplication` analogue); it follows block-placement because

@@ -140,6 +140,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
 
         // assignment is non-null here: the loop only `break`s when colouring
         // succeeded (Run returned a non-null map).
+        RegisterAssignmentVerifier.Verify(function, registerInfo, intervals, assignment!);
         ApplyAssignment(function, assignment!);
         function.ClearVRegAnnotations();
         RecomputeBlockLiveIns(function, intervals, assignment!);
