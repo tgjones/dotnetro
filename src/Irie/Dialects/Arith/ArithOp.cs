@@ -43,4 +43,12 @@ public enum ArithOp : ushort
     // selector strips it at the consuming cf.cond_br by swapping the branch's
     // true/false targets.
     Not,
+
+    // %r = arith.and %a, %b   /   arith.or   /   arith.xor
+    // Bitwise ops on integers. Pure per-bit, so a wide op narrows into
+    // independent per-byte ops (no carry chain). Appended after Not to keep
+    // existing opcode numbering (and binary-MIR goldens) stable.
+    And,
+    Or,
+    Xor,
 }

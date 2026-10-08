@@ -90,6 +90,16 @@ public static class MOS6502MachineCodeEmitTable
         // two's-complement negate (EOR #$FF) in WriteLineInt32.
         [MOS6502Op.EorImm] = new EmitRule(MOS6502Opcode.EOR_Immediate, EmitOperandKind.Immediate, 2),
 
+        // $a = mos6502.{and,ora,eor}.{zp,abs} $a, <rhs> — same shape as EorImm
+        // (LogicInfo): index 2 = use[1], the zero-page register / absolute symbol.
+        [MOS6502Op.AndImm] = new EmitRule(MOS6502Opcode.AND_Immediate, EmitOperandKind.Immediate,       2),
+        [MOS6502Op.AndZp]  = new EmitRule(MOS6502Opcode.AND_ZeroPage,  EmitOperandKind.ZeroPageAddress, 2),
+        [MOS6502Op.AndAbs] = new EmitRule(MOS6502Opcode.AND_Absolute,  EmitOperandKind.AbsoluteAddress, 2),
+        [MOS6502Op.OraZp]  = new EmitRule(MOS6502Opcode.ORA_ZeroPage,  EmitOperandKind.ZeroPageAddress, 2),
+        [MOS6502Op.OraAbs] = new EmitRule(MOS6502Opcode.ORA_Absolute,  EmitOperandKind.AbsoluteAddress, 2),
+        [MOS6502Op.EorZp]  = new EmitRule(MOS6502Opcode.EOR_ZeroPage,  EmitOperandKind.ZeroPageAddress, 2),
+        [MOS6502Op.EorAbs] = new EmitRule(MOS6502Opcode.EOR_Absolute,  EmitOperandKind.AbsoluteAddress, 2),
+
         // mos6502.inx / mos6502.iny / mos6502.dex / mos6502.dey — implied; both
         // operands (the X/Y read+write) are implicit. Emitted by the
         // increment strength-reduction peephole for in-place register ±1.

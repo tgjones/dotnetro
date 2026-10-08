@@ -1,0 +1,56 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/constraints/bitops
+;   int bitops(int a, int b, int c) { return (a & b) | (b ^ c) | (a & c); }
+; AND/ORA/EOR are two-address ops on the accumulator; a chain of them forces
+; repeated coalescing into $a while the other operands stay live in zero page.
+; A wide (i16) bitwise op narrows to independent per-byte i8 ops (no carry chain).
+
+; CHECK: bitops:
+; CHECK:     STA $08
+; CHECK:     STX $07
+; CHECK:     LDX $02
+; CHECK:     STX $06
+; CHECK:     LDX $03
+; CHECK:     STX $02
+; CHECK:     AND $06
+; CHECK:     TAY
+; CHECK:     LDA $07
+; CHECK:     AND $02
+; CHECK:     TAX
+; CHECK:     LDA $06
+; CHECK:     EOR $04
+; CHECK:     STA $03
+; CHECK:     LDA $02
+; CHECK:     EOR $05
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     ORA $03
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ORA $02
+; CHECK:     TAX
+; CHECK:     LDA $08
+; CHECK:     AND $04
+; CHECK:     STA $03
+; CHECK:     LDA $07
+; CHECK:     AND $05
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     ORA $03
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ORA $02
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @bitops : (i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16):
+    %3 : i16 = arith.and %0, %1
+    %4 : i16 = arith.xor %1, %2
+    %5 : i16 = arith.or %3, %4
+    %6 : i16 = arith.and %0, %2
+    %7 : i16 = arith.or %5, %6
+    core.return %7
+}

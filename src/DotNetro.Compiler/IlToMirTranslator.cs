@@ -681,6 +681,10 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldc_i4: PushConstant(ilReader.ReadInt32()); break;
 
                     case ILOpCode.Add: TranslateAdd(); break;
+                    case ILOpCode.And: TranslateBitwise(ArithOp.And); break;
+                    case ILOpCode.Or: TranslateBitwise(ArithOp.Or); break;
+                    case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
+                    case ILOpCode.Not: TranslateNot(); break;
 
                     case ILOpCode.Clt: TranslateClt(); break;
 
@@ -1264,6 +1268,47 @@ internal sealed class IlToMirTranslator : IDisposable
         // i1 is consumed as a *value* (e.g. passed to Console.WriteLine(bool)),
         // TranslateCall materialises it into a concrete 0/1 i8 via a cond_br
         // diamond (see MaterialiseCompare).
+        // and / or / xor: both operands must have the same integer width. A
+        // value-used compare (i1) is first materialised to its 0/1 i8, so
+        // `(a < b) & (c < d)` combines two bytes.
+        private void TranslateBitwise(ArithOp op)
+        {
+            var right = PopMaterialised();
+            var left = PopMaterialised();
+            if (!left.Type.Equals(right.Type))
+                throw new NotSupportedException(
+                    $"IL→MIR: {op} of mismatched types {left.Type} and {right.Type}.");
+
+            var result = _function.CreateVirtualRegister(left.Type);
+            _builder.BuildInstruction(ArithDialect.OpRef(op),
+                new VirtualReg(result, IsDefinition: true),
+                new VirtualReg(left.Vreg, IsDefinition: false),
+                new VirtualReg(right.Vreg, IsDefinition: false));
+            _stack.Push(new StackValue(result, left.Type));
+        }
+
+        // not: bitwise complement, `x ^ -1` at the operand's width.
+        private void TranslateNot()
+        {
+            var value = PopMaterialised();
+            var allOnes = _builder.BuildConstant(value.Type, -1);
+            var result = _function.CreateVirtualRegister(value.Type);
+            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.Xor),
+                new VirtualReg(result, IsDefinition: true),
+                new VirtualReg(value.Vreg, IsDefinition: false),
+                new VirtualReg(allOnes, IsDefinition: false));
+            _stack.Push(new StackValue(result, value.Type));
+        }
+
+        // Pops the stack, turning a pending i1 compare into a concrete 0/1 i8.
+        private StackValue PopMaterialised()
+        {
+            var value = _stack.Pop();
+            return value.Type.Equals(IRType.I1)
+                ? new StackValue(MaterialiseCompare(value.Vreg), IRType.I8)
+                : value;
+        }
+
         private void TranslateClt()
         {
             var right = _stack.Pop();

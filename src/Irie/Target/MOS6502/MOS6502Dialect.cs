@@ -295,7 +295,9 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Op.CmpZp  => CmpInfo,
             MOS6502Op.CmpImm => CmpInfo,
             MOS6502Op.StAbs  => StAbsInfo,
-            MOS6502Op.EorImm => EorImmInfo,
+            MOS6502Op.AndZp or MOS6502Op.AndImm or MOS6502Op.AndAbs
+                or MOS6502Op.OraZp or MOS6502Op.OraImm or MOS6502Op.OraAbs
+                or MOS6502Op.EorZp or MOS6502Op.EorImm or MOS6502Op.EorAbs => LogicInfo,
             MOS6502Op.FrameLoadByte  => FrameLoadByteInfo,
             MOS6502Op.FrameStoreByte => FrameStoreByteInfo,
 
@@ -426,16 +428,19 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Registers.C,
         ]);
 
-    // `mos6502.eor.imm` accumulator EOR: def[0]=$a (result), use[0]=$a (tied),
-    // use[1]=immediate. The signed-compare sign-flip emits this with virtual
-    // Ac vregs, so the tied-operand metadata is needed for the two-address pass
-    // and RA to share a single $a across the def/use.
-    private static readonly DialectInstructionInfo EorImmInfo = new(
+    // The accumulator logic ops `mos6502.{and,ora,eor}.{zp,imm,abs}`: def[0]=$a
+    // (result), use[0]=$a (tied to def[0]), use[1]=the RHS (a zero-page register,
+    // immediate or Symbol; the Imag8 class only constrains the .zp form). The
+    // signed-compare sign-flip also emits eor.imm with virtual Ac vregs, so the
+    // tied-operand metadata is needed for the two-address pass and RA to share a
+    // single $a across the def/use.
+    private static readonly DialectInstructionInfo LogicInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // def[0]: result
             MOS6502RegisterClass.Ac,    // use[0]: a (tied to def[0])
+            MOS6502RegisterClass.Imag8, // use[1]: rhs
         ],
-        TiedOperands: [-1, 0]);
+        TiedOperands: [-1, 0, -1]);
 
     // Pre-AMS `mos6502.st.abs` generic absolute store. use[0]=value (Axy — any of
     // $a/$x/$y, since STA/STX/STY all have absolute forms), use[1]=Symbol (no

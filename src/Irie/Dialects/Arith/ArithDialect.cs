@@ -20,6 +20,9 @@ public sealed class ArithDialect : Dialect
         ArithOp.Constant   => "constant",
         ArithOp.Select     => "select",
         ArithOp.Not        => "not",
+        ArithOp.And        => "and",
+        ArithOp.Or         => "or",
+        ArithOp.Xor        => "xor",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown arith opcode {code}."),
     };
 
@@ -35,6 +38,9 @@ public sealed class ArithDialect : Dialect
             case "constant":          code = (ushort)ArithOp.Constant;   return true;
             case "select":            code = (ushort)ArithOp.Select;     return true;
             case "not":               code = (ushort)ArithOp.Not;        return true;
+            case "and":               code = (ushort)ArithOp.And;       return true;
+            case "or":                code = (ushort)ArithOp.Or;        return true;
+            case "xor":               code = (ushort)ArithOp.Xor;       return true;
         }
         code = 0;
         return false;

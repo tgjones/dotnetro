@@ -78,6 +78,9 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
                 ArithOp.SubI       => SelectSubI(instruction, builder),
                 ArithOp.AddICarry  => SelectAddCarry(instruction, builder),
                 ArithOp.SubIBorrow => SelectSubBorrow(instruction, builder),
+                ArithOp.And       => SelectBitwise(instruction, builder, MOS6502Op.AndImm, MOS6502Op.AndZp, MOS6502Op.AndAbs),
+                ArithOp.Or        => SelectBitwise(instruction, builder, MOS6502Op.OraImm, MOS6502Op.OraZp, MOS6502Op.OraAbs),
+                ArithOp.Xor       => SelectBitwise(instruction, builder, MOS6502Op.EorImm, MOS6502Op.EorZp, MOS6502Op.EorAbs),
                 // arith.cmpi / arith.select / arith.not are all consumed wholesale
                 // by the cf.cond_br re-fusion below (SelectCondBr looks each up by
                 // def), so skip them here. A compare always reaches a cond_br
@@ -280,6 +283,69 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
         return SelectCarryBorrowOp(
             instr, builder, aluOp,
             resultVreg, flagOutVreg: deadCarryOut, aVreg, bVreg, flagInVreg: carryInVreg);
+    }
+
+    // arith.{and,or,xor} : i8 → mos6502.{and,ora,eor}.{imm,abs,zp}. Operand
+    // layout: def[0]=result, use[0]=a, use[1]=b. The op is commutative, so the
+    // constant / folded-load operand may be either input; the other lands in the
+    // tied accumulator. Same fold order as the adc path: abs-load, then
+    // immediate, else the zero-page register form (Imag8 RHS). There is no
+    // carry and no flag output, so the shape is `%r = op %acc, <rhs>`.
+    private bool SelectBitwise(
+        MirInstruction instr, MirBuilder builder,
+        MOS6502Op immOp, MOS6502Op zpOp, MOS6502Op absOp)
+    {
+        var function = builder.Function;
+        var resultVreg = ((VirtualReg)instr.Operands[0]).Id;
+        var aVreg      = ((VirtualReg)instr.Operands[1]).Id;
+        var bVreg      = ((VirtualReg)instr.Operands[2]).Id;
+
+        var accVreg = aVreg;
+        MirOperand rhs;
+        MOS6502Op op;
+        AbsLoadFold? absFold = null;
+        int? foldedConstVreg = null;
+
+        if (TryMatchFoldableAbsLoad(function, bVreg, instr) is { } foldB)
+            (op, rhs, absFold) = (absOp, foldB.Symbol, foldB);
+        else if (TryMatchFoldableAbsLoad(function, aVreg, instr) is { } foldA)
+            (op, rhs, absFold, accVreg) = (absOp, foldA.Symbol, foldA, bVreg);
+        else if (TryGetConstant(function, bVreg) is { } bConst)
+            (op, rhs, foldedConstVreg) = (immOp, new Immediate(bConst), bVreg);
+        else if (TryGetConstant(function, aVreg) is { } aConst)
+            (op, rhs, foldedConstVreg, accVreg) = (immOp, new Immediate(aConst), aVreg, bVreg);
+        else
+            (op, rhs) = (zpOp, new VirtualReg(bVreg, IsDefinition: false));
+
+        var newResult = function.CreateVirtualRegisterInClass(
+            MOS6502RegisterClass.Ac,
+            MOS6502RegisterClass.GetName(MOS6502RegisterClass.Ac)!);
+
+        builder.SetInsertionPointBefore(instr);
+        var logic = builder.BuildInstruction(
+            MOS6502Dialect.OpRef(op),
+            new VirtualReg(newResult, IsDefinition: true),
+            new VirtualReg(accVreg,   IsDefinition: false),
+            rhs);
+
+        // use[0]=Ac tied to def[0], use[1]=Imag8 (skipped for Immediate/Symbol).
+        RegisterClassConstraining.ConstrainSelectedInstRegOperands(
+            logic, function, _registerInfo, builder);
+
+        function.ReplaceAllUsesOfRegister(resultVreg, newResult);
+        builder.Remove(instr);
+
+        if (absFold is { } fold)
+        {
+            if (fold.Copy is { } foldCopy) builder.Remove(foldCopy);
+            builder.Remove(fold.Lda);
+        }
+        if (foldedConstVreg is { } constVreg
+            && function.GetUseCount(constVreg) == 0
+            && function.GetDefinition(constVreg) is { Parent: not null } def)
+            builder.Remove(def);
+
+        return true;
     }
 
     private bool SelectCarryBorrowOp(
@@ -914,7 +980,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
 
     // Emit `result = byte EOR #imm`, returning the eor.imm result vreg ($a-class).
     // The EOR must run in $a, so the byte is copied into a fresh Ac vreg and
-    // EOR'd in place (def tied to use via EorImmInfo). The result is left in its
+    // EOR'd in place (def tied to use via LogicInfo). The result is left in its
     // Ac vreg; if it outlives the op the generic relocation pass moves it off $a
     // into a flexible vreg so the RA can park it in zero page for the rest of the
     // compare chain (the former per-opcode out-funnel is gone).

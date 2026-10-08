@@ -346,6 +346,13 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
             return;
         }
 
+        if (instr.Opcode.Dialect == ArithDialect.Id
+            && (ArithOp)instr.Opcode.Code is ArithOp.And or ArithOp.Or or ArithOp.Xor)
+        {
+            LegalizeNarrowBitwise(instr, builder, wideType, narrowType);
+            return;
+        }
+
         if (instr.Opcode.Dialect != ArithDialect.Id
             || ((ArithOp)instr.Opcode.Code != ArithOp.AddI
                 && (ArithOp)instr.Opcode.Code != ArithOp.SubI))
@@ -402,6 +409,43 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         }
 
         builder.BuildMergeInto(resultVreg, resultParts);
+        builder.Remove(instr);
+    }
+
+    // %r : iN = arith.{and,or,xor} %a, %b  →  per-byte op on the unmerged
+    // operands + merge. Bitwise ops have no inter-byte dependency, so unlike
+    // addi/subi there is no carry chain.
+    private static void LegalizeNarrowBitwise(
+        MirInstruction instr,
+        MirBuilder builder,
+        IRType wideType,
+        IRType narrowType)
+    {
+        if (instr.Operands.Length != 3
+            || instr.Operands[0] is not VirtualReg { IsDefinition: true } def
+            || instr.Operands[1] is not VirtualReg { IsDefinition: false } lhs
+            || instr.Operands[2] is not VirtualReg { IsDefinition: false } rhs)
+            throw new InvalidOperationException(
+                "Legalizer: bitwise arith op must have shape `%def = arith.op %a, %b`.");
+
+        var count = wideType.SizeInBits / narrowType.SizeInBits;
+
+        builder.SetInsertionPointBefore(instr);
+        var lhsParts = builder.BuildUnmerge(narrowType, lhs.Id, count);
+        var rhsParts = builder.BuildUnmerge(narrowType, rhs.Id, count);
+
+        var resultParts = new int[count];
+        for (var i = 0; i < count; i++)
+        {
+            resultParts[i] = builder.Function.CreateVirtualRegister(narrowType);
+            builder.BuildInstruction(
+                instr.Opcode,
+                new VirtualReg(resultParts[i], IsDefinition: true),
+                new VirtualReg(lhsParts[i],    IsDefinition: false),
+                new VirtualReg(rhsParts[i],    IsDefinition: false));
+        }
+
+        builder.BuildMergeInto(def.Id, resultParts);
         builder.Remove(instr);
     }
 

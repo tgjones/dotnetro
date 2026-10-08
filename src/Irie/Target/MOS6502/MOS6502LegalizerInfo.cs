@@ -25,6 +25,12 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 ArithOp.AddI       when intType.SizeInBits > 8   => LegalityAction.NarrowScalar,
                 ArithOp.SubI       when intType.SizeInBits == 8  => LegalityAction.Legal,
                 ArithOp.SubI       when intType.SizeInBits > 8   => LegalityAction.NarrowScalar,
+                // Bitwise ops are per-bit, so a wide op narrows into independent
+                // per-byte ops with no carry chain.
+                ArithOp.And or ArithOp.Or or ArithOp.Xor
+                                   when intType.SizeInBits == 8  => LegalityAction.Legal,
+                ArithOp.And or ArithOp.Or or ArithOp.Xor
+                                   when intType.SizeInBits > 8   => LegalityAction.NarrowScalar,
                 ArithOp.AddICarry  => LegalityAction.Legal,
                 ArithOp.SubIBorrow => LegalityAction.Legal,
                 // arith.cmpi's legality is keyed off operand[2] (the `a` value),
@@ -119,6 +125,9 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         if (opcode.Dialect == ArithDialect.Id
             && ((ArithOp)opcode.Code == ArithOp.AddI
                 || (ArithOp)opcode.Code == ArithOp.SubI
+                || (ArithOp)opcode.Code == ArithOp.And
+                || (ArithOp)opcode.Code == ArithOp.Or
+                || (ArithOp)opcode.Code == ArithOp.Xor
                 || (ArithOp)opcode.Code == ArithOp.Constant
                 || (ArithOp)opcode.Code == ArithOp.Select))
             return IRType.I8;
