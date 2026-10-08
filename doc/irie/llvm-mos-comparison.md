@@ -2,12 +2,17 @@
 
 # Irie vs llvm-mos — MOS6502 codegen
 
-Irie emits **-16.0%** instructions vs llvm-mos (**568** vs **676**, ratio **0.84**) across **23/47** corpus cases.
+Irie emits **-10.6%** instructions vs llvm-mos (**734** vs **821**, ratio **0.89**) across **28/47** corpus cases.
 
 Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).
 
 | Category | Case | Status | llvm-mos | Irie | Δ | Ratio | |
 | --- | --- | --- | --: | --: | --: | --: | :-: |
+| widths | zero-extend | converted | 6 | 9 | +3 | 1.50 | 🔴 |
+| constraints | bitops | converted | 30 | 37 | +7 | 1.23 | 🔴 |
+| widths | sign-extend | converted | 11 | 13 | +2 | 1.18 | 🔴 |
+| pressure | pressure-i16 | converted | 55 | 61 | +6 | 1.11 | 🔴 |
+| widths | mixed-widths | converted | 43 | 46 | +3 | 1.07 | 🔴 |
 | realistic | fibonacci | converted | 50 | 51 | +1 | 1.02 | 🔴 |
 | basics | add-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ |
 | basics | add-i32 | converted | 14 | 14 | 0 | 1.00 | ⚪ |
@@ -32,7 +37,6 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | pressure | many-calls | converted | 178 | 134 | -44 | 0.75 | 🟢 |
 | control-flow | loop-counter | converted | 65 | 40 | -25 | 0.62 | 🟢 |
 | basics | chain-arith | blocked | 51 | — | — | — |  |
-| constraints | bitops | blocked | 30 | — | — | — |  |
 | constraints | compare-flags | blocked | 47 | — | — | — |  |
 | constraints | shift-const | blocked | 26 | — | — | — |  |
 | constraints | shift-var | blocked | 1 | — | — | — |  |
@@ -46,17 +50,650 @@ Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 wors
 | memory | struct-return-sret | blocked | 99 | — | — | — |  |
 | memory | two-pointer-copy | blocked | 47 | — | — | — |  |
 | pressure | pressure-high | blocked | 230 | — | — | — |  |
-| pressure | pressure-i16 | blocked | 55 | — | — | — |  |
 | pressure | pressure-i64 | blocked | 392 | — | — | — |  |
 | realistic | crc8 | blocked | 48 | — | — | — |  |
 | realistic | factorial-recursive | blocked | 60 | — | — | — |  |
 | realistic | gcd | blocked | 40 | — | — | — |  |
 | realistic | strlen | blocked | 1 | — | — | — |  |
-| widths | mixed-widths | blocked | 43 | — | — | — |  |
-| widths | sign-extend | blocked | 11 | — | — | — |  |
-| widths | zero-extend | blocked | 6 | — | — | — |  |
 
 ## Per-case assembly
+
+<details>
+<summary>widths/zero-extend — llvm-mos 6, Irie 9, ratio 1.50</summary>
+
+llvm-mos (6):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "zero-extend.c"
+    .section    .text.zero_extend,"ax",@progbits
+    .globl    zero_extend                     ; -- Begin function zero_extend
+    .type    zero_extend,@function
+zero_extend:                            ; @zero_extend
+; %bb.0:
+    ldx    #0
+    clc
+    adc    #1
+    bne    .LBB0_2
+; %bb.1:
+    inx
+.LBB0_2:
+    rts
+.Lfunc_end0:
+    .size    zero_extend, .Lfunc_end0-zero_extend
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (9):
+
+```asm
+zero_extend:
+    LDX #$00
+    CLC
+    ADC #$01
+    TAY
+    TXA
+    ADC #$00
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>constraints/bitops — llvm-mos 30, Irie 37, ratio 1.23</summary>
+
+llvm-mos (30):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "bitops.c"
+    .section    .text.bitops,"ax",@progbits
+    .globl    bitops                          ; -- Begin function bitops
+    .type    bitops,@function
+bitops:                                 ; @bitops
+; %bb.0:
+    sta    __rc6
+    stx    __rc7
+    ldx    __rc4
+    ldy    __rc5
+    lda    __rc4
+    eor    __rc2
+    sta    __rc4
+    lda    __rc5
+    eor    __rc3
+    sta    __rc5
+    txa
+    ora    __rc2
+    tax
+    tya
+    ora    __rc3
+    sta    __rc2
+    txa
+    and    __rc6
+    tay
+    lda    __rc2
+    and    __rc7
+    tax
+    tya
+    ora    __rc4
+    tay
+    txa
+    ora    __rc5
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    bitops, .Lfunc_end0-bitops
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (37):
+
+```asm
+bitops:
+    STA $08
+    STX $07
+    LDX $02
+    STX $06
+    LDX $03
+    STX $02
+    AND $06
+    TAY
+    LDA $07
+    AND $02
+    TAX
+    LDA $06
+    EOR $04
+    STA $03
+    LDA $02
+    EOR $05
+    STA $02
+    TYA
+    ORA $03
+    TAY
+    TXA
+    ORA $02
+    TAX
+    LDA $08
+    AND $04
+    STA $03
+    LDA $07
+    AND $05
+    STA $02
+    TYA
+    ORA $03
+    TAY
+    TXA
+    ORA $02
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>widths/sign-extend — llvm-mos 11, Irie 13, ratio 1.18</summary>
+
+llvm-mos (11):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "sign-extend.c"
+    .section    .text.sign_extend,"ax",@progbits
+    .globl    sign_extend                     ; -- Begin function sign_extend
+    .type    sign_extend,@function
+sign_extend:                            ; @sign_extend
+; %bb.0:
+    tax
+    bpl    .LBB0_2
+; %bb.1:
+    ldx    #255
+    jmp    .LBB0_3
+.LBB0_2:
+    ldx    #0
+.LBB0_3:
+    clc
+    adc    #255
+    cmp    #255
+    bne    .LBB0_5
+; %bb.4:
+    dex
+.LBB0_5:
+    rts
+.Lfunc_end0:
+    .size    sign_extend, .Lfunc_end0-sign_extend
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (13):
+
+```asm
+sign_extend:
+    CMP #$00
+    BMI .bb3
+.bb1:
+    LDX #$00
+.bb2:
+    SEC
+    SBC #$01
+    TAY
+    TXA
+    SBC #$00
+    TAX
+    TYA
+    RTS
+.bb3:
+    LDX #$FF
+    JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>pressure/pressure-i16 — llvm-mos 55, Irie 61, ratio 1.11</summary>
+
+llvm-mos (55):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "pressure-i16.c"
+    .section    .text.pressure_i16,"ax",@progbits
+    .globl    pressure_i16                    ; -- Begin function pressure_i16
+    .type    pressure_i16,@function
+pressure_i16:                           ; @pressure_i16
+; %bb.0:
+    sta    __rc8
+    stx    __rc9
+    ldx    __rc7
+    clc
+    lda    __rc2
+    adc    __rc8
+    ldy    #0
+    sty    __rc10
+    sta    __rc14
+    lda    __rc3
+    adc    __rc9
+    sta    __rc13
+    lda    __rc6
+    clc
+    adc    __rc4
+    sta    __rc12
+    lda    __rc7
+    adc    __rc5
+    sta    __rc11
+    clc
+    lda    __rc4
+    adc    __rc8
+    sta    __rc8
+    lda    __rc5
+    adc    __rc9
+    sta    __rc7
+    clc
+    lda    __rc6
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    sta    __rc3
+    tya
+    eor    __rc8
+    sta    __rc2
+    lda    __rc12
+    eor    __rc14
+    sta    __rc6
+    lda    __rc11
+    eor    __rc13
+    sta    __rc4
+    lda    __rc3
+    eor    __rc7
+    sta    __rc3
+    ldx    __rc10
+    cpx    #1
+    lda    __rc6
+    adc    __rc2
+    tay
+    lda    __rc4
+    adc    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    pressure_i16, .Lfunc_end0-pressure_i16
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (61):
+
+```asm
+pressure_i16:
+    STA $0D
+    LDY $02
+    STY $0A
+    LDY $03
+    STY $08
+    LDY $04
+    STY $03
+    LDY $05
+    STY $02
+    LDY $06
+    STY $0C
+    LDY $07
+    STY $06
+    CLC
+    ADC $0A
+    STA $05
+    TXA
+    ADC $08
+    STA $04
+    CLC
+    LDA $03
+    ADC $0C
+    STA $0B
+    LDA $02
+    ADC $06
+    STA $09
+    CLC
+    LDA $0D
+    ADC $03
+    STA $03
+    TXA
+    ADC $02
+    STA $02
+    CLC
+    LDA $0A
+    ADC $0C
+    STA $07
+    LDA $08
+    ADC $06
+    STA $06
+    LDA $05
+    EOR $0B
+    TAY
+    LDA $04
+    EOR $09
+    TAX
+    LDA $03
+    EOR $07
+    STA $03
+    LDA $02
+    EOR $06
+    STA $02
+    CLC
+    TYA
+    ADC $03
+    TAY
+    TXA
+    ADC $02
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>widths/mixed-widths — llvm-mos 43, Irie 46, ratio 1.07</summary>
+
+llvm-mos (43):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "mixed-widths.c"
+    .section    .text.mixed_widths,"ax",@progbits
+    .globl    mixed_widths                    ; -- Begin function mixed_widths
+    .type    mixed_widths,@function
+mixed_widths:                           ; @mixed_widths
+; %bb.0:
+    sta    __rc7
+    txa
+    ldx    __rc2
+    ldy    __rc3
+    clc
+    adc    __rc7
+    sta    __rc2
+    txa
+    adc    #0
+    sta    __rc3
+    bpl    .LBB0_2
+; %bb.1:
+    ldx    #255
+    jmp    .LBB0_3
+.LBB0_2:
+    ldx    #0
+.LBB0_3:
+    stx    __rc8
+    tya
+    clc
+    adc    __rc7
+    tax
+    lda    __rc4
+    adc    #0
+    sta    __rc4
+    lda    __rc5
+    adc    #0
+    sta    __rc5
+    lda    __rc6
+    adc    #0
+    sta    __rc6
+    txa
+    clc
+    adc    __rc2
+    tay
+    lda    __rc4
+    adc    __rc3
+    tax
+    lda    __rc5
+    adc    __rc8
+    sta    __rc2
+    lda    __rc6
+    adc    __rc8
+    sta    __rc3
+    tya
+    rts
+.Lfunc_end0:
+    .size    mixed_widths, .Lfunc_end0-mixed_widths
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (46):
+
+```asm
+mixed_widths:
+    STA $07
+    STX $08
+    LDX $02
+    LDY $03
+    STY $02
+    CLC
+    ADC $08
+    TAY
+    TXA
+    ADC #$00
+    TAX
+    CMP #$00
+    BMI .bb3
+.bb1:
+    LDA #$00
+    STA $03
+.bb2:
+    CLC
+    TYA
+    ADC $02
+    TAY
+    TXA
+    ADC $04
+    TAX
+    LDA $03
+    ADC $05
+    STA $02
+    LDA $03
+    ADC $06
+    STA $03
+    CLC
+    TYA
+    ADC $07
+    TAY
+    TXA
+    ADC #$00
+    TAX
+    LDA $02
+    ADC #$00
+    STA $02
+    LDA $03
+    ADC #$00
+    STA $03
+    TYA
+    RTS
+.bb3:
+    LDA #$FF
+    STA $03
+    JMP .bb2
+```
+
+</details>
 
 <details>
 <summary>realistic/fibonacci — llvm-mos 50, Irie 51, ratio 1.02</summary>
@@ -2964,98 +3601,6 @@ Irie (—):
 </details>
 
 <details>
-<summary>constraints/bitops — llvm-mos 30, Irie —</summary>
-
-llvm-mos (30):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "bitops.c"
-    .section    .text.bitops,"ax",@progbits
-    .globl    bitops                          ; -- Begin function bitops
-    .type    bitops,@function
-bitops:                                 ; @bitops
-; %bb.0:
-    sta    __rc6
-    stx    __rc7
-    ldx    __rc4
-    ldy    __rc5
-    lda    __rc4
-    eor    __rc2
-    sta    __rc4
-    lda    __rc5
-    eor    __rc3
-    sta    __rc5
-    txa
-    ora    __rc2
-    tax
-    tya
-    ora    __rc3
-    sta    __rc2
-    txa
-    and    __rc6
-    tay
-    lda    __rc2
-    and    __rc7
-    tax
-    tya
-    ora    __rc4
-    tay
-    txa
-    ora    __rc5
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    bitops, .Lfunc_end0-bitops
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
 <summary>constraints/compare-flags — llvm-mos 47, Irie —</summary>
 
 llvm-mos (47):
@@ -4707,123 +5252,6 @@ Irie (—):
 </details>
 
 <details>
-<summary>pressure/pressure-i16 — llvm-mos 55, Irie —</summary>
-
-llvm-mos (55):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "pressure-i16.c"
-    .section    .text.pressure_i16,"ax",@progbits
-    .globl    pressure_i16                    ; -- Begin function pressure_i16
-    .type    pressure_i16,@function
-pressure_i16:                           ; @pressure_i16
-; %bb.0:
-    sta    __rc8
-    stx    __rc9
-    ldx    __rc7
-    clc
-    lda    __rc2
-    adc    __rc8
-    ldy    #0
-    sty    __rc10
-    sta    __rc14
-    lda    __rc3
-    adc    __rc9
-    sta    __rc13
-    lda    __rc6
-    clc
-    adc    __rc4
-    sta    __rc12
-    lda    __rc7
-    adc    __rc5
-    sta    __rc11
-    clc
-    lda    __rc4
-    adc    __rc8
-    sta    __rc8
-    lda    __rc5
-    adc    __rc9
-    sta    __rc7
-    clc
-    lda    __rc6
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    sta    __rc3
-    tya
-    eor    __rc8
-    sta    __rc2
-    lda    __rc12
-    eor    __rc14
-    sta    __rc6
-    lda    __rc11
-    eor    __rc13
-    sta    __rc4
-    lda    __rc3
-    eor    __rc7
-    sta    __rc3
-    ldx    __rc10
-    cpx    #1
-    lda    __rc6
-    adc    __rc2
-    tay
-    lda    __rc4
-    adc    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    pressure_i16, .Lfunc_end0-pressure_i16
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
 <summary>pressure/pressure-i64 — llvm-mos 392, Irie —</summary>
 
 llvm-mos (392):
@@ -5707,262 +6135,6 @@ strlen_impl:                            ; @strlen_impl
     jmp    strlen
 .Lfunc_end0:
     .size    strlen_impl, .Lfunc_end0-strlen_impl
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>widths/mixed-widths — llvm-mos 43, Irie —</summary>
-
-llvm-mos (43):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "mixed-widths.c"
-    .section    .text.mixed_widths,"ax",@progbits
-    .globl    mixed_widths                    ; -- Begin function mixed_widths
-    .type    mixed_widths,@function
-mixed_widths:                           ; @mixed_widths
-; %bb.0:
-    sta    __rc7
-    txa
-    ldx    __rc2
-    ldy    __rc3
-    clc
-    adc    __rc7
-    sta    __rc2
-    txa
-    adc    #0
-    sta    __rc3
-    bpl    .LBB0_2
-; %bb.1:
-    ldx    #255
-    jmp    .LBB0_3
-.LBB0_2:
-    ldx    #0
-.LBB0_3:
-    stx    __rc8
-    tya
-    clc
-    adc    __rc7
-    tax
-    lda    __rc4
-    adc    #0
-    sta    __rc4
-    lda    __rc5
-    adc    #0
-    sta    __rc5
-    lda    __rc6
-    adc    #0
-    sta    __rc6
-    txa
-    clc
-    adc    __rc2
-    tay
-    lda    __rc4
-    adc    __rc3
-    tax
-    lda    __rc5
-    adc    __rc8
-    sta    __rc2
-    lda    __rc6
-    adc    __rc8
-    sta    __rc3
-    tya
-    rts
-.Lfunc_end0:
-    .size    mixed_widths, .Lfunc_end0-mixed_widths
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>widths/sign-extend — llvm-mos 11, Irie —</summary>
-
-llvm-mos (11):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "sign-extend.c"
-    .section    .text.sign_extend,"ax",@progbits
-    .globl    sign_extend                     ; -- Begin function sign_extend
-    .type    sign_extend,@function
-sign_extend:                            ; @sign_extend
-; %bb.0:
-    tax
-    bpl    .LBB0_2
-; %bb.1:
-    ldx    #255
-    jmp    .LBB0_3
-.LBB0_2:
-    ldx    #0
-.LBB0_3:
-    clc
-    adc    #255
-    cmp    #255
-    bne    .LBB0_5
-; %bb.4:
-    dex
-.LBB0_5:
-    rts
-.Lfunc_end0:
-    .size    sign_extend, .Lfunc_end0-sign_extend
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>widths/zero-extend — llvm-mos 6, Irie —</summary>
-
-llvm-mos (6):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "zero-extend.c"
-    .section    .text.zero_extend,"ax",@progbits
-    .globl    zero_extend                     ; -- Begin function zero_extend
-    .type    zero_extend,@function
-zero_extend:                            ; @zero_extend
-; %bb.0:
-    ldx    #0
-    clc
-    adc    #1
-    bne    .LBB0_2
-; %bb.1:
-    inx
-.LBB0_2:
-    rts
-.Lfunc_end0:
-    .size    zero_extend, .Lfunc_end0-zero_extend
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits

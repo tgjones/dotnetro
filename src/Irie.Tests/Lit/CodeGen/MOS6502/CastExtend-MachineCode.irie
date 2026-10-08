@@ -1,0 +1,55 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; cast.zext / cast.sext widen to the source bytes plus high bytes: a constant 0
+; for zext, the sign broadcast (0xFF if the top source byte is negative, else 0)
+; for sext, shared by every high byte.
+
+; CHECK: Zext8To32:
+; CHECK:     LDX #$00
+; CHECK:     STX $03
+; CHECK:     LDX $03
+; CHECK:     LDY $03
+; CHECK:     STY $02
+; CHECK:     RTS
+; CHECK:
+; CHECK: Sext8To16:
+; CHECK:     CMP #$00
+; CHECK:     BMI .bb3
+; CHECK: .bb1:
+; CHECK:     LDX #$00
+; CHECK: .bb2:
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDX #$FF
+; CHECK:     RTS
+; CHECK:
+; CHECK: Sext16To32:
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     BMI .bb3
+; CHECK: .bb1:
+; CHECK:     LDA #$00
+; CHECK:     STA $03
+; CHECK: .bb2:
+; CHECK:     TYA
+; CHECK:     LDY $03
+; CHECK:     STY $02
+; CHECK:     RTS
+
+func @Zext8To32 : (i8) -> i32 {
+bb0(%0 : i8):
+    %1 : i32 = cast.zext %0
+    core.return %1
+}
+
+func @Sext8To16 : (i8) -> i16 {
+bb0(%0 : i8):
+    %1 : i16 = cast.sext %0
+    core.return %1
+}
+
+func @Sext16To32 : (i16) -> i32 {
+bb0(%0 : i16):
+    %1 : i32 = cast.sext %0
+    core.return %1
+}

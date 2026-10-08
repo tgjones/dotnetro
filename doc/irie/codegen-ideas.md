@@ -65,3 +65,36 @@ small size win, not a correctness need.
 - Irie: `src/Irie/Target/MOS6502/MOS6502LateOptimizationPass.cs`,
   `MOS6502InstructionSelector.cs` (`EmitCmp`, wide-compare ladder),
   `MOS6502Dialect.cs` (`CmpInfo`).
+
+## Sign extension and multi-byte constant ±1
+
+**Status:** not started. Measured from the width cases in the llvm-mos scoreboard
+(`llvm-mos-comparison.md`): `widths/sign-extend` 13 instructions vs llvm-mos's 11,
+`widths/zero-extend` 9 vs 6, `widths/mixed-widths` 46 vs 43.
+
+**The sign byte itself is not the gap.** `cast.sext` (legalized in
+`MOS6502LegalizerInfo.LowerExtend`) builds the high byte as
+`select (slt top, 0), 0xFF, 0`, which lowers to a branch diamond (`cmp #0; bmi`,
+`ldx #0` / `ldx #$FF`). llvm-mos's `sign-extend.s` does the same
+(`tax; bpl; ldx #255; jmp; ldx #0`). A branch-free form (arithmetic shift, or a
+carry-based sequence) might still be cheaper, but llvm-mos does not use one here,
+and Irie has no shift op yet, so treat it as unproven.
+
+**The difference is what happens after the extend:** `(int)a - 1` on the
+sign-extended i16.
+
+- Irie: a two-byte `sec; sbc #1; ... sbc #0` chain, with the register shuffling
+  (`tay; txa; ...; tax; tya`) it forces: 7 instructions after the diamond.
+- llvm-mos: `clc; adc #255; cmp #255; bne; dex`, i.e. add to the low byte only and
+  decrement the high byte when the low byte wrapped, 5 instructions.
+
+So the idea is a multi-byte add/sub of a small constant lowered as "low-byte
+ALU op, then conditionally inc/dec the higher bytes". `MOS6502IncrementStrengthReductionPass`
+already handles in-register ±1 and is the natural neighbour; check
+`sign-extend.txt` for which llvm-mos pass produces it before choosing where to put
+it.
+
+**`zero-extend`** (9 vs 6) has no branch at all: the extend is a free `ldx #0`.
+The overhead there is the same constant-add shape (`adc #1` then carry into the
+high byte vs llvm-mos's `adc #1; bne; inx`), plus register shuffling. The same
+fix would cover both.

@@ -11,6 +11,7 @@ internal sealed class PrimitiveType(TypeSystemContext context, PrimitiveTypeCode
     {
         PrimitiveTypeCode.Boolean => 1,
         PrimitiveTypeCode.Byte => 1,
+        PrimitiveTypeCode.SByte => 1,
         PrimitiveTypeCode.Char => 1,
         PrimitiveTypeCode.Double => 8,
         PrimitiveTypeCode.Int32 => 4,

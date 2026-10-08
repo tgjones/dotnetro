@@ -1,0 +1,29 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/widths/sign-extend
+;   int sign_extend(signed char a) { return (int)a - 1; }
+; The signed char is sign-extended to i16: the high byte is derived from the sign
+; of the source byte (0xFF if negative, else 0), then 1 is subtracted.
+
+; CHECK: sign_extend:
+; CHECK:     CMP #$00
+; CHECK:     BMI .bb3
+; CHECK: .bb1:
+; CHECK:     LDX #$00
+; CHECK: .bb2:
+; CHECK:     SEC
+; CHECK:     SBC #$01
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     SBC #$00
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @sign_extend : (i8) -> i16 {
+bb0(%0 : i8):
+    %1 : i16 = cast.sext %0
+    %2 : i16 = arith.constant 1
+    %3 : i16 = arith.subi %1, %2
+    core.return %3
+}

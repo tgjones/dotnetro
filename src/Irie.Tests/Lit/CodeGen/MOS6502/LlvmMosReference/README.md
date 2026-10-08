@@ -47,7 +47,7 @@ Irie limitation, then the faithful mirror compiles on its own.
 Filenames match the corpus basename (`add-i16.irie` ↔
 `ext/llvm-mos-reference/basics/add-i16.{c,s,txt}`) so `irie-report` can pair them.
 
-## Converted (23 tests)
+## Converted (28 tests)
 
 | Corpus case | Test |
 |-------------|------|
@@ -69,6 +69,11 @@ Filenames match the corpus basename (`add-i16.irie` ↔
 | realistic/fibonacci | `fibonacci` |
 | memory/global-rw (constant delta) | `global-rw` |
 | widths/truncate | `truncate` |
+| widths/zero-extend | `zero-extend` |
+| widths/sign-extend | `sign-extend` |
+| widths/mixed-widths | `mixed-widths` |
+| constraints/bitops | `bitops` |
+| pressure/pressure-i16 | `pressure-i16` |
 | constraints/inc-dec | `inc-dec` |
 | coalescing/commutative (identical MIR shape to `add-i16`) | `commutative` |
 | coalescing/copy-passthrough (identical MIR shape to `identity-i8`, but i16) | `copy-passthrough` |
@@ -85,11 +90,10 @@ doubles as a punch-list (and `irie-report` flags each as uncovered):
 |--------|--------------|
 | **No `arith` multiply** | basics/chain-arith, control-flow/nested-loop, pressure/pressure-high, memory/struct-pass, realistic/factorial-recursive |
 | **No divide/modulo** | realistic/gcd |
-| **No shift op** | constraints/shift-const, constraints/shift-var |
-| **No bitwise and/or/xor** | constraints/bitops, constraints/compare-flags, pressure/pressure-i16, realistic/crc8 |
+| **No shift op** | constraints/shift-const, constraints/shift-var, realistic/crc8 |
+| **No bitwise ops on i1** (`and` of compare results) | constraints/compare-flags |
 | **i64 not supported** | pressure/pressure-i64 |
-| **`cast.zext`/`cast.sext` to i32 not legalized** | widths/zero-extend, widths/sign-extend, widths/mixed-widths |
-| **`mem.load`/`mem.store` only accept `mem.symbol` addresses** (no arbitrary i16 pointers / frame slots) | memory/ptr-deref, memory/array-index, control-flow/loop-sum-array, realistic/strlen, memory/two-pointer-copy |
+| **`mem.load`/`mem.store` only accept `mem.symbol` addresses** (no arbitrary i16 pointers / frame slots) | memory/ptr-deref, memory/array-index, control-flow/loop-sum-array, realistic/strlen, memory/two-pointer-copy, realistic/crc8 |
 | **multi-way control flow (switch)** — only a single two-way cmp+branch fusion exists | control-flow/switch |
 | **aggregate / sret ABI not modelled** | memory/struct-return, memory/struct-return-sret |
 

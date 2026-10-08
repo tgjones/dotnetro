@@ -79,6 +79,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // cast.trunc lowers to a pseudo.extract / pseudo.merge of the
                 // source vreg's low bytes via the Custom action below.
                 CastOp.Trunc => LegalityAction.Custom,
+                // cast.zext / cast.sext: the legalization query type is the def
+                // (the wide result). Lowered to the source bytes plus a constant
+                // 0 (zext) or a sign-broadcast byte (sext) for each high byte.
+                CastOp.Zext or CastOp.Sext when intType.SizeInBits > 8 => LegalityAction.Custom,
                 _ => LegalityAction.Unsupported,
             };
         }
@@ -173,6 +177,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             {
                 case CastOp.Trunc:
                     LowerTrunc(instr, builder);
+                    return;
+                case CastOp.Zext:
+                case CastOp.Sext:
+                    LowerExtend(instr, builder, signed: (CastOp)instr.Opcode.Code == CastOp.Sext);
                     return;
             }
             throw new NotSupportedException(
@@ -426,6 +434,53 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 new Immediate(i),
                 new VirtualReg(byteReg.Id, IsDefinition: false));
         }
+        builder.Remove(instr);
+    }
+
+    // %y : iN = cast.zext|sext %x : iM  (M < N)  →  the M/8 source bytes followed by
+    // N/8 - M/8 high bytes, merged into the original def. A zero-extend's high
+    // byte is a constant 0. A sign-extend's is the sign broadcast: 0xFF when the
+    // source's top byte is negative, else 0 — `select (slt top, 0), 0xFF, 0`, one
+    // byte shared by every high byte. (llvm-mos derives it from a shift/borrow
+    // sequence; that needs a shift op, which Irie's arith dialect lacks.)
+    private static void LowerExtend(MirInstruction instr, MirBuilder builder, bool signed)
+    {
+        var function = builder.Function;
+        if (instr.Operands.Length != 2
+            || instr.Operands[0] is not VirtualReg { IsDefinition: true } defReg
+            || instr.Operands[1] is not VirtualReg { IsDefinition: false } srcReg)
+            throw new InvalidOperationException(
+                "MOS6502LegalizerInfo: cast.zext/sext must have shape `%def : iN = cast.zext %src : iM`.");
+
+        var defType = ((TypedVReg)function.GetVRegAnnotation(defReg.Id)).Type;
+        var srcType = ((TypedVReg)function.GetVRegAnnotation(srcReg.Id)).Type;
+        if (defType.SizeInBits <= srcType.SizeInBits
+            || srcType.SizeInBits % 8 != 0 || defType.SizeInBits % 8 != 0)
+            throw new InvalidOperationException(
+                $"MOS6502LegalizerInfo: cast.zext/sext requires a wider, byte-multiple result " +
+                $"(got {defType.DisplayName} ← {srcType.DisplayName}).");
+
+        var srcByteCount = srcType.SizeInBits / 8;
+        var defByteCount = defType.SizeInBits / 8;
+
+        var srcBytes = srcByteCount == 1
+            ? [srcReg.Id]
+            : builder.BuildUnmerge(IRType.I8, srcReg.Id, srcByteCount);
+
+        var zero = builder.BuildConstant(IRType.I8, 0);
+        var high = zero;
+        if (signed)
+        {
+            var negative = builder.BuildCmpI(ArithCmpPredicate.Slt, srcBytes[^1], zero);
+            var ones = builder.BuildConstant(IRType.I8, 0xFF);
+            high = builder.BuildSelect(IRType.I8, negative, ones, zero);
+        }
+
+        var parts = new int[defByteCount];
+        for (var i = 0; i < defByteCount; i++)
+            parts[i] = i < srcByteCount ? srcBytes[i] : high;
+
+        builder.BuildMergeInto(defReg.Id, parts);
         builder.Remove(instr);
     }
 

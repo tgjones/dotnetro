@@ -1,0 +1,69 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/widths/mixed-widths
+;   long mixed_widths(char a, int b, long c) {
+;       int t = a + b;
+;       long u = t + c;
+;       return u + a;
+;   }
+; i8, i16 and i32 values interact in one expression. `char` is unsigned on the
+; reference target, so `a` is zero-extended (to i16, then again to i32); the i16
+; sum `t` is sign-extended to i32.
+
+; CHECK: mixed_widths:
+; CHECK:     STA $07
+; CHECK:     STX $08
+; CHECK:     LDX $02
+; CHECK:     LDY $03
+; CHECK:     STY $02
+; CHECK:     CLC
+; CHECK:     ADC $08
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC #$00
+; CHECK:     TAX
+; CHECK:     CMP #$00
+; CHECK:     BMI .bb3
+; CHECK: .bb1:
+; CHECK:     LDA #$00
+; CHECK:     STA $03
+; CHECK: .bb2:
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $02
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $04
+; CHECK:     TAX
+; CHECK:     LDA $03
+; CHECK:     ADC $05
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC $06
+; CHECK:     STA $03
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $07
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC #$00
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ADC #$00
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC #$00
+; CHECK:     STA $03
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @mixed_widths : (i8, i16, i32) -> i32 {
+bb0(%0 : i8, %1 : i16, %2 : i32):
+    %3 : i16 = cast.zext %0
+    %4 : i16 = arith.addi %3, %1
+    %5 : i32 = cast.sext %4
+    %6 : i32 = arith.addi %5, %2
+    %7 : i32 = cast.zext %0
+    %8 : i32 = arith.addi %6, %7
+    core.return %8
+}

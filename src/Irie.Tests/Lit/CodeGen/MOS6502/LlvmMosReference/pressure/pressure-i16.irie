@@ -1,0 +1,84 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/pressure/pressure-i16
+;   int pressure_i16(int a, int b, int c, int d) {
+;       int t0 = a + b;  int t1 = c + d;  int t2 = a + c;  int t3 = b + d;
+;       return (t0 ^ t1) + (t2 ^ t3);
+;   }
+; Moderate pressure: several i16 temporaries live at once, but few enough to fit
+; in the imaginary register file without spilling to the soft stack.
+
+; CHECK: pressure_i16:
+; CHECK:     STA $0D
+; CHECK:     LDY $02
+; CHECK:     STY $0A
+; CHECK:     LDY $03
+; CHECK:     STY $08
+; CHECK:     LDY $04
+; CHECK:     STY $03
+; CHECK:     LDY $05
+; CHECK:     STY $02
+; CHECK:     LDY $06
+; CHECK:     STY $0C
+; CHECK:     LDY $07
+; CHECK:     STY $06
+; CHECK:     CLC
+; CHECK:     ADC $0A
+; CHECK:     STA $05
+; CHECK:     TXA
+; CHECK:     ADC $08
+; CHECK:     STA $04
+; CHECK:     CLC
+; CHECK:     LDA $03
+; CHECK:     ADC $0C
+; CHECK:     STA $0B
+; CHECK:     LDA $02
+; CHECK:     ADC $06
+; CHECK:     STA $09
+; CHECK:     CLC
+; CHECK:     LDA $0D
+; CHECK:     ADC $03
+; CHECK:     STA $03
+; CHECK:     TXA
+; CHECK:     ADC $02
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     LDA $0A
+; CHECK:     ADC $0C
+; CHECK:     STA $07
+; CHECK:     LDA $08
+; CHECK:     ADC $06
+; CHECK:     STA $06
+; CHECK:     LDA $05
+; CHECK:     EOR $0B
+; CHECK:     TAY
+; CHECK:     LDA $04
+; CHECK:     EOR $09
+; CHECK:     TAX
+; CHECK:     LDA $03
+; CHECK:     EOR $07
+; CHECK:     STA $03
+; CHECK:     LDA $02
+; CHECK:     EOR $06
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $03
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $02
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @pressure_i16 : (i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16):
+    %4 : i16 = arith.addi %0, %1
+    %5 : i16 = arith.addi %2, %3
+    %6 : i16 = arith.addi %0, %2
+    %7 : i16 = arith.addi %1, %3
+    %8 : i16 = arith.xor %4, %5
+    %9 : i16 = arith.xor %6, %7
+    %10 : i16 = arith.addi %8, %9
+    core.return %10
+}
