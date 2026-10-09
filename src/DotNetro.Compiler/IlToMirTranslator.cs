@@ -693,7 +693,8 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldc_i4_s: PushConstant(ilReader.ReadSByte()); break;
                     case ILOpCode.Ldc_i4: PushConstant(ilReader.ReadInt32()); break;
 
-                    case ILOpCode.Add: TranslateAdd(); break;
+                    case ILOpCode.Add: TranslateAddSub(ArithOp.AddI); break;
+                    case ILOpCode.Sub: TranslateAddSub(ArithOp.SubI); break;
                     case ILOpCode.And: TranslateBitwise(ArithOp.And); break;
                     case ILOpCode.Or: TranslateBitwise(ArithOp.Or); break;
                     case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
@@ -1180,7 +1181,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(vreg, IRType.I32));
         }
 
-        private void TranslateAdd()
+        private void TranslateAddSub(ArithOp op)
         {
             var right = _stack.Pop();
             var left = _stack.Pop();
@@ -1188,7 +1189,7 @@ internal sealed class IlToMirTranslator : IDisposable
             {
                 // Pointer arithmetic: an i16 pointer plus an i32 index/offset. IL
                 // leaves the index as i32 (no conv) and relies on the pointer's
-                // width — e.g. `q++` on a byte* emits `ldloc q; ldc.i4.1; add`.
+                // width (also for sub) — e.g. `q++` on a byte* emits `ldloc q; ldc.i4.1; add`.
                 // Narrow the i32 side to the pointer's i16 width and produce an
                 // i16 result. Any other width combination is a real gap — keep it
                 // visible.
@@ -1201,7 +1202,7 @@ internal sealed class IlToMirTranslator : IDisposable
             }
 
             var result = _function.CreateVirtualRegister(left.Type);
-            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.AddI),
+            _builder.BuildInstruction(ArithDialect.OpRef(op),
                 new VirtualReg(result, IsDefinition: true),
                 new VirtualReg(left.Vreg, IsDefinition: false),
                 new VirtualReg(right.Vreg, IsDefinition: false));

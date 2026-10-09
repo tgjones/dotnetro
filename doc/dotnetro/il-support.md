@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 61
-- **Implemented and lit-covered:** 50
+- **Implemented:** 66
+- **Implemented and lit-covered:** 53
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -60,9 +60,9 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `clt.un` | ✅ | ✅ |
 | `constrained` | ❌ | — |
 | `conv.i` | ✅ | ❌ |
-| `conv.i1` | ❌ | — |
+| `conv.i1` | ✅ | ✅ |
 | `conv.i2` | ❌ | — |
-| `conv.i4` | ❌ | — |
+| `conv.i4` | ✅ | ❌ |
 | `conv.i8` | ❌ | — |
 | `conv.ovf.i` | ❌ | — |
 | `conv.ovf.i.un` | ❌ | — |
@@ -88,9 +88,9 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.r4` | ❌ | — |
 | `conv.r8` | ❌ | — |
 | `conv.u` | ✅ | ❌ |
-| `conv.u1` | ❌ | — |
+| `conv.u1` | ✅ | ✅ |
 | `conv.u2` | ❌ | — |
-| `conv.u4` | ❌ | — |
+| `conv.u4` | ✅ | ❌ |
 | `conv.u8` | ❌ | — |
 | `cpblk` | ❌ | — |
 | `cpobj` | ❌ | — |
@@ -222,7 +222,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stloc.s` | ✅ | ✅ |
 | `stobj` | ❌ | — |
 | `stsfld` | ✅ | ✅ |
-| `sub` | ❌ | — |
+| `sub` | ✅ | ✅ |
 | `sub.ovf` | ❌ | — |
 | `sub.ovf.un` | ❌ | — |
 | `switch` | ❌ | — |
