@@ -98,3 +98,73 @@ it.
 The overhead there is the same constant-add shape (`adc #1` then carry into the
 high byte vs llvm-mos's `adc #1; bne; inx`), plus register shuffling. The same
 fix would cover both.
+
+## `switch`: binary search and jump tables
+
+**Status:** not started. The IL `switch` opcode works today (`TranslateSwitch` in
+`IlToMirTranslator.cs`; lit tests `SwitchInt32`, `SwitchSharedTargets`, `SwitchByte`),
+but lowers every table to a **linear chain** of `cmpi eq` + `cond_br`, one test per
+case, in order. Cases that already target the fall-through block are skipped. Correct,
+but dispatch is O(n) with a 4-byte compare per case for an `int` selector.
+
+### What llvm-mos does
+
+llvm-mos has all three strategies. Checked against the source only; there is no
+`llvm-mos/build` checkout locally, so none of this was confirmed by compiling C.
+
+- **Jump tables.** `MOSTargetLowering` caps a table at 256 entries (the index lives in
+  an 8-bit register) and rejects ranges over 256 in `isSuitableForJumpTable`
+  (`MOSISelLowering.cpp` ~L52-66). `MOSLegalizerInfo::legalizeBrJt` (~L2310-2350)
+  lowers `G_BRJT` to one of two forms:
+  - **Split tables:** the table is two byte arrays (lo, hi). Two `G_LOAD_ABS_IDX`
+    loads fetch the halves, `G_MERGE_VALUES` joins them into a 16-bit pointer, and
+    `G_BRINDIRECT` jumps to it.
+  - **65C02-style subtargets** (`hasJMPIdxIndir`, at most 128 entries): shift the index
+    left one bit and emit `G_BRINDIRECT_IDX`, selecting to `JMPIdxIndir` (`jmp (abs,x)`).
+- **Binary search, bit tests, clustering.** MOS adds no switch lowering of its own
+  beyond the jump-table limit. GlobalISel's `IRTranslator` uses the shared `SwitchCG`
+  machinery (`SwitchLoweringUtils`), which groups cases into clusters and picks a jump
+  table, bit tests, or compare-and-branch. For compare-and-branch it splits the
+  clusters into a balanced tree (`splitWorkItem`). Only the hooks were confirmed in
+  `IRTranslator.cpp`; the cluster-splitting logic itself was not read.
+
+The earlier claim in this project that llvm-mos has no jump-table lowering was wrong.
+
+### The idea, in two independent steps
+
+1. **Binary search** (translator-only, no new Irie ops). Sort the (value, target)
+   pairs, compare against the median with a signed/unsigned `<`, and recurse; fall to
+   equality tests at the leaves. Gives O(log n) dispatch. Lowest-risk first step.
+2. **Jump table** for dense tables. Needs new pieces in Irie:
+   - an indirect-branch op (`jmp (abs)`) and an indexed absolute load (check whether
+     `mos6502.lda.abs.x` and friends already exist; llvm-mos's `G_LOAD_ABS_IDX` is the
+     analogue);
+   - jump-table data emitted as lo and hi byte arrays;
+   - a block-address operand, so a global's initialiser can name a block's label;
+   - a selection heuristic (density, entry count, `-Os` size cost) in the layer that
+     owns it. In llvm-mos that is generic `SwitchCG`, not the translator, so decide
+     whether Irie wants a generic `cf.switch` that the target legalizes, instead of
+     the front end committing to a strategy.
+
+Design question to settle first: add a multiway `cf.switch` terminator to the Cf
+dialect (mirrors `G_BRJT` / LLVM `switch`; the legalizer picks the strategy per
+target) versus keeping the lowering in the IL translator. The first keeps the front
+end simple and lets `iriec` lit tests exercise it.
+
+### Unknowns / things to check before starting
+
+- Whether the instruction-count and byte-size scoreboard has any switch cases. If not,
+  add some (small dense, large dense, sparse, byte selector) before tuning.
+- Break-even entry count for a table versus a chain or tree, in bytes and cycles.
+  The split lo/hi table costs about 2n bytes of data plus about 10 bytes of dispatch.
+- Whether the 65C02 `jmp (abs,x)` form matters for the BBC Micro target (6502 or
+  65C02 depending on the model).
+- Block placement and `TailDuplicationPass` interactions with a block that is only
+  reachable through an indirect branch.
+
+### References
+
+- Irie: `IlToMirTranslator.cs` (`TranslateSwitch`, `ReadSwitchTargets`).
+- llvm-mos: `llvm/lib/Target/MOS/MOSISelLowering.cpp`, `MOSLegalizerInfo.cpp`
+  (`legalizeBrJt`), `MOSInstrGISel.td` (`G_BRINDIRECT_IDX`);
+  `llvm/lib/CodeGen/SwitchLoweringUtils.cpp`, `GlobalISel/IRTranslator.cpp`.
