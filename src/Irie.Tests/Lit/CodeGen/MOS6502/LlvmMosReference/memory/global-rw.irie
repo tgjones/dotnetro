@@ -28,7 +28,7 @@
 global @counter : i16 = bytes "\x00\x00"
 func @global_rw : (i16) -> i16 {
 bb0(%0 : i16):
-    %1 : i16 = mem.symbol @counter
+    %1 : ptr = mem.symbol @counter
     %2 : i16 = mem.load.i16 %1
     %3 : i16 = arith.addi %2, %0
     mem.store.i16 %1, %3

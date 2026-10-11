@@ -31,7 +31,7 @@
 global @g : i16 = bytes "\x00\x00"
 func @add_global : (i16) -> i16 {
 bb0(%0 : i16):
-    %1 : i16 = mem.symbol @g
+    %1 : ptr = mem.symbol @g
     %2 : i16 = mem.load.i16 %1
     %3 : i16 = arith.addi %0, %2
     core.return %3

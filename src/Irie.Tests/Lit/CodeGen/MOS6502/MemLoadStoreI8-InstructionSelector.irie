@@ -29,7 +29,7 @@ global @hello : i32 = bytes "Hi!"
 
 func @TestMemByte : () -> void {
 bb0():
-    %0 : i16 = mem.symbol @hello
+    %0 : ptr = mem.symbol @hello
     %1 : i8  = mem.load.i8 %0
     mem.store.i8 %0, %1
     core.return

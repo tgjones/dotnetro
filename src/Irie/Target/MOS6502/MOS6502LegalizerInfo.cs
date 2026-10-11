@@ -122,8 +122,8 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 
         if (opcode.Dialect == MemDialect.Id)
         {
-            // mem.symbol produces an i16 pointer that the isel pattern-matches
-            // through to the per-byte lda.imm.symlo/symhi ops.
+            // mem.symbol produces a ptr (legal in GetPointerAction) that the isel
+            // pattern-matches through to the per-byte lda.imm.symlo/symhi ops.
             //
             // mem.load.i8 / mem.store.i8: rewritten to mem.load.byte_at /
             // mem.store.byte_at with offset 0 by Custom legalization.
@@ -137,7 +137,6 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             // form the isel knows how to lower to lda.indy / sta.indy.
             return ((MemOp)opcode.Code) switch
             {
-                MemOp.Symbol      when intType.SizeInBits == 16 => LegalityAction.Legal,
                 MemOp.LoadI8      when intType.SizeInBits == 8  => LegalityAction.Custom,
                 MemOp.LoadI16     when intType.SizeInBits == 16 => LegalityAction.Custom,
                 MemOp.LoadI32     when intType.SizeInBits == 32 => LegalityAction.Custom,

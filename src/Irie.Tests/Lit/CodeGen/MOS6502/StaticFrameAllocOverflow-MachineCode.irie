@@ -33,7 +33,7 @@ func @big : () -> void {
   frame_slot 7 : i32 @big_local7
   frame_slot 8 : i32 @big_local8
   bb0():
-    %0 : i16 = mem.frame_addr 0
+    %0 : ptr = mem.frame_addr 0
     %1 : i8 = arith.constant 1
     mem.store.i8 %0, %1
     core.return

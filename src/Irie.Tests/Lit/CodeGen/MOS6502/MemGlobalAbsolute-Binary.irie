@@ -30,7 +30,7 @@
 global @g : i16 = bytes "\x00\x00"
 func @load_store_global : () -> i16 {
 bb0():
-    %0 : i16 = mem.symbol @g
+    %0 : ptr = mem.symbol @g
     %1 : i16 = mem.load.i16 %0
     mem.store.i16 %0, %1
     core.return %1

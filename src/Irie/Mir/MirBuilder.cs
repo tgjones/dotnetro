@@ -183,7 +183,7 @@ public sealed class MirBuilder(MirFunction function)
     }
 
     // call.indirect %target, %arg0, %arg1, ... → %r0, %r1, ...
-    // Same shape as BuildCall but the callee is an i16 target-pointer vreg
+    // Same shape as BuildCall but the callee is a ptr target vreg
     // instead of a Symbol.
     public int[] BuildCallIndirect(int targetPtrVreg, IRType[] returnTypes, params int[] argVregs)
     {
@@ -243,8 +243,8 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // mem.symbol @name → %p : i16
-    // Returns the i16 pointer vreg holding the address of the named global.
+    // mem.symbol @name → %p : ptr
+    // Returns the ptr vreg holding the address of the named global.
     public int BuildMemSymbol(string symbolName)
     {
         var result = function.CreateVirtualRegister(IRType.Pointer);
@@ -255,7 +255,7 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // mem.frame_addr <slot_index> → %p : i16
+    // mem.frame_addr <slot_index> → %p : ptr
     // Surface the address of one of the function's reserved frame slots.
     // The slot itself must already be registered on `function.FrameSlots`.
     public int BuildFrameAddr(int slotIndex)

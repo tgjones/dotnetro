@@ -12,9 +12,8 @@
 ; CHECK: global @counter : i32
 ; CHECK: global @MyClass_vtable : i32 = [@hello, @counter]
 
-; CHECK: func @TestSymbol : () -> i16 {
 ; CHECK: bb0():
-; CHECK:     %0 : i16 = mem.symbol @hello
+; CHECK:     %0 : ptr = mem.symbol @hello
 ; CHECK:     core.return %0
 ; CHECK: }
 
@@ -22,8 +21,8 @@ global @hello : i32 = bytes "Hi!"
 global @counter : i32
 global @MyClass_vtable : i32 = [@hello, @counter]
 
-func @TestSymbol : () -> i16 {
+func @TestSymbol : () -> ptr {
 bb0():
-    %0 : i16 = mem.symbol @hello
+    %0 : ptr = mem.symbol @hello
     core.return %0
 }

@@ -19,7 +19,7 @@ global @ptr : i32
 
 func @TestMemI16 : () -> void {
 bb0():
-    %0 : i16 = mem.symbol @ptr
+    %0 : ptr = mem.symbol @ptr
     %1 : i16 = mem.load.i16 %0
     mem.store.i16 %0, %1
     core.return

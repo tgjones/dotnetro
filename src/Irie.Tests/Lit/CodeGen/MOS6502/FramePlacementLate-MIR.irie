@@ -33,7 +33,7 @@
 func @leaf : () -> void {
   frame_slot 0 : i16 @leaf_local0
   bb0():
-    %0 : i16 = mem.frame_addr 0
+    %0 : ptr = mem.frame_addr 0
     %1 : i8 = arith.constant 7
     mem.store.i8 %0, %1
     core.return
@@ -42,7 +42,7 @@ func @leaf : () -> void {
 func @caller : () -> void {
   frame_slot 0 : i16 @caller_local0
   bb0():
-    %0 : i16 = mem.frame_addr 0
+    %0 : ptr = mem.frame_addr 0
     %1 : i8 = arith.constant 3
     mem.store.i8 %0, %1
     call.func @leaf

@@ -45,10 +45,10 @@ bb0(%0 : i8):
 }
 
 ; ---------------------------------------------------------------------------
-; @ReadLine : () -> i16
+; @ReadLine : () -> ptr
 ;
 ; Reads a line of input via OSWORD 0 into the BBC Micro's default input buffer
-; at $0600, and returns that buffer pointer ($0600) as an i16. Ported from
+; at $0600, and returns that buffer pointer ($0600) as a ptr. Ported from
 ; DotNetro.Compiler.CodeGen.BbcMicroCodeGenerator.CompileSystemConsoleReadLine.
 ;
 ; Target MIR (an OSWORD call): builds the control block in zero page $37-$3B
@@ -56,12 +56,12 @@ bb0(%0 : i8):
 ;   $39     : $EE   = maximum input line length
 ;   $3A     : $20   = minimum acceptable ASCII code
 ;   $3B     : $FF   = maximum acceptable ASCII code
-; then LDX #$37 / LDA #0 / JSR osword. The returned i16 pointer is $0600, placed
+; then LDX #$37 / LDA #0 / JSR osword. The returned pointer is $0600, placed
 ; LSB-first into the CC_MOS return registers ($a = $00 low, $x = $06 high).
 ;
 ; Zero-page physregs: $67..$71 address $37..$71-12 = $37..$3B (RC(n) = 12 + n,
 ; and the sta.zp emitter encodes the byte as physreg_id - RC(0)).
-func @ReadLine : () -> i16 {
+func @ReadLine : () -> ptr {
 bb0():
     $0 = mos6502.lda.imm 0
     $67 = mos6502.sta.zp $0
@@ -124,11 +124,11 @@ bb0(%0 : i8):
     %2 : i1 = arith.cmpi ne, %0, %1
     cf.cond_br %2, bb1, bb2
 bb1():
-    %3 : i16 = mem.symbol @True_String
+    %3 : ptr = mem.symbol @True_String
     call.func @WriteLineString, %3
     core.return
 bb2():
-    %4 : i16 = mem.symbol @False_String
+    %4 : ptr = mem.symbol @False_String
     call.func @WriteLineString, %4
     core.return
 }
@@ -895,7 +895,7 @@ bb84():
 }
 
 ; ---------------------------------------------------------------------------
-; @WriteLineString : (i16) -> void
+; @WriteLineString : (ptr) -> void
 ;
 ; No longer hand-written here. It is now the C# helper
 ; DotNetro.Runtime.ConsoleHelper.WriteLineString(byte*), compiled by the IL→MIR

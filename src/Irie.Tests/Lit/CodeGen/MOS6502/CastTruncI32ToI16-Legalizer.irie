@@ -15,7 +15,7 @@
 ; CHECK:     [liveins: $a, $x, $zp2, $zp3]
 ; CHECK:     %3 : i8 = pseudo.copy $a
 ; CHECK:     %4 : i8 = pseudo.copy $x
-; CHECK:     %2 : i16 = mem.symbol @ptr
+; CHECK:     %2 : ptr = mem.symbol @ptr
 ; CHECK:     mem.store.byte_at %2, 0, %3
 ; CHECK:     mem.store.byte_at %2, 1, %4
 ; CHECK:     pseudo.return
@@ -26,7 +26,7 @@ global @ptr : i32
 func @TestTrunc : (i32) -> void {
 bb0(%0 : i32):
     %1 : i16 = cast.trunc %0
-    %2 : i16 = mem.symbol @ptr
+    %2 : ptr = mem.symbol @ptr
     mem.store.i16 %2, %1
     core.return
 }

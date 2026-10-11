@@ -11,7 +11,7 @@
 ; CHECK: func @TestSymbolArg : () -> void {
 ; CHECK: bb0():
 ; CHECK:     %0 : i16 = arith.constant 0
-; CHECK:     %1 : i16 = mem.symbol @g
+; CHECK:     %1 : ptr = mem.symbol @g
 ; CHECK:     %2 : i8, %3 : i8 = pseudo.unmerge %0
 ; CHECK:     %4 : i8, %5 : i8 = pseudo.unmerge %1
 ; CHECK:     $a = pseudo.copy %2
@@ -27,7 +27,7 @@ global @g : i16
 func @TestSymbolArg : () -> void {
 bb0():
     %0 : i16 = arith.constant 0
-    %1 : i16 = mem.symbol @g
+    %1 : ptr = mem.symbol @g
     call.func @Callee, %0, %1
     core.return
 }

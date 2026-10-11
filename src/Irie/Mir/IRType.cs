@@ -10,11 +10,9 @@ public abstract record IRType(int SizeInBits)
     public static readonly IntegerType I32 = new(32);
     public static readonly IntegerType I64 = new(64);
 
-    public static readonly IRType Pointer = I16;
-
-    // The distinct pointer type. Not yet what `Pointer` aliases (that flips in
-    // a later stage); available now so the ptr ops can be built and tested.
     public static readonly PointerType Ptr16 = new(16);
+
+    public static readonly IRType Pointer = Ptr16;
 
     public static readonly IRType Label = new LabelType();
 

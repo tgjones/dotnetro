@@ -11,7 +11,7 @@
 ; CHECK: func @TestFill : () -> void {
 ; CHECK:   frame_slot 0 : i32 @TestFill_local0
 ; CHECK: bb0():
-; CHECK:     %0 : i16 = mem.symbol @TestFill_local0
+; CHECK:     %0 : ptr = mem.symbol @TestFill_local0
 ; CHECK:     %1 : i8 = arith.constant 0
 ; CHECK:     mem.store.byte_at %0, 0, %1
 ; CHECK:     mem.store.byte_at %0, 1, %1
@@ -24,7 +24,7 @@ func @TestFill : () -> void {
   frame_slot 0 : i32 @TestFill_local0
 
   bb0():
-    %0 : i16 = mem.frame_addr 0
+    %0 : ptr = mem.frame_addr 0
     %1 : i8  = arith.constant 0
     mem.fill %0, %1, 4
     core.return

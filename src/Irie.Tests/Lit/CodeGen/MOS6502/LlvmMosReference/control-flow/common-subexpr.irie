@@ -84,20 +84,20 @@ bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16):
     cf.cond_br %6, bb1(), bb2()
 bb1():                                  ; c < 0:  g0 = d + 1; g1 = a + b
     %7 : i16 = arith.addi %3, %5
-    %8 : i16 = mem.symbol @g0
+    %8 : ptr = mem.symbol @g0
     mem.store.i16 %8, %7
     %9 : i16 = arith.addi %0, %1
-    %10 : i16 = mem.symbol @g1
+    %10 : ptr = mem.symbol @g1
     mem.store.i16 %10, %9
     core.return
 bb2():                                  ; c >= 0: g0 = d - 1; g2 = a + b; g3 = d
     %11 : i16 = arith.subi %3, %5
-    %12 : i16 = mem.symbol @g0
+    %12 : ptr = mem.symbol @g0
     mem.store.i16 %12, %11
     %13 : i16 = arith.addi %0, %1
-    %14 : i16 = mem.symbol @g2
+    %14 : ptr = mem.symbol @g2
     mem.store.i16 %14, %13
-    %15 : i16 = mem.symbol @g3
+    %15 : ptr = mem.symbol @g3
     mem.store.i16 %15, %3
     core.return
 }

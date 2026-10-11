@@ -39,7 +39,7 @@ global @value : i64
 
 func @TestMemI64 : () -> void {
 bb0():
-    %0 : i16 = mem.symbol @value
+    %0 : ptr = mem.symbol @value
     %1 : i64 = mem.load.i64 %0
     mem.store.i64 %0, %1
     core.return

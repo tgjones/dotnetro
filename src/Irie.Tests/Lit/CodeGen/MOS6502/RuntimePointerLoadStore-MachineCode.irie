@@ -1,9 +1,9 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
-; End-to-end check for mem.load / mem.store through a *runtime* i16 pointer
+; End-to-end check for mem.load / mem.store through a *runtime* pointer
 ; (an address vreg that is not a mem.symbol global). Two cases:
 ;
-;   @LoadThroughPtr — load a byte through an i16 pointer parameter. The two
+;   @LoadThroughPtr — load a byte through a ptr parameter. The two
 ;     parameter bytes ($a = low, $x = high) are stored straight into the
 ;     indirect-Y scratch pair $00/$01 (no `LDA #<sym` materialisation), Y is
 ;     zeroed, and lda.indy dereferences it.
@@ -37,16 +37,16 @@
 ; CHECK:     RTS
 
 
-func @LoadThroughPtr : (i16) -> i8 {
-bb0(%0 : i16):
+func @LoadThroughPtr : (ptr) -> i8 {
+bb0(%0 : ptr):
     %1 : i8 = mem.load.i8 %0
     core.return %1
 }
 
-func @StoreFieldAtOffset : (i16, i8) -> void {
-bb0(%0 : i16, %1 : i8):
+func @StoreFieldAtOffset : (ptr, i8) -> void {
+bb0(%0 : ptr, %1 : i8):
     %2 : i16 = arith.constant 4
-    %3 : i16 = arith.addi %0, %2
+    %3 : ptr = mem.ptradd %0, %2
     mem.store.i8 %3, %1
     core.return
 }

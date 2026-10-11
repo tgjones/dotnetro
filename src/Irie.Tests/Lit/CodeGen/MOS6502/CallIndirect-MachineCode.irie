@@ -29,8 +29,8 @@
 ; CHECK:     TYA
 ; CHECK:     RTS
 
-func @TestCallIndirect : (i16) -> i8 {
-bb0(%0 : i16):
+func @TestCallIndirect : (ptr) -> i8 {
+bb0(%0 : ptr):
     %1 : i8 = call.indirect %0
     core.return %1
 }

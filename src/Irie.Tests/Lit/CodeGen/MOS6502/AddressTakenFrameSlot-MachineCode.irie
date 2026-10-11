@@ -41,7 +41,7 @@ func @sink : (i16) -> void {
 func @owner : () -> void {
   frame_slot 0 : i16 @owner_local0
   bb0():
-    %0 : i16 = mem.frame_addr 0
+    %0 : ptr = mem.frame_addr 0
     %1 : i8 = arith.constant 4
     mem.store.i8 %0, %1
     %2 : i8 = mem.load.i8 %0

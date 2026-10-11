@@ -2,11 +2,11 @@
 
 internal static class ManagedHeap
 {
-    private static IntPtr s_heapPtr = 0x1000;
+    private static unsafe byte* s_heapPtr = (byte*)0x1000;
 
     // Allocate `size` bytes of zeroed object contents behind a vtable header.
     // Returns a pointer to the contents.
-    public static unsafe IntPtr Alloc(nint size, IntPtr vtablePtr)
+    public static unsafe byte* Alloc(nint size, void* vtablePtr)
     {
         var result = s_heapPtr;
 
@@ -14,10 +14,10 @@ internal static class ManagedHeap
         s_heapPtr += sizeof(IntPtr) + size;
 
         // Fill object header with vtable pointer.
-        *(IntPtr*)result = vtablePtr;
+        *(void**)result = vtablePtr;
 
         // Zero the object contents; the heap memory is not known to be clear.
-        var contents = (byte*)(result + sizeof(IntPtr));
+        var contents = result + sizeof(IntPtr);
         for (var remaining = size; remaining > 0; remaining--)
         {
             *contents = 0;
@@ -30,9 +30,9 @@ internal static class ManagedHeap
 
     // Allocate an array: a null vtable header, a 2-byte length, then
     // `contentSize` bytes of (zeroed) elements. Returns a pointer to the length.
-    public static unsafe IntPtr AllocArray(nint length, nint contentSize)
+    public static unsafe byte* AllocArray(nint length, nint contentSize)
     {
-        var result = Alloc(sizeof(IntPtr) + contentSize, default);
+        var result = Alloc(sizeof(IntPtr) + contentSize, null);
         *(nint*)result = length;
         return result;
     }
