@@ -34,8 +34,8 @@
 ; CHECK:     JSR WriteLineString
 ; CHECK:     RTS
 
-func @WriteLineString : (i16) -> void {
-bb0(%0 : i16):
+func @WriteLineString : (ptr) -> void {
+bb0(%0 : ptr):
     mos6502.rts
 }
 

@@ -53,7 +53,7 @@ public sealed class GenericMirVerifierTests
         var a = fn.CreateVirtualRegister(IRType.I8);
         var b = fn.CreateVirtualRegister(IRType.I8);
         var cmp = fn.CreateVirtualRegister(IRType.I1);
-        var addr = fn.CreateVirtualRegister(IRType.I16);
+        var addr = fn.CreateVirtualRegister(IRType.Pointer);
 
         // %c = arith.constant 5        (value immediate at use 0 — legal)
         bb0.AddInstruction(ArithDialect.OpRef(ArithOp.Constant),

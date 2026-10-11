@@ -4,7 +4,7 @@
 ;
 ; @owner is a non-reentrant leaf-ish function whose i16 frame slot is both
 ; accessed directly in-function (mem.store.i8 / mem.load.i8) AND escaped — its
-; address (mem.frame_addr 0) is passed as an i16 pointer argument to @sink.
+; address (mem.frame_addr 0) is passed as a ptr argument to @sink.
 ;
 ; The slot is PROMOTED to zero page (the placement pass colours @owner's frame at
 ; the base of the window, $70) even though its address escapes. Faithful to
@@ -18,7 +18,7 @@
 ; late, at encode time; the escaped pointer never splits into a separate absolute
 ; home. This test fails if the slot were split or mis-placed.
 ;
-; The escaped i16 address is passed per CC_MOS with the low byte in $a, high in
+; The escaped address is passed per CC_MOS with the low byte in $a, high in
 ; $x; the low/high materialisations are sequenced through $y to avoid clobbering.
 
 ; CHECK: owner:
@@ -33,8 +33,8 @@
 ; CHECK:     JSR sink
 ; CHECK:     RTS
 
-func @sink : (i16) -> void {
-  bb0(%0 : i16):
+func @sink : (ptr) -> void {
+  bb0(%0 : ptr):
     core.return
 }
 
