@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 118
-- **Implemented and lit-covered:** 113
+- **Implemented:** 119
+- **Implemented and lit-covered:** 114
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -162,7 +162,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldloc.s` | ✅ | ✅ |
 | `ldloca` | ❌ | — |
 | `ldloca.s` | ✅ | ✅ |
-| `ldnull` | ❌ | — |
+| `ldnull` | ✅ | ✅ |
 | `ldobj` | ❌ | — |
 | `ldsfld` | ✅ | ✅ |
 | `ldsflda` | ❌ | — |

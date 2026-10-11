@@ -572,10 +572,17 @@ internal sealed class IlToMirTranslator : IDisposable
         private readonly MirBuilder _builder;
 
         // Mirrors the IL evaluation stack: vreg IDs (paired with their type so
-        // we can size arith ops). Runs alongside the IL semantics. Reset to
-        // empty at every basic-block boundary (the current corpus keeps the
-        // eval stack empty across boundaries — see the boundary assertion).
+        // we can size arith ops). Runs alongside the IL semantics. Values still
+        // on the stack at a block boundary (e.g. the arms of `c ? a : b`) travel
+        // as extra block parameters; see _blockStackParams.
         private readonly Stack<StackValue> _stack = new();
+
+        // Block → the block parameters carrying the eval stack on entry
+        // (bottom of stack first). Created by the first edge into the block, so
+        // they follow the local parameters in the block's parameter list; every
+        // later edge must supply the same number of values (IL guarantees a
+        // consistent stack depth at a join).
+        private readonly Dictionary<MirBlock, StackValue[]> _blockStackParams = [];
 
         // Primitive SSA locals: local index → current vreg ID (and its type).
         // Re-seeded to the current block's local parameter vregs at each block
@@ -709,11 +716,6 @@ internal sealed class IlToMirTranslator : IDisposable
                     if (!BlockHasTerminator(_currentBlock))
                         EmitBranchTo(_currentBlock, nextBlock);
 
-                    if (_stack.Count != 0)
-                        throw new NotSupportedException(
-                            $"IL→MIR: non-empty eval stack at block boundary IL_{instructionOffset:X4} " +
-                            $"(method {_method.UniqueName}).");
-
                     EnterBlock(nextBlock);
                     _currentBlock = nextBlock;
                 }
@@ -722,6 +724,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 switch (opCode)
                 {
                     case ILOpCode.Nop:
+                        break;
+
+                    case ILOpCode.Ldnull:
+                        _stack.Push(new StackValue(_builder.BuildConstant(IRType.Pointer, 0), IRType.Pointer));
                         break;
 
                     case ILOpCode.Ldc_i4_0: PushConstant(0); break;
@@ -1165,9 +1171,15 @@ internal sealed class IlToMirTranslator : IDisposable
 
         // On entering a discovered block, rebind every local to that block's
         // parameter vreg (the merged value) and set the builder's insertion
-        // point. The eval stack is empty across boundaries (asserted by caller).
+        // point. The eval stack becomes the block's stack parameters, if any
+        // (whatever the previous block left behind has been passed on its edges).
         private void EnterBlock(MirBlock block)
         {
+            _stack.Clear();
+            if (_blockStackParams.TryGetValue(block, out var stackParams))
+                foreach (var value in stackParams)
+                    _stack.Push(value);
+
             if (_blockLocalParams.TryGetValue(block, out var localParams))
             {
                 for (var i = 0; i < localParams.Length; i++)
@@ -1184,7 +1196,45 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.SetInsertionPointAtEnd(from);
             _builder.BuildInstruction(
                 CfDialect.OpRef(CfOp.Br),
-                new BlockTarget(target, LocalArgsFor(target)));
+                new BlockTarget(target, EdgeArgsFor(target)));
+        }
+
+        // Block arguments for an edge to `target`: locals, then the eval stack.
+        private MirOperand[] EdgeArgsFor(MirBlock target) =>
+            [.. LocalArgsFor(target), .. StackArgsFor(target)];
+
+        // The values left on the eval stack (bottom first), as block arguments
+        // for `target`. The first edge into a block fixes its stack parameters'
+        // types; a later edge with a different width is resized to match. Emits
+        // any resize at the builder's insertion point, i.e. before the branch.
+        private MirOperand[] StackArgsFor(MirBlock target)
+        {
+            var onStack = _stack.Reverse().ToArray();
+            if (!_blockStackParams.TryGetValue(target, out var stackParams))
+            {
+                if (onStack.Length == 0) return [];
+                stackParams = new StackValue[onStack.Length];
+                for (var i = 0; i < onStack.Length; i++)
+                {
+                    if (onStack[i].Type.Equals(IRType.I1))
+                        throw new NotSupportedException(
+                            $"IL→MIR: unmaterialised compare on the eval stack across a branch " +
+                            $"(method {_method.UniqueName}).");
+                    var vreg = _function.CreateVirtualRegister(onStack[i].Type);
+                    target.Parameters.Add(vreg);
+                    stackParams[i] = onStack[i] with { Vreg = vreg };
+                }
+                _blockStackParams[target] = stackParams;
+            }
+
+            if (stackParams.Length != onStack.Length)
+                throw new NotSupportedException(
+                    $"IL→MIR: inconsistent eval stack depth at a join (method {_method.UniqueName}).");
+
+            var args = new MirOperand[onStack.Length];
+            for (var i = 0; i < onStack.Length; i++)
+                args[i] = new VirtualReg(Resize(onStack[i], stackParams[i].Type).Vreg, IsDefinition: false);
+            return args;
         }
 
         // Block arguments for an edge to `target`: the current value of each
@@ -1790,8 +1840,8 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(
                 CfDialect.OpRef(CfOp.CondBr),
                 new VirtualReg(condVreg, IsDefinition: false),
-                new BlockTarget(trueEdge, LocalArgsFor(trueEdge)),
-                new BlockTarget(falseEdge, LocalArgsFor(falseEdge)));
+                new BlockTarget(trueEdge, EdgeArgsFor(trueEdge)),
+                new BlockTarget(falseEdge, EdgeArgsFor(falseEdge)));
         }
 
         // The block that starts at the next leader offset after `block` — the
