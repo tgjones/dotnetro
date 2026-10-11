@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 103
-- **Implemented and lit-covered:** 103
+- **Implemented:** 118
+- **Implemented and lit-covered:** 113
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -126,19 +126,19 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldc.i8` | ❌ | — |
 | `ldc.r4` | ❌ | — |
 | `ldc.r8` | ❌ | — |
-| `ldelem` | ❌ | — |
-| `ldelem.i` | ❌ | — |
-| `ldelem.i1` | ❌ | — |
+| `ldelem` | ✅ | ❌ |
+| `ldelem.i` | ✅ | ❌ |
+| `ldelem.i1` | ✅ | ✅ |
 | `ldelem.i2` | ❌ | — |
-| `ldelem.i4` | ❌ | — |
+| `ldelem.i4` | ✅ | ✅ |
 | `ldelem.i8` | ❌ | — |
 | `ldelem.r4` | ❌ | — |
 | `ldelem.r8` | ❌ | — |
-| `ldelem.ref` | ❌ | — |
-| `ldelem.u1` | ❌ | — |
+| `ldelem.ref` | ✅ | ✅ |
+| `ldelem.u1` | ✅ | ✅ |
 | `ldelem.u2` | ❌ | — |
-| `ldelem.u4` | ❌ | — |
-| `ldelema` | ❌ | — |
+| `ldelem.u4` | ✅ | ❌ |
+| `ldelema` | ✅ | ✅ |
 | `ldfld` | ✅ | ✅ |
 | `ldflda` | ❌ | — |
 | `ldftn` | ❌ | — |
@@ -153,7 +153,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldind.u1` | ✅ | ✅ |
 | `ldind.u2` | ❌ | — |
 | `ldind.u4` | ✅ | ✅ |
-| `ldlen` | ❌ | — |
+| `ldlen` | ✅ | ✅ |
 | `ldloc` | ❌ | — |
 | `ldloc.0` | ✅ | ✅ |
 | `ldloc.1` | ✅ | ✅ |
@@ -177,7 +177,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `mul.ovf` | ❌ | — |
 | `mul.ovf.un` | ❌ | — |
 | `neg` | ✅ | ✅ |
-| `newarr` | ❌ | — |
+| `newarr` | ✅ | ✅ |
 | `newobj` | ✅ | ✅ |
 | `nop` | ✅ | ✅ |
 | `not` | ✅ | ✅ |
@@ -196,15 +196,15 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `sizeof` | ✅ | ✅ |
 | `starg` | ❌ | — |
 | `starg.s` | ❌ | — |
-| `stelem` | ❌ | — |
-| `stelem.i` | ❌ | — |
-| `stelem.i1` | ❌ | — |
+| `stelem` | ✅ | ❌ |
+| `stelem.i` | ✅ | ❌ |
+| `stelem.i1` | ✅ | ✅ |
 | `stelem.i2` | ❌ | — |
-| `stelem.i4` | ❌ | — |
+| `stelem.i4` | ✅ | ✅ |
 | `stelem.i8` | ❌ | — |
 | `stelem.r4` | ❌ | — |
 | `stelem.r8` | ❌ | — |
-| `stelem.ref` | ❌ | — |
+| `stelem.ref` | ✅ | ✅ |
 | `stfld` | ✅ | ✅ |
 | `stind.i` | ✅ | ✅ |
 | `stind.i1` | ✅ | ✅ |

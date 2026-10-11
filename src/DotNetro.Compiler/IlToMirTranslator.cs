@@ -58,6 +58,7 @@ internal sealed class IlToMirTranslator : IDisposable
     // the runtime allocator newobj calls. Kept in C# and translated like any
     // other method (plan open-question 3 — the translated path).
     private EcmaMethod? _allocMethod;
+    private EcmaMethod? _allocArrayMethod;
 
     // Lazily-resolved ConsoleHelper.WriteLineString(byte*); see GetWriteLineStringMethod.
     private EcmaMethod? _writeLineStringMethod;
@@ -160,6 +161,21 @@ internal sealed class IlToMirTranslator : IDisposable
                 new SignatureHeader(), _typeSystemContext.IntPtr, 2, 0,
                 [_typeSystemContext.IntPtr, _typeSystemContext.IntPtr]));
         return _allocMethod;
+    }
+
+    // ManagedHeap.AllocArray(IntPtr length, IntPtr contentSize) → IntPtr. Resolved
+    // on first newarr.
+    internal EcmaMethod GetAllocArrayMethod()
+    {
+        if (_allocArrayMethod != null)
+            return _allocArrayMethod;
+
+        var managedHeapType = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "ManagedHeap");
+        _allocArrayMethod = managedHeapType.GetMethod("AllocArray",
+            new MethodSignature<TypeDescription>(
+                new SignatureHeader(), _typeSystemContext.IntPtr, 2, 0,
+                [_typeSystemContext.IntPtr, _typeSystemContext.IntPtr]));
+        return _allocArrayMethod;
     }
 
     // The software multiply / divide / remainder helpers in DotNetro.Runtime.MathHelper,
@@ -850,6 +866,34 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateLdind(IRType.I16, signed: false);
                         break;
 
+                    case ILOpCode.Newarr:
+                        TranslateNewarr(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Ldlen: TranslateLdlen(); break;
+                    case ILOpCode.Ldelema:
+                        TranslateLdelema(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Ldelem_i1: TranslateLdelem(IRType.I8, signed: true); break;
+                    case ILOpCode.Ldelem_u1: TranslateLdelem(IRType.I8, signed: false); break;
+                    case ILOpCode.Ldelem_i4: TranslateLdelem(IRType.I32, signed: true); break;
+                    case ILOpCode.Ldelem_u4: TranslateLdelem(IRType.I32, signed: false); break;
+                    case ILOpCode.Ldelem_i:
+                    case ILOpCode.Ldelem_ref:
+                        TranslateLdelem(IRType.I16, signed: false);
+                        break;
+                    case ILOpCode.Ldelem:
+                        TranslateLdelem(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Stelem_i1: TranslateStelem(IRType.I8); break;
+                    case ILOpCode.Stelem_i4: TranslateStelem(IRType.I32); break;
+                    case ILOpCode.Stelem_i:
+                    case ILOpCode.Stelem_ref:
+                        TranslateStelem(IRType.I16);
+                        break;
+                    case ILOpCode.Stelem:
+                        TranslateStelem(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+
                     case ILOpCode.Ret:
                         TranslateRet();
                         break;
@@ -1191,6 +1235,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 case ILOpCode.Box: case ILOpCode.Unbox_any: case ILOpCode.Castclass:
                 case ILOpCode.Isinst: case ILOpCode.Ldtoken: case ILOpCode.Initobj:
                 case ILOpCode.Sizeof: case ILOpCode.Ldftn: case ILOpCode.Ldvirtftn:
+                case ILOpCode.Ldelem: case ILOpCode.Stelem: case ILOpCode.Ldelema:
                     reader.ReadInt32();
                     break;
                 case ILOpCode.Ldc_i8:
@@ -2151,6 +2196,146 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(MemDialect.OpRef(StoreOpFor(type)),
                 new VirtualReg(addr.Vreg, IsDefinition: false),
                 new VirtualReg(value.Vreg, IsDefinition: false));
+        }
+
+        // Arrays are heap objects: the reference points at a 2-byte length, the
+        // elements follow it, and the (null) vtable slot sits below it like any
+        // object header. No bounds checks are emitted.
+        private const int ArrayLengthSize = 2;
+
+        // Size in bytes of an array element of the type named by an IL token.
+        // Primitive element types arrive as System.* type references, which have
+        // no useful layout of their own, so they are sized by name.
+        private int ElementSize(EntityHandle typeHandle)
+        {
+            var assembly = _method.DeclaringType.Assembly;
+            if (typeHandle.Kind == HandleKind.TypeReference)
+            {
+                var reader = _method.MetadataReader;
+                var reference = reader.GetTypeReference((TypeReferenceHandle)typeHandle);
+                if (reader.GetString(reference.Namespace) == "System")
+                {
+                    switch (reader.GetString(reference.Name))
+                    {
+                        case "Byte": case "SByte": case "Boolean": case "Char": return 1;
+                        case "Int16": case "UInt16": return 2;
+                        case "Int32": case "UInt32": return 4;
+                        case "IntPtr": case "UIntPtr": case "Object": case "String":
+                            return PointerSize;
+                    }
+                }
+            }
+            return assembly.ResolveType(typeHandle).Size;
+        }
+
+        // newarr <T> → %arr = call @ManagedHeap_AllocArray(length, length * sizeof(T))
+        private void TranslateNewarr(EntityHandle typeHandle)
+        {
+            var elementSize = ElementSize(typeHandle);
+            var length = Resize(PopMaterialised(), IRType.I16).Vreg;
+            var contentSize = EmitScaledIndex(length, elementSize);
+
+            var allocArray = _parent.GetAllocArrayMethod();
+            _parent.EnqueueMethod(allocArray);
+            var ptr = _builder.BuildCall(allocArray.UniqueName, [IRType.Pointer], length, contentSize)[0];
+            _stack.Push(new StackValue(ptr, IRType.Pointer));
+        }
+
+        // ldlen → the i16 length stored at the array reference (a native unsigned
+        // int; the usual following conv.i4 zero-extends it).
+        private void TranslateLdlen()
+        {
+            var array = _stack.Pop();
+            var length = _function.CreateVirtualRegister(IRType.I16);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadI16),
+                new VirtualReg(length, IsDefinition: true),
+                new VirtualReg(array.Vreg, IsDefinition: false));
+            _stack.Push(new StackValue(length, IRType.I16));
+        }
+
+        // index * elementSize as an i16 (1 reuses the index; a power of two is
+        // strength-reduced to a shift by ArithSimplify, anything else is a
+        // multiply).
+        private int EmitScaledIndex(int indexVreg, int elementSize)
+        {
+            if (elementSize == 1) return indexVreg;
+            var sizeConst = _builder.BuildConstant(IRType.I16, elementSize);
+            var scaled = _function.CreateVirtualRegister(IRType.I16);
+            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.MulI),
+                new VirtualReg(scaled, IsDefinition: true),
+                new VirtualReg(indexVreg, IsDefinition: false),
+                new VirtualReg(sizeConst, IsDefinition: false));
+            return scaled;
+        }
+
+        // Pops the index and array reference (top first) and returns the address
+        // of that element: array + ArrayLengthSize + index * elementSize.
+        private int PopElementAddress(int elementSize)
+        {
+            var index = Resize(PopMaterialised(), IRType.I16).Vreg;
+            var array = _stack.Pop();
+            var offset = EmitScaledIndex(index, elementSize);
+            var elements = EmitFieldAddress(array.Vreg, ArrayLengthSize);
+            var addr = _function.CreateVirtualRegister(IRType.I16);
+            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.AddI),
+                new VirtualReg(addr, IsDefinition: true),
+                new VirtualReg(elements, IsDefinition: false),
+                new VirtualReg(offset, IsDefinition: false));
+            return addr;
+        }
+
+        private void TranslateLdelema(EntityHandle typeHandle)
+        {
+            var addr = PopElementAddress(ElementSize(typeHandle));
+            _stack.Push(new StackValue(addr, IRType.Pointer));
+        }
+
+        private void TranslateLdelem(IRType type, bool signed)
+        {
+            var addr = PopElementAddress(type.SizeInBits / 8);
+            _stack.Push(new StackValue(addr, IRType.Pointer));
+            TranslateLdind(type, signed);
+        }
+
+        // ldelem <T>: only primitive and reference element types (whose size is
+        // 1, 2 or 4 bytes) can be loaded as a single value.
+        private void TranslateLdelem(EntityHandle typeHandle)
+        {
+            var type = ElementSize(typeHandle) switch
+            {
+                1 => IRType.I8,
+                2 => IRType.I16,
+                4 => IRType.I32,
+                _ => throw new NotSupportedException(
+                    $"IL→MIR: ldelem of a {ElementSize(typeHandle)}-byte element is not supported yet."),
+            };
+            var signed = typeHandle.Kind == HandleKind.TypeReference
+                && _method.MetadataReader.GetString(_method.MetadataReader
+                    .GetTypeReference((TypeReferenceHandle)typeHandle).Name) is "SByte" or "Int32";
+            TranslateLdelem(type, signed);
+        }
+
+        // stelem.*: stack (top first) is value, index, array.
+        private void TranslateStelem(IRType type)
+        {
+            var value = _stack.Pop();
+            var addr = PopElementAddress(type.SizeInBits / 8);
+            _stack.Push(new StackValue(addr, IRType.Pointer));
+            _stack.Push(value);
+            TranslateStind(type);
+        }
+
+        private void TranslateStelem(EntityHandle typeHandle)
+        {
+            var type = ElementSize(typeHandle) switch
+            {
+                1 => IRType.I8,
+                2 => IRType.I16,
+                4 => IRType.I32,
+                _ => throw new NotSupportedException(
+                    $"IL→MIR: stelem of a {ElementSize(typeHandle)}-byte element is not supported yet."),
+            };
+            TranslateStelem(type);
         }
 
         // Address `offset` bytes *below* an i16 pointer (e.g. the object header
