@@ -127,6 +127,10 @@ static HashSet<string> ReadLitCoverage(string litDir)
             UseShellExecute = false,
         };
         psi.ArgumentList.Add("--opcodes");
+        // A test opts into Release IL by passing --optimize to @cs_compiler on a
+        // RUN line; mirror that so coverage reflects the IL the test really runs.
+        if (File.ReadLines(file).Any(l => l.Contains("@cs_compiler --optimize", StringComparison.Ordinal)))
+            psi.ArgumentList.Add("--optimize");
         psi.ArgumentList.Add(file);
 
         using var process = Process.Start(psi)!;

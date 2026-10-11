@@ -9,7 +9,7 @@ lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
 - **Implemented:** 90
-- **Implemented and lit-covered:** 58
+- **Implemented and lit-covered:** 88
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -20,33 +20,33 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `add.ovf.un` | ❌ | — |
 | `and` | ✅ | ✅ |
 | `arglist` | ❌ | — |
-| `beq` | ✅ | ❌ |
-| `beq.s` | ✅ | ❌ |
-| `bge` | ✅ | ❌ |
-| `bge.s` | ✅ | ❌ |
-| `bge.un` | ✅ | ❌ |
-| `bge.un.s` | ✅ | ❌ |
-| `bgt` | ✅ | ❌ |
-| `bgt.s` | ✅ | ❌ |
-| `bgt.un` | ✅ | ❌ |
-| `bgt.un.s` | ✅ | ❌ |
-| `ble` | ✅ | ❌ |
-| `ble.s` | ✅ | ❌ |
-| `ble.un` | ✅ | ❌ |
-| `ble.un.s` | ✅ | ❌ |
-| `blt` | ✅ | ❌ |
-| `blt.s` | ✅ | ❌ |
-| `blt.un` | ✅ | ❌ |
-| `blt.un.s` | ✅ | ❌ |
-| `bne.un` | ✅ | ❌ |
-| `bne.un.s` | ✅ | ❌ |
+| `beq` | ✅ | ✅ |
+| `beq.s` | ✅ | ✅ |
+| `bge` | ✅ | ✅ |
+| `bge.s` | ✅ | ✅ |
+| `bge.un` | ✅ | ✅ |
+| `bge.un.s` | ✅ | ✅ |
+| `bgt` | ✅ | ✅ |
+| `bgt.s` | ✅ | ✅ |
+| `bgt.un` | ✅ | ✅ |
+| `bgt.un.s` | ✅ | ✅ |
+| `ble` | ✅ | ✅ |
+| `ble.s` | ✅ | ✅ |
+| `ble.un` | ✅ | ✅ |
+| `ble.un.s` | ✅ | ✅ |
+| `blt` | ✅ | ✅ |
+| `blt.s` | ✅ | ✅ |
+| `blt.un` | ✅ | ✅ |
+| `blt.un.s` | ✅ | ✅ |
+| `bne.un` | ✅ | ✅ |
+| `bne.un.s` | ✅ | ✅ |
 | `box` | ❌ | — |
-| `br` | ✅ | ❌ |
+| `br` | ✅ | ✅ |
 | `br.s` | ✅ | ✅ |
 | `break` | ❌ | — |
-| `brfalse` | ✅ | ❌ |
+| `brfalse` | ✅ | ✅ |
 | `brfalse.s` | ✅ | ✅ |
-| `brtrue` | ✅ | ❌ |
+| `brtrue` | ✅ | ✅ |
 | `brtrue.s` | ✅ | ✅ |
 | `call` | ✅ | ✅ |
 | `calli` | ❌ | — |
@@ -59,10 +59,10 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `clt` | ✅ | ✅ |
 | `clt.un` | ✅ | ✅ |
 | `constrained` | ❌ | — |
-| `conv.i` | ✅ | ❌ |
+| `conv.i` | ✅ | ✅ |
 | `conv.i1` | ✅ | ✅ |
 | `conv.i2` | ❌ | — |
-| `conv.i4` | ✅ | ❌ |
+| `conv.i4` | ✅ | ✅ |
 | `conv.i8` | ❌ | — |
 | `conv.ovf.i` | ❌ | — |
 | `conv.ovf.i.un` | ❌ | — |
@@ -87,10 +87,10 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.r.un` | ❌ | — |
 | `conv.r4` | ❌ | — |
 | `conv.r8` | ❌ | — |
-| `conv.u` | ✅ | ❌ |
+| `conv.u` | ✅ | ✅ |
 | `conv.u1` | ✅ | ✅ |
 | `conv.u2` | ❌ | — |
-| `conv.u4` | ✅ | ❌ |
+| `conv.u4` | ✅ | ✅ |
 | `conv.u8` | ❌ | — |
 | `cpblk` | ❌ | — |
 | `cpobj` | ❌ | — |
@@ -107,8 +107,8 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldarg.0` | ✅ | ✅ |
 | `ldarg.1` | ✅ | ✅ |
 | `ldarg.2` | ✅ | ✅ |
-| `ldarg.3` | ✅ | ❌ |
-| `ldarg.s` | ✅ | ❌ |
+| `ldarg.3` | ✅ | ✅ |
+| `ldarg.s` | ✅ | ✅ |
 | `ldarga` | ❌ | — |
 | `ldarga.s` | ❌ | — |
 | `ldc.i4` | ✅ | ✅ |
@@ -193,7 +193,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `shl` | ✅ | ✅ |
 | `shr` | ✅ | ✅ |
 | `shr.un` | ✅ | ✅ |
-| `sizeof` | ✅ | ❌ |
+| `sizeof` | ✅ | ✅ |
 | `starg` | ❌ | — |
 | `starg.s` | ❌ | — |
 | `stelem` | ❌ | — |

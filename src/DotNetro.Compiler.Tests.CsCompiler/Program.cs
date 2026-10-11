@@ -10,6 +10,11 @@
 // out which IL opcodes are exercised by the lit-test corpus.
 //
 //   DotNetro.Compiler.Tests.CsCompiler --opcodes <file.cs>
+//
+// --optimize: compile with Roslyn's Release optimisation level instead of the
+// default Debug one. Release IL has no Debug nops/temporaries and uses the fused
+// compare-and-branch opcodes (beq, bge, blt, ...) and `br` / `brtrue` forms that
+// Debug IL does not. Combine with either mode above.
 
 using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
@@ -18,18 +23,21 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
 var emitOpcodes = false;
+var optimize = false;
 string? csFilePath = null;
 foreach (var arg in args)
 {
     if (arg == "--opcodes")
         emitOpcodes = true;
+    else if (arg == "--optimize")
+        optimize = true;
     else
         csFilePath = arg;
 }
 
 if (csFilePath is null)
 {
-    Console.Error.WriteLine("usage: DotNetro.Compiler.Tests.CsCompiler [--opcodes] <file.cs>");
+    Console.Error.WriteLine("usage: DotNetro.Compiler.Tests.CsCompiler [--opcodes] [--optimize] <file.cs>");
     return 1;
 }
 
@@ -57,7 +65,9 @@ var compilation = CSharpCompilation.Create(
     assemblyName: Path.GetFileNameWithoutExtension(csFilePath),
     syntaxTrees: [globalUsings, syntaxTree],
     references: references,
-    options: new CSharpCompilationOptions(OutputKind.ConsoleApplication));
+    options: new CSharpCompilationOptions(OutputKind.ConsoleApplication)
+        .WithOptimizationLevel(optimize ? OptimizationLevel.Release : OptimizationLevel.Debug)
+        .WithAllowUnsafe(true));
 
 using var ms = new MemoryStream();
 var emitResult = compilation.Emit(ms);
