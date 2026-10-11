@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 127
-- **Implemented and lit-covered:** 122
+- **Implemented:** 128
+- **Implemented and lit-covered:** 123
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -225,7 +225,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `sub` | ✅ | ✅ |
 | `sub.ovf` | ❌ | — |
 | `sub.ovf.un` | ❌ | — |
-| `switch` | ❌ | — |
+| `switch` | ✅ | ✅ |
 | `tail` | ❌ | — |
 | `throw` | ❌ | — |
 | `unaligned` | ❌ | — |

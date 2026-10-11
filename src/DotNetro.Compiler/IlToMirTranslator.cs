@@ -923,6 +923,10 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateRet();
                         break;
 
+                    case ILOpCode.Switch:
+                        TranslateSwitch(_currentBlock, ReadSwitchTargets(ref ilReader));
+                        break;
+
                     case var _ when TryGetCompareBranch(opCode, out var cmpPredicate, out var cmpShort):
                         TranslateCompareBranch(
                             _currentBlock, ReadBranchTarget(ref ilReader, cmpShort), cmpPredicate);
@@ -976,6 +980,12 @@ internal sealed class IlToMirTranslator : IDisposable
                         break;
                     case var _ when TryGetCompareBranch(opCode, out _, out var cmpShort):
                         target = ReadBranchTarget(ref scan, cmpShort);
+                        break;
+                    case ILOpCode.Switch:
+                        foreach (var caseOffset in ReadSwitchTargets(ref scan)) leaders.Add(caseOffset);
+                        // The not-taken fall-through starts a block too.
+                        if (scan.RemainingBytes > 0)
+                            leaders.Add(scan.Offset);
                         break;
                     default:
                         SkipOperand(ref scan, opCode);
@@ -1095,6 +1105,9 @@ internal sealed class IlToMirTranslator : IDisposable
                             break;
                         case var _ when TryGetCompareBranch(opCode, out _, out var cmpShort):
                             succ.Add(ReadBranchTarget(ref scan, cmpShort));
+                            break;
+                        case ILOpCode.Switch:
+                            succ.AddRange(ReadSwitchTargets(ref scan));
                             break;
                         default:
                             SkipOperand(ref scan, opCode);
@@ -1757,6 +1770,65 @@ internal sealed class IlToMirTranslator : IDisposable
         // offset from the end of the instruction.
         private static int ReadBranchTarget(ref BlobReader reader, bool isShort)
             => isShort ? reader.ReadSByte() + reader.Offset : reader.ReadInt32() + reader.Offset;
+
+        // A switch's jump table as absolute IL offsets. The displacements are
+        // relative to the end of the whole instruction (after the last entry).
+        private static int[] ReadSwitchTargets(ref BlobReader reader)
+        {
+            var count = reader.ReadUInt32();
+            var targets = new int[count];
+            for (var i = 0; i < count; i++) targets[i] = reader.ReadInt32();
+            for (var i = 0; i < count; i++) targets[i] += reader.Offset;
+            return targets;
+        }
+
+        // switch: Irie has no multiway branch, so lower the jump table to a chain
+        // of equality tests (llvm-mos does likewise for small tables; it has no
+        // indirect-jump table lowering either):
+        //
+        //   <from>:  %c0 = cmpi eq %v, 0 ; cond_br %c0, case0, test1
+        //   test1:   %c1 = cmpi eq %v, 1 ; cond_br %c1, case1, test2
+        //   ...
+        //   testN:   cond_br %cN, caseN, <fall-through>
+        //
+        // A value outside 0..N-1 (as unsigned) matches no test and falls through.
+        // Cases that already target the fall-through block need no test.
+        private void TranslateSwitch(MirBlock from, int[] targets)
+        {
+            var fallThrough = NextBlockAfter(from);
+            var selector = PromoteNarrow(PopMaterialised());
+
+            var cases = new List<(int Value, MirBlock Target)>();
+            for (var i = 0; i < targets.Length; i++)
+            {
+                var target = BlockAt(targets[i]);
+                if (!ReferenceEquals(target, fallThrough)) cases.Add((i, target));
+            }
+
+            if (cases.Count == 0)
+            {
+                EmitBranchTo(_currentBlock, fallThrough);
+                return;
+            }
+
+            for (var i = 0; i < cases.Count; i++)
+            {
+                var (value, target) = cases[i];
+                var isLast = i == cases.Count - 1;
+                var next = isLast ? fallThrough : _function.CreateBlock();
+
+                _builder.SetInsertionPointAtEnd(_currentBlock);
+                var constant = _builder.BuildConstant(selector.Type, value);
+                var cond = _builder.BuildCmpI(ArithCmpPredicate.Eq, selector.Vreg, constant);
+                EmitCondBr(cond, target, next);
+
+                if (!isLast)
+                {
+                    _currentBlock = next;
+                    _builder.SetInsertionPointAtEnd(next);
+                }
+            }
+        }
 
         // beq/bge/…: pop two values, compare with `predicate`, branch to `target`
         // when it holds, else fall through. The cmpi is built directly at the end
