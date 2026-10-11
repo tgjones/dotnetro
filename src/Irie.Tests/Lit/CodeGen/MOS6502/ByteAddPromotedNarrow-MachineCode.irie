@@ -1,0 +1,63 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; ECMA-335 promotes bytes to int32 for add/sub, so the front end emits
+; zext + 32-bit add. When only the low byte is demanded (a following conv.u1 →
+; cast.trunc) the legalizer must delete the dead high-byte adds, leaving a single
+; byte ADC; when the full sum is kept it stays a wide chain.
+
+; CHECK: AddTrunc:
+; CHECK:     STX $02
+; CHECK:     CLC
+; CHECK:     ADC $02
+; CHECK:     RTS
+; CHECK:
+; CHECK: SubTrunc:
+; CHECK:     STX $02
+; CHECK:     SEC
+; CHECK:     SBC $02
+; CHECK:     RTS
+; CHECK:
+; CHECK: AddWide:
+; CHECK:     STX $02
+; CHECK:     LDX #$00
+; CHECK:     STX $03
+; CHECK:     CLC
+; CHECK:     ADC $02
+; CHECK:     TAY
+; CHECK:     LDA $03
+; CHECK:     ADC #$00
+; CHECK:     TAX
+; CHECK:     LDA $03
+; CHECK:     ADC #$00
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC #$00
+; CHECK:     STA $03
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @AddTrunc : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i32 = cast.zext %0
+    %3 : i32 = cast.zext %1
+    %4 : i32 = arith.addi %2, %3
+    %5 : i8 = cast.trunc %4
+    core.return %5
+}
+
+func @SubTrunc : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i32 = cast.zext %0
+    %3 : i32 = cast.zext %1
+    %4 : i32 = arith.subi %2, %3
+    %5 : i8 = cast.trunc %4
+    core.return %5
+}
+
+func @AddWide : (i8, i8) -> i32 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i32 = cast.zext %0
+    %3 : i32 = cast.zext %1
+    %4 : i32 = arith.addi %2, %3
+    core.return %4
+}

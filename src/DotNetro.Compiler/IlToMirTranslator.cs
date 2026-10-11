@@ -1189,6 +1189,15 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var right = _stack.Pop();
             var left = _stack.Pop();
+            // ECMA-335 keeps bytes on the stack as int32, so `byte + byte` carries
+            // into bit 8. Widen here and let Irie narrow it back when only the low
+            // byte is demanded (e.g. a following conv.u1): the dead high-byte adds
+            // are deleted by the legalizer.
+            if (left.Type.Equals(IRType.I8) && right.Type.Equals(IRType.I8))
+            {
+                left = Resize(left, IRType.I32);
+                right = Resize(right, IRType.I32);
+            }
             if (!left.Type.Equals(right.Type))
             {
                 // Pointer arithmetic: an i16 pointer plus an i32 index/offset. IL
@@ -1354,7 +1363,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // not: bitwise complement, `x ^ -1` at the operand's width.
         private void TranslateNot()
         {
-            var value = PopMaterialised();
+            var value = PromoteByte(PopMaterialised());
             var allOnes = _builder.BuildConstant(value.Type, -1);
             var result = _function.CreateVirtualRegister(value.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.Xor),
@@ -1367,7 +1376,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // neg: two's-complement negation, `0 - x` at the operand's width.
         private void TranslateNeg()
         {
-            var value = PopMaterialised();
+            var value = PromoteByte(PopMaterialised());
             var zero = _builder.BuildConstant(value.Type, 0);
             var result = _function.CreateVirtualRegister(value.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.SubI),
@@ -1376,6 +1385,12 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(value.Vreg, IsDefinition: false));
             _stack.Push(new StackValue(result, value.Type));
         }
+
+        // A byte on the IL evaluation stack is an int32 (ECMA-335 §III.1.1): widen
+        // an i8 to i32 by its signedness before an operation whose result depends
+        // on the bits above bit 7 (neg, not, add, sub).
+        private StackValue PromoteByte(StackValue value) =>
+            value.Type.Equals(IRType.I8) ? Resize(value, IRType.I32) : value;
 
         // Convert an integer stack value to `to`'s width: truncate when narrowing,
         // otherwise zero- or sign-extend according to the value's signedness. A
