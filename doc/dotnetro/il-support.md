@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 69
-- **Implemented and lit-covered:** 57
+- **Implemented:** 70
+- **Implemented and lit-covered:** 58
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -176,7 +176,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `mul` | ❌ | — |
 | `mul.ovf` | ❌ | — |
 | `mul.ovf.un` | ❌ | — |
-| `neg` | ❌ | — |
+| `neg` | ✅ | ✅ |
 | `newarr` | ❌ | — |
 | `newobj` | ✅ | ✅ |
 | `nop` | ✅ | ✅ |

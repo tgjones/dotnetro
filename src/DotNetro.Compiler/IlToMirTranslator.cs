@@ -699,6 +699,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Or: TranslateBitwise(ArithOp.Or); break;
                     case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
                     case ILOpCode.Not: TranslateNot(); break;
+                    case ILOpCode.Neg: TranslateNeg(); break;
                     case ILOpCode.Shl: TranslateShift(ArithOp.Shl); break;
                     case ILOpCode.Shr: TranslateShift(ArithOp.AShr); break;
                     case ILOpCode.Shr_un: TranslateShift(ArithOp.LShr); break;
@@ -1360,6 +1361,19 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(result, IsDefinition: true),
                 new VirtualReg(value.Vreg, IsDefinition: false),
                 new VirtualReg(allOnes, IsDefinition: false));
+            _stack.Push(new StackValue(result, value.Type));
+        }
+
+        // neg: two's-complement negation, `0 - x` at the operand's width.
+        private void TranslateNeg()
+        {
+            var value = PopMaterialised();
+            var zero = _builder.BuildConstant(value.Type, 0);
+            var result = _function.CreateVirtualRegister(value.Type);
+            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.SubI),
+                new VirtualReg(result, IsDefinition: true),
+                new VirtualReg(zero, IsDefinition: false),
+                new VirtualReg(value.Vreg, IsDefinition: false));
             _stack.Push(new StackValue(result, value.Type));
         }
 
