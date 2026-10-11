@@ -1,0 +1,228 @@
+; RUN: @iriec --target mos6502-bbcmicro --emit=asm @file
+
+; Register-pressure regression: two i64 values are loop-carried across a call, far
+; more than the 12 callee-saved bytes can hold, so the allocator spills some of
+; them. A loop-carried value is defined once per incoming edge (the edge copies
+; PHI elimination leaves), so the spill store must follow EVERY def, not just the
+; first. The spills (pseudo.spill / pseudo.reload) are lowered once the frame is
+; placed: on the BBC Micro target the slots are promoted into the zero-page
+; static-frame window ($70..), so each is a direct STA/LDA zp.
+
+; CHECK: Loop64:
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
+; CHECK:     LDA $16
+; CHECK:     PHA
+; CHECK:     LDA $17
+; CHECK:     PHA
+; CHECK:     LDA $18
+; CHECK:     PHA
+; CHECK:     LDA $19
+; CHECK:     PHA
+; CHECK:     LDA $1A
+; CHECK:     PHA
+; CHECK:     LDA $1B
+; CHECK:     PHA
+; CHECK:     LDA $1C
+; CHECK:     PHA
+; CHECK:     LDA $1D
+; CHECK:     PHA
+; CHECK:     LDA $1E
+; CHECK:     PHA
+; CHECK:     LDA $1F
+; CHECK:     PHA
+; CHECK:     TYA
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDA $08
+; CHECK:     STA $09
+; CHECK:     LDA #$00
+; CHECK:     STA $19
+; CHECK:     LDA #$00
+; CHECK:     STA $1C
+; CHECK:     LDA #$00
+; CHECK:     STA $1E
+; CHECK:     LDA #$00
+; CHECK:     STA $1F
+; CHECK:     LDA #$00
+; CHECK:     LDX #$00
+; CHECK:     STX $08
+; CHECK:     LDX #$00
+; CHECK:     LDY #$00
+; CHECK:     STA $0A
+; CHECK:     LDA $02
+; CHECK:     STA $16
+; CHECK:     LDA $0A
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     STA $17
+; CHECK:     LDA $02
+; CHECK:     STA $02
+; CHECK:     LDA $04
+; CHECK:     STA $18
+; CHECK:     LDA $02
+; CHECK:     STA $02
+; CHECK:     LDA $05
+; CHECK:     STA $1A
+; CHECK:     LDA $02
+; CHECK:     STA $02
+; CHECK:     LDA $06
+; CHECK:     STA $1B
+; CHECK:     LDA $02
+; CHECK:     STA $02
+; CHECK:     LDA $07
+; CHECK:     STA $1D
+; CHECK:     LDA $02
+; CHECK:     STA $70
+; CHECK:     LDA $08
+; CHECK:     STA $71
+; CHECK:     TXA
+; CHECK:     STA $72
+; CHECK:     TYA
+; CHECK:     STA $73
+; CHECK:     LDA $09
+; CHECK:     STA $74
+; CHECK: .bb1:
+; CHECK:     LDA $14
+; CHECK:     LDX $15
+; CHECK:     LDY $16
+; CHECK:     STY $02
+; CHECK:     LDY $17
+; CHECK:     STY $03
+; CHECK:     LDY $18
+; CHECK:     STY $04
+; CHECK:     LDY $1A
+; CHECK:     STY $05
+; CHECK:     LDY $1B
+; CHECK:     STY $06
+; CHECK:     LDY $1D
+; CHECK:     STY $07
+; CHECK:     JSR Step
+; CHECK:     STA $10
+; CHECK:     STX $0F
+; CHECK:     LDA $02
+; CHECK:     STA $0E
+; CHECK:     LDA $03
+; CHECK:     STA $0D
+; CHECK:     LDA $04
+; CHECK:     STA $0C
+; CHECK:     LDA $05
+; CHECK:     STA $0B
+; CHECK:     LDA $06
+; CHECK:     STA $09
+; CHECK:     LDA $07
+; CHECK:     STA $08
+; CHECK:     CLC
+; CHECK:     LDA $19
+; CHECK:     ADC $14
+; CHECK:     STA $02
+; CHECK:     LDA $1C
+; CHECK:     ADC $15
+; CHECK:     STA $03
+; CHECK:     LDA $1E
+; CHECK:     ADC $16
+; CHECK:     STA $04
+; CHECK:     LDA $1F
+; CHECK:     ADC $17
+; CHECK:     STA $05
+; CHECK:     LDA $70
+; CHECK:     ADC $18
+; CHECK:     STA $06
+; CHECK:     LDA $71
+; CHECK:     ADC $1A
+; CHECK:     STA $07
+; CHECK:     LDA $72
+; CHECK:     ADC $1B
+; CHECK:     TAY
+; CHECK:     LDA $73
+; CHECK:     ADC $1D
+; CHECK:     TAX
+; CHECK:     SEC
+; CHECK:     LDA $74
+; CHECK:     SBC #$01
+; CHECK:     STA $0A
+; CHECK:     BEQ .bb4
+; CHECK: .bb2:
+; CHECK:     LDA $10
+; CHECK:     STA $14
+; CHECK:     LDA $0F
+; CHECK:     STA $15
+; CHECK:     LDA $0E
+; CHECK:     STA $16
+; CHECK:     LDA $0D
+; CHECK:     STA $17
+; CHECK:     LDA $0C
+; CHECK:     STA $18
+; CHECK:     LDA $0B
+; CHECK:     STA $1A
+; CHECK:     LDA $09
+; CHECK:     STA $1B
+; CHECK:     LDA $08
+; CHECK:     STA $1D
+; CHECK:     LDA $02
+; CHECK:     STA $19
+; CHECK:     LDA $03
+; CHECK:     STA $1C
+; CHECK:     LDA $04
+; CHECK:     STA $1E
+; CHECK:     LDA $05
+; CHECK:     STA $1F
+; CHECK:     LDA $06
+; CHECK:     STA $70
+; CHECK:     LDA $07
+; CHECK:     STA $71
+; CHECK:     TYA
+; CHECK:     STA $72
+; CHECK:     TXA
+; CHECK:     STA $73
+; CHECK:     LDA $0A
+; CHECK:     STA $74
+; CHECK:     JMP .bb1
+; CHECK: .bb3:
+; CHECK:     LDX $08
+; CHECK:     TAY
+; CHECK:     PLA
+; CHECK:     STA $1F
+; CHECK:     PLA
+; CHECK:     STA $1E
+; CHECK:     PLA
+; CHECK:     STA $1D
+; CHECK:     PLA
+; CHECK:     STA $1C
+; CHECK:     PLA
+; CHECK:     STA $1B
+; CHECK:     PLA
+; CHECK:     STA $1A
+; CHECK:     PLA
+; CHECK:     STA $19
+; CHECK:     PLA
+; CHECK:     STA $18
+; CHECK:     PLA
+; CHECK:     STA $17
+; CHECK:     PLA
+; CHECK:     STA $16
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @Loop64 : (i64, i8) -> i64 {
+bb0(%0 : i64, %1 : i8):
+    %2 : i64 = arith.constant 0
+    cf.br bb1(%0, %2, %1)
+bb1(%3 : i64, %4 : i64, %5 : i8):
+    %6 : i64 = call.func @Step, %3
+    %7 : i64 = arith.addi %4, %3
+    %8 : i8 = arith.constant 1
+    %9 : i8 = arith.subi %5, %8
+    %10 : i8 = arith.constant 0
+    %11 : i1 = arith.cmpi ne, %9, %10
+    cf.cond_br %11, bb1(%6, %7, %9), bb2(%7)
+bb2(%12 : i64):
+    core.return %12
+}

@@ -1,0 +1,38 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; An i64 add narrows to a chain of eight i8 add-with-carry ops; the two i64
+; arguments arrive in A,X,$02..$07 and $08..$0F (CC_MOS, LSB-first).
+
+; CHECK: Add64:
+; CHECK:     CLC
+; CHECK:     ADC $08
+; CHECK:     STA $08
+; CHECK:     TXA
+; CHECK:     ADC $09
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ADC $0A
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC $0B
+; CHECK:     STA $03
+; CHECK:     LDA $04
+; CHECK:     ADC $0C
+; CHECK:     STA $04
+; CHECK:     LDA $05
+; CHECK:     ADC $0D
+; CHECK:     STA $05
+; CHECK:     LDA $06
+; CHECK:     ADC $0E
+; CHECK:     STA $06
+; CHECK:     LDA $07
+; CHECK:     ADC $0F
+; CHECK:     STA $07
+; CHECK:     LDA $08
+; CHECK:     RTS
+
+func @Add64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.addi %0, %1
+    core.return %2
+}

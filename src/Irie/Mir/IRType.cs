@@ -8,6 +8,7 @@ public abstract record IRType(int SizeInBits)
     public static readonly IntegerType I8 = new(8);
     public static readonly IntegerType I16 = new(16);
     public static readonly IntegerType I32 = new(32);
+    public static readonly IntegerType I64 = new(64);
 
     public static readonly IRType Pointer = I16;
 

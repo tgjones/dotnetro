@@ -92,6 +92,23 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         return null;
     }
 
+    // Every instruction that defines `vreg`, in program order. After PHI
+    // elimination a block-parameter vreg is defined once per incoming edge (the
+    // edge copies), so "the" definition is not unique past that point.
+    public List<MirInstruction> GetDefinitions(int vreg)
+    {
+        var defs = new List<MirInstruction>();
+        foreach (var block in Blocks)
+            foreach (var instr in block.Instructions)
+                foreach (var operand in instr.Operands)
+                    if (operand is VirtualReg v && v.IsDefinition && v.Id == vreg)
+                    {
+                        defs.Add(instr);
+                        break;
+                    }
+        return defs;
+    }
+
     public int GetUseCount(int vreg)
     {
         var count = 0;

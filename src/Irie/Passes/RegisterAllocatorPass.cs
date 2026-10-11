@@ -168,14 +168,19 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
     {
         foreach (var spilled in spills)
         {
-            var def = function.GetDefinition(spilled);
+            // A vreg can have several defs once PHI elimination has run (one edge
+            // copy per predecessor). Only a single-def value can be rematerialized
+            // (the clone must equal every definition), and a memory spill must
+            // store after EVERY def.
+            var defs = function.GetDefinitions(spilled);
+            var def = defs.Count == 1 ? defs[0] : null;
 
             if (def != null && IsRematerializable(def))
                 Rematerialize(function, spilled, def, unspillable);
             else if (TrySplitToRegister(function, spilled, reconciliationTemps))
                 continue;
             else
-                StoreReloadSpill(function, spilled, def, unspillable);
+                StoreReloadSpill(function, spilled, defs, unspillable);
         }
     }
 
@@ -352,17 +357,18 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
     // because every value reaching RA is a post-legalization byte.
     // -------------------------------------------------------------------------
     private static void StoreReloadSpill(
-        MirFunction function, int spilled, MirInstruction? def, HashSet<int> unspillable)
+        MirFunction function, int spilled, List<MirInstruction> defs, HashSet<int> unspillable)
     {
         var (classId, className) = ClassOf(function, spilled);
         var slot = PickSpillSlot(function, spilled);
         var builder = new MirBuilder(function);
 
-        // Store after the def (if there is one — a livein/param vreg may have no
-        // in-function def, in which case its value is already where the reloads
-        // expect, and only reloads are needed... but such a value cannot be
-        // spilled meaningfully, so we require a def here).
-        if (def != null)
+        // Store after EVERY def, so whichever one reaches a use has left its value
+        // in the slot. (A vreg with no def at all — a livein/param — cannot be
+        // spilled meaningfully; its value is already where the reloads expect.)
+        // The stored vreg now lives only from its def to the store, so it never
+        // needs to be spilled again.
+        foreach (var def in defs)
         {
             var defBlock = def.Parent!;
             var defIdx = defBlock.Instructions.IndexOf(def);
@@ -372,6 +378,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
                 new Immediate(slot.Index),
                 new VirtualReg(spilled, IsDefinition: false));
         }
+        unspillable.Add(spilled);
 
         // Reload before each use into a fresh tiny vreg, and redirect that use.
         foreach (var block in function.Blocks)

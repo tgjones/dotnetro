@@ -1,0 +1,46 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; mem.load.i64 / mem.store.i64 through a mem.symbol address: the Custom
+; legalizer rewrites each into eight per-byte mem.load.byte_at /
+; mem.store.byte_at ops at offsets 0..7, which isel selects as absolute accesses.
+
+; CHECK: TestMemI64:
+; CHECK:     LDA value
+; CHECK:     TAY
+; CHECK:     LDA value+1
+; CHECK:     STA $06
+; CHECK:     LDA value+2
+; CHECK:     STA $05
+; CHECK:     LDA value+3
+; CHECK:     STA $04
+; CHECK:     LDA value+4
+; CHECK:     STA $03
+; CHECK:     LDA value+5
+; CHECK:     STA $02
+; CHECK:     LDA value+6
+; CHECK:     TAX
+; CHECK:     LDA value+7
+; CHECK:     STY value
+; CHECK:     LDY $06
+; CHECK:     STY value+1
+; CHECK:     LDY $05
+; CHECK:     STY value+2
+; CHECK:     LDY $04
+; CHECK:     STY value+3
+; CHECK:     LDY $03
+; CHECK:     STY value+4
+; CHECK:     LDY $02
+; CHECK:     STY value+5
+; CHECK:     STX value+6
+; CHECK:     STA value+7
+; CHECK:     RTS
+
+global @value : i64
+
+func @TestMemI64 : () -> void {
+bb0():
+    %0 : i16 = mem.symbol @value
+    %1 : i64 = mem.load.i64 %0
+    mem.store.i64 %0, %1
+    core.return
+}

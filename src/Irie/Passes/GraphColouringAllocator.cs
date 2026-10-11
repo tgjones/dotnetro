@@ -984,35 +984,41 @@ internal sealed class GraphColouringAllocator
     // without touching the selection logic. Cost is at least 1.
     private long SpillCost(int node)
     {
-        long cost = 0;
-        foreach (var block in _function.Blocks)
+        // The IR does not change during a colouring round, so count every vreg's
+        // occurrences once and answer from the table (SelectSpill asks for every
+        // spill-worklist node on every pick).
+        if (_spillCosts == null)
         {
-            var weight = LoopDepthWeight(block);
-            foreach (var instr in block.Instructions)
-                foreach (var op in instr.Operands)
-                    cost += CountVregOccurrences(op, node) * weight;
+            _spillCosts = [];
+            foreach (var block in _function.Blocks)
+            {
+                var weight = LoopDepthWeight(block);
+                foreach (var instr in block.Instructions)
+                    foreach (var op in instr.Operands)
+                        CountVregOccurrences(op, weight, _spillCosts);
+            }
         }
-        return Math.Max(cost, 1);
+        return Math.Max(_spillCosts.GetValueOrDefault(node), 1);
     }
+
+    private Dictionary<int, long>? _spillCosts;
 
     // Loop-depth weight for a block. Placeholder (always 1) until a loop-nesting
     // analysis lands (Phase 5); kept as a named seam so the spill-cost formula
     // already reads "weighted by loop depth" as the plan specifies (§3.4).
     private static long LoopDepthWeight(MirBlock block) => 1;
 
-    private static long CountVregOccurrences(MirOperand op, int vreg)
+    private static void CountVregOccurrences(MirOperand op, long weight, Dictionary<int, long> costs)
     {
         switch (op)
         {
-            case VirtualReg v when v.Id == vreg:
-                return 1;
+            case VirtualReg v:
+                costs[v.Id] = costs.GetValueOrDefault(v.Id) + weight;
+                break;
             case BlockTarget bt:
-                long n = 0;
                 foreach (var arg in bt.Args)
-                    n += CountVregOccurrences(arg, vreg);
-                return n;
-            default:
-                return 0;
+                    CountVregOccurrences(arg, weight, costs);
+                break;
         }
     }
 

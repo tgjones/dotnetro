@@ -74,7 +74,7 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // are widened to the helper's width first.
                 ArithOp.MulI or ArithOp.UDivI or ArithOp.SDivI
                     or ArithOp.URemI or ArithOp.SRemI
-                                   when intType.SizeInBits is 8 or 16 or 32 => LegalityAction.Custom,
+                                   when intType.SizeInBits is 8 or 16 or 32 or 64 => LegalityAction.Custom,
                 _ => LegalityAction.Unsupported,
             };
         }
@@ -138,6 +138,8 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 MemOp.StoreI8     when intType.SizeInBits == 8  => LegalityAction.Custom,
                 MemOp.StoreI16    when intType.SizeInBits == 16 => LegalityAction.Custom,
                 MemOp.StoreI32    when intType.SizeInBits == 32 => LegalityAction.Custom,
+                MemOp.LoadI64     when intType.SizeInBits == 64 => LegalityAction.Custom,
+                MemOp.StoreI64    when intType.SizeInBits == 64 => LegalityAction.Custom,
                 MemOp.LoadByteAt  when intType.SizeInBits == 8  => LegalityAction.Legal,
                 MemOp.StoreByteAt when intType.SizeInBits == 8  => LegalityAction.Legal,
                 // mem.fill's TypeOperandIndex points at the byte-pattern (i8) operand;
@@ -181,12 +183,14 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 case MemOp.LoadI8:
                 case MemOp.LoadI16:
                 case MemOp.LoadI32:
+                case MemOp.LoadI64:
                     LowerWideLoad(instr, builder);
                     return;
 
                 case MemOp.StoreI8:
                 case MemOp.StoreI16:
                 case MemOp.StoreI32:
+                case MemOp.StoreI64:
                     LowerWideStore(instr, builder);
                     return;
 
@@ -608,7 +612,9 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         var op = (ArithOp)instr.Opcode.Code;
         var resultType = ((TypedVReg)function.GetVRegAnnotation(defReg.Id)).Type;
         var signed = op is ArithOp.SDivI or ArithOp.SRemI;
-        var callType = op == ArithOp.MulI && resultType.SizeInBits <= 16 ? IRType.I16 : IRType.I32;
+        var callType = resultType.SizeInBits == 64 ? IRType.I64
+            : op == ArithOp.MulI && resultType.SizeInBits <= 16 ? IRType.I16
+            : IRType.I32;
 
         var callee = (op, callType.SizeInBits) switch
         {
@@ -618,6 +624,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             (ArithOp.SDivI, 32) => "__divsi3",
             (ArithOp.URemI, 32) => "__umodsi3",
             (ArithOp.SRemI, 32) => "__modsi3",
+            (ArithOp.MulI, 64)  => "__muldi3",
+            (ArithOp.UDivI, 64) => "__udivdi3",
+            (ArithOp.SDivI, 64) => "__divdi3",
+            (ArithOp.URemI, 64) => "__umoddi3",
+            (ArithOp.SRemI, 64) => "__moddi3",
             _ => throw new NotSupportedException($"MOS6502LegalizerInfo: no libcall for {op} {callType}."),
         };
 

@@ -1,0 +1,55 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; 64-bit multiply, divide and remainder are runtime-helper calls too (compiler-rt
+; names __muldi3, __udivdi3, __divdi3, __umoddi3, __moddi3). The operands already
+; sit in the helper's argument registers, so each is a bare JSR.
+
+; CHECK: Mul64:
+; CHECK:     JSR __muldi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: UDiv64:
+; CHECK:     JSR __udivdi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: SDiv64:
+; CHECK:     JSR __divdi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: URem64:
+; CHECK:     JSR __umoddi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: SRem64:
+; CHECK:     JSR __moddi3
+; CHECK:     RTS
+
+func @Mul64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.muli %0, %1
+    core.return %2
+}
+
+func @UDiv64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.udivi %0, %1
+    core.return %2
+}
+
+func @SDiv64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.sdivi %0, %1
+    core.return %2
+}
+
+func @URem64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.uremi %0, %1
+    core.return %2
+}
+
+func @SRem64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.sremi %0, %1
+    core.return %2
+}

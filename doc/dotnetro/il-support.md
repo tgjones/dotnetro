@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 128
-- **Implemented and lit-covered:** 123
+- **Implemented:** 135
+- **Implemented and lit-covered:** 130
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -63,7 +63,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.i1` | ✅ | ✅ |
 | `conv.i2` | ✅ | ✅ |
 | `conv.i4` | ✅ | ✅ |
-| `conv.i8` | ❌ | — |
+| `conv.i8` | ✅ | ✅ |
 | `conv.ovf.i` | ❌ | — |
 | `conv.ovf.i.un` | ❌ | — |
 | `conv.ovf.i1` | ❌ | — |
@@ -91,7 +91,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.u1` | ✅ | ✅ |
 | `conv.u2` | ✅ | ✅ |
 | `conv.u4` | ✅ | ✅ |
-| `conv.u8` | ❌ | — |
+| `conv.u8` | ✅ | ✅ |
 | `cpblk` | ❌ | — |
 | `cpobj` | ❌ | — |
 | `div` | ✅ | ✅ |
@@ -123,7 +123,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldc.i4.8` | ✅ | ✅ |
 | `ldc.i4.m1` | ✅ | ✅ |
 | `ldc.i4.s` | ✅ | ✅ |
-| `ldc.i8` | ❌ | — |
+| `ldc.i8` | ✅ | ✅ |
 | `ldc.r4` | ❌ | — |
 | `ldc.r8` | ❌ | — |
 | `ldelem` | ✅ | ❌ |
@@ -131,7 +131,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldelem.i1` | ✅ | ✅ |
 | `ldelem.i2` | ✅ | ✅ |
 | `ldelem.i4` | ✅ | ✅ |
-| `ldelem.i8` | ❌ | — |
+| `ldelem.i8` | ✅ | ✅ |
 | `ldelem.r4` | ❌ | — |
 | `ldelem.r8` | ❌ | — |
 | `ldelem.ref` | ✅ | ✅ |
@@ -146,7 +146,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldind.i1` | ✅ | ✅ |
 | `ldind.i2` | ✅ | ✅ |
 | `ldind.i4` | ✅ | ✅ |
-| `ldind.i8` | ❌ | — |
+| `ldind.i8` | ✅ | ✅ |
 | `ldind.r4` | ❌ | — |
 | `ldind.r8` | ❌ | — |
 | `ldind.ref` | ✅ | ✅ |
@@ -201,7 +201,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stelem.i1` | ✅ | ✅ |
 | `stelem.i2` | ✅ | ✅ |
 | `stelem.i4` | ✅ | ✅ |
-| `stelem.i8` | ❌ | — |
+| `stelem.i8` | ✅ | ✅ |
 | `stelem.r4` | ❌ | — |
 | `stelem.r8` | ❌ | — |
 | `stelem.ref` | ✅ | ✅ |
@@ -210,7 +210,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stind.i1` | ✅ | ✅ |
 | `stind.i2` | ✅ | ✅ |
 | `stind.i4` | ✅ | ✅ |
-| `stind.i8` | ❌ | — |
+| `stind.i8` | ✅ | ✅ |
 | `stind.r4` | ❌ | — |
 | `stind.r8` | ❌ | — |
 | `stind.ref` | ✅ | ✅ |

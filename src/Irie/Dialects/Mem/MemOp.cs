@@ -49,4 +49,11 @@ public enum MemOp : ushort
     //   Used by IL `initobj` (count = type size, byte = 0). The legalizer
     //   unrolls small known counts (≤ ~16) into per-byte mem.store.byte_at.
     Fill,
+
+    // %v : i64 = mem.load.i64 %addr
+    // mem.store.i64 %addr, %val
+    //   As the narrower load/store forms. Declared last so the numeric codes of
+    //   the earlier ops (serialised in the binary format) stay put.
+    LoadI64,
+    StoreI64,
 }

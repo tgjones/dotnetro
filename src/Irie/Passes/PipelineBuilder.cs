@@ -39,6 +39,10 @@ public static class PipelineBuilder
         passMgr.AddPass(new RematerializableSinkPass());
         passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo));
         passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
+        // RA mints frame slots for the values it spills; give them their storage
+        // (the earlier FrameLowering ran before RA, so it never saw them). Idempotent:
+        // slots that already have a global are skipped.
+        passMgr.AddPass(new FrameLoweringPass());
         // Target branch-folding passes run on physreg-only MIR after RA and before
         // CopyElimination — the llvm-mos Control Flow Optimizer slot (after the VReg
         // rewriter, before copy-opt). MOS6502 uses this for empty-block elimination.

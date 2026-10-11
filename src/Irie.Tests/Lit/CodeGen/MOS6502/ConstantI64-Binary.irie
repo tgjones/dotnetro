@@ -1,0 +1,14 @@
+; RUN: @iriec --target mos6502 --emit=bin --origin=0x1900 @file | @irie-mc --hex-dump
+
+; An i64 constant (and the i64 return type, which also round-trips the binary MIR
+; type tag) flows through the whole pipeline: eight byte constants, returned in
+; A, X, $02..$07.
+
+; CHECK: 00000000: A9 EF A2 CD A0 AB 84 02  A0 89 84 03 A0 67 84 04
+; CHECK: 00000010: A0 45 84 05 A0 23 84 06  A0 01 84 07 60
+
+func @TestConstant : () -> i64 {
+bb0():
+    %0 : i64 = arith.constant 81985529216486895
+    core.return %0
+}

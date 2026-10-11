@@ -186,6 +186,7 @@ internal static class MirBinaryReader
             TypeTag.I8   => IRType.I8,
             TypeTag.I16  => IRType.I16,
             TypeTag.I32  => IRType.I32,
+            TypeTag.I64  => IRType.I64,
             _ => throw new InvalidDataException($"Unknown type tag: {(byte)tag}"),
         };
     }

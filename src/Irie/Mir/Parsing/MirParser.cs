@@ -219,11 +219,12 @@ internal sealed class MirParser
         "i8"   => IRType.I8,
         "i16"  => IRType.I16,
         "i32"  => IRType.I32,
+        "i64"  => IRType.I64,
         _ => throw Fail(token, $"Unknown type '{token.Text}'"),
     };
 
     private static bool IsTypeName(string? name) =>
-        name is "void" or "i1" or "i8" or "i16" or "i32";
+        name is "void" or "i1" or "i8" or "i16" or "i32" or "i64";
 
     // -------------------------------------------------------------------------
     // Block-header scan (pass 1)

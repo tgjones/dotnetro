@@ -17,4 +17,13 @@ public abstract class PseudoExpander
     // `copy` once Expand returns. Implementations emit one or more target
     // instructions through the builder.
     public abstract void Expand(MirInstruction copy, MirBuilder builder);
+
+    // Last-resort save/restore of a scratch register around an expansion when no
+    // dead zero-page slot exists to park it in: push `gpr` on the hardware stack
+    // and pull it back afterwards. A target may only be able to do this for some
+    // registers (the 6502 can only push the accumulator): CanSaveOnStack is the
+    // pure query; EmitStackSave / EmitStackRestore emit the push and the pull.
+    public virtual bool CanSaveOnStack(int gpr) => false;
+    public virtual void EmitStackSave(int gpr, MirBuilder builder) => throw new NotSupportedException();
+    public virtual void EmitStackRestore(int gpr, MirBuilder builder) => throw new NotSupportedException();
 }

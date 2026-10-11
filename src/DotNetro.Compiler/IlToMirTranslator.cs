@@ -182,7 +182,10 @@ internal sealed class IlToMirTranslator : IDisposable
     // which Irie's legalizer calls by these stable names (compiler-rt naming). Each
     // is emitted under its own name so the call the legalizer builds links.
     private static readonly string[] MathHelperNames =
-        ["__mulhi3", "__mulsi3", "__udivsi3", "__divsi3", "__umodsi3", "__modsi3"];
+        [
+            "__mulhi3", "__mulsi3", "__udivsi3", "__divsi3", "__umodsi3", "__modsi3",
+            "__muldi3", "__udivdi3", "__divdi3", "__umoddi3", "__moddi3",
+        ];
 
     private bool _mathHelpersRegistered;
 
@@ -550,6 +553,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 PrimitiveTypeCode.Boolean => IRType.I8,
                 PrimitiveTypeCode.Byte or PrimitiveTypeCode.SByte => IRType.I8,
                 PrimitiveTypeCode.Int32 or PrimitiveTypeCode.UInt32 => IRType.I32,
+                PrimitiveTypeCode.Int64 or PrimitiveTypeCode.UInt64 => IRType.I64,
                 PrimitiveTypeCode.Int16 or PrimitiveTypeCode.UInt16 or PrimitiveTypeCode.Char => IRType.I16,
                 PrimitiveTypeCode.IntPtr or PrimitiveTypeCode.UIntPtr => IRType.I16,
                 // A managed string / object is a heap reference: a 16-bit pointer
@@ -713,6 +717,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
             var ilReader = _method.MethodBody!.MethodBodyBlock!.GetILReader();
             _currentBlock = entryBlock;
+            _ilBlock = entryBlock;
 
             while (ilReader.RemainingBytes > 0)
             {
@@ -729,6 +734,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
                     EnterBlock(nextBlock);
                     _currentBlock = nextBlock;
+                    _ilBlock = nextBlock;
                 }
 
                 var opCode = ReadOpCode(ref ilReader);
@@ -753,6 +759,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldc_i4_m1: PushConstant(-1); break;
                     case ILOpCode.Ldc_i4_s: PushConstant(ilReader.ReadSByte()); break;
                     case ILOpCode.Ldc_i4: PushConstant(ilReader.ReadInt32()); break;
+                    case ILOpCode.Ldc_i8: PushConstant64(ilReader.ReadInt64()); break;
 
                     case ILOpCode.Add: TranslateIntegerBinary(ArithOp.AddI); break;
                     case ILOpCode.Sub: TranslateIntegerBinary(ArithOp.SubI); break;
@@ -868,10 +875,13 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Conv_u2: TranslateConv(IRType.I16, signed: false); break;
                     case ILOpCode.Conv_i4: TranslateConv(IRType.I32, signed: true); break;
                     case ILOpCode.Conv_u4: TranslateConv(IRType.I32, signed: false); break;
+                    case ILOpCode.Conv_i8: TranslateConvToI64(signed: true); break;
+                    case ILOpCode.Conv_u8: TranslateConvToI64(signed: false); break;
 
                     case ILOpCode.Stind_i1: TranslateStind(IRType.I8); break;
                     case ILOpCode.Stind_i2: TranslateStind(IRType.I16); break;
                     case ILOpCode.Stind_i4: TranslateStind(IRType.I32); break;
+                    case ILOpCode.Stind_i8: TranslateStind(IRType.I64); break;
                     case ILOpCode.Stind_i:
                     case ILOpCode.Stind_ref:
                         TranslateStind(IRType.I16);
@@ -883,6 +893,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldind_u2: TranslateLdind(IRType.I16, signed: false); break;
                     case ILOpCode.Ldind_i4: TranslateLdind(IRType.I32, signed: true); break;
                     case ILOpCode.Ldind_u4: TranslateLdind(IRType.I32, signed: false); break;
+                    case ILOpCode.Ldind_i8: TranslateLdind(IRType.I64, signed: true); break;
                     case ILOpCode.Ldind_i:
                     case ILOpCode.Ldind_ref:
                         TranslateLdind(IRType.I16, signed: false, pointer: true);
@@ -901,6 +912,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldelem_u2: TranslateLdelem(IRType.I16, signed: false); break;
                     case ILOpCode.Ldelem_i4: TranslateLdelem(IRType.I32, signed: true); break;
                     case ILOpCode.Ldelem_u4: TranslateLdelem(IRType.I32, signed: false); break;
+                    case ILOpCode.Ldelem_i8: TranslateLdelem(IRType.I64, signed: true); break;
                     case ILOpCode.Ldelem_i:
                     case ILOpCode.Ldelem_ref:
                         TranslateLdelem(IRType.I16, signed: false, pointer: true);
@@ -911,6 +923,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Stelem_i1: TranslateStelem(IRType.I8); break;
                     case ILOpCode.Stelem_i2: TranslateStelem(IRType.I16); break;
                     case ILOpCode.Stelem_i4: TranslateStelem(IRType.I32); break;
+                    case ILOpCode.Stelem_i8: TranslateStelem(IRType.I64); break;
                     case ILOpCode.Stelem_i:
                     case ILOpCode.Stelem_ref:
                         TranslateStelem(IRType.I16);
@@ -1346,11 +1359,23 @@ internal sealed class IlToMirTranslator : IDisposable
         // subsequent IL emits after the materialised 0/1 result.
         private MirBlock _currentBlock = null!;
 
+        // The IL basic block being translated (the block that starts at a leader
+        // offset). Unlike _currentBlock it is never one of the synthetic blocks
+        // (compare diamonds, switch tests), so it is what a conditional branch's
+        // fall-through successor is found from.
+        private MirBlock _ilBlock = null!;
+
         private void PushConstant(int value)
         {
             // C# integer literals are i32 on the IL stack.
             var vreg = _builder.BuildConstant(IRType.I32, value);
             _stack.Push(new StackValue(vreg, IRType.I32));
+        }
+
+        private void PushConstant64(long value)
+        {
+            var vreg = _builder.BuildConstant(IRType.I64, value);
+            _stack.Push(new StackValue(vreg, IRType.I64, IsSigned: true));
         }
 
         // add / sub / mul / div / rem: the integer binary ops whose result depends on
@@ -1413,11 +1438,16 @@ internal sealed class IlToMirTranslator : IDisposable
 
             var name = op switch
             {
-                ArithOp.MulI => left.Type.SizeInBits <= 16 ? "__mulhi3" : "__mulsi3",
-                ArithOp.UDivI => "__udivsi3",
-                ArithOp.SDivI => "__divsi3",
-                ArithOp.URemI => "__umodsi3",
-                _ => "__modsi3",
+                ArithOp.MulI => left.Type.SizeInBits switch
+                {
+                    <= 16 => "__mulhi3",
+                    <= 32 => "__mulsi3",
+                    _ => "__muldi3",
+                },
+                ArithOp.UDivI => left.Type.SizeInBits == 64 ? "__udivdi3" : "__udivsi3",
+                ArithOp.SDivI => left.Type.SizeInBits == 64 ? "__divdi3" : "__divsi3",
+                ArithOp.URemI => left.Type.SizeInBits == 64 ? "__umoddi3" : "__umodsi3",
+                _ => left.Type.SizeInBits == 64 ? "__moddi3" : "__modsi3",
             };
             _parent.RequireMathHelper(name);
         }
@@ -1673,6 +1703,18 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(result with { IsSigned = signed, IsPointer = pointer });
         }
 
+        // conv.i8 / conv.u8: widen to 64 bits. The *opcode* picks the extension of
+        // an int32 (conv.i8 sign-extends, conv.u8 zero-extends), whatever the
+        // value's own signedness; a byte or 16-bit value is first widened to the
+        // int32 it already is on the IL stack, by its own signedness.
+        private void TranslateConvToI64(bool signed)
+        {
+            var value = PopMaterialised();
+            if (value.Type.SizeInBits < 32) value = Resize(value, IRType.I32);
+            var result = Resize(value with { IsSigned = signed }, IRType.I64);
+            _stack.Push(result with { IsSigned = signed, IsPointer = false });
+        }
+
         // Pops the stack, turning a pending i1 compare into a concrete 0/1 i8.
         private StackValue PopMaterialised()
         {
@@ -1795,7 +1837,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // Cases that already target the fall-through block need no test.
         private void TranslateSwitch(MirBlock from, int[] targets)
         {
-            var fallThrough = NextBlockAfter(from);
+            var fallThrough = NextBlockAfterIlBlock();
             var selector = PromoteNarrow(PopMaterialised());
 
             var cases = new List<(int Value, MirBlock Target)>();
@@ -1839,7 +1881,7 @@ internal sealed class IlToMirTranslator : IDisposable
             // Resolve the fall-through from the block the branch started in: an
             // i1 operand's materialisation (PopMaterialised) moves _currentBlock
             // to a synthetic merge block with no IL offset.
-            var fallThrough = NextBlockAfter(from);
+            var fallThrough = NextBlockAfterIlBlock();
             TranslateCompare(predicate);
             var cond = _stack.Pop();
 
@@ -1905,7 +1947,7 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var cond = _stack.Pop();
 
-            var fallThrough = NextBlockAfter(from);
+            var fallThrough = NextBlockAfterIlBlock();
             var targetBlock = BlockAt(target);
 
             _builder.SetInsertionPointAtEnd(from);
@@ -1949,14 +1991,13 @@ internal sealed class IlToMirTranslator : IDisposable
                 new BlockTarget(falseEdge, EdgeArgsFor(falseEdge)));
         }
 
-        // The block that starts at the next leader offset after `block` — the
-        // fall-through successor of a conditional branch.
-        private MirBlock NextBlockAfter(MirBlock block)
+        // The block that starts at the next leader offset after the current IL
+        // basic block — the fall-through successor of a conditional branch.
+        private MirBlock NextBlockAfterIlBlock()
         {
-            // Find block's start offset, then the next leader offset.
             foreach (var (offset, b) in _ilOffsetToBlock)
             {
-                if (!ReferenceEquals(b, block)) continue;
+                if (!ReferenceEquals(b, _ilBlock)) continue;
                 var idx = Array.IndexOf(_blockStartOffsets, offset);
                 if (idx >= 0 && idx + 1 < _blockStartOffsets.Length)
                     return _ilOffsetToBlock[_blockStartOffsets[idx + 1]];
@@ -2115,6 +2156,7 @@ internal sealed class IlToMirTranslator : IDisposable
             8 => MemOp.LoadI8,
             16 => MemOp.LoadI16,
             32 => MemOp.LoadI32,
+            64 => MemOp.LoadI64,
             _ => throw new NotSupportedException(
                 $"IL→MIR: mem.load of {type} is not supported yet."),
         };
@@ -2124,6 +2166,7 @@ internal sealed class IlToMirTranslator : IDisposable
             8 => MemOp.StoreI8,
             16 => MemOp.StoreI16,
             32 => MemOp.StoreI32,
+            64 => MemOp.StoreI64,
             _ => throw new NotSupportedException(
                 $"IL→MIR: mem.store of {type} is not supported yet."),
         };
@@ -2364,6 +2407,7 @@ internal sealed class IlToMirTranslator : IDisposable
                         case "Byte": case "SByte": case "Boolean": return 1;
                         case "Int16": case "UInt16": case "Char": return 2;
                         case "Int32": case "UInt32": return 4;
+                        case "Int64": case "UInt64": return 8;
                         case "IntPtr": case "UIntPtr": case "Object": case "String":
                             return PointerSize;
                     }
@@ -2450,6 +2494,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 1 => IRType.I8,
                 2 => IRType.I16,
                 4 => IRType.I32,
+                8 => IRType.I64,
                 _ => throw new NotSupportedException(
                     $"IL→MIR: ldelem of a {ElementSize(typeHandle)}-byte element is not supported yet."),
             };
@@ -2457,7 +2502,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 ? _method.MetadataReader.GetString(_method.MetadataReader
                     .GetTypeReference((TypeReferenceHandle)typeHandle).Name)
                 : null;
-            TranslateLdelem(type, signed: name is "SByte" or "Int16" or "Int32",
+            TranslateLdelem(type, signed: name is "SByte" or "Int16" or "Int32" or "Int64",
                 pointer: type.Equals(IRType.I16) && name is not ("Int16" or "UInt16" or "Char"));
         }
 
@@ -2478,6 +2523,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 1 => IRType.I8,
                 2 => IRType.I16,
                 4 => IRType.I32,
+                8 => IRType.I64,
                 _ => throw new NotSupportedException(
                     $"IL→MIR: stelem of a {ElementSize(typeHandle)}-byte element is not supported yet."),
             };

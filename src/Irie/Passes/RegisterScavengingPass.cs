@@ -191,8 +191,24 @@ public sealed class RegisterScavengingPass(
             break;
         }
         if (saveSlot < 0)
-            throw new InvalidOperationException(
-                "RegisterScavenging: no zero-page slot is free to emergency-save a scratch register.");
+        {
+            // Every zero-page slot is busy too (a wide value being shuffled through
+            // the argument registers can occupy them all). The hardware stack needs
+            // no free register to save into.
+            if (!expander.CanSaveOnStack(scratchGpr))
+                throw new InvalidOperationException(
+                    "RegisterScavenging: no zero-page slot is free to emergency-save a scratch " +
+                    $"register, and the target cannot save ${scratchGpr} on the hardware stack " +
+                    $"(in @{builder.Function.Name}).");
+
+            builder.SetInsertionPointBefore(copy);
+            expander.EmitStackSave(scratchGpr, builder);
+            copy.Operands[scratchOperandIndex] = new PhysicalReg(scratchGpr, IsDefinition: scratchIsDef);
+            expander.Expand(copy, builder);
+            expander.EmitStackRestore(scratchGpr, builder);
+            builder.Remove(copy);
+            return;
+        }
 
         builder.SetInsertionPointBefore(copy);
 
@@ -245,10 +261,15 @@ public sealed class RegisterScavengingPass(
     // A scratch-form copy is a `pseudo.copy` with exactly 3 operands whose
     // scratch (third) operand is still a virtual register. (Once the scavenger
     // has bound and lowered it, it no longer exists.)
+    //
+    // A `pseudo.spill <slot>, $src` / `$dst = pseudo.reload <slot>` whose value
+    // sits in a zero-page register has the same need (a GPR to carry the byte
+    // to/from the slot), so its expansion mints the same kind of 3-operand form
+    // with a trailing scratch vreg.
     private static bool IsScratchForm(MirInstruction instr)
     {
         if (instr.Opcode.Dialect != PseudoDialect.Id) return false;
-        if ((PseudoOp)instr.Opcode.Code != PseudoOp.Copy) return false;
+        if ((PseudoOp)instr.Opcode.Code is not (PseudoOp.Copy or PseudoOp.Spill or PseudoOp.Reload)) return false;
         if (instr.Operands.Length != 3) return false;
         return instr.Operands[2] is VirtualReg;
     }

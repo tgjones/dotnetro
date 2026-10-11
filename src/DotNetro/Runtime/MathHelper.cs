@@ -121,4 +121,89 @@ internal static class MathHelper
         uint remainder = __umodsi3(x, y);
         return a < 0 ? -(int)remainder : (int)remainder;
     }
+
+    // 64-bit versions of the above (the C# `long` / `ulong` operators).
+
+    internal static ulong __muldi3(ulong a, ulong b)
+    {
+        ulong x = a;
+        ulong y = b;
+        ulong product = 0;
+        while (y != 0)
+        {
+            if ((y & 1) != 0)
+                product += x;
+            x <<= 1;
+            y >>= 1;
+        }
+        return product;
+    }
+
+    internal static ulong __udivdi3(ulong n, ulong d)
+    {
+        ulong quotient = n;
+        ulong remainder = 0;
+        byte step = 64;
+        while (step != 0)
+        {
+            bool carry = (remainder >> 63) != 0;
+            remainder = (remainder << 1) | (quotient >> 63);
+            quotient <<= 1;
+            if (carry || remainder >= d)
+            {
+                remainder -= d;
+                quotient |= 1;
+            }
+            step--;
+        }
+        return quotient;
+    }
+
+    internal static ulong __umoddi3(ulong n, ulong d)
+    {
+        ulong rest = n;
+        ulong remainder = 0;
+        byte step = 64;
+        while (step != 0)
+        {
+            bool carry = (remainder >> 63) != 0;
+            remainder = (remainder << 1) | (rest >> 63);
+            rest <<= 1;
+            if (carry || remainder >= d)
+                remainder -= d;
+            step--;
+        }
+        return remainder;
+    }
+
+    internal static long __divdi3(long a, long b)
+    {
+        bool negative = false;
+        ulong x = (ulong)a;
+        ulong y = (ulong)b;
+        if (a < 0)
+        {
+            x = (ulong)-a;
+            negative = true;
+        }
+        if (b < 0)
+        {
+            y = (ulong)-b;
+            negative = !negative;
+        }
+        ulong quotient = __udivdi3(x, y);
+        return negative ? -(long)quotient : (long)quotient;
+    }
+
+    internal static long __moddi3(long a, long b)
+    {
+        ulong x = (ulong)a;
+        ulong y = (ulong)b;
+        if (a < 0)
+            x = (ulong)-a;
+        if (b < 0)
+            y = (ulong)-b;
+        ulong remainder = __umoddi3(x, y);
+        return a < 0 ? -(long)remainder : (long)remainder;
+    }
 }
