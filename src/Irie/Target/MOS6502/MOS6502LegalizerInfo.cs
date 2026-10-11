@@ -31,6 +31,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                                    when intType.SizeInBits == 8  => LegalityAction.Legal,
                 ArithOp.And or ArithOp.Or or ArithOp.Xor
                                    when intType.SizeInBits > 8   => LegalityAction.NarrowScalar,
+                // Whole-value shifts by a constant are lowered to byte moves plus a
+                // chain of one-bit shifts through the carry flag (LowerShift). The
+                // one-bit ops are the 6502's ASL/ROL and LSR/ROR.
+                ArithOp.Shl or ArithOp.LShr or ArithOp.AShr
+                                   when intType.SizeInBits % 8 == 0 => LegalityAction.Custom,
                 ArithOp.AddICarry  => LegalityAction.Legal,
                 ArithOp.SubIBorrow => LegalityAction.Legal,
                 // arith.cmpi's legality is keyed off operand[2] (the `a` value),
@@ -57,6 +62,15 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // arith.not (i1) marks a normalized-away inverse predicate; left
                 // legal for the selector to strip at the consuming cf.cond_br.
                 ArithOp.Not        when intType.SizeInBits == 1  => LegalityAction.Legal,
+                _ => LegalityAction.Unsupported,
+            };
+        }
+
+        if (opcode.Dialect == MOS6502Dialect.Id)
+        {
+            return (MOS6502Op)opcode.Code switch
+            {
+                MOS6502Op.Shle or MOS6502Op.Lshre when intType.SizeInBits == 8 => LegalityAction.Legal,
                 _ => LegalityAction.Unsupported,
             };
         }
@@ -194,6 +208,9 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 case ArithOp.CmpI:
                     LegalizeCmpI(instr, builder);
                     return;
+                case ArithOp.Shl or ArithOp.LShr or ArithOp.AShr:
+                    LowerShift(instr, builder);
+                    return;
             }
             throw new NotSupportedException(
                 $"MOS6502LegalizerInfo: no Custom legalization for arith opcode {(ArithOp)instr.Opcode.Code}");
@@ -201,6 +218,113 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 
         throw new NotSupportedException(
             $"MOS6502LegalizerInfo: no Custom legalization for {instr.Opcode}");
+    }
+
+    // %r : iN = arith.{shl,lshr,ashr} %a, %n  (%n a constant k < N)
+    //
+    // Split k = 8q + r. The q whole-byte part is pure byte renaming: the live bytes
+    // move q places and the vacated bytes are filled with 0 (the sign byte for
+    // ashr). The r remaining bits are r passes of a one-bit shift chain through the
+    // carry flag over the live bytes only — ASL/ROL from the low byte up for shl,
+    // LSR/ROR from the high byte down for lshr. An arithmetic shift seeds its chain
+    // with the sign: `x >=u 0x80` is the carry-in of the top byte's ROR.
+    private static void LowerShift(MirInstruction instr, MirBuilder builder)
+    {
+        var function = builder.Function;
+        if (instr.Operands.Length != 3
+            || instr.Operands[0] is not VirtualReg { IsDefinition: true } defReg
+            || instr.Operands[1] is not VirtualReg { IsDefinition: false } valueReg
+            || instr.Operands[2] is not VirtualReg { IsDefinition: false } amountReg)
+            throw new InvalidOperationException(
+                "MOS6502LegalizerInfo: arith.shift must have shape `%def = arith.op %a, %n`.");
+
+        var op = (ArithOp)instr.Opcode.Code;
+        var width = ((TypedVReg)function.GetVRegAnnotation(defReg.Id)).Type.SizeInBits;
+
+        if (function.GetDefinition(amountReg.Id) is not
+            { Operands: [_, Immediate amountImm] } amountDef
+            || amountDef.Opcode != ArithDialect.OpRef(ArithOp.Constant))
+            throw new NotSupportedException(
+                $"MOS6502LegalizerInfo: arith.{(op == ArithOp.Shl ? "shl" : op == ArithOp.LShr ? "lshr" : "ashr")} " +
+                "with a non-constant shift amount is not yet supported.");
+
+        // C# masks the count to the operand width before the IL shift.
+        var amount = (int)(amountImm.Value & (width - 1));
+        var byteCount = width / 8;
+        var wholeBytes = amount / 8;
+        var bits = amount % 8;
+
+        var bytes = byteCount == 1 ? [valueReg.Id] : builder.BuildUnmerge(IRType.I8, valueReg.Id, byteCount);
+        var zero = builder.BuildConstant(IRType.I8, 0);
+
+        // Fill byte for the vacated positions.
+        var fill = zero;
+        if (op == ArithOp.AShr && wholeBytes > 0)
+        {
+            var negative = builder.BuildCmpI(ArithCmpPredicate.Slt, bytes[^1], zero);
+            var ones = builder.BuildConstant(IRType.I8, 0xFF);
+            fill = builder.BuildSelect(IRType.I8, negative, ones, zero);
+        }
+
+        // The live bytes, in ascending byte order, and where they land in the result.
+        var liveCount = byteCount - wholeBytes;
+        var result = new int[byteCount];
+        var firstLive = op == ArithOp.Shl ? wholeBytes : 0;
+        for (var i = 0; i < byteCount; i++)
+        {
+            var isLive = i >= firstLive && i < firstLive + liveCount;
+            result[i] = isLive
+                ? bytes[op == ArithOp.Shl ? i - wholeBytes : i + wholeBytes]
+                : fill;
+        }
+
+        for (var pass = 0; pass < bits; pass++)
+        {
+            if (op == ArithOp.Shl)
+            {
+                var carry = builder.BuildConstant(IRType.I1, 0);
+                for (var i = firstLive; i < firstLive + liveCount; i++)
+                    (result[i], carry) = BuildShiftBit(builder, MOS6502Op.Shle, result[i], carry);
+            }
+            else
+            {
+                var top = firstLive + liveCount - 1;
+                int carry;
+                if (op == ArithOp.AShr)
+                {
+                    // Sign into carry: x >=u 0x80 (selects to CMP #$80, as llvm-mos does).
+                    var limit = builder.BuildConstant(IRType.I8, 0x80);
+                    carry = builder.BuildCmpI(ArithCmpPredicate.Uge, result[top], limit);
+                }
+                else
+                {
+                    carry = builder.BuildConstant(IRType.I1, 0);
+                }
+                for (var i = top; i >= firstLive; i--)
+                    (result[i], carry) = BuildShiftBit(builder, MOS6502Op.Lshre, result[i], carry);
+            }
+        }
+
+        if (byteCount == 1)
+            function.ReplaceAllUsesOfRegister(defReg.Id, result[0]);
+        else
+            builder.BuildMergeInto(defReg.Id, result);
+        builder.Remove(instr);
+    }
+
+    // %r, %cout = mos6502.{shle,lshre} %a, %cin : one-bit shift link of a chain.
+    private static (int result, int carryOut) BuildShiftBit(
+        MirBuilder builder, MOS6502Op op, int a, int carryIn)
+    {
+        var result   = builder.Function.CreateVirtualRegister(IRType.I8);
+        var carryOut = builder.Function.CreateVirtualRegister(IRType.I1);
+        builder.BuildInstruction(
+            MOS6502Dialect.OpRef(op),
+            new VirtualReg(result,   IsDefinition: true),
+            new VirtualReg(carryOut, IsDefinition: true),
+            new VirtualReg(a,        IsDefinition: false),
+            new VirtualReg(carryIn,  IsDefinition: false));
+        return (result, carryOut);
     }
 
     // arith.cmpi legalization (mirrors llvm-mos MOSLegalizerInfo::legalizeICmp):

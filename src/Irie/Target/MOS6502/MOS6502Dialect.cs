@@ -250,6 +250,8 @@ public sealed class MOS6502Dialect : Dialect
         // Misc
         [MOS6502Op.Nop] = "nop",
         [MOS6502Op.Brk] = "brk",
+        [MOS6502Op.Shle] = "shle",
+        [MOS6502Op.Lshre] = "lshre",
     };
 
     private static readonly Dictionary<string, MOS6502Op> _byName =
@@ -292,6 +294,8 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Op.SbcZp  => SbcInfo,
             MOS6502Op.SbcImm => SbcInfo,
             MOS6502Op.SbcAbs => SbcInfo,
+            MOS6502Op.AslAcc or MOS6502Op.LsrAcc => ShiftInfo,
+            MOS6502Op.RolAcc or MOS6502Op.RorAcc => RotateInfo,
             MOS6502Op.CmpZp  => CmpInfo,
             MOS6502Op.CmpImm => CmpInfo,
             MOS6502Op.StAbs  => StAbsInfo,
@@ -411,6 +415,28 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502RegisterClass.Cc,    // use[2]: borrow_in (carry-flag polarity)
         ],
         TiedOperands: [-1, -1, 0, -1, -1]);
+
+    // `mos6502.asl.acc` / `mos6502.lsr.acc`: shift $a one bit, the bit shifted out
+    // landing in the carry. def[0]=$a (result), def[1]=$c (carry-out),
+    // use[0]=$a (tied to def[0]).
+    private static readonly DialectInstructionInfo ShiftInfo = new(
+        OperandClasses: [
+            MOS6502RegisterClass.Ac,    // def[0]: result
+            MOS6502RegisterClass.Cc,    // def[1]: carry_out
+            MOS6502RegisterClass.Ac,    // use[0]: a (tied to def[0])
+        ],
+        TiedOperands: [-1, -1, 0]);
+
+    // `mos6502.rol.acc` / `mos6502.ror.acc`: as ShiftInfo, but the old carry is
+    // shifted in at the vacated end. use[1]=$c (carry-in).
+    private static readonly DialectInstructionInfo RotateInfo = new(
+        OperandClasses: [
+            MOS6502RegisterClass.Ac,    // def[0]: result
+            MOS6502RegisterClass.Cc,    // def[1]: carry_out
+            MOS6502RegisterClass.Ac,    // use[0]: a (tied to def[0])
+            MOS6502RegisterClass.Cc,    // use[1]: carry_in
+        ],
+        TiedOperands: [-1, -1, 0, -1]);
 
     // The `mos6502.cmp` variants (`cmp.zp`, `cmp.imm`).
     // Explicit operands: use[0]=a (in $a), use[1]=b. Sets flags $n, $z, $c as

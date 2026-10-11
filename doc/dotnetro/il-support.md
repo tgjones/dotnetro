@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 66
-- **Implemented and lit-covered:** 53
+- **Implemented:** 69
+- **Implemented and lit-covered:** 57
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -120,7 +120,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldc.i4.5` | ✅ | ✅ |
 | `ldc.i4.6` | ✅ | ✅ |
 | `ldc.i4.7` | ✅ | ✅ |
-| `ldc.i4.8` | ✅ | ❌ |
+| `ldc.i4.8` | ✅ | ✅ |
 | `ldc.i4.m1` | ✅ | ✅ |
 | `ldc.i4.s` | ✅ | ✅ |
 | `ldc.i8` | ❌ | — |
@@ -190,9 +190,9 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `rem.un` | ❌ | — |
 | `ret` | ✅ | ✅ |
 | `rethrow` | ❌ | — |
-| `shl` | ❌ | — |
-| `shr` | ❌ | — |
-| `shr.un` | ❌ | — |
+| `shl` | ✅ | ✅ |
+| `shr` | ✅ | ✅ |
+| `shr.un` | ✅ | ✅ |
 | `sizeof` | ✅ | ❌ |
 | `starg` | ❌ | — |
 | `starg.s` | ❌ | — |

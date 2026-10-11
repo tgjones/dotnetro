@@ -51,4 +51,13 @@ public enum ArithOp : ushort
     And,
     Or,
     Xor,
+
+    // %r = arith.shl %a, %n   /   arith.lshr   /   arith.ashr
+    // Whole-value shifts left, logical right and arithmetic right. The shift
+    // amount %n is an i8 vreg; %r has %a's type. The amount must be a constant
+    // smaller than the value's width. A wide shift is lowered by the target's
+    // legalizer to byte moves plus a chain of one-bit shifts through the carry.
+    Shl,
+    LShr,
+    AShr,
 }

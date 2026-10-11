@@ -23,6 +23,9 @@ public sealed class ArithDialect : Dialect
         ArithOp.And        => "and",
         ArithOp.Or         => "or",
         ArithOp.Xor        => "xor",
+        ArithOp.Shl        => "shl",
+        ArithOp.LShr       => "lshr",
+        ArithOp.AShr       => "ashr",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown arith opcode {code}."),
     };
 
@@ -41,6 +44,9 @@ public sealed class ArithDialect : Dialect
             case "and":               code = (ushort)ArithOp.And;       return true;
             case "or":                code = (ushort)ArithOp.Or;        return true;
             case "xor":               code = (ushort)ArithOp.Xor;       return true;
+            case "shl":               code = (ushort)ArithOp.Shl;       return true;
+            case "lshr":              code = (ushort)ArithOp.LShr;      return true;
+            case "ashr":              code = (ushort)ArithOp.AShr;      return true;
         }
         code = 0;
         return false;

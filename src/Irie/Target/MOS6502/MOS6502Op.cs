@@ -276,4 +276,16 @@ public enum MOS6502Op : ushort
     // Misc
     Nop,
     Brk,
+
+    // Pre-selection ops, built by the legalizer on typed vregs and lowered by the
+    // instruction selector (the analogues of llvm-mos's G_SHLE / G_LSHRE).
+    // %r, %cout = mos6502.shle %a, %cin   — one-bit shift left through the carry:
+    //   %r = (%a << 1) | %cin, %cout = bit 7 of %a.
+    // %r, %cout = mos6502.lshre %a, %cin  — one-bit logical shift right:
+    //   %r = (%a >> 1) | (%cin << 7), %cout = bit 0 of %a.
+    // A chain head passes `arith.constant 0 : i1` as %cin (ASL / LSR); later links
+    // pass the previous link's %cout (ROL / ROR). Chaining them shifts multi-byte
+    // values.
+    Shle,
+    Lshre,
 }

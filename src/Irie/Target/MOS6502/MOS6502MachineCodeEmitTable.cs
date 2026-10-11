@@ -55,6 +55,13 @@ public static class MOS6502MachineCodeEmitTable
         // Used as the chain-head no-borrow for sbc chains.
         [MOS6502Op.Sec]   = new EmitRule(MOS6502Opcode.SEC,          EmitOperandKind.Implied,         null),
 
+        // $a, $c = mos6502.{asl,lsr}.acc $a / mos6502.{rol,ror}.acc $a, $c — the
+        // accumulator shifts; every operand is a register, so nothing is encoded.
+        [MOS6502Op.AslAcc] = new EmitRule(MOS6502Opcode.ASL_Accumulator, EmitOperandKind.Implied, null),
+        [MOS6502Op.LsrAcc] = new EmitRule(MOS6502Opcode.LSR_Accumulator, EmitOperandKind.Implied, null),
+        [MOS6502Op.RolAcc] = new EmitRule(MOS6502Opcode.ROL_Accumulator, EmitOperandKind.Implied, null),
+        [MOS6502Op.RorAcc] = new EmitRule(MOS6502Opcode.ROR_Accumulator, EmitOperandKind.Implied, null),
+
         // $a, $c = mos6502.adc.zp $a, $zpN, $c
         // Operands: def[0]=$a, def[1]=$c, use[0]=$a (tied), use[1]=zp, use[2]=$c.
         // Index 3 = use[1], the zero-page address.

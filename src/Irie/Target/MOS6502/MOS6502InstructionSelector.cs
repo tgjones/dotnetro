@@ -135,8 +135,16 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
         // the pair instead of dereferencing a clobbered pointer.
         if (opcode.Dialect == MOS6502Dialect.Id)
         {
-            if ((MOS6502Op)opcode.Code == MOS6502Op.JsrAbs)
-                _currentPointerKey = null;
+            switch ((MOS6502Op)opcode.Code)
+            {
+                case MOS6502Op.Shle:
+                    return SelectShiftBit(instruction, builder, MOS6502Op.AslAcc, MOS6502Op.RolAcc);
+                case MOS6502Op.Lshre:
+                    return SelectShiftBit(instruction, builder, MOS6502Op.LsrAcc, MOS6502Op.RorAcc);
+                case MOS6502Op.JsrAbs:
+                    _currentPointerKey = null;
+                    break;
+            }
             return true;
         }
 
@@ -345,6 +353,82 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
             && function.GetDefinition(constVreg) is { Parent: not null } def)
             builder.Remove(def);
 
+        return true;
+    }
+
+    // mos6502.{shle,lshre} : i8 → mos6502.{asl,lsr}.acc, or {rol,ror}.acc when the
+    // carry-in is live. Operand layout: def[0]=result, def[1]=carry_out, use[0]=a,
+    // use[1]=carry_in. A carry-in fed by a `clc` (the chain head) is the plain
+    // ASL / LSR, so the clc is dropped; otherwise the previous link's carry feeds
+    // the rotate.
+    private bool SelectShiftBit(
+        MirInstruction instr, MirBuilder builder, MOS6502Op shiftOp, MOS6502Op rotateOp)
+    {
+        var function = builder.Function;
+        var resultVreg  = ((VirtualReg)instr.Operands[0]).Id;
+        var flagOutVreg = ((VirtualReg)instr.Operands[1]).Id;
+        var aVreg       = ((VirtualReg)instr.Operands[2]).Id;
+        var flagInVreg  = ((VirtualReg)instr.Operands[3]).Id;
+
+        var newResult = function.CreateVirtualRegisterInClass(
+            MOS6502RegisterClass.Ac,
+            MOS6502RegisterClass.GetName(MOS6502RegisterClass.Ac)!);
+        var newFlag = function.CreateVirtualRegisterInClass(
+            MOS6502RegisterClass.Cc,
+            MOS6502RegisterClass.GetName(MOS6502RegisterClass.Cc)!);
+
+        var flagDef = function.GetDefinition(flagInVreg);
+        var clcHead = flagDef is not null
+            && flagDef.Opcode == MOS6502Dialect.OpRef(MOS6502Op.Clc);
+
+        // An arithmetic shift right seeds its chain with the sign bit, expressed as
+        // `arith.cmpi uge x, 0x80` (llvm-mos does the same). That is `CMP #$80`,
+        // whose carry-out *is* the sign and which leaves $a intact for the ROR that
+        // follows: select the compare into the physreg $c and read it implicitly.
+        var signSeed = !clcHead && rotateOp == MOS6502Op.RorAcc
+            && flagDef is not null
+            && flagDef.Opcode == ArithDialect.OpRef(ArithOp.CmpI)
+            && flagDef.Operands is [_, Immediate { Value: (long)ArithCmpPredicate.Uge },
+                VirtualReg seedValue, VirtualReg seedLimit]
+            && TryGetConstant(function, seedLimit.Id) == 0x80
+            && seedValue.Id == aVreg;
+
+        builder.SetInsertionPointBefore(instr);
+        if (signSeed)
+            EmitCmp(function, builder, aVreg, new Immediate(0x80));
+
+        var shift = clcHead
+            ? builder.BuildInstruction(
+                MOS6502Dialect.OpRef(shiftOp),
+                new VirtualReg(newResult, IsDefinition: true),
+                new VirtualReg(newFlag,   IsDefinition: true),
+                new VirtualReg(aVreg,     IsDefinition: false))
+            : builder.BuildInstruction(
+                MOS6502Dialect.OpRef(rotateOp),
+                new VirtualReg(newResult, IsDefinition: true),
+                new VirtualReg(newFlag,   IsDefinition: true),
+                new VirtualReg(aVreg,     IsDefinition: false),
+                signSeed
+                    ? new PhysicalReg(MOS6502Registers.C, IsDefinition: false, IsImplicit: true)
+                    : new VirtualReg(flagInVreg, IsDefinition: false));
+
+        RegisterClassConstraining.ConstrainSelectedInstRegOperands(
+            shift, function, _registerInfo, builder);
+
+        function.ReplaceAllUsesOfRegister(resultVreg,  newResult);
+        function.ReplaceAllUsesOfRegister(flagOutVreg, newFlag);
+        builder.Remove(instr);
+
+        if ((clcHead || signSeed)
+            && function.GetUseCount(flagInVreg) == 0
+            && function.GetDefinition(flagInVreg) is { Parent: not null } seed)
+        {
+            builder.Remove(seed);
+            if (signSeed
+                && function.GetUseCount(((VirtualReg)seed.Operands[3]).Id) == 0
+                && function.GetDefinition(((VirtualReg)seed.Operands[3]).Id) is { Parent: not null } limit)
+                builder.Remove(limit);
+        }
         return true;
     }
 

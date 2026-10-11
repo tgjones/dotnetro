@@ -699,6 +699,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Or: TranslateBitwise(ArithOp.Or); break;
                     case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
                     case ILOpCode.Not: TranslateNot(); break;
+                    case ILOpCode.Shl: TranslateShift(ArithOp.Shl); break;
+                    case ILOpCode.Shr: TranslateShift(ArithOp.AShr); break;
+                    case ILOpCode.Shr_un: TranslateShift(ArithOp.LShr); break;
 
                     case ILOpCode.Ceq: TranslateCompare(ArithCmpPredicate.Eq); break;
                     case ILOpCode.Cgt: TranslateCompare(ArithCmpPredicate.Sgt); break;
@@ -1317,6 +1320,34 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(left.Vreg, IsDefinition: false),
                 new VirtualReg(right.Vreg, IsDefinition: false));
             _stack.Push(new StackValue(result, left.Type));
+        }
+
+        // shl / shr / shr.un: shift the value by an int32 amount. A byte operand is
+        // first widened to int32, as ECMA-335's stack promotion would. The amount
+        // becomes an i8 vreg: a constant is re-emitted as an i8 constant so the
+        // legalizer can read it; anything else is truncated (and, for now, rejected
+        // by the legalizer).
+        private void TranslateShift(ArithOp op)
+        {
+            var amount = PopMaterialised();
+            var value = PopMaterialised();
+            if (value.Type.Equals(IRType.I8))
+                value = Resize(value, IRType.I32);
+
+            int amountVreg;
+            if (_function.GetDefinition(amount.Vreg) is
+                { Opcode: var amountOpcode, Operands: [_, Immediate amountImm] }
+                && amountOpcode == ArithDialect.OpRef(ArithOp.Constant))
+                amountVreg = _builder.BuildConstant(IRType.I8, amountImm.Value & 0xFF);
+            else
+                amountVreg = Resize(amount, IRType.I8).Vreg;
+
+            var result = _function.CreateVirtualRegister(value.Type);
+            _builder.BuildInstruction(ArithDialect.OpRef(op),
+                new VirtualReg(result, IsDefinition: true),
+                new VirtualReg(value.Vreg, IsDefinition: false),
+                new VirtualReg(amountVreg, IsDefinition: false));
+            _stack.Push(value with { Vreg = result });
         }
 
         // not: bitwise complement, `x ^ -1` at the operand's width.

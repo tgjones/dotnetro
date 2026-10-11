@@ -1,0 +1,41 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; CHECK: TestFunction:
+; CHECK:     STX $03
+; CHECK:     LDY $02
+; CHECK:     LDX #$00
+; CHECK:     STX $04
+; CHECK:     ASL
+; CHECK:     TAX
+; CHECK:     LDA $03
+; CHECK:     ROL
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     ROL
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ASL
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ROL
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     ROL
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ASL
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ROL
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     ROL
+; CHECK:     STA $03
+; CHECK:     LDA $04
+; CHECK:     RTS
+func @TestFunction : (i32) -> i32 {
+bb0(%0 : i32):
+    %1 : i8 = arith.constant 11
+    %2 : i32 = arith.shl %0, %1
+    core.return %2
+}
