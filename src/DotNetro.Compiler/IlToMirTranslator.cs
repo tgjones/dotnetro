@@ -162,6 +162,34 @@ internal sealed class IlToMirTranslator : IDisposable
         return _allocMethod;
     }
 
+    // The software multiply / divide / remainder helpers in DotNetro.Runtime.MathHelper,
+    // which Irie's legalizer calls by these stable names (compiler-rt naming). Each
+    // is emitted under its own name so the call the legalizer builds links.
+    private static readonly string[] MathHelperNames =
+        ["__mulhi3", "__mulsi3", "__udivsi3", "__divsi3", "__umodsi3", "__modsi3"];
+
+    private bool _mathHelpersRegistered;
+
+    // Link in math helper `name`: pin every helper's emitted name (the helpers call
+    // each other, and calls resolve names through GetEmitNameOverride), then
+    // enqueue the one the program needs. Demand-driven so a program with no
+    // general multiply or divide carries none of this code.
+    internal void RequireMathHelper(string name)
+    {
+        var mathHelperType = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "MathHelper");
+        if (!_mathHelpersRegistered)
+        {
+            _mathHelpersRegistered = true;
+            foreach (var helperName in MathHelperNames)
+                _emitNameOverrides[mathHelperType.GetMethod(helperName)] = helperName;
+        }
+        EnqueueMethod(mathHelperType.GetMethod(name));
+    }
+
+    // The pinned MIR name for `method`, or null when it is emitted under its UniqueName.
+    internal string? GetEmitNameOverride(EcmaMethod method) =>
+        _emitNameOverrides.TryGetValue(method, out var pinned) ? pinned : null;
+
     // True if `name` matches a function supplied by the hand-written runtime
     // (oswrch, osasci, WriteLineInt32, …). Used to validate InternalCall routing.
     internal bool IsRuntimeFunction(string name) => _runtimeFunctionNames.Contains(name);
@@ -696,6 +724,10 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Add: TranslateIntegerBinary(ArithOp.AddI); break;
                     case ILOpCode.Sub: TranslateIntegerBinary(ArithOp.SubI); break;
                     case ILOpCode.Mul: TranslateIntegerBinary(ArithOp.MulI); break;
+                    case ILOpCode.Div: TranslateIntegerBinary(ArithOp.SDivI); break;
+                    case ILOpCode.Div_un: TranslateIntegerBinary(ArithOp.UDivI); break;
+                    case ILOpCode.Rem: TranslateIntegerBinary(ArithOp.SRemI); break;
+                    case ILOpCode.Rem_un: TranslateIntegerBinary(ArithOp.URemI); break;
                     case ILOpCode.And: TranslateBitwise(ArithOp.And); break;
                     case ILOpCode.Or: TranslateBitwise(ArithOp.Or); break;
                     case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
@@ -1194,10 +1226,11 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(vreg, IRType.I32));
         }
 
-        // add / sub / mul: the carrying integer binary ops, whose result depends on
-        // the bits above the operands' width (see the byte promotion below).
-        // `mul` is only legalized by Irie for a constant power of two (reduced to
-        // a shift); any other multiply is rejected there.
+        // add / sub / mul / div / rem: the integer binary ops whose result depends on
+        // the bits above the operands' width (see the byte promotion below). Irie
+        // strength-reduces a multiply (and unsigned divide / remainder) by a
+        // constant power of two and legalizes the rest as a call to a math helper,
+        // which RequireLibcallHelper links in.
         private void TranslateIntegerBinary(ArithOp op)
         {
             var right = _stack.Pop();
@@ -1227,6 +1260,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     UnifyWidths(ref left, ref right);
             }
 
+            if (op is ArithOp.MulI or ArithOp.UDivI or ArithOp.SDivI or ArithOp.URemI or ArithOp.SRemI)
+                RequireLibcallHelper(op, left, right);
+
             var result = _function.CreateVirtualRegister(left.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(op),
                 new VirtualReg(result, IsDefinition: true),
@@ -1235,6 +1271,53 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, left.Type));
         }
 
+        // Link in the math helper Irie's legalizer will call for this multiply /
+        // divide / remainder (MOS6502LegalizerInfo.LowerLibcall picks the same
+        // name from the same op and width). A multiply or unsigned divide /
+        // remainder by a constant power of two is strength-reduced by Irie's
+        // ArithSimplifyPass and needs no helper, so it is skipped here — keep the
+        // two rules in step, or the symbol will be missing at link time.
+        private void RequireLibcallHelper(ArithOp op, StackValue left, StackValue right)
+        {
+            var isSigned = op is ArithOp.SDivI or ArithOp.SRemI;
+            if (!isSigned
+                && (IsPowerOfTwoConstant(right) || (op == ArithOp.MulI && IsPowerOfTwoConstant(left))))
+                return;
+
+            var name = op switch
+            {
+                ArithOp.MulI => left.Type.SizeInBits <= 16 ? "__mulhi3" : "__mulsi3",
+                ArithOp.UDivI => "__udivsi3",
+                ArithOp.SDivI => "__divsi3",
+                ArithOp.URemI => "__umodsi3",
+                _ => "__modsi3",
+            };
+            _parent.RequireMathHelper(name);
+        }
+
+        // Whether `value` is an arith.constant (possibly narrowed by a cast.trunc,
+        // as NarrowToI16 leaves it) that is a positive power of two at its width.
+        private bool IsPowerOfTwoConstant(StackValue value)
+        {
+            var def = _function.GetDefinition(value.Vreg);
+            if (def is { Operands: [_, VirtualReg source] }
+                && def.Opcode == CastDialect.OpRef(CastOp.Trunc))
+                def = _function.GetDefinition(source.Id);
+
+            if (def is not { Operands: [_, Immediate imm] }
+                || def.Opcode != ArithDialect.OpRef(ArithOp.Constant))
+                return false;
+
+            var bits = value.Type.SizeInBits;
+            var factor = bits >= 64 ? imm.Value : imm.Value & ((1L << bits) - 1);
+            return factor > 0 && (factor & (factor - 1)) == 0;
+        }
+
+        // Whether local `index` is a block parameter of any block, i.e. its value
+        // flows across a block boundary rather than dying in the block that set it.
+        private bool IsLocalLiveAcrossBlocks(int index) =>
+            _blockLocalParams.Values.Any(localParams => index < localParams.Length && localParams[index] >= 0);
+
         private void TranslateStloc(int index)
         {
             if (!_localIsFrameSlot[index])
@@ -1242,8 +1325,12 @@ internal sealed class IlToMirTranslator : IDisposable
                 // A pending compare (i1) is kept as is: Roslyn's debug codegen parks
                 // `ceq`/`clt` results in a temp local that a brfalse then reloads,
                 // and the cmpi must stay fusable with that cond_br. It is
-                // materialised only where a concrete byte is needed.
+                // materialised only where a concrete byte is needed — including when
+                // the local is live into another block, where it travels as an i8
+                // block argument and an i1 would mismatch the parameter's type.
                 var stored = _stack.Pop();
+                if (stored.Type.Equals(IRType.I1) && IsLocalLiveAcrossBlocks(index))
+                    stored = new StackValue(MaterialiseCompare(stored.Vreg), IRType.I8);
                 _locals[index] = stored.Type.Equals(IRType.I1)
                     ? stored
                     : Resize(stored, _localTypes[index]);
@@ -1874,15 +1961,18 @@ internal sealed class IlToMirTranslator : IDisposable
             // Other special-cased BCL methods map to hand-written runtime functions
             // (their real IL bodies are NOT translated/enqueued — the runtime
             // MIR replaces them).
+            var pinnedName = _parent.GetEmitNameOverride(callee);
             var calleeName = callee.UniqueName switch
             {
                 "System_Console_WriteLine_Int32" => "WriteLineInt32",
                 "System_Console_WriteLine_Boolean" => "WriteLineBoolean",
                 "System_Console_ReadLine" => "ReadLine",
                 "System_Console_Beep" => "Beep",
-                _ => callee.UniqueName,
+                _ => pinnedName ?? callee.UniqueName,
             };
-            var isSpecialCased = !ReferenceEquals(calleeName, callee.UniqueName);
+            // A C# method emitted under a pinned name (the math helpers) is still
+            // ours to translate, unlike a special-cased BCL method.
+            var isSpecialCased = pinnedName is null && !ReferenceEquals(calleeName, callee.UniqueName);
 
             // Only enqueue methods we are responsible for translating; runtime
             // functions (and special-cased BCL methods) are skipped.

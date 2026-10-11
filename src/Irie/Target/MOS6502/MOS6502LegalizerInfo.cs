@@ -12,6 +12,12 @@ namespace Irie.Target.MOS6502;
 // pseudo.merge, pseudo.unmerge, pseudo.copy).
 public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 {
+    // Used to lower runtime-helper libcalls built during legalization. AbiLowering
+    // has already run by then, so a libcall cannot be left as a `call.func` for it
+    // to lower; the legalizer lowers it directly, as llvm-mos's createLibcall does
+    // through CallLowering::lowerCall.
+    private readonly MOS6502CallLowering _callLowering = new();
+
     public override LegalityAction GetAction(OpcodeRef opcode, IRType type)
     {
         if (type is not IntegerType intType)
@@ -62,6 +68,13 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // arith.not (i1) marks a normalized-away inverse predicate; left
                 // legal for the selector to strip at the consuming cf.cond_br.
                 ArithOp.Not        when intType.SizeInBits == 1  => LegalityAction.Legal,
+                // Multiply, divide and remainder have no 6502 instruction: each is a
+                // runtime-helper libcall (LowerLibcall), the analogue of llvm-mos's
+                // G_MUL / G_*DIV / G_*REM `.libcall()` actions. i8 / i16 operands
+                // are widened to the helper's width first.
+                ArithOp.MulI or ArithOp.UDivI or ArithOp.SDivI
+                    or ArithOp.URemI or ArithOp.SRemI
+                                   when intType.SizeInBits is 8 or 16 or 32 => LegalityAction.Custom,
                 _ => LegalityAction.Unsupported,
             };
         }
@@ -183,6 +196,14 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             }
             throw new NotSupportedException(
                 $"MOS6502LegalizerInfo: no Custom legalization for mem opcode {(MemOp)instr.Opcode.Code}");
+        }
+
+        if (instr.Opcode.Dialect == ArithDialect.Id
+            && (ArithOp)instr.Opcode.Code is ArithOp.MulI or ArithOp.UDivI or ArithOp.SDivI
+                or ArithOp.URemI or ArithOp.SRemI)
+        {
+            LowerLibcall(instr, builder);
+            return;
         }
 
         if (instr.Opcode.Dialect == CastDialect.Id)
@@ -567,6 +588,68 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
     // source's top byte is negative, else 0 — `select (slt top, 0), 0xFF, 0`, one
     // byte shared by every high byte. (llvm-mos derives it from a shift/borrow
     // sequence; that needs a shift op, which Irie's arith dialect lacks.)
+    // arith.muli / udivi / sdivi / uremi / sremi → a call to a runtime helper
+    // (names follow compiler-rt / llvm RuntimeLibcalls: __mulhi3, __mulsi3,
+    // __udivsi3, __divsi3, __umodsi3, __modsi3). Multiply has an i16 and an i32
+    // helper; divide and remainder only an i32 one. A narrower operand is widened
+    // to the helper's width and the result truncated back: zero-extension for
+    // multiply (the low bits of a product don't depend on the extension) and for
+    // the unsigned forms, sign-extension for the signed forms. The extension and
+    // truncation are ordinary casts, legalized afterwards by the worklist.
+    private void LowerLibcall(MirInstruction instr, MirBuilder builder)
+    {
+        var function = builder.Function;
+        if (instr.Operands is not [VirtualReg { IsDefinition: true } defReg,
+                                   VirtualReg { IsDefinition: false } aReg,
+                                   VirtualReg { IsDefinition: false } bReg])
+            throw new InvalidOperationException(
+                $"MOS6502LegalizerInfo: {instr.Opcode} must have shape `%def = op %a, %b`.");
+
+        var op = (ArithOp)instr.Opcode.Code;
+        var resultType = ((TypedVReg)function.GetVRegAnnotation(defReg.Id)).Type;
+        var signed = op is ArithOp.SDivI or ArithOp.SRemI;
+        var callType = op == ArithOp.MulI && resultType.SizeInBits <= 16 ? IRType.I16 : IRType.I32;
+
+        var callee = (op, callType.SizeInBits) switch
+        {
+            (ArithOp.MulI, 16)  => "__mulhi3",
+            (ArithOp.MulI, 32)  => "__mulsi3",
+            (ArithOp.UDivI, 32) => "__udivsi3",
+            (ArithOp.SDivI, 32) => "__divsi3",
+            (ArithOp.URemI, 32) => "__umodsi3",
+            (ArithOp.SRemI, 32) => "__modsi3",
+            _ => throw new NotSupportedException($"MOS6502LegalizerInfo: no libcall for {op} {callType}."),
+        };
+
+        var a = aReg.Id;
+        var b = bReg.Id;
+        var widened = resultType.SizeInBits < callType.SizeInBits;
+        if (widened)
+        {
+            a = BuildCast(builder, signed ? CastOp.Sext : CastOp.Zext, callType, a);
+            b = BuildCast(builder, signed ? CastOp.Sext : CastOp.Zext, callType, b);
+        }
+
+        var result = widened ? function.CreateVirtualRegister(callType) : defReg.Id;
+        _callLowering.LowerCall(callee, [callType, callType], [a, b], [callType], [result], builder);
+
+        if (widened)
+            builder.BuildInstruction(CastDialect.OpRef(CastOp.Trunc),
+                new VirtualReg(defReg.Id, IsDefinition: true),
+                new VirtualReg(result, IsDefinition: false));
+
+        builder.Remove(instr);
+    }
+
+    private static int BuildCast(MirBuilder builder, CastOp op, IRType to, int source)
+    {
+        var result = builder.Function.CreateVirtualRegister(to);
+        builder.BuildInstruction(CastDialect.OpRef(op),
+            new VirtualReg(result, IsDefinition: true),
+            new VirtualReg(source, IsDefinition: false));
+        return result;
+    }
+
     private static void LowerExtend(MirInstruction instr, MirBuilder builder, bool signed)
     {
         var function = builder.Function;

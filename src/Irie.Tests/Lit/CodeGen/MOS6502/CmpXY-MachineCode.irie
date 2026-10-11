@@ -1,0 +1,37 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; The $x / $y compare forms (cpx / cpy) assemble to CPX / CPY, alongside the $a
+; form's CMP. They are what the addressing-mode selector produces when a compared
+; byte lives in $x or $y.
+
+; CHECK: cmp_xy:
+; CHECK:     LDA #$01
+; CHECK:     STA $04
+; CHECK:     STA $05
+; CHECK:     STA $06
+; CHECK:     LDX #$02
+; CHECK:     LDY #$03
+; CHECK:     CMP #$05
+; CHECK:     CPX #$06
+; CHECK:     CPY #$07
+; CHECK:     CMP $04
+; CHECK:     CPX $05
+; CHECK:     CPY $06
+; CHECK:     RTS
+
+func @cmp_xy : () -> void {
+bb0():
+    $0 = mos6502.lda.imm 1
+    $16 = mos6502.sta.zp $0
+    $17 = mos6502.sta.zp $0
+    $18 = mos6502.sta.zp $0
+    $1 = mos6502.ldx.imm 2
+    $2 = mos6502.ldy.imm 3
+    mos6502.cmp.imm $0, 5, implicit-def $6, implicit-def $8, implicit-def $5
+    mos6502.cpx.imm $1, 6, implicit-def $6, implicit-def $8, implicit-def $5
+    mos6502.cpy.imm $2, 7, implicit-def $6, implicit-def $8, implicit-def $5
+    mos6502.cmp.zp $0, $16, implicit-def $6, implicit-def $8, implicit-def $5
+    mos6502.cpx.zp $1, $17, implicit-def $6, implicit-def $8, implicit-def $5
+    mos6502.cpy.zp $2, $18, implicit-def $6, implicit-def $8, implicit-def $5
+    mos6502.rts
+}

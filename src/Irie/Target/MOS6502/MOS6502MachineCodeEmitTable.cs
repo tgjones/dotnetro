@@ -79,6 +79,14 @@ public static class MOS6502MachineCodeEmitTable
         // Index 1 = use[1] = immediate.
         [MOS6502Op.CmpImm] = new EmitRule(MOS6502Opcode.CMP_Immediate, EmitOperandKind.Immediate, 1),
 
+        // mos6502.cpx.{zp,imm} $x, <rhs> / mos6502.cpy.{zp,imm} $y, <rhs> — the
+        // cmp forms the addressing-mode selector picks when RA placed the left
+        // operand in $x / $y. Same operand layout as cmp.zp / cmp.imm.
+        [MOS6502Op.CpxZp]  = new EmitRule(MOS6502Opcode.CPX_ZeroPage, EmitOperandKind.ZeroPageAddress, 1),
+        [MOS6502Op.CpxImm] = new EmitRule(MOS6502Opcode.CPX_Immediate, EmitOperandKind.Immediate, 1),
+        [MOS6502Op.CpyZp]  = new EmitRule(MOS6502Opcode.CPY_ZeroPage, EmitOperandKind.ZeroPageAddress, 1),
+        [MOS6502Op.CpyImm] = new EmitRule(MOS6502Opcode.CPY_Immediate, EmitOperandKind.Immediate, 1),
+
         // $a, $c = mos6502.adc.imm $a, #N, $c — same operand block as AdcZp
         // (AdcInfo): def[0]=$a, def[1]=$c, use[0]=$a (tied), use[1]=imm, use[2]=$c.
         // Index 3 = use[1], the immediate. Used by hand-written runtime helpers

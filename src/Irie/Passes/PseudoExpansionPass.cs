@@ -33,7 +33,7 @@ public sealed class PseudoExpansionPass(PseudoExpander expander) : MirFunctionPa
                     var dialect = DialectRegistry.ById(instr.Opcode.Dialect);
                     throw new InvalidOperationException(
                         $"PseudoExpansionPass: unexpected `{dialect.Prefix}.{dialect.GetOpName(instr.Opcode.Code)}` " +
-                        $"survived to the final pass; expected only `pseudo.copy`.");
+                        $"survived to the final pass in @{function.Name}; expected only `pseudo.copy`.");
                 }
 
                 builder.SetInsertionPointBefore(instr);

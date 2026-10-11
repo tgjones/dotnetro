@@ -18,8 +18,9 @@ namespace Irie.Passes;
 // worklist-to-fixpoint shape, not the grab-bag of rules: when a rewrite lands,
 // re-enqueue the instructions that now use the new value, so an enabled outer
 // fold runs in the same pass. There are two rules: add/sub reassociation and
-// multiply strength reduction (`muli x, 2^k` → `shl x, k`, `muli x, 1` → `x`, the
-// InstCombine / DAGCombiner `mul` → `shl` fold). Further rules slot into the same
+// power-of-two strength reduction (`muli x, 2^k` → `shl x, k`, `udivi x, 2^k` →
+// `lshr x, k`, `uremi x, 2^k` → `and x, 2^k-1`, and the `x * 1` / `x / 1`
+// identities — the InstCombine / DAGCombiner folds). Further rules slot into the same
 // worklist rather than a separate pass (so they share the traversal and a
 // consistent canonical form).
 //
@@ -53,8 +54,8 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         {
             var instr = worklist.Dequeue();
             if (instr.Parent is null || !IsCandidate(instr)) continue; // already folded away
-            var simplified = IsMul(instr)
-                ? TrySimplifyMul(function, builder, instr, out var newResult)
+            var simplified = IsPow2Candidate(instr)
+                ? TrySimplifyPow2(function, builder, instr, out var newResult)
                 : TrySimplify(function, builder, instr, out newResult);
             if (simplified)
                 foreach (var user in UsersOf(function, newResult))
@@ -67,16 +68,21 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         RemoveDeadArith(function, builder);
     }
 
-    private static bool IsCandidate(MirInstruction instr) => IsAddSub(instr) || IsMul(instr);
+    private static bool IsCandidate(MirInstruction instr) => IsAddSub(instr) || IsPow2Candidate(instr);
 
-    private static bool IsMul(MirInstruction instr) =>
-        instr.Opcode.Dialect == ArithDialect.Id && (ArithOp)instr.Opcode.Code == ArithOp.MulI;
+    private static bool IsPow2Candidate(MirInstruction instr) =>
+        instr.Opcode.Dialect == ArithDialect.Id
+        && (ArithOp)instr.Opcode.Code is ArithOp.MulI or ArithOp.UDivI or ArithOp.URemI;
 
-    // Multiply by a constant power of two: `muli x, 2^k` → `shl x, k` (the shift
-    // amount is an i8 constant, as the legalizer's shift lowering requires), and
-    // `muli x, 1` → `x`. The constant may be either operand. Any other multiply
-    // is left alone for the legalizer to accept or reject.
-    private static bool TrySimplifyMul(MirFunction function, MirBuilder builder, MirInstruction instr, out int newResult)
+    // Multiply, unsigned divide or unsigned remainder by a constant power of two:
+    //   muli  x, 2^k → shl  x, k      (the constant may be either operand)
+    //   udivi x, 2^k → lshr x, k
+    //   uremi x, 2^k → and  x, 2^k-1
+    // and `x * 1` / `x / 1` → `x` (`x % 1` → 0). The shift amount is an i8
+    // constant, as the legalizer's shift lowering requires. Signed divide /
+    // remainder (which round toward zero) and any other factor are left alone for
+    // the legalizer, which turns them into a runtime-helper libcall.
+    private static bool TrySimplifyPow2(MirFunction function, MirBuilder builder, MirInstruction instr, out int newResult)
     {
         newResult = -1;
 
@@ -88,10 +94,11 @@ public sealed class ArithSimplifyPass : MirFunctionPass
             || intType.SizeInBits < 8)
             return false;
 
+        var op = (ArithOp)instr.Opcode.Code;
         int valueVreg;
         long factor;
         if (TryGetConstant(function, bUse.Id) is { } bConst) { valueVreg = aUse.Id; factor = bConst; }
-        else if (TryGetConstant(function, aUse.Id) is { } aConst) { valueVreg = bUse.Id; factor = aConst; }
+        else if (op == ArithOp.MulI && TryGetConstant(function, aUse.Id) is { } aConst) { valueVreg = bUse.Id; factor = aConst; }
         else return false;
 
         var bits = intType.SizeInBits;
@@ -100,22 +107,26 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         if (factor <= 0 || (factor & (factor - 1)) != 0)
             return false;
 
-        if (factor == 1)
-        {
-            function.ReplaceAllUsesOfRegister(resultDef.Id, valueVreg);
-            // Erase the now-dead multiply immediately: it still uses valueVreg, so
-            // it would otherwise be re-enqueued as a user of the new result.
-            builder.Remove(instr);
-            newResult = valueVreg;
-            return true;
-        }
-
+        var log2 = System.Numerics.BitOperations.Log2((ulong)factor);
         builder.SetInsertionPointBefore(instr);
-        var amount = builder.BuildConstant(IRType.I8, System.Numerics.BitOperations.Log2((ulong)factor));
-        var shifted = BuildBinary(function, builder, ArithOp.Shl, intType, valueVreg, amount);
-        function.ReplaceAllUsesOfRegister(resultDef.Id, shifted);
+
+        int replacement;
+        if (op == ArithOp.URemI)
+            replacement = factor == 1
+                ? builder.BuildConstant(intType, 0)
+                : BuildBinary(function, builder, ArithOp.And, intType, valueVreg,
+                              builder.BuildConstant(intType, factor - 1));
+        else if (factor == 1)
+            replacement = valueVreg;
+        else
+            replacement = BuildBinary(function, builder, op == ArithOp.MulI ? ArithOp.Shl : ArithOp.LShr,
+                                      intType, valueVreg, builder.BuildConstant(IRType.I8, log2));
+
+        function.ReplaceAllUsesOfRegister(resultDef.Id, replacement);
+        // Erase the now-dead instruction immediately: it still uses valueVreg, so
+        // it would otherwise be re-enqueued as a user of the new result.
         builder.Remove(instr);
-        newResult = shifted;
+        newResult = replacement;
         return true;
     }
 

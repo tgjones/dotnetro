@@ -27,6 +27,10 @@ public sealed class ArithDialect : Dialect
         ArithOp.LShr       => "lshr",
         ArithOp.AShr       => "ashr",
         ArithOp.MulI       => "muli",
+        ArithOp.UDivI      => "udivi",
+        ArithOp.SDivI      => "sdivi",
+        ArithOp.URemI      => "uremi",
+        ArithOp.SRemI      => "sremi",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown arith opcode {code}."),
     };
 
@@ -49,6 +53,10 @@ public sealed class ArithDialect : Dialect
             case "lshr":              code = (ushort)ArithOp.LShr;      return true;
             case "ashr":              code = (ushort)ArithOp.AShr;      return true;
             case "muli":              code = (ushort)ArithOp.MulI;      return true;
+            case "udivi":             code = (ushort)ArithOp.UDivI;     return true;
+            case "sdivi":             code = (ushort)ArithOp.SDivI;     return true;
+            case "uremi":             code = (ushort)ArithOp.URemI;     return true;
+            case "sremi":             code = (ushort)ArithOp.SRemI;     return true;
         }
         code = 0;
         return false;

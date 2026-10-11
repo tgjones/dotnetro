@@ -21,6 +21,15 @@ public static class CompilerDriver
             module = translator.Translate(entryPointMethodName);
         }
 
+        // Developer aid: DNRC_DUMP_MIR=<path> writes the translated module as MIR
+        // text before the pass pipeline runs, so a failing function can be pulled
+        // out and replayed through `iriec --stop-after <pass>`.
+        if (Environment.GetEnvironmentVariable("DNRC_DUMP_MIR") is { Length: > 0 } dumpPath)
+        {
+            using var dump = new StreamWriter(dumpPath);
+            module.Write(dump, target.RegisterInfo.GetRegisterName);
+        }
+
         var context = new CompilationContext(module);
 
         var passMgr = new PassManager(null, null);

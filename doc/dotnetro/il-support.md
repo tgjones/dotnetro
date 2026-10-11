@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 99
-- **Implemented and lit-covered:** 99
+- **Implemented:** 103
+- **Implemented and lit-covered:** 103
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -94,8 +94,8 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.u8` | ❌ | — |
 | `cpblk` | ❌ | — |
 | `cpobj` | ❌ | — |
-| `div` | ❌ | — |
-| `div.un` | ❌ | — |
+| `div` | ✅ | ✅ |
+| `div.un` | ✅ | ✅ |
 | `dup` | ✅ | ✅ |
 | `endfilter` | ❌ | — |
 | `endfinally` | ❌ | — |
@@ -186,8 +186,8 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `readonly` | ❌ | — |
 | `refanytype` | ❌ | — |
 | `refanyval` | ❌ | — |
-| `rem` | ❌ | — |
-| `rem.un` | ❌ | — |
+| `rem` | ✅ | ✅ |
+| `rem.un` | ✅ | ✅ |
 | `ret` | ✅ | ✅ |
 | `rethrow` | ❌ | — |
 | `shl` | ✅ | ✅ |

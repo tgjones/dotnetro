@@ -5,10 +5,13 @@ namespace Irie.Target.MOS6502;
 
 // Target-private pass that refines each pre-AMS `mos6502.*` opcode to a
 // concrete addressing-mode form based on its post-RA operands. The only family
-// handled here is `mos6502.st.abs` → `sta/stx/sty.abs`, whose choice depends
-// on the physical register RA assigned to the value — a decision not available
-// at isel. (adc/sbc/cmp are not handled here: the selector picks their
-// concrete form directly since the choice follows from the operand kind.)
+// handled here are the ones whose choice depends on the physical register RA
+// assigned to a value — a decision not available at isel:
+//   * `mos6502.st.abs` → `sta/stx/sty.abs`, by the stored register;
+//   * `mos6502.cmp.{zp,imm}` → `cpx/cpy.{zp,imm}` when the compared register is
+//     $x / $y (the selector builds the $a form; its left operand is a GPR).
+// (adc/sbc are not handled here: they only exist on $a, and the selector picks
+// their concrete form directly since the choice follows from the operand kind.)
 //
 // Lives entirely under the target — added to the pipeline by
 // MOS6502Target.AddPostRegisterAllocationPasses.
@@ -53,8 +56,23 @@ public sealed class MOS6502AddressingModeSelectorPass : MirFunctionPass
         // it in. All three share st.abs's exact operand layout (value in slot 0,
         // Symbol in slot 1), so only the opcode tag changes.
         MOS6502Op.StAbs => RefineStoreBySource(operands),
+        // cmp.{zp,imm}: the compared register is operands[0]; the selector builds
+        // the $a form, so only $x / $y need a different opcode (same layout).
+        MOS6502Op.CmpZp  => RefineCompareByRegister(operands, MOS6502Op.CpxZp, MOS6502Op.CpyZp),
+        MOS6502Op.CmpImm => RefineCompareByRegister(operands, MOS6502Op.CpxImm, MOS6502Op.CpyImm),
         _ => null,
     };
+
+    private static MOS6502Op? RefineCompareByRegister(MirOperand[] operands, MOS6502Op cpx, MOS6502Op cpy)
+    {
+        if (operands.Length == 0 || operands[0] is not PhysicalReg reg) return null;
+        return reg.Id switch
+        {
+            MOS6502Registers.X => cpx,
+            MOS6502Registers.Y => cpy,
+            _                  => null,
+        };
+    }
 
     // Select the concrete absolute store (STA/STX/STY) for a generic st.abs from
     // its source register.

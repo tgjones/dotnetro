@@ -1,0 +1,122 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Multiply, divide and remainder have no 6502 instruction. The legalizer turns
+; each into a call to a runtime helper (compiler-rt names): i16 multiply is
+; __mulhi3, i32 multiply __mulsi3, i32 divide / remainder __udivsi3 / __divsi3 /
+; __umodsi3 / __modsi3. Narrower operands are widened to the helper's width
+; (zero-extend for multiply and the unsigned forms, sign-extend for the signed
+; forms) and the result truncated back.
+
+; CHECK: Mul16:
+; CHECK:     JSR __mulhi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: Mul32:
+; CHECK:     JSR __mulsi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: Mul8:
+; CHECK:     STX $02
+; CHECK:     LDX #$00
+; CHECK:     LDY #$00
+; CHECK:     STY $03
+; CHECK:     JSR __mulhi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: UDiv32:
+; CHECK:     JSR __udivsi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: SDiv32:
+; CHECK:     JSR __divsi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: URem32:
+; CHECK:     JSR __umodsi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: SRem32:
+; CHECK:     JSR __modsi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: SDiv8:
+; CHECK:     TAY
+; CHECK:     STX $04
+; CHECK:     CMP #$00
+; CHECK:     BMI .bb5
+; CHECK: .bb1:
+; CHECK:     LDA #$00
+; CHECK:     STA $03
+; CHECK: .bb2:
+; CHECK:     LDA $04
+; CHECK:     BMI .bb6
+; CHECK: .bb3:
+; CHECK:     LDA #$00
+; CHECK:     STA $07
+; CHECK: .bb4:
+; CHECK:     TYA
+; CHECK:     LDX $03
+; CHECK:     LDY $03
+; CHECK:     STY $02
+; CHECK:     LDY $07
+; CHECK:     STY $05
+; CHECK:     LDY $07
+; CHECK:     STY $06
+; CHECK:     JSR __divsi3
+; CHECK:     RTS
+; CHECK: .bb5:
+; CHECK:     LDA #$FF
+; CHECK:     STA $03
+; CHECK:     JMP .bb2
+; CHECK: .bb6:
+; CHECK:     LDA #$FF
+; CHECK:     STA $07
+; CHECK:     JMP .bb4
+
+func @Mul16 : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = arith.muli %0, %1
+    core.return %2
+}
+
+func @Mul32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.muli %0, %1
+    core.return %2
+}
+
+func @Mul8 : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.muli %0, %1
+    core.return %2
+}
+
+func @UDiv32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.udivi %0, %1
+    core.return %2
+}
+
+func @SDiv32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.sdivi %0, %1
+    core.return %2
+}
+
+func @URem32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.uremi %0, %1
+    core.return %2
+}
+
+func @SRem32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.sremi %0, %1
+    core.return %2
+}
+
+func @SDiv8 : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.sdivi %0, %1
+    core.return %2
+}

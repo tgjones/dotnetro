@@ -82,8 +82,9 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         return false;
     }
 
-    // Matches `mos6502.cmp.imm $r, #0` — the selector always picks the concrete
-    // .imm form for a constant RHS. Explicit operands: use[0]=a, use[1]=b;
+    // Matches `mos6502.{cmp,cpx,cpy}.imm $r, #0` — the selector always picks the
+    // concrete .imm form for a constant RHS (the addressing-mode selector then
+    // retargets it to cpx / cpy for $x / $y). Explicit operands: use[0]=a, use[1]=b;
     // implicit $n/$z/$c defs follow. Only an immediate-zero RHS qualifies.
     private static bool IsCmpAgainstZero(MirInstruction instr, out int comparedReg)
     {
@@ -91,7 +92,7 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         if (instr.Opcode.Dialect != MOS6502Dialect.Id) return false;
 
         var op = (MOS6502Op)instr.Opcode.Code;
-        if (op is not MOS6502Op.CmpImm) return false;
+        if (op is not (MOS6502Op.CmpImm or MOS6502Op.CpxImm or MOS6502Op.CpyImm)) return false;
 
         if (instr.Operands.Length < 2) return false;
         if (instr.Operands[0] is not PhysicalReg a) return false;

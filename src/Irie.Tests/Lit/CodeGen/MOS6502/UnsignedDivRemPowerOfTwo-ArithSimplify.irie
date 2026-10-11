@@ -1,0 +1,72 @@
+; RUN: @iriec --target mos6502 --stop-after ArithSimplify @file
+
+; Unsigned divide / remainder by a constant power of two are strength-reduced
+; (udivi → lshr, uremi → and with 2^k-1); division by 1 is the identity and the
+; remainder by 1 is 0. Signed forms round toward zero and are left alone.
+
+; CHECK: func @UDivBy16 : (i32) -> i32 {
+; CHECK: bb0(%0 : i32):
+; CHECK:     %3 : i8 = arith.constant 4
+; CHECK:     %4 : i32 = arith.lshr %0, %3
+; CHECK:     core.return %4
+; CHECK: }
+; CHECK:
+; CHECK: func @URemBy8 : (i16) -> i16 {
+; CHECK: bb0(%0 : i16):
+; CHECK:     %3 : i16 = arith.constant 7
+; CHECK:     %4 : i16 = arith.and %0, %3
+; CHECK:     core.return %4
+; CHECK: }
+; CHECK:
+; CHECK: func @UDivBy1 : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     core.return %0
+; CHECK: }
+; CHECK:
+; CHECK: func @URemBy1 : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     %3 : i8 = arith.constant 0
+; CHECK:     core.return %3
+; CHECK: }
+; CHECK:
+; CHECK: func @SDivBy16 : (i32) -> i32 {
+; CHECK: bb0(%0 : i32):
+; CHECK:     %1 : i32 = arith.constant 16
+; CHECK:     %2 : i32 = arith.sdivi %0, %1
+; CHECK:     core.return %2
+; CHECK: }
+
+func @UDivBy16 : (i32) -> i32 {
+bb0(%0 : i32):
+    %1 : i32 = arith.constant 16
+    %2 : i32 = arith.udivi %0, %1
+    core.return %2
+}
+
+func @URemBy8 : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 8
+    %2 : i16 = arith.uremi %0, %1
+    core.return %2
+}
+
+func @UDivBy1 : (i8) -> i8 {
+bb0(%0 : i8):
+    %1 : i8 = arith.constant 1
+    %2 : i8 = arith.udivi %0, %1
+    core.return %2
+}
+
+func @URemBy1 : (i8) -> i8 {
+bb0(%0 : i8):
+    %1 : i8 = arith.constant 1
+    %2 : i8 = arith.uremi %0, %1
+    core.return %2
+}
+
+func @SDivBy16 : (i32) -> i32 {
+bb0(%0 : i32):
+    %1 : i32 = arith.constant 16
+    %2 : i32 = arith.sdivi %0, %1
+    core.return %2
+}

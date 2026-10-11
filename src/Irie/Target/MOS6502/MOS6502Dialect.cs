@@ -298,6 +298,8 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Op.RolAcc or MOS6502Op.RorAcc => RotateInfo,
             MOS6502Op.CmpZp  => CmpInfo,
             MOS6502Op.CmpImm => CmpInfo,
+            MOS6502Op.CpxZp or MOS6502Op.CpxImm => CpxInfo,
+            MOS6502Op.CpyZp or MOS6502Op.CpyImm => CpyInfo,
             MOS6502Op.StAbs  => StAbsInfo,
             MOS6502Op.AndZp or MOS6502Op.AndImm or MOS6502Op.AndAbs
                 or MOS6502Op.OraZp or MOS6502Op.OraImm or MOS6502Op.OraAbs
@@ -442,11 +444,46 @@ public sealed class MOS6502Dialect : Dialect
     // Explicit operands: use[0]=a (in $a), use[1]=b. Sets flags $n, $z, $c as
     // implicit defs — they live as separate PhysicalReg(IsImplicit=true)
     // entries in the operand array so RA understands the clobber. No tied
-    // operands (cmp doesn't write back to A).
+    // operands (cmp doesn't write back to its register).
+    //
+    // use[0] is `Ac`, though the 6502 can compare A, X or Y against memory
+    // (CMP / CPX / CPY) and llvm-mos declares the operand as a GPR
+    // (`CMPImag8 (ins GPR:$l, Imag8:$r)`). Widening it to `Axy` was tried, with
+    // the post-RA addressing-mode selector refining to `cpx` / `cpy` (that
+    // machinery is in place and tested): it shrank the loop-heavy __umodsi3
+    // helper by 18%, but cost +8 instructions (734 → 742) on the llvm-mos
+    // reference scoreboard — the colourer spends $x / $y on short compares
+    // without weighing the moves that costs elsewhere (see early-return). Revisit
+    // when the allocator's cost model can use the freedom.
     private static readonly DialectInstructionInfo CmpInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // use[0]: a
             MOS6502RegisterClass.Imag8, // use[1]: b
+        ],
+        ImplicitDefs: [
+            MOS6502Registers.N,
+            MOS6502Registers.Z,
+            MOS6502Registers.C,
+        ]);
+
+    // The X / Y forms `cpx.*` / `cpy.*` the addressing-mode selector refines a
+    // cmp to when its left operand is in $x / $y: same shape as CmpInfo with the
+    // register fixed.
+    private static readonly DialectInstructionInfo CpxInfo = new(
+        OperandClasses: [
+            MOS6502RegisterClass.Xc,
+            MOS6502RegisterClass.Imag8,
+        ],
+        ImplicitDefs: [
+            MOS6502Registers.N,
+            MOS6502Registers.Z,
+            MOS6502Registers.C,
+        ]);
+
+    private static readonly DialectInstructionInfo CpyInfo = new(
+        OperandClasses: [
+            MOS6502RegisterClass.Yc,
+            MOS6502RegisterClass.Imag8,
         ],
         ImplicitDefs: [
             MOS6502Registers.N,

@@ -68,4 +68,16 @@ public enum ArithOp : ushort
     // of two to `arith.shl` (and by 1 to a copy), and anything else is rejected
     // by the legalizer until a runtime-helper libcall lowering exists.
     MulI,
+
+    // %r = arith.udivi %a, %b   /   arith.sdivi   /   arith.uremi   /   arith.sremi
+    // Unsigned / signed integer division and remainder (sdivi truncates toward
+    // zero; sremi takes the dividend's sign). Division by zero is undefined.
+    // Appended after MulI to keep existing opcode numbering stable. As with
+    // muli, the generic ArithSimplifyPass strength-reduces the unsigned forms by
+    // a constant power of two (to lshr / and) and the target legalizes the rest
+    // as a runtime-helper libcall.
+    UDivI,
+    SDivI,
+    URemI,
+    SRemI,
 }

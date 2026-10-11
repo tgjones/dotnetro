@@ -1055,7 +1055,25 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
 
         for (var pos = byteCount - 1; pos >= 0; pos--)
         {
-            EmitCmp(function, builder, aBytes[pos], bRhs[pos]);
+            // Compare each byte through a fresh vreg whose range is just this
+            // compare, rather than narrowing the byte's own vreg to `Ac` in place.
+            // The bytes of one wide operand are all defined together (a single
+            // pseudo.unmerge), so narrowing them in place would pin up to N bytes
+            // in the one-register `Ac` class at once — uncolourable, and spilled.
+            // llvm-mos narrows in place too, but its greedy allocator can split
+            // the live range and then re-inflate the original vreg's class; the
+            // graph colourer cannot, so the constraint is isolated here. The
+            // register coalescer removes the copy when the byte already sits where
+            // the compare wants it. A general home for this is the constraint
+            // utility or a pre-RA isolation pass (status note, P1), not each op.
+            var aIsolated = function.CreateVirtualRegisterInClass(
+                MOS6502RegisterClass.Ac,
+                MOS6502RegisterClass.GetName(MOS6502RegisterClass.Ac)!);
+            builder.BuildInstruction(
+                PseudoDialect.OpRef(PseudoOp.Copy),
+                new VirtualReg(aIsolated, IsDefinition: true),
+                new VirtualReg(aBytes[pos], IsDefinition: false));
+            EmitCmp(function, builder, aIsolated, bRhs[pos]);
 
             var isLast = pos == 0;
             EmitMultiByteExits(builder, chainPredicate, isLast, tTarget, fTarget);
