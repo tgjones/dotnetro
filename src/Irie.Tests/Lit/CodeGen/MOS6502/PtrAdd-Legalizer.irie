@@ -1,0 +1,24 @@
+; RUN: @iriec --target mos6502 --stop-after Legalizer @file
+
+; mem.ptradd on a ptr legalizes to an unmerge of the pointer and the offset, a
+; two-link addi_with_carry chain, and a merge back into the original ptr def.
+
+; CHECK: func @TestPtrAdd : (ptr, i16) -> ptr {
+; CHECK: bb0():
+; CHECK:     [liveins: $a, $x, $zp2, $zp3]
+; CHECK:     %3 : i8 = pseudo.copy $a
+; CHECK:     %4 : i8 = pseudo.copy $x
+; CHECK:     %5 : i8 = pseudo.copy $zp2
+; CHECK:     %6 : i8 = pseudo.copy $zp3
+; CHECK:     %13 : i1 = arith.constant 0
+; CHECK:     %14 : i8, %15 : i1 = arith.addi_with_carry %3, %5, %13
+; CHECK:     %16 : i8, %17 : i1 = arith.addi_with_carry %4, %6, %15
+; CHECK:     $a = pseudo.copy %14
+; CHECK:     $x = pseudo.copy %16
+; CHECK:     pseudo.return
+; CHECK: }
+func @TestPtrAdd : (ptr, i16) -> ptr {
+bb0(%0 : ptr, %1 : i16):
+    %2 : ptr = mem.ptradd %0, %1
+    core.return %2
+}

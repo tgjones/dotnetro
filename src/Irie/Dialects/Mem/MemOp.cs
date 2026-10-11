@@ -56,4 +56,15 @@ public enum MemOp : ushort
     //   the earlier ops (serialised in the binary format) stay put.
     LoadI64,
     StoreI64,
+
+    // %q : ptr = mem.ptradd %p, %off
+    //   Byte-offset address arithmetic. def[0] = ptr, use[0] = ptr, use[1] = i16
+    //   offset (two's complement, so p - n is ptradd p, (0 - n)). No scaling.
+    PtrAdd,
+
+    // %v : ptr = mem.load.ptr %addr
+    // mem.store.ptr %addr, %val
+    //   Load / store a pointer-valued datum (vtable pointer, reference field, ...).
+    LoadPtr,
+    StorePtr,
 }

@@ -25,6 +25,9 @@ public sealed class MemDialect : Dialect
         MemOp.Fill        => "fill",
         MemOp.LoadI64     => "load.i64",
         MemOp.StoreI64    => "store.i64",
+        MemOp.PtrAdd      => "ptradd",
+        MemOp.LoadPtr     => "load.ptr",
+        MemOp.StorePtr    => "store.ptr",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown mem opcode {code}."),
     };
 
@@ -45,6 +48,9 @@ public sealed class MemDialect : Dialect
             case "fill":          code = (ushort)MemOp.Fill;        return true;
             case "load.i64":      code = (ushort)MemOp.LoadI64;     return true;
             case "store.i64":     code = (ushort)MemOp.StoreI64;    return true;
+            case "ptradd":        code = (ushort)MemOp.PtrAdd;      return true;
+            case "load.ptr":      code = (ushort)MemOp.LoadPtr;     return true;
+            case "store.ptr":     code = (ushort)MemOp.StorePtr;    return true;
         }
         code = 0;
         return false;
@@ -61,6 +67,7 @@ public sealed class MemDialect : Dialect
             MemOp.StoreI16    => StoreI8Info,
             MemOp.StoreI32    => StoreI8Info,
             MemOp.StoreI64    => StoreI8Info,
+            MemOp.StorePtr    => StoreI8Info,
             MemOp.StoreByteAt => StoreByteAtInfo,
             // mem.fill's pattern byte (i8) is the legality-driving operand;
             // the count is an Immediate that the Custom legalizer unrolls.
@@ -79,6 +86,7 @@ public sealed class MemDialect : Dialect
     {
         MemOp.Symbol    => true,
         MemOp.FrameAddr => true,
+        MemOp.PtrAdd    => true,
         _ => false,
     };
 

@@ -20,6 +20,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 
     public override LegalityAction GetAction(OpcodeRef opcode, IRType type)
     {
+        // A ptr is not an integer: only the ops that move, load/store, offset or
+        // convert one are accepted (no arith.* op takes a ptr).
+        if (type is PointerType ptrType)
+            return GetPointerAction(opcode, ptrType);
+
         if (type is not IntegerType intType)
             return LegalityAction.Unsupported;
 
@@ -110,6 +115,7 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // (the wide result). Lowered to the source bytes plus a constant
                 // 0 (zext) or a sign-broadcast byte (sext) for each high byte.
                 CastOp.Zext or CastOp.Sext when intType.SizeInBits > 8 => LegalityAction.Custom,
+                CastOp.PtrToInt when intType.SizeInBits == 16 => LegalityAction.Custom,
                 _ => LegalityAction.Unsupported,
             };
         }
@@ -153,6 +159,36 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         return LegalityAction.Unsupported;
     }
 
+    private static LegalityAction GetPointerAction(OpcodeRef opcode, PointerType type)
+    {
+        if (type.SizeInBits != 16)
+            return LegalityAction.Unsupported;
+
+        if (opcode.Dialect == PseudoDialect.Id)
+        {
+            return ((PseudoOp)opcode.Code) switch
+            {
+                PseudoOp.Copy or PseudoOp.Merge or PseudoOp.Unmerge => LegalityAction.Legal,
+                _ => LegalityAction.Unsupported,
+            };
+        }
+
+        if (opcode.Dialect == MemDialect.Id)
+        {
+            return ((MemOp)opcode.Code) switch
+            {
+                MemOp.Symbol   => LegalityAction.Legal,
+                MemOp.LoadPtr or MemOp.StorePtr or MemOp.PtrAdd => LegalityAction.Custom,
+                _ => LegalityAction.Unsupported,
+            };
+        }
+
+        if (opcode.Dialect == CastDialect.Id && (CastOp)opcode.Code == CastOp.IntToPtr)
+            return LegalityAction.Custom;
+
+        return LegalityAction.Unsupported;
+    }
+
     public override IRType GetNarrowType(OpcodeRef opcode, IRType fromType)
     {
         if (opcode.Dialect == ArithDialect.Id
@@ -184,6 +220,7 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 case MemOp.LoadI16:
                 case MemOp.LoadI32:
                 case MemOp.LoadI64:
+                case MemOp.LoadPtr:
                     LowerWideLoad(instr, builder);
                     return;
 
@@ -191,7 +228,12 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 case MemOp.StoreI16:
                 case MemOp.StoreI32:
                 case MemOp.StoreI64:
+                case MemOp.StorePtr:
                     LowerWideStore(instr, builder);
+                    return;
+
+                case MemOp.PtrAdd:
+                    LowerPtrAdd(instr, builder);
                     return;
 
                 case MemOp.Fill:
@@ -216,6 +258,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             {
                 case CastOp.Trunc:
                     LowerTrunc(instr, builder);
+                    return;
+                case CastOp.PtrToInt:
+                case CastOp.IntToPtr:
+                    LowerPointerCast(instr, builder);
                     return;
                 case CastOp.Zext:
                 case CastOp.Sext:
@@ -786,6 +832,48 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 new VirtualReg(byteVregs[i], IsDefinition: false));
         }
 
+        builder.Remove(instr);
+    }
+
+    // %q : ptr = mem.ptradd %p, %off  →  unmerge both to bytes, a 2-link
+    // addi_with_carry chain, merge back into the original ptr def (which keeps
+    // its ptr type).
+    private static void LowerPtrAdd(MirInstruction instr, MirBuilder builder)
+    {
+        if (instr.Operands.Length != 3
+            || instr.Operands[0] is not VirtualReg { IsDefinition: true } def
+            || instr.Operands[1] is not VirtualReg { IsDefinition: false } ptr
+            || instr.Operands[2] is not VirtualReg { IsDefinition: false } off)
+        {
+            throw new InvalidOperationException(
+                "MOS6502LegalizerInfo: mem.ptradd must have shape `%def : ptr = mem.ptradd %p, %off`.");
+        }
+
+        var ptrParts = builder.BuildUnmerge(IRType.I8, ptr.Id, 2);
+        var offParts = builder.BuildUnmerge(IRType.I8, off.Id, 2);
+        var carry = builder.BuildConstant(IRType.I1, 0);
+        var result = new int[2];
+        for (var i = 0; i < 2; i++)
+            (result[i], carry) = builder.BuildAddCarry(IRType.I8, ptrParts[i], offParts[i], carry);
+
+        builder.BuildMergeInto(def.Id, result);
+        builder.Remove(instr);
+    }
+
+    // cast.ptrtoint / cast.inttoptr (same width): unmerge to bytes and merge
+    // into the other type; the artifact combiner folds back-to-back casts.
+    private static void LowerPointerCast(MirInstruction instr, MirBuilder builder)
+    {
+        if (instr.Operands.Length != 2
+            || instr.Operands[0] is not VirtualReg { IsDefinition: true } def
+            || instr.Operands[1] is not VirtualReg { IsDefinition: false } src)
+        {
+            throw new InvalidOperationException(
+                "MOS6502LegalizerInfo: pointer cast must have shape `%def = cast.{ptrtoint,inttoptr} %src`.");
+        }
+
+        var parts = builder.BuildUnmerge(IRType.I8, src.Id, 2);
+        builder.BuildMergeInto(def.Id, parts);
         builder.Remove(instr);
     }
 }

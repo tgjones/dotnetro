@@ -1,0 +1,21 @@
+; RUN: @iriec --target mos6502 --stop-after Legalizer @file
+
+; cast.ptrtoint / cast.inttoptr are same-width reinterpretations. The legalizer
+; lowers each to unmerge + merge and the artifact combiner folds the round trip
+; away, so the pointer passes straight through.
+
+; CHECK: func @TestRoundTrip : (ptr) -> ptr {
+; CHECK: bb0():
+; CHECK:     [liveins: $a, $x]
+; CHECK:     %3 : i8 = pseudo.copy $a
+; CHECK:     %4 : i8 = pseudo.copy $x
+; CHECK:     $a = pseudo.copy %3
+; CHECK:     $x = pseudo.copy %4
+; CHECK:     pseudo.return
+; CHECK: }
+func @TestRoundTrip : (ptr) -> ptr {
+bb0(%0 : ptr):
+    %1 : i16 = cast.ptrtoint %0
+    %2 : ptr = cast.inttoptr %1
+    core.return %2
+}

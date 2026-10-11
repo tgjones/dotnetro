@@ -18,6 +18,8 @@ public sealed class CastDialect : Dialect
         CastOp.Trunc => "trunc",
         CastOp.Zext  => "zext",
         CastOp.Sext  => "sext",
+        CastOp.PtrToInt => "ptrtoint",
+        CastOp.IntToPtr => "inttoptr",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown cast opcode {code}."),
     };
 
@@ -28,6 +30,8 @@ public sealed class CastDialect : Dialect
             case "trunc": code = (ushort)CastOp.Trunc; return true;
             case "zext":  code = (ushort)CastOp.Zext;  return true;
             case "sext":  code = (ushort)CastOp.Sext;  return true;
+            case "ptrtoint": code = (ushort)CastOp.PtrToInt; return true;
+            case "inttoptr": code = (ushort)CastOp.IntToPtr; return true;
         }
         code = 0;
         return false;

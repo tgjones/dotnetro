@@ -22,4 +22,13 @@ public enum CastOp : ushort
     //   Listed for completeness. Needs arith.asr (or equivalent) to broadcast
     //   the top bit; not yet in the arith dialect.
     Sext,
+
+    // %i : i16 = cast.ptrtoint %p : ptr
+    //   Reinterpret a pointer's bits as a same-width integer.
+    PtrToInt,
+
+    // %p : ptr = cast.inttoptr %x : i16
+    //   Reinterpret a same-width integer as a pointer (widen/narrow with
+    //   zext/trunc first).
+    IntToPtr,
 }

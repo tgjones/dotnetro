@@ -1,0 +1,21 @@
+; RUN: @irie-as @file | @irie-dis
+
+; The ptr type survives the text -> binary -> text round trip: in a signature,
+; as a block parameter and as a global.
+
+; CHECK: global @p : ptr
+; CHECK:
+; CHECK: func @TestPtr : (ptr, i16) -> ptr {
+; CHECK: bb0(%0 : ptr, %1 : i16):
+; CHECK:     cf.br bb1(%0)
+; CHECK: bb1(%2 : ptr):
+; CHECK:     core.return %2
+; CHECK: }
+global @p : ptr
+
+func @TestPtr : (ptr, i16) -> ptr {
+bb0(%0 : ptr, %1 : i16):
+    cf.br bb1(%0)
+bb1(%2 : ptr):
+    core.return %2
+}

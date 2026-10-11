@@ -1,0 +1,18 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; End-to-end check for mem.ptradd: a 16-bit byte-offset add on a pointer.
+
+; CHECK: TestPtrAdd:
+; CHECK:     CLC
+; CHECK:     ADC $02
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $03
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+func @TestPtrAdd : (ptr, i16) -> ptr {
+bb0(%0 : ptr, %1 : i16):
+    %2 : ptr = mem.ptradd %0, %1
+    core.return %2
+}

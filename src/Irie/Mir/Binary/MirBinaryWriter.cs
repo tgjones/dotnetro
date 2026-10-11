@@ -214,6 +214,7 @@ internal static class MirBinaryWriter
             IntegerType { SizeInBits: 16 } => TypeTag.I16,
             IntegerType { SizeInBits: 32 } => TypeTag.I32,
             IntegerType { SizeInBits: 64 } => TypeTag.I64,
+            PointerType { SizeInBits: 16 } => TypeTag.Ptr,
             _ => throw new InvalidOperationException($"Cannot serialize type: {type.DisplayName}"),
         }));
     }

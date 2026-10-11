@@ -16,6 +16,7 @@ internal static class MirBinaryFormat
         I16  = 3,
         I32  = 4,
         I64  = 5,
+        Ptr  = 6,
     }
 
     internal enum OperandTag : byte

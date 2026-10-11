@@ -569,7 +569,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // Reference types (including arrays) are heap pointers: 16-bit on the
         // 6502. A reference-type EcmaType (class) — `this`, a class-typed field,
         // a class parameter/return — is likewise a 16-bit heap pointer.
-        if (type is SZArrayType or PointerType or ByReferenceType
+        if (type is SZArrayType or TypeSystem.PointerType or ByReferenceType
             || type is EcmaType { IsValueType: false })
             return IRType.I16;
 

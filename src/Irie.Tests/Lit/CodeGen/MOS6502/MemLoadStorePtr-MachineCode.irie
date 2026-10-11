@@ -1,0 +1,21 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; mem.load.ptr / mem.store.ptr move a pointer-valued datum through a symbol
+; address, one byte at a time like the i16 forms.
+
+; CHECK: TestMemPtr:
+; CHECK:     LDA slot
+; CHECK:     TAX
+; CHECK:     LDA slot+1
+; CHECK:     STX slot
+; CHECK:     STA slot+1
+; CHECK:     RTS
+global @slot : i16
+
+func @TestMemPtr : () -> void {
+bb0():
+    %0 : ptr = mem.symbol @slot
+    %1 : ptr = mem.load.ptr %0
+    mem.store.ptr %0, %1
+    core.return
+}

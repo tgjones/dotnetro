@@ -132,4 +132,26 @@ public class MirRoundTripTests
 
         await AssertRoundTrips(input);
     }
+
+    [Test]
+    public async Task RoundTrip_PtrTypeAndPointerOps()
+    {
+        var input = """
+            global @p : ptr
+
+            func @Ptrs : (ptr, i16) -> ptr {
+            bb0(%0 : ptr, %1 : i16):
+                %2 : ptr = mem.ptradd %0, %1
+                %3 : ptr = mem.load.ptr %2
+                mem.store.ptr %2, %3
+                %4 : i16 = cast.ptrtoint %3
+                %5 : ptr = cast.inttoptr %4
+                cf.br bb1(%5)
+            bb1(%6 : ptr):
+                core.return %6
+            }
+            """.ReplaceLineEndings("\n") + "\n";
+
+        await AssertRoundTrips(input);
+    }
 }
