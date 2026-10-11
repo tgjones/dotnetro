@@ -1,6 +1,13 @@
 # Plan: a real pointer type in Irie (`ptr`) with `ptradd`
 
-Status: **not started** — written 2026-10-11, after the 16-bit-integer work.
+Status: **done** (stages 1–3 and the docs of stage 4) — written 2026-10-11, after the 16-bit-integer work.
+Deviations from the text below: the binary `TypeTag.Ptr` is 6 (5 was already `I64`); the front end
+refers to the Irie type through a `using IRPointerType = Irie.Mir.PointerType` alias because
+`DotNetro.Compiler.TypeSystem.PointerType` has the same name; `GenericMirVerifierPass` now derives
+from `Pass` (it needs the module for the call-signature rule) and keeps a module-less
+`Run(MirFunction)`. Stage 4.1 (`ptradd (symbol)` + constant fold) was skipped: by the time a load is
+legalized the legalizer has already narrowed the `ptradd`, so the fold needs either a legalization
+order change or symbol-plus-offset `mem.symbol` addresses carried through the selector.
 Goal: replace `IRType.Pointer = I16` (an alias) with a distinct `ptr` type, add the few
 ops needed to use it, and delete the translator's `StackValue.IsPointer` bridge flag.
 

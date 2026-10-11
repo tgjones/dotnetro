@@ -17,9 +17,9 @@ public enum CallOp : ushort
 
     // %r0, %r1, ... = call.indirect %target, %arg0, %arg1, ...
     //
-    // Call through an i16 function pointer. Operand layout:
+    // Call through a function pointer (ptr). Operand layout:
     //   defs[0..N-1]: return-value vregs (typed, in CC order)
-    //   uses[0]:      i16 target-pointer vreg
+    //   uses[0]:      ptr target vreg
     //   uses[1..M]:   arg vregs (typed, in CC order)
     //
     // The frontend lowers IL `callvirt` to a vtable load + this op (plan
