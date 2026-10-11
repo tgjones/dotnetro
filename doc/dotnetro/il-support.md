@@ -8,7 +8,7 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 70
+- **Implemented:** 90
 - **Implemented and lit-covered:** 58
 
 Legend: ✅ yes · ❌ no · — not applicable.
@@ -20,26 +20,26 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `add.ovf.un` | ❌ | — |
 | `and` | ✅ | ✅ |
 | `arglist` | ❌ | — |
-| `beq` | ❌ | — |
-| `beq.s` | ❌ | — |
-| `bge` | ❌ | — |
-| `bge.s` | ❌ | — |
-| `bge.un` | ❌ | — |
-| `bge.un.s` | ❌ | — |
-| `bgt` | ❌ | — |
-| `bgt.s` | ❌ | — |
-| `bgt.un` | ❌ | — |
-| `bgt.un.s` | ❌ | — |
-| `ble` | ❌ | — |
-| `ble.s` | ❌ | — |
-| `ble.un` | ❌ | — |
-| `ble.un.s` | ❌ | — |
-| `blt` | ❌ | — |
-| `blt.s` | ❌ | — |
-| `blt.un` | ❌ | — |
-| `blt.un.s` | ❌ | — |
-| `bne.un` | ❌ | — |
-| `bne.un.s` | ❌ | — |
+| `beq` | ✅ | ❌ |
+| `beq.s` | ✅ | ❌ |
+| `bge` | ✅ | ❌ |
+| `bge.s` | ✅ | ❌ |
+| `bge.un` | ✅ | ❌ |
+| `bge.un.s` | ✅ | ❌ |
+| `bgt` | ✅ | ❌ |
+| `bgt.s` | ✅ | ❌ |
+| `bgt.un` | ✅ | ❌ |
+| `bgt.un.s` | ✅ | ❌ |
+| `ble` | ✅ | ❌ |
+| `ble.s` | ✅ | ❌ |
+| `ble.un` | ✅ | ❌ |
+| `ble.un.s` | ✅ | ❌ |
+| `blt` | ✅ | ❌ |
+| `blt.s` | ✅ | ❌ |
+| `blt.un` | ✅ | ❌ |
+| `blt.un.s` | ✅ | ❌ |
+| `bne.un` | ✅ | ❌ |
+| `bne.un.s` | ✅ | ❌ |
 | `box` | ❌ | — |
 | `br` | ✅ | ❌ |
 | `br.s` | ✅ | ✅ |

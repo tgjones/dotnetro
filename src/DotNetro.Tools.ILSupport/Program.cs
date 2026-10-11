@@ -96,6 +96,18 @@ static HashSet<string> ReadImplementedOpcodes(string translatorPath)
         result.Add(match.Groups[1].Value);
     }
 
+    // The compare-and-branch family is dispatched through a guard arm
+    // (`case var _ when TryGetCompareBranch(...)`) rather than per-opcode labels,
+    // so read the opcodes the helper recognises from its body.
+    var helperIndex = text.IndexOf("static bool TryGetCompareBranch(", StringComparison.Ordinal);
+    if (helperIndex >= 0)
+    {
+        var helperEnd = text.IndexOf("return false;", helperIndex, StringComparison.Ordinal);
+        foreach (System.Text.RegularExpressions.Match match in
+            System.Text.RegularExpressions.Regex.Matches(text[helperIndex..helperEnd], @"ILOpCode\.(\w+)"))
+            result.Add(match.Groups[1].Value);
+    }
+
     return result;
 }
 
