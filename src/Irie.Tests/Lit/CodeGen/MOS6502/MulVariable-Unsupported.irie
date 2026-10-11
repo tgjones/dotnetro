@@ -1,0 +1,9 @@
+; RUN: not @iriec --target mos6502 --emit=asm @file
+
+; Variable * variable has no legalization yet either.
+
+func @MulVar : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.muli %0, %1
+    core.return %2
+}

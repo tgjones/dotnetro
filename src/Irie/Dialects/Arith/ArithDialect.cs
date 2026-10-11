@@ -26,6 +26,7 @@ public sealed class ArithDialect : Dialect
         ArithOp.Shl        => "shl",
         ArithOp.LShr       => "lshr",
         ArithOp.AShr       => "ashr",
+        ArithOp.MulI       => "muli",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown arith opcode {code}."),
     };
 
@@ -47,6 +48,7 @@ public sealed class ArithDialect : Dialect
             case "shl":               code = (ushort)ArithOp.Shl;       return true;
             case "lshr":              code = (ushort)ArithOp.LShr;      return true;
             case "ashr":              code = (ushort)ArithOp.AShr;      return true;
+            case "muli":              code = (ushort)ArithOp.MulI;      return true;
         }
         code = 0;
         return false;

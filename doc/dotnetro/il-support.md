@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 90
-- **Implemented and lit-covered:** 88
+- **Implemented:** 99
+- **Implemented and lit-covered:** 99
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -142,17 +142,17 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldfld` | ✅ | ✅ |
 | `ldflda` | ❌ | — |
 | `ldftn` | ❌ | — |
-| `ldind.i` | ❌ | — |
-| `ldind.i1` | ❌ | — |
+| `ldind.i` | ✅ | ✅ |
+| `ldind.i1` | ✅ | ✅ |
 | `ldind.i2` | ❌ | — |
-| `ldind.i4` | ❌ | — |
+| `ldind.i4` | ✅ | ✅ |
 | `ldind.i8` | ❌ | — |
 | `ldind.r4` | ❌ | — |
 | `ldind.r8` | ❌ | — |
-| `ldind.ref` | ❌ | — |
-| `ldind.u1` | ✅ | ❌ |
+| `ldind.ref` | ✅ | ✅ |
+| `ldind.u1` | ✅ | ✅ |
 | `ldind.u2` | ❌ | — |
-| `ldind.u4` | ❌ | — |
+| `ldind.u4` | ✅ | ✅ |
 | `ldlen` | ❌ | — |
 | `ldloc` | ❌ | — |
 | `ldloc.0` | ✅ | ✅ |
@@ -173,7 +173,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `leave.s` | ❌ | — |
 | `localloc` | ❌ | — |
 | `mkrefany` | ❌ | — |
-| `mul` | ❌ | — |
+| `mul` | ✅ | ✅ |
 | `mul.ovf` | ❌ | — |
 | `mul.ovf.un` | ❌ | — |
 | `neg` | ✅ | ✅ |
@@ -206,14 +206,14 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stelem.r8` | ❌ | — |
 | `stelem.ref` | ❌ | — |
 | `stfld` | ✅ | ✅ |
-| `stind.i` | ✅ | ❌ |
-| `stind.i1` | ❌ | — |
+| `stind.i` | ✅ | ✅ |
+| `stind.i1` | ✅ | ✅ |
 | `stind.i2` | ❌ | — |
-| `stind.i4` | ❌ | — |
+| `stind.i4` | ✅ | ✅ |
 | `stind.i8` | ❌ | — |
 | `stind.r4` | ❌ | — |
 | `stind.r8` | ❌ | — |
-| `stind.ref` | ❌ | — |
+| `stind.ref` | ✅ | ✅ |
 | `stloc` | ❌ | — |
 | `stloc.0` | ✅ | ✅ |
 | `stloc.1` | ✅ | ✅ |

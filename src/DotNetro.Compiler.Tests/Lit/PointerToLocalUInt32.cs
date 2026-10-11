@@ -1,0 +1,11 @@
+// RUN-dotnet: @cs_compiler @file | @dotnet_runner
+// RUN-emulated: @cs_compiler @file | @dnrc --emit program | @emulator --target-system bbcmicro
+// DIFF: dotnet emulated
+unsafe
+{
+    uint u = 1000000;
+    uint* p = &u;
+    Console.WriteLine((int)*p);
+    *p = *p + 5;
+    Console.WriteLine((int)u);
+}

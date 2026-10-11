@@ -1,0 +1,37 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; A multiply by a constant power of two compiles end to end: it is reduced to a
+; shift by ArithSimplify and lowered by the shift legalizer.
+
+; CHECK: MulBy2:
+; CHECK:     ASL
+; CHECK:     RTS
+; CHECK:
+; CHECK: MulBy4:
+; CHECK:     ASL
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ROL
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     ASL
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ROL
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @MulBy2 : (i8) -> i8 {
+bb0(%0 : i8):
+    %1 : i8 = arith.constant 2
+    %2 : i8 = arith.muli %0, %1
+    core.return %2
+}
+
+func @MulBy4 : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 4
+    %2 : i16 = arith.muli %0, %1
+    core.return %2
+}

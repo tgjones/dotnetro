@@ -693,8 +693,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldc_i4_s: PushConstant(ilReader.ReadSByte()); break;
                     case ILOpCode.Ldc_i4: PushConstant(ilReader.ReadInt32()); break;
 
-                    case ILOpCode.Add: TranslateAddSub(ArithOp.AddI); break;
-                    case ILOpCode.Sub: TranslateAddSub(ArithOp.SubI); break;
+                    case ILOpCode.Add: TranslateIntegerBinary(ArithOp.AddI); break;
+                    case ILOpCode.Sub: TranslateIntegerBinary(ArithOp.SubI); break;
+                    case ILOpCode.Mul: TranslateIntegerBinary(ArithOp.MulI); break;
                     case ILOpCode.And: TranslateBitwise(ArithOp.And); break;
                     case ILOpCode.Or: TranslateBitwise(ArithOp.Or); break;
                     case ILOpCode.Xor: TranslateBitwise(ArithOp.Xor); break;
@@ -801,12 +802,20 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Conv_i4: TranslateConv(IRType.I32, signed: true); break;
                     case ILOpCode.Conv_u4: TranslateConv(IRType.I32, signed: false); break;
 
+                    case ILOpCode.Stind_i1: TranslateStind(IRType.I8); break;
+                    case ILOpCode.Stind_i4: TranslateStind(IRType.I32); break;
                     case ILOpCode.Stind_i:
+                    case ILOpCode.Stind_ref:
                         TranslateStind(IRType.I16);
                         break;
 
-                    case ILOpCode.Ldind_u1:
-                        TranslateLdindU1();
+                    case ILOpCode.Ldind_i1: TranslateLdind(IRType.I8, signed: true); break;
+                    case ILOpCode.Ldind_u1: TranslateLdind(IRType.I8, signed: false); break;
+                    case ILOpCode.Ldind_i4: TranslateLdind(IRType.I32, signed: true); break;
+                    case ILOpCode.Ldind_u4: TranslateLdind(IRType.I32, signed: false); break;
+                    case ILOpCode.Ldind_i:
+                    case ILOpCode.Ldind_ref:
+                        TranslateLdind(IRType.I16, signed: false);
                         break;
 
                     case ILOpCode.Ret:
@@ -1185,7 +1194,11 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(vreg, IRType.I32));
         }
 
-        private void TranslateAddSub(ArithOp op)
+        // add / sub / mul: the carrying integer binary ops, whose result depends on
+        // the bits above the operands' width (see the byte promotion below).
+        // `mul` is only legalized by Irie for a constant power of two (reduced to
+        // a shift); any other multiply is rejected there.
+        private void TranslateIntegerBinary(ArithOp op)
         {
             var right = _stack.Pop();
             var left = _stack.Pop();
@@ -1277,7 +1290,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(type)),
                     new VirtualReg(value, IsDefinition: true),
                     new VirtualReg(addr, IsDefinition: false));
-                _stack.Push(new StackValue(value, type));
+                _stack.Push(new StackValue(value, type, IsSignedClr(_localClrTypes[index])));
                 return;
             }
 
@@ -2016,7 +2029,7 @@ internal sealed class IlToMirTranslator : IDisposable
             return result;
         }
 
-        // ldind.u1 → load a byte from the i16 pointer on top of stack.
+        // ldind.* → load a value from the i16 pointer on top of stack.
         //
         // Stack-type note: real IL zero-extends the loaded byte to i32 on the
         // evaluation stack. We deliberately model the result as i8, not i32, so
@@ -2025,21 +2038,25 @@ internal sealed class IlToMirTranslator : IDisposable
         // it is intentional, and matches how every current caller uses the byte
         // (compare-to-zero, pass to an i8 parameter). Revisit only if a future
         // caller actually needs the zero-extended i32 semantics.
-        private void TranslateLdindU1()
+        //
+        // ldind.i1/u1 → i8, ldind.i4/u4 → i32, ldind.i/ref → i16 pointer. `signed`
+        // is the loaded value's signedness (how an i8 widens later).
+        private void TranslateLdind(IRType type, bool signed)
         {
             var addr = _stack.Pop();
-            var value = _function.CreateVirtualRegister(IRType.I8);
-            _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadI8),
+            var value = _function.CreateVirtualRegister(type);
+            _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(type)),
                 new VirtualReg(value, IsDefinition: true),
                 new VirtualReg(addr.Vreg, IsDefinition: false));
-            _stack.Push(new StackValue(value, IRType.I8));
+            _stack.Push(new StackValue(value, type, signed));
         }
 
-        // stind.i (and friends) → store the value into the pointer. Stack layout
+        // stind.i1/i4/i/ref → store the value into the pointer, truncated to the
+        // store width (the IL stack holds an int32 for stind.i1). Stack layout
         // (top first): value, then the destination pointer.
         private void TranslateStind(IRType type)
         {
-            var value = _stack.Pop();
+            var value = Resize(PopMaterialised(), type);
             var addr = _stack.Pop();
             _builder.BuildInstruction(MemDialect.OpRef(StoreOpFor(type)),
                 new VirtualReg(addr.Vreg, IsDefinition: false),

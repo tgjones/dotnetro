@@ -1,4 +1,5 @@
 using Irie.Dialects.Arith;
+using Irie.Dialects.Cast;
 using Irie.Mir;
 
 namespace Irie.Passes;
@@ -16,9 +17,11 @@ namespace Irie.Passes;
 // The transferable lesson from InstCombine's monolithic design is the
 // worklist-to-fixpoint shape, not the grab-bag of rules: when a rewrite lands,
 // re-enqueue the instructions that now use the new value, so an enabled outer
-// fold runs in the same pass. There is currently exactly one rule (add/sub
-// reassociation); a second rule would slot into the same worklist rather than a
-// separate pass (so they share the traversal and a consistent canonical form).
+// fold runs in the same pass. There are two rules: add/sub reassociation and
+// multiply strength reduction (`muli x, 2^k` → `shl x, k`, `muli x, 1` → `x`, the
+// InstCombine / DAGCombiner `mul` → `shl` fold). Further rules slot into the same
+// worklist rather than a separate pass (so they share the traversal and a
+// consistent canonical form).
 //
 // Soundness: i8/i16/i32 two's-complement add/sub is associative and commutative
 // under modular wrap, and Irie's generic MIR carries no nsw/poison semantics, so
@@ -43,22 +46,94 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         var worklist = new Queue<MirInstruction>();
         foreach (var block in function.Blocks)
             foreach (var instr in block.Instructions)
-                if (IsAddSub(instr))
+                if (IsCandidate(instr))
                     worklist.Enqueue(instr);
 
         while (worklist.Count > 0)
         {
             var instr = worklist.Dequeue();
-            if (instr.Parent is null || !IsAddSub(instr)) continue; // already folded away
-            if (TrySimplify(function, builder, instr, out var newResult))
+            if (instr.Parent is null || !IsCandidate(instr)) continue; // already folded away
+            var simplified = IsMul(instr)
+                ? TrySimplifyMul(function, builder, instr, out var newResult)
+                : TrySimplify(function, builder, instr, out newResult);
+            if (simplified)
                 foreach (var user in UsersOf(function, newResult))
-                    if (IsAddSub(user))
+                    if (IsCandidate(user))
                         worklist.Enqueue(user);
         }
 
         // The folded-away root, the absorbed single-use intermediates, and any now
         // unused shared constant defs are all trivially dead — sweep them.
         RemoveDeadArith(function, builder);
+    }
+
+    private static bool IsCandidate(MirInstruction instr) => IsAddSub(instr) || IsMul(instr);
+
+    private static bool IsMul(MirInstruction instr) =>
+        instr.Opcode.Dialect == ArithDialect.Id && (ArithOp)instr.Opcode.Code == ArithOp.MulI;
+
+    // Multiply by a constant power of two: `muli x, 2^k` → `shl x, k` (the shift
+    // amount is an i8 constant, as the legalizer's shift lowering requires), and
+    // `muli x, 1` → `x`. The constant may be either operand. Any other multiply
+    // is left alone for the legalizer to accept or reject.
+    private static bool TrySimplifyMul(MirFunction function, MirBuilder builder, MirInstruction instr, out int newResult)
+    {
+        newResult = -1;
+
+        if (instr.Operands is not [VirtualReg { IsDefinition: true } resultDef,
+                                   VirtualReg aUse, VirtualReg bUse])
+            return false;
+
+        if (function.GetVRegAnnotation(resultDef.Id) is not TypedVReg { Type: IntegerType intType }
+            || intType.SizeInBits < 8)
+            return false;
+
+        int valueVreg;
+        long factor;
+        if (TryGetConstant(function, bUse.Id) is { } bConst) { valueVreg = aUse.Id; factor = bConst; }
+        else if (TryGetConstant(function, aUse.Id) is { } aConst) { valueVreg = bUse.Id; factor = aConst; }
+        else return false;
+
+        var bits = intType.SizeInBits;
+        var mask = bits >= 64 ? ~0L : (1L << bits) - 1;
+        factor &= mask;
+        if (factor <= 0 || (factor & (factor - 1)) != 0)
+            return false;
+
+        if (factor == 1)
+        {
+            function.ReplaceAllUsesOfRegister(resultDef.Id, valueVreg);
+            // Erase the now-dead multiply immediately: it still uses valueVreg, so
+            // it would otherwise be re-enqueued as a user of the new result.
+            builder.Remove(instr);
+            newResult = valueVreg;
+            return true;
+        }
+
+        builder.SetInsertionPointBefore(instr);
+        var amount = builder.BuildConstant(IRType.I8, System.Numerics.BitOperations.Log2((ulong)factor));
+        var shifted = BuildBinary(function, builder, ArithOp.Shl, intType, valueVreg, amount);
+        function.ReplaceAllUsesOfRegister(resultDef.Id, shifted);
+        builder.Remove(instr);
+        newResult = shifted;
+        return true;
+    }
+
+    // The value of an `arith.constant`, looking through `cast.trunc` of one (a
+    // front end narrowing an int32 constant to pointer width leaves exactly that).
+    // The caller masks the value to its own result width, which also applies the
+    // truncation.
+    private static long? TryGetConstant(MirFunction function, int vreg)
+    {
+        var def = function.GetDefinition(vreg);
+        if (def is { Opcode: var opcode, Operands: [_, VirtualReg source] }
+            && opcode == CastDialect.OpRef(CastOp.Trunc))
+            def = function.GetDefinition(source.Id);
+
+        return def is { Opcode: var constOpcode, Operands: [_, Immediate imm] }
+            && constOpcode == ArithDialect.OpRef(ArithOp.Constant)
+                ? imm.Value
+                : null;
     }
 
     private static bool IsAddSub(MirInstruction instr) =>

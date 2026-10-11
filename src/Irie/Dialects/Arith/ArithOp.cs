@@ -60,4 +60,12 @@ public enum ArithOp : ushort
     Shl,
     LShr,
     AShr,
+
+    // %r = arith.muli %a, %b
+    // Integer multiply (low half of the product). Appended last to keep existing
+    // opcode numbering stable. No target legalizes a general multiply yet: the
+    // generic ArithSimplifyPass strength-reduces a multiply by a constant power
+    // of two to `arith.shl` (and by 1 to a copy), and anything else is rejected
+    // by the legalizer until a runtime-helper libcall lowering exists.
+    MulI,
 }

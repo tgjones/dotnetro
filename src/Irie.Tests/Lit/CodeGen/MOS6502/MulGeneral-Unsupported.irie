@@ -1,0 +1,11 @@
+; RUN: not @iriec --target mos6502 --emit=asm @file
+
+; A multiply by a non-power-of-two constant has no legalization yet (it needs a
+; runtime-helper libcall), so the legalizer rejects it.
+
+func @MulBy3 : (i8) -> i8 {
+bb0(%0 : i8):
+    %1 : i8 = arith.constant 3
+    %2 : i8 = arith.muli %0, %1
+    core.return %2
+}
