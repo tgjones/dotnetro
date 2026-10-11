@@ -530,6 +530,16 @@ internal sealed class IlToMirTranslator : IDisposable
                 or PrimitiveTypeCode.Int32 or PrimitiveTypeCode.Int64
         };
 
+    // Whether values of a CLR type are addresses: every i16-represented type
+    // except the 16-bit integers.
+    private static bool IsPointerClr(TypeDescription type) =>
+        ToIRType(type).Equals(IRType.I16)
+        && type is not PrimitiveType
+        {
+            PrimitiveTypeCode: PrimitiveTypeCode.Int16 or PrimitiveTypeCode.UInt16
+                or PrimitiveTypeCode.Char
+        };
+
     private static IRType ToIRType(TypeDescription type)
     {
         if (type is PrimitiveType primitive)
@@ -540,6 +550,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 PrimitiveTypeCode.Boolean => IRType.I8,
                 PrimitiveTypeCode.Byte or PrimitiveTypeCode.SByte => IRType.I8,
                 PrimitiveTypeCode.Int32 or PrimitiveTypeCode.UInt32 => IRType.I32,
+                PrimitiveTypeCode.Int16 or PrimitiveTypeCode.UInt16 or PrimitiveTypeCode.Char => IRType.I16,
                 PrimitiveTypeCode.IntPtr or PrimitiveTypeCode.UIntPtr => IRType.I16,
                 // A managed string / object is a heap reference: a 16-bit pointer
                 // on the 6502 (the pointer @ReadLine returns / @WriteLineString
@@ -727,7 +738,7 @@ internal sealed class IlToMirTranslator : IDisposable
                         break;
 
                     case ILOpCode.Ldnull:
-                        _stack.Push(new StackValue(_builder.BuildConstant(IRType.Pointer, 0), IRType.Pointer));
+                        _stack.Push(StackValue.Ptr(_builder.BuildConstant(IRType.Pointer, 0)));
                         break;
 
                     case ILOpCode.Ldc_i4_0: PushConstant(0); break;
@@ -849,14 +860,17 @@ internal sealed class IlToMirTranslator : IDisposable
 
                     case ILOpCode.Conv_i:
                     case ILOpCode.Conv_u:
-                        TranslateConv(IRType.I16, signed: false);
+                        TranslateConv(IRType.I16, signed: false, pointer: true);
                         break;
                     case ILOpCode.Conv_i1: TranslateConv(IRType.I8, signed: true); break;
                     case ILOpCode.Conv_u1: TranslateConv(IRType.I8, signed: false); break;
+                    case ILOpCode.Conv_i2: TranslateConv(IRType.I16, signed: true); break;
+                    case ILOpCode.Conv_u2: TranslateConv(IRType.I16, signed: false); break;
                     case ILOpCode.Conv_i4: TranslateConv(IRType.I32, signed: true); break;
                     case ILOpCode.Conv_u4: TranslateConv(IRType.I32, signed: false); break;
 
                     case ILOpCode.Stind_i1: TranslateStind(IRType.I8); break;
+                    case ILOpCode.Stind_i2: TranslateStind(IRType.I16); break;
                     case ILOpCode.Stind_i4: TranslateStind(IRType.I32); break;
                     case ILOpCode.Stind_i:
                     case ILOpCode.Stind_ref:
@@ -865,11 +879,13 @@ internal sealed class IlToMirTranslator : IDisposable
 
                     case ILOpCode.Ldind_i1: TranslateLdind(IRType.I8, signed: true); break;
                     case ILOpCode.Ldind_u1: TranslateLdind(IRType.I8, signed: false); break;
+                    case ILOpCode.Ldind_i2: TranslateLdind(IRType.I16, signed: true); break;
+                    case ILOpCode.Ldind_u2: TranslateLdind(IRType.I16, signed: false); break;
                     case ILOpCode.Ldind_i4: TranslateLdind(IRType.I32, signed: true); break;
                     case ILOpCode.Ldind_u4: TranslateLdind(IRType.I32, signed: false); break;
                     case ILOpCode.Ldind_i:
                     case ILOpCode.Ldind_ref:
-                        TranslateLdind(IRType.I16, signed: false);
+                        TranslateLdind(IRType.I16, signed: false, pointer: true);
                         break;
 
                     case ILOpCode.Newarr:
@@ -881,16 +897,19 @@ internal sealed class IlToMirTranslator : IDisposable
                         break;
                     case ILOpCode.Ldelem_i1: TranslateLdelem(IRType.I8, signed: true); break;
                     case ILOpCode.Ldelem_u1: TranslateLdelem(IRType.I8, signed: false); break;
+                    case ILOpCode.Ldelem_i2: TranslateLdelem(IRType.I16, signed: true); break;
+                    case ILOpCode.Ldelem_u2: TranslateLdelem(IRType.I16, signed: false); break;
                     case ILOpCode.Ldelem_i4: TranslateLdelem(IRType.I32, signed: true); break;
                     case ILOpCode.Ldelem_u4: TranslateLdelem(IRType.I32, signed: false); break;
                     case ILOpCode.Ldelem_i:
                     case ILOpCode.Ldelem_ref:
-                        TranslateLdelem(IRType.I16, signed: false);
+                        TranslateLdelem(IRType.I16, signed: false, pointer: true);
                         break;
                     case ILOpCode.Ldelem:
                         TranslateLdelem(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
                     case ILOpCode.Stelem_i1: TranslateStelem(IRType.I8); break;
+                    case ILOpCode.Stelem_i2: TranslateStelem(IRType.I16); break;
                     case ILOpCode.Stelem_i4: TranslateStelem(IRType.I32); break;
                     case ILOpCode.Stelem_i:
                     case ILOpCode.Stelem_ref:
@@ -1328,32 +1347,32 @@ internal sealed class IlToMirTranslator : IDisposable
         // which RequireLibcallHelper links in.
         private void TranslateIntegerBinary(ArithOp op)
         {
-            var right = _stack.Pop();
-            var left = _stack.Pop();
-            // ECMA-335 keeps bytes on the stack as int32, so `byte + byte` carries
-            // into bit 8. Widen here and let Irie narrow it back when only the low
-            // byte is demanded (e.g. a following conv.u1): the dead high-byte adds
-            // are deleted by the legalizer.
-            if (left.Type.Equals(IRType.I8) && right.Type.Equals(IRType.I8))
+            // ECMA-335 keeps bytes and 16-bit integers on the stack as int32, so
+            // `byte + byte` carries into bit 8. Widen here and let Irie narrow it
+            // back when only the low byte is demanded (e.g. a following conv.u1):
+            // the dead high-byte adds are deleted by the legalizer.
+            var right = PromoteNarrow(_stack.Pop());
+            var left = PromoteNarrow(_stack.Pop());
+            if (left.IsPointer != right.IsPointer)
             {
-                left = Resize(left, IRType.I32);
-                right = Resize(right, IRType.I32);
-            }
-            if (!left.Type.Equals(right.Type))
-            {
-                // Pointer arithmetic: an i16 pointer plus an i32 index/offset. IL
-                // leaves the index as i32 (no conv) and relies on the pointer's
+                // Pointer arithmetic: an i16 pointer plus an integer index/offset.
+                // IL leaves the index as i32 (no conv) and relies on the pointer's
                 // width (also for sub) — e.g. `q++` on a byte* emits `ldloc q; ldc.i4.1; add`.
-                // Narrow the i32 side to the pointer's i16 width and produce an
-                // i16 result. Any other width combination is a real gap — keep it
-                // visible.
-                if (left.Type.Equals(IRType.I16) && right.Type.Equals(IRType.I32))
-                    right = new StackValue(NarrowToI16(right.Vreg), IRType.I16);
-                else if (left.Type.Equals(IRType.I32) && right.Type.Equals(IRType.I16))
-                    left = new StackValue(NarrowToI16(left.Vreg), IRType.I16);
-                else
-                    UnifyWidths(ref left, ref right);
+                // Resize the integer side to the pointer's i16 width.
+                if (left.IsPointer) right = Resize(right, IRType.I16);
+                else left = Resize(left, IRType.I16);
             }
+            else if (!left.Type.Equals(right.Type))
+            {
+                UnifyWidths(ref left, ref right);
+            }
+
+            var isPointer = op switch
+            {
+                ArithOp.AddI => left.IsPointer || right.IsPointer,
+                ArithOp.SubI => left.IsPointer && !right.IsPointer,
+                _ => false,
+            };
 
             if (op is ArithOp.MulI or ArithOp.UDivI or ArithOp.SDivI or ArithOp.URemI or ArithOp.SRemI)
                 RequireLibcallHelper(op, left, right);
@@ -1363,7 +1382,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(result, IsDefinition: true),
                 new VirtualReg(left.Vreg, IsDefinition: false),
                 new VirtualReg(right.Vreg, IsDefinition: false));
-            _stack.Push(new StackValue(result, left.Type));
+            _stack.Push(new StackValue(result, left.Type, IsPointer: isPointer));
         }
 
         // Link in the math helper Irie's legalizer will call for this multiply /
@@ -1391,7 +1410,7 @@ internal sealed class IlToMirTranslator : IDisposable
         }
 
         // Whether `value` is an arith.constant (possibly narrowed by a cast.trunc,
-        // as NarrowToI16 leaves it) that is a positive power of two at its width.
+        // as a narrowing Resize leaves it) that is a positive power of two at its width.
         private bool IsPowerOfTwoConstant(StackValue value)
         {
             var def = _function.GetDefinition(value.Vreg);
@@ -1453,6 +1472,11 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
+        // Push a value loaded from storage of CLR type `clr`, flagging
+        // pointer-like types (references, pointers, IntPtr) as such.
+        private void PushTyped(int vreg, IRType type, TypeDescription clr) =>
+            _stack.Push(new StackValue(vreg, type, IsSignedClr(clr), IsPointerClr(clr)));
+
         private void TranslateLdloc(int index)
         {
             if (_localIsFrameSlot[index])
@@ -1462,7 +1486,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 {
                     // Loading a struct local pushes its address; the value is
                     // consumed in place (ldfld) or copied on the next stloc.
-                    _stack.Push(new StackValue(addr, IRType.Pointer));
+                    _stack.Push(StackValue.Ptr(addr));
                     return;
                 }
 
@@ -1472,14 +1496,14 @@ internal sealed class IlToMirTranslator : IDisposable
                 _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(type)),
                     new VirtualReg(value, IsDefinition: true),
                     new VirtualReg(addr, IsDefinition: false));
-                _stack.Push(new StackValue(value, type, IsSignedClr(_localClrTypes[index])));
+                PushTyped(value, type, _localClrTypes[index]);
                 return;
             }
 
             if (!_locals.TryGetValue(index, out var ssaValue))
                 throw new NotSupportedException(
                     $"IL→MIR: ldloc of uninitialized local {index} (method {_method.UniqueName}).");
-            _stack.Push(ssaValue with { IsSigned = IsSignedClr(_localClrTypes[index]) });
+            PushTyped(ssaValue.Vreg, ssaValue.Type, _localClrTypes[index]);
         }
 
         // ldloca.N → push the address of the local's frame slot (a managed
@@ -1490,7 +1514,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 throw new InvalidOperationException(
                     $"IL→MIR: ldloca of non-FrameSlot local {index} (method {_method.UniqueName}).");
             var addr = _builder.BuildFrameAddr(index);
-            _stack.Push(new StackValue(addr, IRType.Pointer));
+            _stack.Push(StackValue.Ptr(addr));
         }
 
         private void TranslateLdarg(int index)
@@ -1500,8 +1524,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     $"IL→MIR: ldarg {index} out of range (method {_method.UniqueName}).");
             var type = ToIRType(_method.Parameters[index].Type);
 
-            _stack.Push(new StackValue(_parameterVregs[index], type,
-                IsSignedClr(_method.Parameters[index].Type)));
+            PushTyped(_parameterVregs[index], type, _method.Parameters[index].Type);
         }
 
         // br / br.s → cf.br to the target block, passing current locals as args.
@@ -1517,6 +1540,13 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var right = PopMaterialised();
             var left = PopMaterialised();
+            // Two narrow operands of the same signedness combine bitwise at their
+            // own width (extension commutes with and/or/xor); otherwise promote.
+            if (left.Type.Equals(right.Type) && left.IsSigned != right.IsSigned)
+            {
+                left = PromoteNarrow(left);
+                right = PromoteNarrow(right);
+            }
             UnifyWidths(ref left, ref right);
 
             var result = _function.CreateVirtualRegister(left.Type);
@@ -1524,7 +1554,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(result, IsDefinition: true),
                 new VirtualReg(left.Vreg, IsDefinition: false),
                 new VirtualReg(right.Vreg, IsDefinition: false));
-            _stack.Push(new StackValue(result, left.Type));
+            _stack.Push(new StackValue(result, left.Type, left.IsSigned && right.IsSigned));
         }
 
         // shl / shr / shr.un: shift the value by an int32 amount. A byte operand is
@@ -1536,8 +1566,7 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var amount = PopMaterialised();
             var value = PopMaterialised();
-            if (value.Type.Equals(IRType.I8))
-                value = Resize(value, IRType.I32);
+            value = PromoteNarrow(value);
 
             int amountVreg;
             if (_function.GetDefinition(amount.Vreg) is
@@ -1558,7 +1587,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // not: bitwise complement, `x ^ -1` at the operand's width.
         private void TranslateNot()
         {
-            var value = PromoteByte(PopMaterialised());
+            var value = PromoteNarrow(PopMaterialised());
             var allOnes = _builder.BuildConstant(value.Type, -1);
             var result = _function.CreateVirtualRegister(value.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.Xor),
@@ -1571,7 +1600,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // neg: two's-complement negation, `0 - x` at the operand's width.
         private void TranslateNeg()
         {
-            var value = PromoteByte(PopMaterialised());
+            var value = PromoteNarrow(PopMaterialised());
             var zero = _builder.BuildConstant(value.Type, 0);
             var result = _function.CreateVirtualRegister(value.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.SubI),
@@ -1581,11 +1610,14 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, value.Type));
         }
 
-        // A byte on the IL evaluation stack is an int32 (ECMA-335 §III.1.1): widen
-        // an i8 to i32 by its signedness before an operation whose result depends
-        // on the bits above bit 7 (neg, not, add, sub).
-        private StackValue PromoteByte(StackValue value) =>
-            value.Type.Equals(IRType.I8) ? Resize(value, IRType.I32) : value;
+        // A byte or 16-bit integer on the IL evaluation stack is an int32
+        // (ECMA-335 §III.1.1): widen an i8 / i16 integer to i32 by its signedness
+        // before an operation whose result depends on the bits above its width
+        // (neg, not, add, sub, shifts, compares). Pointers stay i16.
+        private StackValue PromoteNarrow(StackValue value) =>
+            !value.IsPointer && value.Type.SizeInBits is 8 or 16
+                ? Resize(value, IRType.I32)
+                : value;
 
         // Convert an integer stack value to `to`'s width: truncate when narrowing,
         // otherwise zero- or sign-extend according to the value's signedness. A
@@ -1605,7 +1637,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(CastDialect.OpRef(op),
                 new VirtualReg(result, IsDefinition: true),
                 new VirtualReg(value.Vreg, IsDefinition: false));
-            return value with { Vreg = result, Type = to };
+            return value with { Vreg = result, Type = to, IsPointer = false };
         }
 
         // Binary operands of different widths (an i8 byte against an i32 constant)
@@ -1621,10 +1653,11 @@ internal sealed class IlToMirTranslator : IDisposable
         // target width (truncating or extending by the source's signedness).
         // `signed` is the result's signedness for narrow results: conv.i1 yields
         // a sign-carrying byte, conv.u1 a zero-extending one.
-        private void TranslateConv(IRType to, bool signed)
+        // `pointer` marks the result as a native int (conv.i / conv.u).
+        private void TranslateConv(IRType to, bool signed, bool pointer = false)
         {
             var result = Resize(PopMaterialised(), to);
-            _stack.Push(result with { IsSigned = signed });
+            _stack.Push(result with { IsSigned = signed, IsPointer = pointer });
         }
 
         // Pops the stack, turning a pending i1 compare into a concrete 0/1 i8.
@@ -1664,8 +1697,8 @@ internal sealed class IlToMirTranslator : IDisposable
                 return;
             }
 
-            var right = PopMaterialised();
-            var left = PopMaterialised();
+            var right = PromoteNarrow(PopMaterialised());
+            var left = PromoteNarrow(PopMaterialised());
             UnifyWidths(ref left, ref right);
 
             var result = _builder.BuildCmpI(predicate, left.Vreg, right.Vreg);
@@ -1872,7 +1905,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _parent.RegisterStringGlobal(stringKey, value);
 
             var ptr = _builder.BuildMemSymbol(stringKey);
-            _stack.Push(new StackValue(ptr, IRType.Pointer));
+            _stack.Push(StackValue.Ptr(ptr));
         }
 
         // ldsfld <field> → load the static field's value via its symbolic
@@ -1889,7 +1922,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(type)),
                 new VirtualReg(value, IsDefinition: true),
                 new VirtualReg(ptr, IsDefinition: false));
-            _stack.Push(new StackValue(value, type, IsSignedClr(field.Type)));
+            PushTyped(value, type, field.Type);
         }
 
         // stsfld <field> → store the top of stack into the static field's
@@ -1922,7 +1955,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(type)),
                 new VirtualReg(value, IsDefinition: true),
                 new VirtualReg(addr, IsDefinition: false));
-            _stack.Push(new StackValue(value, type, IsSignedClr(field.Type)));
+            PushTyped(value, type, field.Type);
         }
 
         // stfld <field> → store top-of-stack into (base + offset). Stack layout
@@ -2088,8 +2121,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
             var defs = _builder.BuildCall(symbolName, returnTypes, argVregs);
             if (returnTypes.Length > 0)
-                _stack.Push(new StackValue(defs[0], returnType,
-                    IsSignedClr(callee.MethodSignature.ReturnType)));
+                PushTyped(defs[0], returnType, callee.MethodSignature.ReturnType);
         }
 
         // Pop one vreg per callee parameter (Parameters[0] is `this` for instance
@@ -2149,8 +2181,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
             var defs = _builder.BuildCallIndirect(fptr, returnTypes, argVregs);
             if (returnTypes.Length > 0)
-                _stack.Push(new StackValue(defs[0], returnType,
-                    IsSignedClr(callee.MethodSignature.ReturnType)));
+                PushTyped(defs[0], returnType, callee.MethodSignature.ReturnType);
         }
 
         // newobj <ctor> → allocate the object then run its constructor:
@@ -2187,7 +2218,7 @@ internal sealed class IlToMirTranslator : IDisposable
             Array.Copy(userArgs, 0, ctorArgs, 1, userArgCount);
             _builder.BuildCall(constructor.UniqueName, [], ctorArgs);
 
-            _stack.Push(new StackValue(ptr, IRType.Pointer));
+            _stack.Push(StackValue.Ptr(ptr));
         }
 
         // dup → re-push the top stack value (same vreg).
@@ -2202,18 +2233,6 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(vreg, IRType.I32));
         }
 
-        // Truncate a wider value (i32) to i16 via cast.trunc, returning the new
-        // vreg. Shared by conv.i/conv.u and by pointer-arithmetic add (an i16
-        // pointer plus an i32 index).
-        private int NarrowToI16(int valueVreg)
-        {
-            var result = _function.CreateVirtualRegister(IRType.I16);
-            _builder.BuildInstruction(CastDialect.OpRef(CastOp.Trunc),
-                new VirtualReg(result, IsDefinition: true),
-                new VirtualReg(valueVreg, IsDefinition: false));
-            return result;
-        }
-
         // ldind.* → load a value from the i16 pointer on top of stack.
         //
         // Stack-type note: real IL zero-extends the loaded byte to i32 on the
@@ -2226,14 +2245,17 @@ internal sealed class IlToMirTranslator : IDisposable
         //
         // ldind.i1/u1 → i8, ldind.i4/u4 → i32, ldind.i/ref → i16 pointer. `signed`
         // is the loaded value's signedness (how an i8 widens later).
-        private void TranslateLdind(IRType type, bool signed)
+        //
+        // `pointer` marks an i16 result as an address (ldind.i / ldind.ref) rather
+        // than a 16-bit integer (ldind.i2 / ldind.u2).
+        private void TranslateLdind(IRType type, bool signed, bool pointer = false)
         {
             var addr = _stack.Pop();
             var value = _function.CreateVirtualRegister(type);
             _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(type)),
                 new VirtualReg(value, IsDefinition: true),
                 new VirtualReg(addr.Vreg, IsDefinition: false));
-            _stack.Push(new StackValue(value, type, signed));
+            _stack.Push(new StackValue(value, type, signed, pointer));
         }
 
         // stind.i1/i4/i/ref → store the value into the pointer, truncated to the
@@ -2267,8 +2289,8 @@ internal sealed class IlToMirTranslator : IDisposable
                 {
                     switch (reader.GetString(reference.Name))
                     {
-                        case "Byte": case "SByte": case "Boolean": case "Char": return 1;
-                        case "Int16": case "UInt16": return 2;
+                        case "Byte": case "SByte": case "Boolean": return 1;
+                        case "Int16": case "UInt16": case "Char": return 2;
                         case "Int32": case "UInt32": return 4;
                         case "IntPtr": case "UIntPtr": case "Object": case "String":
                             return PointerSize;
@@ -2288,7 +2310,7 @@ internal sealed class IlToMirTranslator : IDisposable
             var allocArray = _parent.GetAllocArrayMethod();
             _parent.EnqueueMethod(allocArray);
             var ptr = _builder.BuildCall(allocArray.UniqueName, [IRType.Pointer], length, contentSize)[0];
-            _stack.Push(new StackValue(ptr, IRType.Pointer));
+            _stack.Push(StackValue.Ptr(ptr));
         }
 
         // ldlen → the i16 length stored at the array reference (a native unsigned
@@ -2337,14 +2359,14 @@ internal sealed class IlToMirTranslator : IDisposable
         private void TranslateLdelema(EntityHandle typeHandle)
         {
             var addr = PopElementAddress(ElementSize(typeHandle));
-            _stack.Push(new StackValue(addr, IRType.Pointer));
+            _stack.Push(StackValue.Ptr(addr));
         }
 
-        private void TranslateLdelem(IRType type, bool signed)
+        private void TranslateLdelem(IRType type, bool signed, bool pointer = false)
         {
             var addr = PopElementAddress(type.SizeInBits / 8);
-            _stack.Push(new StackValue(addr, IRType.Pointer));
-            TranslateLdind(type, signed);
+            _stack.Push(StackValue.Ptr(addr));
+            TranslateLdind(type, signed, pointer);
         }
 
         // ldelem <T>: only primitive and reference element types (whose size is
@@ -2359,10 +2381,12 @@ internal sealed class IlToMirTranslator : IDisposable
                 _ => throw new NotSupportedException(
                     $"IL→MIR: ldelem of a {ElementSize(typeHandle)}-byte element is not supported yet."),
             };
-            var signed = typeHandle.Kind == HandleKind.TypeReference
-                && _method.MetadataReader.GetString(_method.MetadataReader
-                    .GetTypeReference((TypeReferenceHandle)typeHandle).Name) is "SByte" or "Int32";
-            TranslateLdelem(type, signed);
+            var name = typeHandle.Kind == HandleKind.TypeReference
+                ? _method.MetadataReader.GetString(_method.MetadataReader
+                    .GetTypeReference((TypeReferenceHandle)typeHandle).Name)
+                : null;
+            TranslateLdelem(type, signed: name is "SByte" or "Int16" or "Int32",
+                pointer: type.Equals(IRType.I16) && name is not ("Int16" or "UInt16" or "Char"));
         }
 
         // stelem.*: stack (top first) is value, index, array.
@@ -2370,7 +2394,7 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var value = _stack.Pop();
             var addr = PopElementAddress(type.SizeInBits / 8);
-            _stack.Push(new StackValue(addr, IRType.Pointer));
+            _stack.Push(StackValue.Ptr(addr));
             _stack.Push(value);
             TranslateStind(type);
         }
@@ -2428,5 +2452,14 @@ internal sealed class IlToMirTranslator : IDisposable
     // byte-sized; IsSigned records whether an i8 came from a signed source
     // (sbyte, int, conv.i1, conv.i4), which decides sign- vs zero-extension when it
     // later meets a wider operand (see Resize / UnifyWidths).
-    private readonly record struct StackValue(int Vreg, IRType Type, bool IsSigned = false);
+    //
+    // IsPointer marks an address or native int (a heap reference, managed
+    // pointer, IntPtr, ...). Its type is i16, the same as a short/ushort/char,
+    // so the flag is what makes `add`/`sub` treat it as address arithmetic and
+    // stops 16-bit integers from being mistaken for one.
+    private readonly record struct StackValue(
+        int Vreg, IRType Type, bool IsSigned = false, bool IsPointer = false)
+    {
+        public static StackValue Ptr(int vreg) => new(vreg, IRType.Pointer, IsPointer: true);
+    }
 }

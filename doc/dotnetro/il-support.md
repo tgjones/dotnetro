@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 119
-- **Implemented and lit-covered:** 114
+- **Implemented:** 127
+- **Implemented and lit-covered:** 122
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -61,7 +61,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `constrained` | ❌ | — |
 | `conv.i` | ✅ | ✅ |
 | `conv.i1` | ✅ | ✅ |
-| `conv.i2` | ❌ | — |
+| `conv.i2` | ✅ | ✅ |
 | `conv.i4` | ✅ | ✅ |
 | `conv.i8` | ❌ | — |
 | `conv.ovf.i` | ❌ | — |
@@ -89,7 +89,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.r8` | ❌ | — |
 | `conv.u` | ✅ | ✅ |
 | `conv.u1` | ✅ | ✅ |
-| `conv.u2` | ❌ | — |
+| `conv.u2` | ✅ | ✅ |
 | `conv.u4` | ✅ | ✅ |
 | `conv.u8` | ❌ | — |
 | `cpblk` | ❌ | — |
@@ -129,14 +129,14 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldelem` | ✅ | ❌ |
 | `ldelem.i` | ✅ | ❌ |
 | `ldelem.i1` | ✅ | ✅ |
-| `ldelem.i2` | ❌ | — |
+| `ldelem.i2` | ✅ | ✅ |
 | `ldelem.i4` | ✅ | ✅ |
 | `ldelem.i8` | ❌ | — |
 | `ldelem.r4` | ❌ | — |
 | `ldelem.r8` | ❌ | — |
 | `ldelem.ref` | ✅ | ✅ |
 | `ldelem.u1` | ✅ | ✅ |
-| `ldelem.u2` | ❌ | — |
+| `ldelem.u2` | ✅ | ✅ |
 | `ldelem.u4` | ✅ | ❌ |
 | `ldelema` | ✅ | ✅ |
 | `ldfld` | ✅ | ✅ |
@@ -144,14 +144,14 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldftn` | ❌ | — |
 | `ldind.i` | ✅ | ✅ |
 | `ldind.i1` | ✅ | ✅ |
-| `ldind.i2` | ❌ | — |
+| `ldind.i2` | ✅ | ✅ |
 | `ldind.i4` | ✅ | ✅ |
 | `ldind.i8` | ❌ | — |
 | `ldind.r4` | ❌ | — |
 | `ldind.r8` | ❌ | — |
 | `ldind.ref` | ✅ | ✅ |
 | `ldind.u1` | ✅ | ✅ |
-| `ldind.u2` | ❌ | — |
+| `ldind.u2` | ✅ | ✅ |
 | `ldind.u4` | ✅ | ✅ |
 | `ldlen` | ✅ | ✅ |
 | `ldloc` | ❌ | — |
@@ -199,7 +199,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stelem` | ✅ | ❌ |
 | `stelem.i` | ✅ | ❌ |
 | `stelem.i1` | ✅ | ✅ |
-| `stelem.i2` | ❌ | — |
+| `stelem.i2` | ✅ | ✅ |
 | `stelem.i4` | ✅ | ✅ |
 | `stelem.i8` | ❌ | — |
 | `stelem.r4` | ❌ | — |
@@ -208,7 +208,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stfld` | ✅ | ✅ |
 | `stind.i` | ✅ | ✅ |
 | `stind.i1` | ✅ | ✅ |
-| `stind.i2` | ❌ | — |
+| `stind.i2` | ✅ | ✅ |
 | `stind.i4` | ✅ | ✅ |
 | `stind.i8` | ❌ | — |
 | `stind.r4` | ❌ | — |
