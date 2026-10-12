@@ -26,6 +26,11 @@ function frameworkManifest(): string {
   return JSON.stringify({ files });
 }
 
+// BBC Micro ROMs for jsbeeb, taken from the npm package at build time (never stored in the repo).
+// Only the ones the Model B + DFS 1.2 machine loads; see THIRD-PARTY-NOTICES.md.
+const jsbeebRoms = join(here, 'node_modules/jsbeeb/public/roms');
+const romFiles = ['os.rom', 'BASIC.ROM', 'b/DFS-1.2.rom'];
+
 // Serves (dev) or copies (build) the published .NET payload next to the app, and emits the
 // framework manifest. The payload is produced by `dotnet publish`, not by Vite.
 function dotnetFramework(): Plugin {
@@ -39,6 +44,14 @@ function dotnetFramework(): Plugin {
           res.end(frameworkManifest());
           return;
         }
+        const romIndex = url.indexOf('/roms/');
+        if (romIndex >= 0) {
+          const rom = url.slice(romIndex + '/roms/'.length);
+          if (!romFiles.includes(rom)) return next();
+          res.setHeader('Content-Type', 'application/octet-stream');
+          res.end(readFileSync(join(jsbeebRoms, rom)));
+          return;
+        }
         const index = url.indexOf('/_framework/');
         if (index < 0) return next();
         const file = join(frameworkDir, url.slice(index + '/_framework/'.length));
@@ -48,6 +61,12 @@ function dotnetFramework(): Plugin {
       });
     },
     closeBundle() {
+      const outDir = resolve(here, 'dist');
+      for (const rom of romFiles) {
+        mkdirSync(dirname(join(outDir, 'roms', rom)), { recursive: true });
+        cpSync(join(jsbeebRoms, rom), join(outDir, 'roms', rom));
+      }
+      cpSync(join(here, 'THIRD-PARTY-NOTICES.md'), join(outDir, 'THIRD-PARTY-NOTICES.md'));
       if (!existsSync(frameworkDir)) {
         console.warn(`dotnet-framework: ${frameworkDir} not found; run \`dotnet publish\` first. The site will not boot.`);
         return;
@@ -66,6 +85,8 @@ export default defineConfig({
   resolve: {
     alias: { 'monaco-vs': resolve(here, 'node_modules/monaco-editor/esm/vs') },
   },
+  // jsbeeb imports shaders with `?raw`, which the dependency pre-bundler cannot load; serve it as source.
+  optimizeDeps: { exclude: ['jsbeeb'] },
   worker: { format: 'es' },
   build: { target: 'es2022', chunkSizeWarningLimit: 4000 },
   plugins: [dotnetFramework()],

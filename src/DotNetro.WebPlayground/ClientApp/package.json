@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "golden-layout": "^2.6.0",
+    "jsbeeb": "^2.4.0",
     "monaco-editor": "^0.57.0"
   },
   "devDependencies": {

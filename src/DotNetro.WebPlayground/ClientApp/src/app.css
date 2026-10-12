@@ -24,3 +24,8 @@ header h1 { font-size: 14px; margin: 0; }
 #overlay.failed #overlay-error, #overlay.failed #overlay-retry { display: block; }
 #overlay.failed #overlay-track { display: none; }
 #overlay-error { color: #d13438; max-width: 30rem; text-align: center; }
+
+.bbc-screen-wrap { flex: 1; min-height: 0; position: relative; background: #000; }
+.bbc-screen { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; outline: none; }
+.bbc-screen:focus { box-shadow: inset 0 0 0 2px var(--accent); }
+.bbc-download { color: var(--accent); cursor: pointer; }
