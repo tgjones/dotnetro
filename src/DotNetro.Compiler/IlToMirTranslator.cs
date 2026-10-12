@@ -74,10 +74,15 @@ internal sealed class IlToMirTranslator : IDisposable
     private const int PointerSize = 2;
 
     public IlToMirTranslator(string rootAssemblyPath, string runtimeText)
+        : this(File.ReadAllBytes(rootAssemblyPath), HostAssemblyResolver.Instance, runtimeText)
+    {
+    }
+
+    public IlToMirTranslator(byte[] rootAssembly, IAssemblyResolver resolver, string runtimeText)
     {
         _runtimeText = runtimeText;
-        _typeSystemContext = new TypeSystemContext(PointerSize);
-        _rootAssemblyContext = _typeSystemContext.ResolveAssembly(rootAssemblyPath);
+        _typeSystemContext = new TypeSystemContext(PointerSize, resolver);
+        _rootAssemblyContext = _typeSystemContext.ResolveAssembly(rootAssembly);
     }
 
     public void Dispose() => _typeSystemContext.Dispose();

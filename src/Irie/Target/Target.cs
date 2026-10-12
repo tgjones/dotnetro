@@ -62,6 +62,11 @@ public abstract class Target
     // MirBlock.LiveIns / Successors) must therefore have already run.
     public virtual void AddFinalPasses(Irie.Passes.PassManager pm) { }
 
+    // Hand-written MIR runtime for this target (OS-call wrappers, `start`, the
+    // indirect-call trampoline, ...), as MIR text. The IL→MIR translator parses it
+    // and merges its functions into the module it produces.
+    public abstract string GetRuntime();
+
     // Default origin (load address) when --origin is not supplied; null = no opinion.
     public virtual int? DefaultOrigin => null;
 

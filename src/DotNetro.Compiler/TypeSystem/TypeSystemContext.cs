@@ -4,10 +4,16 @@ using System.Reflection.Metadata;
 
 namespace DotNetro.Compiler.TypeSystem;
 
-internal sealed class TypeSystemContext(int pointerSize) : IDisposable
+internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resolver) : IDisposable
 {
-    private readonly Dictionary<string, EcmaAssembly> _assembliesByPath = [];
-    private readonly Dictionary<string, EcmaAssembly> _assembliesByName = [];
+    // Identity: an assembly is identified by the simple name in its own metadata, so
+    // the same image reached under different names (mscorlib -> System.Private.CoreLib
+    // via type forwarders, or by file path) is one EcmaAssembly and types stay unique.
+    private readonly Dictionary<string, EcmaAssembly> _assembliesByIdentity = [];
+
+    // Cache of reference -> assembly lookups, so the resolver is asked at most once per
+    // distinct reference.
+    private readonly Dictionary<string, EcmaAssembly> _assembliesByReference = [];
 
     private readonly ConcurrentDictionary<TypeDescription, ByReferenceType> _byReferenceTypes = new();
     private readonly ConcurrentDictionary<TypeDescription, PointerType> _pointerTypes = new();
@@ -18,7 +24,7 @@ internal sealed class TypeSystemContext(int pointerSize) : IDisposable
     private readonly ConcurrentDictionary<(Instantiation, int), GenericParameter> _genericTypeParameters = new();
     private readonly ConcurrentDictionary<(TypeDescription, Instantiation), InstantiatedType> _instantiatedTypes = new();
 
-    public EcmaAssembly CoreAssembly => ResolveAssembly(new AssemblyName("mscorlib"));
+    public EcmaAssembly CoreAssembly => ResolveAssembly(new AssemblyName("System.Private.CoreLib"));
 
     public EcmaAssembly RuntimeAssembly => ResolveAssembly(new AssemblyName("DotNetro"));
 
@@ -75,25 +81,31 @@ internal sealed class TypeSystemContext(int pointerSize) : IDisposable
     }
 
     public EcmaAssembly ResolveAssembly(string assemblyPath)
+        => ResolveAssembly(File.ReadAllBytes(assemblyPath));
+
+    public EcmaAssembly ResolveAssembly(byte[] image)
     {
-        if (!_assembliesByPath.TryGetValue(assemblyPath, out var assemblyContext))
+        var identity = EcmaAssembly.ReadAssemblyName(image);
+
+        if (!_assembliesByIdentity.TryGetValue(identity, out var result))
         {
-            assemblyContext = new EcmaAssembly(this, assemblyPath);
-            _assembliesByPath.Add(assemblyPath, assemblyContext);
+            result = new EcmaAssembly(this, identity, image);
+            _assembliesByIdentity.Add(identity, result);
         }
 
-        return assemblyContext;
+        return result;
     }
 
     public EcmaAssembly ResolveAssembly(AssemblyName assemblyName)
     {
         var fullName = assemblyName.FullName;
 
-        if (!_assembliesByName.TryGetValue(fullName, out var result))
+        if (!_assembliesByReference.TryGetValue(fullName, out var result))
         {
-            var assembly = Assembly.Load(fullName);
-            result = ResolveAssembly(assembly.Location);
-            _assembliesByName.Add(fullName, result);
+            var image = resolver.Resolve(assemblyName)
+                ?? throw new InvalidOperationException($"Could not resolve assembly '{fullName}'.");
+            result = ResolveAssembly(image);
+            _assembliesByReference.Add(fullName, result);
         }
 
         return result;
@@ -101,7 +113,7 @@ internal sealed class TypeSystemContext(int pointerSize) : IDisposable
 
     public void Dispose()
     {
-        foreach (var assembly in _assembliesByPath.Values)
+        foreach (var assembly in _assembliesByIdentity.Values)
         {
             assembly.Dispose();
         }

@@ -84,7 +84,7 @@ public class MOS6502Target : Irie.Target.Target
     // OS-call wrappers, `start`, ManagedHeap_Alloc, etc. will be added in later
     // plan steps). Loaded as an embedded resource; the IL→MIR translator will
     // parse this string and merge the functions into the produced module.
-    public virtual string GetRuntime()
+    public override string GetRuntime()
     {
         const string resourceName = "Irie.Target.MOS6502.runtime.irie";
         using var stream = typeof(MOS6502Target).Assembly.GetManifestResourceStream(resourceName)

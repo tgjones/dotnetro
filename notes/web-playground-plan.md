@@ -73,7 +73,17 @@ Two distinct assembly sets, which must not be conflated: reference assemblies ha
 
 ## Work packages
 
-### WP1: make the compiler byte-based and target-pluggable (independent, testable, no UI)
+### WP1: make the compiler byte-based and target-pluggable (independent, testable, no UI) — DONE (uncommitted, pending review)
+
+Implemented as planned, with these deviations/findings:
+
+- `EcmaAssembly` has only the `(context, name, byte[] image)` ctor; the path wrapper lives on `TypeSystemContext.ResolveAssembly(string path)`. Assembly identity is the simple name read from the image's own metadata, so `mscorlib`/`System.Runtime` → `System.Private.CoreLib` forwarding yields one `EcmaAssembly` (type identity preserved).
+- `CoreAssembly` now asks the resolver for `System.Private.CoreLib` (was `mscorlib`), i.e. direction (b) of the spike item. Type-forwarders (`ExportedType`) were already followed by `EcmaAssembly.GetTypeImpl`.
+- `IAssemblyResolver` (`HostAssemblyResolver` for dnrc/tests, `InMemoryAssemblyResolver` name→bytes for the playground) is in `AssemblyResolver.cs`.
+- `Compile(CompileRequest)` returns the existing `CompilationResult`, extended with `Origin`, `Diagnostics`, `PassSnapshots`, `Succeeded` (one result type rather than a second `CompileResult`). Only `NotSupportedException` becomes a diagnostic (`source: "dotnetro"`, no line/column yet); other exceptions are compiler bugs and still throw. `Compile(path, entry)` is unchanged for callers.
+- `TargetRegistry` (`TargetDescriptor`) also carries the chip's `Encode`/`WriteAssembly` delegates so `CompilerDriver` has no MOS6502 types left; `GetRuntime()` moved up to the Irie `Target` base class.
+- **WP2 finding:** the translator resolves the declaring type of every call, so the link-time set must include `System.Console` (and the `System.Runtime` facade) as well as CoreLib and `DotNetro`. `TargetDescriptor.ImplementationAssemblies` lists `System.Private.CoreLib`, `System.Runtime`, `System.Console`, `DotNetro`. A `System.Console` *reference* assembly is probably enough (only the type/method signature is looked up); confirm in WP2.
+- Tests: `CompilerDriverTests` (in-memory vs path-based byte-identical output, unsupported-construct diagnostic, snapshots, unknown target). `dotnet test --solution src` passes in Debug and Release.
 
 1. `EcmaAssembly`: add a ctor taking `(TypeSystemContext, string name, byte[] image)`; keep the path ctor as a thin wrapper that reads the file. Key identity by name, not path.
 2. `TypeSystemContext`: introduce `IAssemblyResolver { byte[]? Resolve(AssemblyName) }` (and a by-path convenience). Default implementation keeps today's `Assembly.Load(...).Location` behaviour for dnrc/tests; the playground supplies an in-memory resolver (name → bytes) for the target's implementation assemblies (core library, `DotNetro`, later CoreLib). The resolver is obtained from the target (`TargetRegistry` entry exposes the implementation-assembly list), and must follow `ExportedType` type-forwarders.

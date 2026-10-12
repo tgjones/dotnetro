@@ -1,5 +1,7 @@
-﻿using System.Reflection.Metadata;
+﻿using System.Collections.Immutable;
+using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 
 using DotNetro.Compiler.TypeSystem;
 
@@ -7,7 +9,7 @@ namespace DotNetro.Compiler;
 
 internal sealed class EcmaAssembly : IDisposable
 {
-    private readonly string _assemblyPath;
+    private readonly string _name;
     private readonly Dictionary<FieldDefinitionHandle, EcmaField> _fields = new();
     private readonly Dictionary<MethodDefinitionHandle, EcmaMethod> _methods = new();
     private readonly Dictionary<(string, string), EcmaType> _typesByName = new();
@@ -21,15 +23,30 @@ internal sealed class EcmaAssembly : IDisposable
 
     public SignatureTypeProvider SignatureTypeProvider { get; }
 
-    public EcmaAssembly(TypeSystemContext context, string assemblyPath)
+    public EcmaAssembly(TypeSystemContext context, string name, byte[] image)
     {
         Context = context;
-        _assemblyPath = assemblyPath;
+        _name = name;
 
-        PEReader = new PEReader(File.OpenRead(assemblyPath));
+        // The PEReader reads straight from the caller's array (no copy), so the
+        // image must not be mutated afterwards.
+        PEReader = new PEReader(ImmutableCollectionsMarshal.AsImmutableArray(image));
         MetadataReader = PEReader.GetMetadataReader();
 
         SignatureTypeProvider = new SignatureTypeProvider(this);
+    }
+
+    /// <summary>
+    /// Reads the simple assembly name (e.g. <c>System.Private.CoreLib</c>) from a PE image.
+    /// This is the identity of an assembly: the same image reached through different
+    /// references (such as <c>mscorlib</c> forwarding to CoreLib) must resolve to one
+    /// <see cref="EcmaAssembly"/>, or type identity breaks.
+    /// </summary>
+    public static string ReadAssemblyName(byte[] image)
+    {
+        using var peReader = new PEReader(ImmutableCollectionsMarshal.AsImmutableArray(image));
+        var reader = peReader.GetMetadataReader();
+        return reader.GetString(reader.GetAssemblyDefinition().Name);
     }
 
     public void Dispose()
@@ -37,7 +54,7 @@ internal sealed class EcmaAssembly : IDisposable
         PEReader.Dispose();
     }
 
-    public override int GetHashCode() => _assemblyPath.GetHashCode();
+    public override int GetHashCode() => _name.GetHashCode();
 
     public EcmaMethod ResolveMethod(Handle methodHandle)
     {
