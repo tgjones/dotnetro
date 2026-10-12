@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>$(DotNetVersion)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <WasmEnableWebcil>false</WasmEnableWebcil>
+    <!-- Roslyn ships a satellite assembly per language per assembly; the playground is English-only. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DotNetro.Compiler\DotNetro.Compiler.csproj" />
+    <!-- The runtime library is compiled by the user's program at link time, not executed
+         here, so it is shipped as data (embedded below) rather than referenced. -->
+    <ProjectReference Include="..\DotNetro\DotNetro.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!--
+    Compile-time and link-time assemblies, embedded as data (see AssemblySet.cs):
+      * System.Runtime / System.Console *reference* assemblies from the targeting pack
+        serve Roslyn (user code is compiled against them) AND the DotNetro compiler
+        (System.Runtime doubles as the link-time core library — see the plan, WP2).
+      * DotNetro.dll is the runtime library the compiler links in.
+  -->
+  <Target Name="EmbedPlaygroundAssemblies"
+          BeforeTargets="AssignTargetPaths"
+          DependsOnTargets="ResolveTargetingPackAssets;ResolveProjectReferences">
+    <MSBuild Projects="..\DotNetro\DotNetro.csproj" Targets="GetTargetPath" SkipNonexistentTargets="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_PlaygroundRuntimeLib" />
+    </MSBuild>
+    <ItemGroup>
+      <_PlaygroundRef Include="@(Reference)"
+                      Condition="'%(Filename)' == 'System.Runtime' Or '%(Filename)' == 'System.Console'" />
+      <EmbeddedResource Include="@(_PlaygroundRef);@(_PlaygroundRuntimeLib)"
+                        LogicalName="assemblies/%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

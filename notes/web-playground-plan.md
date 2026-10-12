@@ -64,7 +64,7 @@ Diagnostic      { severity, message, line?, column?, source: "roslyn" | "dotnetr
 Two distinct assembly sets, which must not be conflated: reference assemblies have no method bodies, so they serve Roslyn but cannot serve a compiler that translates BCL IL.
 
 - **Compile-time references (Roslyn only):** `System.Runtime` and `System.Console` **reference** assemblies (from the `Microsoft.NETCore.App.Ref` pack, a few tens of KB each) plus the `DotNetro` runtime library. Passed to Roslyn as `MetadataReference`s. Roslyn-emitted user assemblies refer to `System.Runtime`.
-- **Link-time implementation assemblies (DotNetro compiler only):** supplied by the **target**, via the `IAssemblyResolver` (WP1). For v1 this is whatever the translator needs today: the `DotNetro` runtime library plus a core library that resolves `System.Object`, `String` etc. by name. When we start compiling BCL bodies it becomes the implementation `System.Private.CoreLib` plus the small implementation `System.Runtime` facade, so that references to `System.Runtime` follow the type-forwarders (`ExportedType`) into CoreLib. `EcmaAssembly` type resolution must follow forwarders (check whether it already does; it currently relies on the host's facade).
+- **Link-time implementation assemblies (DotNetro compiler only; spike result: for v1 the `System.Runtime` *reference* assembly is enough as the core library, see WP2):** supplied by the **target**, via the `IAssemblyResolver` (WP1). For v1 this is whatever the translator needs today: the `DotNetro` runtime library plus a core library that resolves `System.Object`, `String` etc. by name. When we start compiling BCL bodies it becomes the implementation `System.Private.CoreLib` plus the small implementation `System.Runtime` facade, so that references to `System.Runtime` follow the type-forwarders (`ExportedType`) into CoreLib. `EcmaAssembly` type resolution must follow forwarders (check whether it already does; it currently relies on the host's facade).
 - **Per-target:** stock CoreLib assumes a 32/64-bit platform with platform `#if` code. Eventually a custom or trimmed CoreLib build for 16-bit targets is likely (as NativeAOT has its own corelib). So the implementation set comes from `TargetInfo`/the target registry, not from a global constant. Cache by target id.
 - **Eager loading:** because the page compiles immediately on load, the implementation assemblies are fetched at startup alongside the runtime and Roslyn, not lazily. They count towards the startup progress total. A later build-time trimming step (stripping types unreachable from the supported surface) can shrink CoreLib once it is large.
 - The reference allow-list is one manifest (`references.json` or a `ReferenceSet` class). Growing BCL support = add a reference + add translator support; nothing else changes.
@@ -93,7 +93,40 @@ Implemented as planned, with these deviations/findings:
 6. Wire `AfterEachPass` snapshot capture behind the request flag.
 7. Tests: unit test compiling an in-memory dll through the new entry point (assert asm and image match the path-based result); run `dotnet test --solution src` in Debug and Release.
 
-### WP2: WASM spike (decide go/no-go on size and speed)
+### WP2: WASM spike (decide go/no-go on size and speed) — DONE (uncommitted, pending review)
+
+**Verdict: go.** C# source → Roslyn → IL → DotNetro → asm + `.ssd` runs in WebAssembly, and the `.ssd` bytes are identical to native `dnrc` output (checked for HelloWorld and CalliDispatchTable). Repeated compiles in one process work (no static-state problems seen over 3 runs each).
+
+**What exists:** `src/DotNetro.WebPlayground` (in `DotNetro.slnx`): `Playground` `[JSExport]` surface (`GetTargets`, `CompileCSharp(source, optimize)`, `CompileForTarget(byte[] dll, targetId, captureSnapshots)`, JSON results with base64 binaries), `RoslynCompiler`, `AssemblySet`; `wwwroot/{index.html,main.js,worker.js}` (Web Worker harness); `spike/measure.mjs` (Node measurement script, usage in its header).
+
+**Deviations/decisions:**
+- The project uses `Microsoft.NET.Sdk.WebAssembly` (the SDK underneath Blazor WebAssembly) rather than the Blazor WebAssembly SDK: there are no Razor components, so no `blazor.*`/ASP.NET payload. WebcIL is off (`WasmEnableWebcil=false`) so framework assemblies are plain PE files; `SatelliteResourceLanguages=en`; `InvariantGlobalization`.
+- **Link-time core library = the `System.Runtime` *reference* assembly (option a).** Registered under the name the translator asks for (`System.Private.CoreLib`); it defines `System.Object`/`String`, which is all the translator needs. Verified natively against **every** lit test program: the image is byte-identical to the host-CoreLib build (only `LongBranches.cs` could not be compared: its host compile fails with `BadImageFormatException` regardless). Cost: 187 KiB Brotli, versus 4.4 MiB Brotli (17 MB raw) for the host `System.Private.CoreLib` (option b), so (b) is not viable until a trimmed CoreLib exists. The target manifest (`TargetDescriptor.ImplementationAssemblies`) is the single place to switch later.
+- The three non-framework assemblies (`System.Runtime` and `System.Console` reference assemblies from the targeting pack, plus `DotNetro.dll`) are **embedded resources** of the playground assembly in this spike (MSBuild target `EmbedPlaygroundAssemblies`), so there is no fetch step. The same `System.Runtime`/`System.Console` reference assemblies feed Roslyn and the DotNetro compiler. WP3 may move them to fetched files if the byte-counting progress bar needs them separate.
+- Roslyn runs with `WithConcurrentBuild(false)` (no threads in WASM). Results are cached per (optimize, source), 16 entries.
+- Trimming: the default publish trimming (already `TrimMode=full`) worked unmodified with Roslyn. No AOT.
+
+**Measurements** (Release publish; Brotli sizes are the `.br` files the publish emits; timings are Node 26 on an M-series Mac with files read from local disk, so they exclude network; Node and Chrome share V8 and the same Mono WASM runtime):
+
+| Payload | Brotli | Raw |
+| --- | --- | --- |
+| .NET runtime (`dotnet.*`) | 1043 KiB | 3316 KiB |
+| BCL (CoreLib, Xml, Regex, ... pulled in by Roslyn) | 1162 KiB | 3538 KiB |
+| Roslyn | 1882 KiB | 6434 KiB |
+| Irie + DotNetro.Compiler + playground (incl. 3 embedded assemblies) | 338 KiB | 1316 KiB |
+| **Total** | **4425 KiB** (~4.3 MiB) | 14602 KiB |
+
+| Step | Latency |
+| --- | --- |
+| Runtime boot (`dotnet.create()` + exports) | ~120 ms |
+| First compile, HelloWorld (cold: Roslyn 730 ms + DotNetro 200 ms) | ~930 ms |
+| First compile, CalliDispatchTable (warm Roslyn) | Roslyn 115 ms + DotNetro 325 ms |
+| Warm HelloWorld | Roslyn ~15-20 ms + DotNetro ~60 ms |
+| Warm CalliDispatchTable | Roslyn ~30 ms + DotNetro ~280 ms |
+
+So cold start is ~4.3 MiB download plus ~1.1 s of boot and warm-up; edits recompile in well under half a second. The browser harness (`wwwroot`) is **untested**: there is no browser in this environment, only the Node measurement was run. To try it: `dotnet publish src/DotNetro.WebPlayground -c Release -o /tmp/dnpub && python3 -m http.server -d /tmp/dnpub/wwwroot`.
+
+**Follow-ups for WP3+:** the BCL slice is large for what Roslyn needs (Xml, Regex, Http are pulled in by Roslyn's dependency graph); try excluding/stubbing them if download size matters. `CompileForTarget` JSON currently returns the image as base64; switch to a `byte[]` return if the emulator panel wants it without the copy.
 
 1. Create `src/DotNetro.WebPlayground` (Blazor WebAssembly standalone, no UI, `[JSExport]` surface only; `net10.0`; add to `DotNetro.slnx`).
 2. Implement `Compile(source)` using Roslyn (`Microsoft.CodeAnalysis.CSharp`, in-memory emit, references loaded from fetched bytes) and `CompileForTarget`. Mirror `CsCompiler` options (global usings, AllowUnsafe, console app, Debug/Release toggle).

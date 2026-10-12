@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DotNetro playground (WP2 spike)</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 1rem; }
+    textarea, pre { width: 100%; box-sizing: border-box; font: 13px ui-monospace, monospace; }
+    textarea { height: 12rem; }
+    pre { height: 24rem; overflow: auto; background: #f4f4f4; padding: .5rem; }
+  </style>
+</head>
+<body>
+  <!-- Spike harness for WP2 only; the real shell is WP3. Serve this directory over HTTP. -->
+  <textarea id="source">Console.WriteLine("Hello, World!");</textarea>
+  <p>
+    <button id="compile" disabled>Compile</button>
+    <span id="status">loading runtime…</span>
+    <a id="download" download="MAIN.ssd" hidden>download .ssd</a>
+  </p>
+  <pre id="output"></pre>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
