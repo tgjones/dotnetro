@@ -14,10 +14,9 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
 
     public TypeDescription GetByReferenceType(TypeDescription elementType) => elementType.MakeByReferenceType();
 
-    public TypeDescription GetFunctionPointerType(MethodSignature<TypeDescription> signature)
-    {
-        throw new NotImplementedException();
-    }
+    public TypeDescription GetFunctionPointerType(MethodSignature<TypeDescription> signature) =>
+        // A function pointer is a native int; calli carries the signature itself.
+        assembly.Context.GetPrimitiveType(PrimitiveTypeCode.IntPtr);
 
     public TypeDescription GetGenericInstantiation(TypeDescription genericType, ImmutableArray<TypeDescription> typeArguments)
     {
@@ -34,10 +33,10 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
         return assembly.Context.GetGenericTypeParameter(genericContext, index);
     }
 
-    public TypeDescription GetModifiedType(TypeDescription modifier, TypeDescription unmodifiedType, bool isRequired)
-    {
-        throw new NotImplementedException();
-    }
+    public TypeDescription GetModifiedType(TypeDescription modifier, TypeDescription unmodifiedType, bool isRequired) =>
+        // Custom modifiers (e.g. the CallConv* modopts on an unmanaged calli
+        // signature) don't change the representation.
+        unmodifiedType;
 
     public TypeDescription GetPinnedType(TypeDescription elementType)
     {

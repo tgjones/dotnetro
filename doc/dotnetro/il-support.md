@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 135
-- **Implemented and lit-covered:** 130
+- **Implemented:** 140
+- **Implemented and lit-covered:** 134
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -49,7 +49,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `brtrue` | ✅ | ✅ |
 | `brtrue.s` | ✅ | ✅ |
 | `call` | ✅ | ✅ |
-| `calli` | ❌ | — |
+| `calli` | ✅ | ✅ |
 | `callvirt` | ✅ | ✅ |
 | `castclass` | ❌ | — |
 | `ceq` | ✅ | ✅ |
@@ -141,7 +141,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldelema` | ✅ | ✅ |
 | `ldfld` | ✅ | ✅ |
 | `ldflda` | ❌ | — |
-| `ldftn` | ❌ | — |
+| `ldftn` | ✅ | ✅ |
 | `ldind.i` | ✅ | ✅ |
 | `ldind.i1` | ✅ | ✅ |
 | `ldind.i2` | ✅ | ✅ |
@@ -183,7 +183,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `not` | ✅ | ✅ |
 | `or` | ✅ | ✅ |
 | `pop` | ❌ | — |
-| `readonly` | ❌ | — |
+| `readonly` | ✅ | ✅ |
 | `refanytype` | ❌ | — |
 | `refanyval` | ❌ | — |
 | `rem` | ✅ | ✅ |
@@ -228,8 +228,8 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `switch` | ✅ | ✅ |
 | `tail` | ❌ | — |
 | `throw` | ❌ | — |
-| `unaligned` | ❌ | — |
+| `unaligned` | ✅ | ❌ |
 | `unbox` | ❌ | — |
 | `unbox.any` | ❌ | — |
-| `volatile` | ❌ | — |
+| `volatile` | ✅ | ✅ |
 | `xor` | ✅ | ✅ |

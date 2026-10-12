@@ -772,6 +772,32 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Nop:
                         break;
 
+                    // volatile. prefix: the following load/store must not be
+                    // elided, merged or reordered. Nothing in Irie does any of
+                    // those to a mem.load / mem.store (they are not side-effect
+                    // free, and no pass CSEs, forwards, schedules or hoists
+                    // memory ops), so every access is already volatile and the
+                    // prefix needs no translation. The same holds for the
+                    // single-threaded target, where it only matters for hardware
+                    // registers and interrupt handlers. A future memory
+                    // optimisation must honour it (carry a flag on the op).
+                    case ILOpCode.Volatile:
+                        break;
+
+                    // unaligned. <alignment> prefix: the following access may be
+                    // misaligned. The 6502 has no alignment requirements (every
+                    // access is byte-wise), so there is nothing to do but skip
+                    // the 1-byte alignment operand.
+                    case ILOpCode.Unaligned:
+                        ilReader.ReadByte();
+                        break;
+
+                    // readonly. prefix on ldelema: the result is only read, so the
+                    // array-covariance type check may be skipped. We emit no
+                    // covariance check for ldelema, so it is a no-op.
+                    case ILOpCode.Readonly:
+                        break;
+
                     case ILOpCode.Ldnull:
                         _stack.Push(new StackValue(BuildZero(_builder, IRType.Pointer), IRType.Pointer));
                         break;
@@ -1349,7 +1375,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 case ILOpCode.Ldc_i4_s:
                 case ILOpCode.Ldloc_s: case ILOpCode.Ldloca_s:
                 case ILOpCode.Stloc_s: case ILOpCode.Ldarg_s: case ILOpCode.Ldarga_s:
-                case ILOpCode.Starg_s:
+                case ILOpCode.Starg_s: case ILOpCode.Unaligned:
                     reader.ReadByte();
                     break;
                 case ILOpCode.Ldc_i4: case ILOpCode.Call: case ILOpCode.Callvirt: case ILOpCode.Calli:
