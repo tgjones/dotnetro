@@ -94,8 +94,27 @@ async function init(baseUrl: string) {
     })
     .create();
 
+  // GitHub Pages cannot serve the publish output's .br files with a Content-Encoding header, so the
+  // deployed site ships the .gz copies and they are decompressed here. Falls back to the plain file
+  // (dev server, or a host that already compresses transparently).
+  async function fetchPayload(uri: string): Promise<Response> {
+    if (!import.meta.env.PROD) return fetch(uri);
+    const gz = await fetch(`${uri}.gz`).catch(() => null);
+    if (!gz || !gz.ok || !gz.body) return fetch(uri);
+    const headers = new Headers({ 'Content-Type': mimeFor(uri) });
+    // A host that sets Content-Encoding on .gz has already inflated the body.
+    const body = gz.headers.get('content-encoding') ? gz.body : gz.body.pipeThrough(new DecompressionStream('gzip'));
+    return new Response(body, { status: 200, headers });
+  }
+
+  function mimeFor(uri: string): string {
+    if (uri.endsWith('.wasm')) return 'application/wasm';
+    if (uri.endsWith('.js')) return 'text/javascript';
+    return 'application/octet-stream';
+  }
+
   async function countedFetch(uri: string, stage: Stage): Promise<Response> {
-    const response = await fetch(uri);
+    const response = await fetchPayload(uri);
     if (!response.ok || !response.body) throw new Error(`Failed to download ${uri}: ${response.status}`);
     const reader = response.body.getReader();
     const stream = new ReadableStream<Uint8Array>({

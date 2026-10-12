@@ -184,7 +184,15 @@ Implemented in `ClientApp/src/persistence.ts` plus wiring in `main.ts`; `fflate`
 3. Unknown or removed panel types or targets in old links must degrade gracefully (drop the panel, keep the rest).
 4. Persist the last state in `localStorage` as a convenience, with the hash taking precedence.
 
-### WP6: GitHub Pages deployment
+### WP6: GitHub Pages deployment — DONE (uncommitted, pending review)
+
+Implemented in `.github/workflows/playground.yml` and `fetchPayload` in `ClientApp/src/worker/compile.worker.ts`. `npm run build` passes; the workflow itself has **not been run** (needs a push, and Pages source set to "GitHub Actions" in repo settings), and the `.gz` loader path was not exercised in a browser.
+
+- **Workflow:** `build` job on push to `main` and on PRs touching the playground, compiler, runtime library, Irie or the workflow file (checkout with LFS, .NET 10, Node 24, `dotnet publish`, `npm ci && npm run build`, assemble, `upload-pages-artifact`); `deploy` job (push only, `pages: write` + `id-token: write`, `github-pages` environment) runs `deploy-pages`.
+- **Base path:** nothing to configure: Vite uses `base: './'`, there is no Blazor `<base href>` (own `index.html`), and the worker resolves `_framework/` against the page, so the site works under any sub-path. Assembly adds `.nojekyll` and `404.html` (copy of `index.html`).
+- **Compression:** Pages cannot send the publish output's `.br` files with `Content-Encoding`, so the workflow deletes them and the production worker fetches `<file>.gz`, inflating with `DecompressionStream('gzip')` (falls back to the plain file if the `.gz` is missing or the host already set `Content-Encoding`). Byte-count progress still matches the manifest because it counts inflated bytes. Dev (`npm run dev`) fetches plain files.
+
+(Original WP6 plan, kept for reference:)
 
 1. Workflow `.github/workflows/playground.yml`: on push to `main` (and a build-only job on pull requests that touch `src/DotNetro.WebPlayground`, `src/DotNetro.Compiler`, `src/Irie`), steps: checkout (with LFS, as in ci.yml), setup-dotnet 10, `dotnet publish src/DotNetro.WebPlayground -c Release`, `npm ci && npm run build` in `ClientApp`, assemble the site, `actions/upload-pages-artifact`, `actions/deploy-pages`. Needs the `pages: write` and `id-token: write` permissions and the Pages source set to "GitHub Actions".
 2. Base path `/dotnetro/` for both the Vite build (`base`) and the Blazor `<base href>`/`--pathbase`; also `.nojekyll` and a `404.html` fallback copy of `index.html`. All asset URLs relative.

@@ -1,0 +1,84 @@
+name: Playground
+
+# Builds the web playground (src/DotNetro.WebPlayground) and deploys it to GitHub Pages on
+# pushes to main. Pull requests that touch the playground or the compiler only build it.
+# Requires Settings > Pages > Source = "GitHub Actions".
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'src/DotNetro.WebPlayground/**'
+      - 'src/DotNetro.Compiler/**'
+      - 'src/DotNetro/**'
+      - 'src/Irie/**'
+      - '.github/workflows/playground.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v5
+      with:
+        lfs: true
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: 10.0
+
+    - name: Install Node
+      uses: actions/setup-node@v5
+      with:
+        node-version: 24
+        cache: npm
+        cache-dependency-path: src/DotNetro.WebPlayground/ClientApp/package-lock.json
+
+    - name: Publish the .NET payload
+      run: dotnet publish src/DotNetro.WebPlayground -c Release
+
+    - name: Build the site
+      working-directory: src/DotNetro.WebPlayground/ClientApp
+      run: |
+        npm ci
+        npm run build
+
+    - name: Assemble the site
+      working-directory: src/DotNetro.WebPlayground/ClientApp/dist
+      run: |
+        # Pages cannot send the precompressed .br files with a Content-Encoding header, so the
+        # worker fetches the .gz files and decompresses them itself; drop the unused .br copies.
+        find _framework -name '*.br' -delete
+        touch .nojekyll
+        cp index.html 404.html
+
+    - name: Upload the site
+      uses: actions/upload-pages-artifact@v4
+      with:
+        path: src/DotNetro.WebPlayground/ClientApp/dist
+
+  deploy:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
