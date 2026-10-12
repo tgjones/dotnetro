@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DotNetro playground</title>
+  <!-- The skeleton and the startup overlay are static so they paint before any JavaScript runs. -->
+  <style>
+    :root { color-scheme: light dark; }
+    html, body { margin: 0; height: 100%; font: 13px system-ui, sans-serif; background: Canvas; color: CanvasText; }
+    #overlay { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .75rem; background: Canvas; }
+    #overlay-track { width: min(24rem, 70vw); height: 6px; background: GrayText; opacity: .3; border-radius: 3px; overflow: hidden; }
+    #overlay-bar { height: 100%; width: 0; background: #0066b8; }
+    #overlay-error, #overlay-retry { display: none; }
+  </style>
+</head>
+<body>
+  <header><h1>DotNetro playground</h1></header>
+  <div id="layout"></div>
+  <div id="overlay" role="status">
+    <strong>DotNetro</strong>
+    <div id="overlay-track"><div id="overlay-bar"></div></div>
+    <div id="overlay-stage">Starting…</div>
+    <div id="overlay-error"></div>
+    <button id="overlay-retry">Retry</button>
+  </div>
+  <noscript>The playground needs JavaScript.</noscript>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

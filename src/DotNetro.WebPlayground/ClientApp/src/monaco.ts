@@ -1,0 +1,38 @@
+import './monacoFeatures';
+import * as runtime from 'monaco-vs/editor/editor.api.js';
+import type * as Monaco from 'monaco-editor';
+import EditorWorker from './editor.worker?worker';
+
+(self as unknown as { MonacoEnvironment: Monaco.Environment }).MonacoEnvironment = {
+  getWorker: () => new EditorWorker(),
+};
+
+export const ASM_LANGUAGE = 'asm6502';
+
+// Monarch tokenizer for the MOS6502 assembly Irie emits ($FF / #$FF syntax, `;` comments).
+runtime.languages.register({ id: ASM_LANGUAGE });
+runtime.languages.setMonarchTokensProvider(ASM_LANGUAGE, {
+  ignoreCase: true,
+  mnemonics: [
+    'adc', 'and', 'asl', 'bcc', 'bcs', 'beq', 'bit', 'bmi', 'bne', 'bpl', 'brk', 'bvc', 'bvs', 'clc', 'cld', 'cli', 'clv',
+    'cmp', 'cpx', 'cpy', 'dec', 'dex', 'dey', 'eor', 'inc', 'inx', 'iny', 'jmp', 'jsr', 'lda', 'ldx', 'ldy', 'lsr', 'nop',
+    'ora', 'pha', 'php', 'pla', 'plp', 'rol', 'ror', 'rti', 'rts', 'sbc', 'sec', 'sed', 'sei', 'sta', 'stx', 'sty', 'tax',
+    'tay', 'tsx', 'txa', 'txs', 'tya',
+  ],
+  tokenizer: {
+    root: [
+      [/;.*$/, 'comment'],
+      [/^[A-Za-z_.][\w.$]*:/, 'type.identifier'], // label definition
+      [/#?\$[0-9a-f]+/, 'number.hex'],
+      [/#?<?>?\d+/, 'number'],
+      [/#[<>]?[A-Za-z_][\w.$]*/, 'number'],
+      [/[A-Za-z_.][\w.$]*/, { cases: { '@mnemonics': 'keyword', '@default': 'identifier' } }],
+      [/[(),+\-*]/, 'delimiter'],
+    ],
+  },
+} as Monaco.languages.IMonarchLanguage);
+
+// The alias import above bypasses the package's `exports` map, so the types come from the
+// package root and are applied here.
+export const monaco = runtime as unknown as typeof Monaco;
+export type { Monaco };

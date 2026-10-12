@@ -69,7 +69,7 @@ CI runs `dotnet test --solution src` in both Debug and Release configurations.
 
 - **DotNetro** — small C# runtime library compiled together with the user program; provides `ConsoleHelper` and `ManagedHeap` (`Runtime/`). BBC Micro OS-call wrappers and other hand-written routines live in `src/Irie/Target/MOS6502/runtime.irie` as MOS6502 MIR.
 
-- **DotNetro.WebPlayground** — WP2 spike of the browser playground (see `notes/web-playground-plan.md`): `Microsoft.NET.Sdk.WebAssembly` app exposing `[JSExport]` `Playground.CompileCSharp` (Roslyn) / `CompileForTarget` (`CompilerDriver.Compile(CompileRequest)`) to a Web Worker; `spike/measure.mjs` measures a `dotnet publish` of it under Node. It is built as part of `dotnet test --solution src`
+- **DotNetro.WebPlayground** — WP2 spike of the browser playground (see `notes/web-playground-plan.md`): `Microsoft.NET.Sdk.WebAssembly` app exposing `[JSExport]` `Playground.CompileCSharp` (Roslyn) / `CompileForTarget` (`CompilerDriver.Compile(CompileRequest)`) to a Web Worker; `spike/measure.mjs` measures a `dotnet publish` of it under Node. It is built as part of `dotnet test --solution src`. `ClientApp/` is the Vite + TypeScript shell (golden-layout, Monaco); build with `npm run build` after `dotnet publish src/DotNetro.WebPlayground -c Release` (see the plan's WP3 notes)
 
 - **DotNetro.Tools.ILSupport** — regenerates `doc/dotnetro/il-support.md` (`dotnet run --project src/DotNetro.Tools.ILSupport`)
 

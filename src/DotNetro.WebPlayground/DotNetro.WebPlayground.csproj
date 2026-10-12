@@ -5,6 +5,8 @@
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The Vite/TypeScript shell lives in ClientApp and has its own build; keep MSBuild globs out of node_modules. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);ClientApp/**;spike/**</DefaultItemExcludes>
     <WasmEnableWebcil>false</WasmEnableWebcil>
     <!-- Roslyn ships a satellite assembly per language per assembly; the playground is English-only. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
