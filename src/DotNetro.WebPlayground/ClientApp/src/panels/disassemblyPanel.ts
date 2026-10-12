@@ -40,6 +40,11 @@ export class DisassemblyPanel {
         option.value = t.id;
         this.targetSelect.append(option);
       }
+      if (!targets.some(t => t.id === this.targetId) && targets.length) {
+        // Old link naming a removed target: fall back to the first one.
+        state.options.targetId = targets[0].id;
+        container.setState(state as never);
+      }
       this.targetSelect.value = this.targetId;
       this.updateTitle();
     }).catch(() => {});

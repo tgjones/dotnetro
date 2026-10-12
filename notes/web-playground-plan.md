@@ -168,7 +168,16 @@ Implemented in `ClientApp/src/panels/{emulatorPanel,bbcMicroMachine}.ts`; replac
 3. Pause the emulator when the panel is hidden (GoldenLayout tab not active).
 4. The panel interface (`EmulatorPanel { loadImage(bytes, origin) }`) stays per system; registered in a map keyed by `emulatorKind`.
 
-### WP5: persistence and sharing
+### WP5: persistence and sharing — DONE (uncommitted, pending review)
+
+Implemented in `ClientApp/src/persistence.ts` plus wiring in `main.ts`; `fflate` added as a dependency. `npm run build` type-checks and builds. The codec and `sanitizeLayout` were exercised under Node (round trip, unknown panel type, dangling `upstreamId`, garbage hash); **not yet tried in a browser** (no Playwright here).
+
+- **Schema deviation:** `{ v: 1, layout }` only. Golden Layout's saved config already embeds each panel's `PanelState` (id, `upstreamId`, `options` incl. target id, Release IL and the C# source) as `componentState`, so separate `panels`/`source` maps would duplicate it.
+- **Storage:** JSON → `deflateSync` → base64url in `location.hash`, written with `history.replaceState`; saves are debounced 500 ms on Golden Layout `stateChanged` (panels call `setState`, which bubbles it) and on `pagehide`. The same string goes to `localStorage`; the hash wins on load; a corrupt/foreign hash falls through to localStorage, then the default layout.
+- **Degradation:** `sanitizeLayout` drops unknown panel types, panels whose upstream is gone (to a fixed point) and emptied containers; no survivors → default layout; a throwing `loadLayout` also falls back. An unknown target id on a disassembly panel falls back to the first target rather than dropping the panel.
+- **Sharing:** header "Copy link" button and a warning once the encoded state exceeds 8 KB. Gist import not done.
+
+(Original WP5 plan, kept for reference:)
 
 1. State schema (versioned, `v: 1`): `{ v, layout: GoldenLayout config, panels: { [id]: { type, upstreamId?, options } }, source: { [id]: text } }`. Options include target id, optimisation level, and any per-panel view settings.
 2. Serialisation: JSON → deflate (fflate) → base64url in `location.hash`. Update with `history.replaceState` (debounced); load on startup with a fallback to the default layout. Guard against oversize URLs (warn above ~8 KB; add a "copy link" button; future: gist import).

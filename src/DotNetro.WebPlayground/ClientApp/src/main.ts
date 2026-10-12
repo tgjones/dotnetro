@@ -1,4 +1,4 @@
-import { GoldenLayout, type ComponentContainer, type LayoutConfig } from 'golden-layout';
+import { GoldenLayout, LayoutConfig, type ComponentContainer } from 'golden-layout';
 import { CompileClient } from './compileClient';
 import { DEFAULT_SOURCE, SourcePanel } from './panels/sourcePanel';
 import { DisassemblyPanel } from './panels/disassemblyPanel';
@@ -7,6 +7,7 @@ import { DISASSEMBLY, EMULATOR_BBC, SOURCE, type AppContext, type PanelState } f
 import { Store } from './store';
 import { initTheme } from './theme';
 import { Overlay } from './overlay';
+import { WARN_URL_BYTES, loadSavedState, sanitizeLayout, storeState } from './persistence';
 import './app.css';
 
 initTheme();
@@ -60,7 +61,40 @@ const defaultLayout: LayoutConfig = {
   },
 };
 
-layout.loadLayout(defaultLayout);
+const saved = loadSavedState();
+const restored = saved && sanitizeLayout(saved, new Set([SOURCE, DISASSEMBLY, EMULATOR_BBC]));
+try {
+  layout.loadLayout(restored ?? defaultLayout);
+} catch (e) {
+  console.warn('Could not restore saved state, using the default layout', e);
+  layout.clear();
+  layout.loadLayout(defaultLayout);
+}
+
+// Share controls in the header: a link button and a warning once the URL gets long.
+const shareWarning = document.createElement('span');
+shareWarning.className = 'share-warning';
+const copyLink = document.createElement('button');
+copyLink.textContent = 'Copy link';
+copyLink.onclick = async () => {
+  save();
+  try { await navigator.clipboard.writeText(location.href); copyLink.textContent = 'Copied!'; }
+  catch { copyLink.textContent = 'Copy the address bar'; }
+  setTimeout(() => { copyLink.textContent = 'Copy link'; }, 2000);
+};
+document.querySelector('header')!.append(copyLink, shareWarning);
+
+// Debounced save of the whole layout (which embeds every panel's state) to the hash and localStorage.
+let saveTimer: number | undefined;
+function save() {
+  window.clearTimeout(saveTimer);
+  const length = storeState({ v: 1, layout: LayoutConfig.fromResolved(layout.saveLayout()) });
+  shareWarning.textContent = length > WARN_URL_BYTES
+    ? `Link is ${(length / 1024).toFixed(1)} KB; some chat/browsers may truncate it. Consider shortening the source.`
+    : '';
+}
+layout.on('stateChanged', () => { window.clearTimeout(saveTimer); saveTimer = window.setTimeout(save, 500); });
+window.addEventListener('pagehide', save);
 
 const resize = () => layout.setSize(layout.container.clientWidth, layout.container.clientHeight);
 window.addEventListener('resize', resize);

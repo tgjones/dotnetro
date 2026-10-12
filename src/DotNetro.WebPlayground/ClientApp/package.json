@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "golden-layout": "^2.6.0",
     "jsbeeb": "^2.4.0",
     "monaco-editor": "^0.57.0"

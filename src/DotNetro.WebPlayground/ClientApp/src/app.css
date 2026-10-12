@@ -29,3 +29,5 @@ header h1 { font-size: 14px; margin: 0; }
 .bbc-screen { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; outline: none; }
 .bbc-screen:focus { box-shadow: inset 0 0 0 2px var(--accent); }
 .bbc-download { color: var(--accent); cursor: pointer; }
+
+header .share-warning { color: #b25000; }
