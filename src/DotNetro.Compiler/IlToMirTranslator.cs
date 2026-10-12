@@ -882,6 +882,14 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateCallvirt(MetadataTokens.Handle(ilReader.ReadInt32()));
                         break;
 
+                    case ILOpCode.Calli:
+                        TranslateCalli(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+
+                    case ILOpCode.Ldftn:
+                        TranslateLdftn(MetadataTokens.Handle(ilReader.ReadInt32()));
+                        break;
+
                     case ILOpCode.Newobj:
                         TranslateNewobj(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
@@ -1344,7 +1352,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 case ILOpCode.Starg_s:
                     reader.ReadByte();
                     break;
-                case ILOpCode.Ldc_i4: case ILOpCode.Call: case ILOpCode.Callvirt:
+                case ILOpCode.Ldc_i4: case ILOpCode.Call: case ILOpCode.Callvirt: case ILOpCode.Calli:
                 case ILOpCode.Ldstr: case ILOpCode.Ldsfld: case ILOpCode.Stsfld:
                 case ILOpCode.Newobj: case ILOpCode.Ldfld: case ILOpCode.Stfld:
                 case ILOpCode.Ldsflda: case ILOpCode.Ldflda: case ILOpCode.Newarr:
@@ -2338,10 +2346,13 @@ internal sealed class IlToMirTranslator : IDisposable
 
         // Pop one vreg per callee parameter (Parameters[0] is `this` for instance
         // methods), in reverse so the deepest stack entry maps to parameter 0.
-        private int[] PopCallArgs(EcmaMethod callee)
+        private int[] PopCallArgs(EcmaMethod callee) =>
+            PopCallArgs([.. callee.Parameters.Select(p => ToIRType(p.Type))]);
+
+        private int[] PopCallArgs(IRType[] parameterTypes)
         {
-            var argVregs = new int[callee.Parameters.Length];
-            for (var i = callee.Parameters.Length - 1; i >= 0; i--)
+            var argVregs = new int[parameterTypes.Length];
+            for (var i = parameterTypes.Length - 1; i >= 0; i--)
             {
                 // An i1 compare result passed as a value (rather than consumed by
                 // a branch) is materialised into a concrete 0/1 i8 here, via the
@@ -2349,9 +2360,69 @@ internal sealed class IlToMirTranslator : IDisposable
                 // maps to i8 in ToIRType), so the materialised i8 matches. An
                 // argument of another width (an int32 constant for a byte
                 // parameter) is converted to the parameter's width.
-                argVregs[i] = Resize(PopMaterialised(), ToIRType(callee.Parameters[i].Type)).Vreg;
+                argVregs[i] = Resize(PopMaterialised(), parameterTypes[i]).Vreg;
             }
             return argVregs;
+        }
+
+        // ldftn <method> → push the address of the method's code as a ptr (the
+        // symbol the direct-call path would call). The method is enqueued so it is
+        // compiled; ldftn'd methods follow the same ABI as vtable slots, so they
+        // are valid call.indirect targets as they stand.
+        private void TranslateLdftn(Handle methodHandle)
+        {
+            var method = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
+            string symbol;
+            if (method.IsInternalCall)
+            {
+                if (!_parent.IsRuntimeFunction(method.Name))
+                    throw new NotSupportedException(
+                        $"IL→MIR: [MethodImpl(InternalCall)] method {method.UniqueName} has no " +
+                        $"matching runtime function @{method.Name} in runtime.irie.");
+                symbol = method.Name;
+            }
+            else
+            {
+                _parent.EnqueueMethod(method);
+                symbol = _parent.GetEmitNameOverride(method) ?? method.UniqueName;
+            }
+            _stack.Push(new StackValue(_builder.BuildMemSymbol(symbol), IRType.Pointer));
+        }
+
+        // calli <signature> → an indirect call through the function pointer on top
+        // of the stack, args below it. The call uses CC_MOS whatever convention the
+        // signature names: the target has a single ABI, so cdecl / stdcall /
+        // fastcall / thiscall / managed all collapse to it (as on x64 / arm64, and
+        // as clang does for MOS). Varargs and generic signatures are rejected.
+        private void TranslateCalli(EntityHandle signatureHandle)
+        {
+            var assembly = _method.DeclaringType.Assembly;
+            var signature = assembly.MetadataReader
+                .GetStandaloneSignature((StandaloneSignatureHandle)signatureHandle)
+                .DecodeMethodSignature(assembly.SignatureTypeProvider, Instantiation.Empty);
+
+            if (signature.Header.CallingConvention == SignatureCallingConvention.VarArgs)
+                throw new NotSupportedException(
+                    $"IL→MIR: calli with a vararg signature is not supported (method {_method.UniqueName}).");
+            if (signature.GenericParameterCount != 0)
+                throw new NotSupportedException(
+                    $"IL→MIR: calli with a generic signature is not supported (method {_method.UniqueName}).");
+
+            var target = AsAddress(PopMaterialised());
+
+            // An instance signature carries an explicit `this` below its listed
+            // parameters; it is a reference, so a ptr.
+            var parameterTypes = new List<IRType>();
+            if (signature.Header.IsInstance) parameterTypes.Add(IRType.Pointer);
+            parameterTypes.AddRange(signature.ParameterTypes.Select(ToIRType));
+            var argVregs = PopCallArgs([.. parameterTypes]);
+
+            var returnType = ToIRType(signature.ReturnType);
+            var returnTypes = returnType is VoidType ? Array.Empty<IRType>() : [returnType];
+
+            var defs = _builder.BuildCallIndirect(target.Vreg, returnTypes, argVregs);
+            if (returnTypes.Length > 0)
+                PushTyped(defs[0], returnType, signature.ReturnType);
         }
 
         // callvirt → a direct call when the target is non-virtual (C# emits
