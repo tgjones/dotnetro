@@ -61,7 +61,7 @@ internal sealed class EcmaMethod
 
     // [MethodImpl(MethodImplOptions.InternalCall)]: the method has no IL body and
     // is provided by the "runtime". DotNetro uses this to mark ROM-call wrappers
-    // (e.g. osasci) whose bodies are hand-written MOS6502 MIR in runtime.irie; the
+    // (e.g. PutChar) whose bodies are hand-written MOS6502 MIR in runtime.irie; the
     // translator routes calls to them straight to the matching runtime symbol
     // instead of translating a body.
     public bool IsInternalCall =>

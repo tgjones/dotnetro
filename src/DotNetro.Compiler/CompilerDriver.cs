@@ -13,7 +13,7 @@ public static class CompilerDriver
     public static CompilationResult Compile(string dotNetAssemblyPath, string entryPointMethodName)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
-            HostAssemblyResolver.Instance,
+            HostAssemblyResolver.BbcMicro,
             TargetRegistry.BbcMicroId,
             entryPointMethodName));
 

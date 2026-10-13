@@ -104,7 +104,7 @@ public sealed class CompilerDriverTests
     private static InMemoryAssemblyResolver CreateInMemoryResolver()
         => new InMemoryAssemblyResolver().Add(
             WellKnownAssemblies.CoreLib,
-            File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, WellKnownAssemblies.CoreLib + ".dll")));
+            File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "corelib", TargetRegistry.BbcMicroId, WellKnownAssemblies.CoreLib + ".dll")));
 
     private sealed class RecordingResolver(IAssemblyResolver inner) : IAssemblyResolver
     {

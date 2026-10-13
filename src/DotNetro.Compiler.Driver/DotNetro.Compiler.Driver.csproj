@@ -13,9 +13,11 @@
   <ItemGroup>
     <ProjectReference Include="..\DotNetro.Compiler\DotNetro.Compiler.csproj" />
     <!-- DotNetro.CoreLib is data for the compiler (read as metadata + IL), not a reference to compile
-         against: its System.Object would clash with the real one. Copy it beside the binary instead. -->
-    <ProjectReference Include="..\DotNetro.CoreLib\DotNetro.CoreLib.csproj"
-                      ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest" />
+         against: its System.Object would clash with the real one. Copy it beside the binary instead,
+         in a folder per target. -->
+    <ProjectReference Include="..\DotNetro.CoreLib.BbcMicro\DotNetro.CoreLib.BbcMicro.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest"
+                      Link="corelib\bbcmicro\DotNetro.CoreLib.dll" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,14 @@
+<Project>
+
+  <!--
+    One core library build per target: the shared sources (plain *.cs) plus the platform halves
+    of the target named by $(CoreLibTarget) (*.<Target>.cs). A file with any other extra
+    dot-suffix belongs to another target and is left out.
+  -->
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)**\*.cs"
+             Exclude="$(MSBuildThisFileDirectory)**\*.*.cs;$(MSBuildThisFileDirectory)bin\**;$(MSBuildThisFileDirectory)obj\**" />
+    <Compile Include="$(MSBuildThisFileDirectory)**\*.$(CoreLibTarget).cs" />
+  </ItemGroup>
+
+</Project>

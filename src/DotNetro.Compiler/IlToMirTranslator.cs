@@ -62,19 +62,15 @@ internal sealed class IlToMirTranslator : IDisposable
     private EcmaMethod? _allocMethod;
     private EcmaMethod? _allocArrayMethod;
 
-    // Lazily-resolved ConsoleHelper.WriteLineString(byte*); see GetWriteLineStringMethod.
-    private EcmaMethod? _writeLineStringMethod;
-
     // Methods that must be emitted under a fixed MIR function name rather than
-    // their UniqueName. Currently just the C# WriteLineString helper, pinned to
-    // "WriteLineString" so the hand-written runtime can keep calling it by name.
+    // their UniqueName (the math helpers the legalizer's libcalls link against).
     private readonly Dictionary<EcmaMethod, string> _emitNameOverrides = [];
 
     // Pointer size is 16-bit on the 6502.
     private const int PointerSize = 2;
 
     public IlToMirTranslator(string rootAssemblyPath, string runtimeText)
-        : this(File.ReadAllBytes(rootAssemblyPath), HostAssemblyResolver.Instance, runtimeText)
+        : this(File.ReadAllBytes(rootAssemblyPath), HostAssemblyResolver.BbcMicro, runtimeText)
     {
     }
 
@@ -110,14 +106,6 @@ internal sealed class IlToMirTranslator : IDisposable
         // fields discovered, until nothing new is enqueued.
         EnqueueMethod(entryPointMethod);
 
-        // The whole hand-written runtime is always linked in (see EnsureRuntime
-        // globals below), and @WriteLineBoolean unconditionally tail-calls
-        // @WriteLineString. Since @WriteLineString is now the translated C# helper
-        // rather than a runtime.irie function, enqueue it unconditionally so the
-        // symbol is always defined even when the program never calls
-        // Console.WriteLine(string) directly.
-        EnqueueMethod(GetWriteLineStringMethod());
-
         do
         {
             while (_methodsToVisit.Count > 0)
@@ -133,14 +121,12 @@ internal sealed class IlToMirTranslator : IDisposable
         // static-constructor list is known.
         module.Functions.Insert(0, BuildEntryFunction(entryPointMethod));
 
-        // Append the runtime functions (oswrch, osasci, WriteLineInt32, …).
+        // Append the runtime functions (oswrch, PutChar, PlatformWriteLineInt32, …).
         module.Functions.AddRange(runtimeModule.Functions);
 
-        // The whole runtime is always linked in, so the hand-written helpers
-        // that reference module globals (@WriteLineBoolean → @True_String /
-        // @False_String, @Beep → @Sound) are always present even when unused.
-        // Register those globals unconditionally so the encoder can always
-        // resolve the symbols.
+        // The whole runtime is always linked in, so the hand-written helpers that
+        // reference module globals (@PlatformBeep → @Sound) need those globals
+        // registered unconditionally for the encoder to resolve the symbols.
         EnsureRuntimeGlobals();
 
         // Vtables for every newobj'd type (registered after the walk, once all
@@ -220,24 +206,8 @@ internal sealed class IlToMirTranslator : IDisposable
         _emitNameOverrides.TryGetValue(method, out var pinned) ? pinned : null;
 
     // True if `name` matches a function supplied by the hand-written runtime
-    // (oswrch, osasci, WriteLineInt32, …). Used to validate InternalCall routing.
+    // (oswrch, PutChar, PlatformWriteLineInt32, …). Used to validate InternalCall routing.
     internal bool IsRuntimeFunction(string name) => _runtimeFunctionNames.Contains(name);
-
-    // ConsoleHelper.WriteLineString(byte*) → void, the C# replacement for the old
-    // hand-written @WriteLineString MIR. Resolved on first Console.WriteLine(string)
-    // and translated through the pipeline like any other method, but emitted under
-    // the stable MIR name "WriteLineString" so the runtime @WriteLineBoolean (which
-    // tail-calls @WriteLineString) still links. See _emitNameOverrides.
-    internal EcmaMethod GetWriteLineStringMethod()
-    {
-        if (_writeLineStringMethod != null)
-            return _writeLineStringMethod;
-
-        var consoleHelperType = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "ConsoleHelper");
-        _writeLineStringMethod = consoleHelperType.GetMethod("WriteLineString");
-        _emitNameOverrides[_writeLineStringMethod] = "WriteLineString";
-        return _writeLineStringMethod;
-    }
 
     // The dispatch table for `type`: slot index → the method that index resolves
     // to for an instance of `type`. Built base-first (so inherited slots keep
@@ -375,7 +345,7 @@ internal sealed class IlToMirTranslator : IDisposable
     // symbol name. Mirrors DotNetCompiler.CompileLdstr: the key is
     // `string{token:X8}` and the payload is the ASCII bytes followed by CR
     // (0x0D) then NUL (0x00) — i.e. the legacy `.cstring "...", 13` format.
-    // @WriteLineString loops over the bytes calling osasci (which expands CR to
+    // Console.WriteLine loops over the bytes calling PutChar (which expands CR to
     // CR/LF) until it reaches the NUL terminator.
     private string RegisterStringGlobal(string stringKey, string value)
     {
@@ -397,17 +367,9 @@ internal sealed class IlToMirTranslator : IDisposable
         return stringKey;
     }
 
-    // The runtime @WriteLineBoolean references two fixed string globals,
-    // @True_String / @False_String, holding "True" / "False" in the same
-    // CR+NUL format @WriteLineString consumes. They are registered here (rather
-    // than declared in runtime.irie) so the exact byte payload and size match
-    // every other interned string. Registered on demand the first time a
-    // Console.WriteLine(bool) call is translated.
-    private const string TrueStringSymbol = "True_String";
-    private const string FalseStringSymbol = "False_String";
     private const string SoundSymbol = "Sound";
 
-    // The OSWORD 7 (SOUND) control block @Beep points X/Y at: four little-endian
+    // The OSWORD 7 (SOUND) control block @PlatformBeep points X/Y at: four little-endian
     // 16-bit fields — channel = 1, amplitude = -15, pitch = 0, duration = 4.
     // Byte-for-byte identical to the legacy generator's `.word`/`.short` block.
     private static readonly byte[] SoundControlBlock =
@@ -415,9 +377,6 @@ internal sealed class IlToMirTranslator : IDisposable
 
     private void EnsureRuntimeGlobals()
     {
-        RegisterStringGlobal(TrueStringSymbol, "True");
-        RegisterStringGlobal(FalseStringSymbol, "False");
-
         if (!_globals.ContainsKey(SoundSymbol))
         {
             _globals[SoundSymbol] = new MirGlobal(
@@ -592,7 +551,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 PrimitiveTypeCode.Int16 or PrimitiveTypeCode.UInt16 or PrimitiveTypeCode.Char => IRType.I16,
                 PrimitiveTypeCode.IntPtr or PrimitiveTypeCode.UIntPtr => IRType.I16,
                 // A managed string / object is a heap reference: a ptr (16-bit on
-                // the 6502; the pointer @ReadLine returns / @WriteLineString
+                // the 6502; the pointer @PlatformReadLine returns / Console.WriteLine
                 // consumes; the `this` of System.Object::.ctor, base-called by
                 // every user constructor).
                 PrimitiveTypeCode.String or PrimitiveTypeCode.Object => IRType.Pointer,
@@ -2151,7 +2110,7 @@ internal sealed class IlToMirTranslator : IDisposable
         }
 
         // ldstr "..." → intern the string as a MirGlobal, push a `mem.symbol`
-        // pointer to its bytes. WriteLineString consumes that pointer.
+        // pointer to its bytes. Console.WriteLine consumes that pointer.
         private void TranslateLdstr(int token)
         {
             var value = _method.MetadataReader.GetUserString(
@@ -2314,7 +2273,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // methods), emit call.func, push the return value.
         private void TranslateDirectCall(EcmaMethod callee)
         {
-            // [MethodImpl(InternalCall)] methods (e.g. osasci) have no IL body —
+            // [MethodImpl(InternalCall)] methods (e.g. PutChar) have no IL body —
             // they are provided by the hand-written runtime. Route the call to the
             // matching runtime symbol (the method name) and don't enqueue anything.
             if (callee.IsInternalCall)
@@ -2327,38 +2286,9 @@ internal sealed class IlToMirTranslator : IDisposable
                 return;
             }
 
-            // Console.WriteLine(string) is implemented by the C# helper
-            // ConsoleHelper.WriteLineString — translate it (emitted under the
-            // stable name @WriteLineString) and call it.
-            if (callee.UniqueName == "System_Console_WriteLine_String")
-            {
-                _parent.EnqueueMethod(_parent.GetWriteLineStringMethod());
-                EmitDirectCall(callee, "WriteLineString");
-                return;
-            }
-
-            // Other special-cased BCL methods map to hand-written runtime functions
-            // (their real IL bodies are NOT translated/enqueued — the runtime
-            // MIR replaces them).
-            var pinnedName = _parent.GetEmitNameOverride(callee);
-            var calleeName = callee.UniqueName switch
-            {
-                "System_Console_WriteLine_Int32" => "WriteLineInt32",
-                "System_Console_WriteLine_Boolean" => "WriteLineBoolean",
-                "System_Console_ReadLine" => "ReadLine",
-                "System_Console_Beep" => "Beep",
-                _ => pinnedName ?? callee.UniqueName,
-            };
-            // A C# method emitted under a pinned name (the math helpers) is still
-            // ours to translate, unlike a special-cased BCL method.
-            var isSpecialCased = pinnedName is null && !ReferenceEquals(calleeName, callee.UniqueName);
-
-            // Only enqueue methods we are responsible for translating; runtime
-            // functions (and special-cased BCL methods) are skipped.
-            if (!isSpecialCased)
-                _parent.EnqueueMethod(callee);
-
-            EmitDirectCall(callee, calleeName);
+            // An ordinary method: translate it, under its pinned MIR name if it has one.
+            _parent.EnqueueMethod(callee);
+            EmitDirectCall(callee, _parent.GetEmitNameOverride(callee) ?? callee.UniqueName);
         }
 
         // Pop one vreg per callee parameter, emit `call.func <symbolName>`, and
@@ -2551,7 +2481,7 @@ internal sealed class IlToMirTranslator : IDisposable
         //
         // Stack-type note: real IL zero-extends the loaded byte to i32 on the
         // evaluation stack. We deliberately model the result as i8, not i32, so
-        // the value flows to consumers like osasci(byte) as a single CC_MOS byte
+        // the value flows to consumers like PutChar(byte) as a single CC_MOS byte
         // rather than a 4-byte value. Don't be surprised by the i8 stack type —
         // it is intentional, and matches how every current caller uses the byte
         // (compare-to-zero, pass to an i8 parameter). Revisit only if a future

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\DotNetro.CoreLib\CoreLib.props" />
+
+  <PropertyGroup>
+    <CoreLibTarget>BbcMicro</CoreLibTarget>
+  </PropertyGroup>
+
+  <Import Project="..\DotNetro.CoreLib\CoreLib.targets" />
+
+</Project>

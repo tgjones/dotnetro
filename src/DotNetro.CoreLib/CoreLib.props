@@ -1,11 +1,15 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
 
   <PropertyGroup>
     <TargetFramework>$(DotNetVersion)</TargetFramework>
+    <!-- Every per-target build has this same assembly name, so the compiler binds to one identity. -->
     <AssemblyName>DotNetro.CoreLib</AssemblyName>
     <RootNamespace>DotNetro</RootNamespace>
 
     <!--
+      Shared by the per-target core library projects (DotNetro.CoreLib.<Target>), which compile
+      the sources in this folder: every plain *.cs file plus the *.<Target>.cs files of that target.
+
       DotNetro's own core library: it defines System.Object and friends itself, so it is
       compiled with no reference to any framework assembly. It is never loaded by the
       .NET runtime; the DotNetro compiler reads it as metadata + IL and translates it

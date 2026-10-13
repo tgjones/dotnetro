@@ -119,7 +119,7 @@ internal sealed class EcmaType : TypeDescription
     }
 
     // Resolve a method by name alone. Use only for methods known to have a single
-    // overload (e.g. runtime helpers like ConsoleHelper.WriteLineString); throws
+    // overload (e.g. runtime helpers like ManagedHeap.Alloc); throws
     // if the name is absent or ambiguous so an unexpected overload is visible.
     public EcmaMethod GetMethod(string name)
     {

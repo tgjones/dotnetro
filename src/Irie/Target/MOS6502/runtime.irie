@@ -28,8 +28,8 @@ bb0(%0 : i8):
     mos6502.rts
 }
 
-; @osasci — like @oswrch but expands CR to CR/LF. JSR $FFE3.
-func @osasci : (i8) -> void {
+; @PutChar — like @oswrch but expands CR to CR/LF. JSR $FFE3.
+func @PutChar : (i8) -> void {
 bb0(%0 : i8):
     mos6502.jsr.abs 65507
     mos6502.rts
@@ -45,7 +45,7 @@ bb0(%0 : i8):
 }
 
 ; ---------------------------------------------------------------------------
-; @ReadLine : () -> ptr
+; @PlatformReadLine : () -> ptr
 ;
 ; Reads a line of input via OSWORD 0 into the BBC Micro's default input buffer
 ; at $0600, and returns that buffer pointer ($0600) as a ptr. Ported from
@@ -61,7 +61,7 @@ bb0(%0 : i8):
 ;
 ; Zero-page physregs: $67..$71 address $37..$71-12 = $37..$3B (RC(n) = 12 + n,
 ; and the sta.zp emitter encodes the byte as physreg_id - RC(0)).
-func @ReadLine : () -> ptr {
+func @PlatformReadLine : () -> ptr {
 bb0():
     $0 = mos6502.lda.imm 0
     $67 = mos6502.sta.zp $0
@@ -84,7 +84,7 @@ bb0():
 }
 
 ; ---------------------------------------------------------------------------
-; @Beep : () -> void
+; @PlatformBeep : () -> void
 ;
 ; Makes a short beep via OSWORD 7 (SOUND). Ported from
 ; DotNetro.Compiler.CodeGen.BbcMicroCodeGenerator.CompileSystemConsoleBeep.
@@ -94,7 +94,7 @@ bb0():
 ; a little-endian 16-bit field) is the @Sound global, registered by the
 ; translator. X / Y are loaded via $a (there is no ldx/ldy-immediate-symbol op),
 ; parked through the zero-page scratch slot $12 (RC0).
-func @Beep : () -> void {
+func @PlatformBeep : () -> void {
 bb0():
     $0 = mos6502.lda.imm.symlo @Sound
     $12 = mos6502.sta.zp $0
@@ -108,35 +108,9 @@ bb0():
 }
 
 ; ---------------------------------------------------------------------------
-; @WriteLineBoolean : (i8) -> void
+; @PlatformWriteLineInt32 : (i32) -> void
 ;
-; Prints "True" or "False" (each followed by CR, expanded to CR/LF by osasci)
-; depending on whether the argument is non-zero. Mirrors
-; DotNetro.Runtime.ConsoleHelper.WriteLineBoolean.
-;
-; Written in generic MIR: an `arith.cmpi ne` against 0 fused with `cf.cond_br`
-; picks the leg, and each leg loads the address of the matching string global
-; (@True_String / @False_String, registered by the translator in the same
-; CR+NUL format @WriteLineString consumes) and tail-calls @WriteLineString.
-func @WriteLineBoolean : (i8) -> void {
-bb0(%0 : i8):
-    %1 : i8 = arith.constant 0
-    %2 : i1 = arith.cmpi ne, %0, %1
-    cf.cond_br %2, bb1, bb2
-bb1():
-    %3 : ptr = mem.symbol @True_String
-    call.func @WriteLineString, %3
-    core.return
-bb2():
-    %4 : ptr = mem.symbol @False_String
-    call.func @WriteLineString, %4
-    core.return
-}
-
-; ---------------------------------------------------------------------------
-; @WriteLineInt32 : (i32) -> void
-;
-; Prints a signed 32-bit integer in decimal followed by CR (which osasci
+; Prints a signed 32-bit integer in decimal followed by CR (which PutChar
 ; expands to CR/LF). Ported from
 ; DotNetro.Compiler.CodeGen.BbcMicroCodeGenerator.CompileSystemConsoleWriteLineInt32.
 ;
@@ -158,7 +132,7 @@ bb2():
 ; printed-something flag (zp13) forces a final '0' when the value was zero.
 ;
 ; The i32 argument arrives LSB-first in $a, $x, $zp2, $zp3 per CC_MOS.
-func @WriteLineInt32 : (i32) -> void {
+func @PlatformWriteLineInt32 : (i32) -> void {
 bb0(%0 : i32):
     ; Copy the incoming value bytes into working zero-page slots zp4..zp7.
     $16 = mos6502.sta.zp $0
@@ -179,7 +153,7 @@ bb0(%0 : i32):
 bb1():
     ; Negative: print '-' then two's-complement negate the value.
     $0 = mos6502.lda.imm 45
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     $5 = mos6502.clc
     $0 = mos6502.lda.zp $16
     $0 = mos6502.eor.imm $0, 255
@@ -264,7 +238,7 @@ bb9():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb10
 bb10():
     mos6502.jmp.abs bb11
@@ -332,7 +306,7 @@ bb17():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb18
 bb18():
     mos6502.jmp.abs bb19
@@ -400,7 +374,7 @@ bb25():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb26
 bb26():
     mos6502.jmp.abs bb27
@@ -468,7 +442,7 @@ bb33():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb34
 bb34():
     mos6502.jmp.abs bb35
@@ -536,7 +510,7 @@ bb41():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb42
 bb42():
     mos6502.jmp.abs bb43
@@ -604,7 +578,7 @@ bb49():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb50
 bb50():
     mos6502.jmp.abs bb51
@@ -672,7 +646,7 @@ bb57():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb58
 bb58():
     mos6502.jmp.abs bb59
@@ -740,7 +714,7 @@ bb65():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb66
 bb66():
     mos6502.jmp.abs bb67
@@ -808,7 +782,7 @@ bb73():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb74
 bb74():
     mos6502.jmp.abs bb75
@@ -876,7 +850,7 @@ bb81():
     $0 = mos6502.lda.imm 48
     $20 = mos6502.sta.zp $0
     $0 = mos6502.lda.zp $25
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb82
 bb82():
     ; if nothing printed (value was 0) print a single '0'
@@ -886,20 +860,19 @@ bb82():
     mos6502.jmp.abs bb83
 bb83():
     $0 = mos6502.lda.imm 48
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.jmp.abs bb84
 bb84():
     $0 = mos6502.lda.imm 13
-    mos6502.jsr.abs @osasci, implicit $0
+    mos6502.jsr.abs @PutChar, implicit $0
     mos6502.rts
 }
 
 ; ---------------------------------------------------------------------------
-; @WriteLineString : (ptr) -> void
+; @StringBytes : (ptr) -> ptr
 ;
-; No longer hand-written here. It is now the C# helper
-; DotNetro.Runtime.ConsoleHelper.WriteLineString(byte*), compiled by the IL→MIR
-; translator and emitted under the stable MIR name @WriteLineString (so the
-; @WriteLineBoolean tail-calls above still link). The translator's runtime-pointer
-; mem.load path makes the byte dereference expressible in generic dialects, which
-; is why the hand-rolled indirect-Y loop is gone.
+; Console.StringBytes: a string reference is already a pointer to its bytes.
+func @StringBytes : (ptr) -> ptr {
+bb0(%0 : ptr):
+    core.return %0
+}

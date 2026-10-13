@@ -20,27 +20,22 @@
     <ProjectReference Include="..\DotNetro.Compiler\DotNetro.Compiler.csproj" />
     <!-- The core library is compiled by the user's program at link time, not executed
          here, so it is shipped as data (embedded below) rather than referenced. -->
-    <ProjectReference Include="..\DotNetro.CoreLib\DotNetro.CoreLib.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!--
     Compile-time and link-time assemblies, embedded as data (see AssemblySet.cs):
       * System.Runtime / System.Console *reference* assemblies from the targeting pack
         serve Roslyn only (user code is compiled against them).
-      * DotNetro.CoreLib.dll is the core library the DotNetro compiler links in; it
+      * DotNetro.CoreLib.dll (one build per target) is the core library the DotNetro compiler links in; it
         redirects every framework reference in the user's program to it.
   -->
-  <Target Name="EmbedPlaygroundAssemblies"
-          BeforeTargets="AssignTargetPaths"
-          DependsOnTargets="ResolveTargetingPackAssets;ResolveProjectReferences">
-    <MSBuild Projects="..\DotNetro.CoreLib\DotNetro.CoreLib.csproj" Targets="GetTargetPath" SkipNonexistentTargets="false">
+  <Target Name="EmbedPlaygroundAssemblies" BeforeTargets="AssignTargetPaths" DependsOnTargets="ResolveTargetingPackAssets;ResolveProjectReferences">
+    <MSBuild Projects="..\DotNetro.CoreLib.BbcMicro\DotNetro.CoreLib.BbcMicro.csproj" Targets="GetTargetPath" SkipNonexistentTargets="false">
       <Output TaskParameter="TargetOutputs" ItemName="_PlaygroundRuntimeLib" />
     </MSBuild>
     <ItemGroup>
-      <_PlaygroundRef Include="@(Reference)"
-                      Condition="'%(Filename)' == 'System.Runtime' Or '%(Filename)' == 'System.Console'" />
-      <EmbeddedResource Include="@(_PlaygroundRef);@(_PlaygroundRuntimeLib)"
-                        LogicalName="assemblies/%(Filename)%(Extension)" />
+      <_PlaygroundRef Include="@(Reference)" Condition="'%(Filename)' == 'System.Runtime' Or '%(Filename)' == 'System.Console'" />
+      <EmbeddedResource Include="@(_PlaygroundRef);@(_PlaygroundRuntimeLib)" LogicalName="assemblies/%(Filename)%(Extension)" />
     </ItemGroup>
   </Target>
 
