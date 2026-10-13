@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotNetro.Compiler\DotNetro.Compiler.csproj" />
+    <ProjectReference Include="..\DotNetro.CoreLib.BbcMicro\DotNetro.CoreLib.BbcMicro.csproj" ReferenceOutputAssembly="false" />
     <!-- The core library is compiled by the user's program at link time, not executed
          here, so it is shipped as data (embedded below) rather than referenced. -->
   </ItemGroup>
@@ -35,7 +36,9 @@
     </MSBuild>
     <ItemGroup>
       <_PlaygroundRef Include="@(Reference)" Condition="'%(Filename)' == 'System.Runtime' Or '%(Filename)' == 'System.Console'" />
-      <EmbeddedResource Include="@(_PlaygroundRef);@(_PlaygroundRuntimeLib)" LogicalName="assemblies/%(Filename)%(Extension)" />
+      <EmbeddedResource Include="@(_PlaygroundRef)" LogicalName="assemblies/%(Filename)%(Extension)" />
+      <!-- One core library per target, keyed DotNetro.CoreLib.<target id> (see AssemblySet). -->
+      <EmbeddedResource Include="@(_PlaygroundRuntimeLib)" LogicalName="assemblies/DotNetro.CoreLib.bbcmicro.dll" />
     </ItemGroup>
   </Target>
 
