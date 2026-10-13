@@ -869,10 +869,11 @@ bb84():
 }
 
 ; ---------------------------------------------------------------------------
-; @StringBytes : (ptr) -> ptr
+; @StringFromPointer : (ptr) -> ptr
 ;
-; Console.StringBytes: a string reference is already a pointer to its bytes.
-func @StringBytes : (ptr) -> ptr {
+; String.FromPointer: a string reference is the address of its length, which is
+; what the allocator returns, so this is a reinterpretation.
+func @StringFromPointer : (ptr) -> ptr {
 bb0(%0 : ptr):
     core.return %0
 }

@@ -341,21 +341,25 @@ internal sealed class IlToMirTranslator : IDisposable
         }
     }
 
-    // Intern a string constant as a module-level MirGlobal and return its
-    // symbol name. Mirrors DotNetCompiler.CompileLdstr: the key is
-    // `string{token:X8}` and the payload is the ASCII bytes followed by CR
-    // (0x0D) then NUL (0x00) — i.e. the legacy `.cstring "...", 13` format.
-    // Console.WriteLine loops over the bytes calling PutChar (which expands CR to
-    // CR/LF) until it reaches the NUL terminator.
-    private string RegisterStringGlobal(string stringKey, string value)
+    // Intern a string constant as a module-level MirGlobal and return its symbol
+    // name (`string{n:X4}`, numbered in order of first use; equal text shares one
+    // global, and tokens are per-assembly so they can't name it). The global is a complete string object,
+    // laid out like an array: a null vtable slot, the u16 length (in characters), one
+    // byte per character, then a NUL. A string reference points at the length, so
+    // the symbol's address plus StringObjectHeaderSize is the reference (see
+    // TranslateLdstr). A character above 0xFF cannot be stored and becomes '?'.
+    private string RegisterStringGlobal(string value)
     {
-        if (!_globals.ContainsKey(stringKey))
+        if (!_stringSymbols.TryGetValue(value, out var stringKey))
         {
-            var ascii = Encoding.ASCII.GetBytes(value);
-            var bytes = new byte[ascii.Length + 2];
-            Array.Copy(ascii, bytes, ascii.Length);
-            bytes[ascii.Length] = 0x0D;     // CR, matching `.cstring "...", 13`
-            bytes[ascii.Length + 1] = 0x00; // NUL terminator
+            stringKey = $"string{_stringSymbols.Count:X4}";
+            _stringSymbols[value] = stringKey;
+
+            var bytes = new byte[StringObjectHeaderSize + ArrayLengthSize + value.Length + 1];
+            bytes[StringObjectHeaderSize] = (byte)value.Length;
+            bytes[StringObjectHeaderSize + 1] = (byte)(value.Length >> 8);
+            for (var i = 0; i < value.Length; i++)
+                bytes[StringObjectHeaderSize + ArrayLengthSize + i] = value[i] <= 0xFF ? (byte)value[i] : (byte)'?';
 
             _globals[stringKey] = new MirGlobal(
                 SymbolName:  stringKey,
@@ -366,6 +370,12 @@ internal sealed class IlToMirTranslator : IDisposable
 
         return stringKey;
     }
+
+    private readonly Dictionary<string, string> _stringSymbols = [];
+
+    // The vtable slot below an object reference.
+    private const int StringObjectHeaderSize = PointerSize;
+    private const int ArrayLengthSize = 2;
 
     private const string SoundSymbol = "Sound";
 
@@ -819,6 +829,9 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldfld:
                         TranslateLdfld(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
+                    case ILOpCode.Ldflda:
+                        TranslateLdflda(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
                     case ILOpCode.Stfld:
                         TranslateStfld(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
@@ -886,6 +899,12 @@ internal sealed class IlToMirTranslator : IDisposable
 
                     case ILOpCode.Dup:
                         TranslateDup();
+                        break;
+
+                    // pop → discard the top of the stack (any instructions that produced
+                    // it, such as a call, have already been emitted).
+                    case ILOpCode.Pop:
+                        _stack.Pop();
                         break;
 
                     case ILOpCode.Sizeof:
@@ -2109,17 +2128,17 @@ internal sealed class IlToMirTranslator : IDisposable
                 $"(method {_method.UniqueName}).");
         }
 
-        // ldstr "..." → intern the string as a MirGlobal, push a `mem.symbol`
-        // pointer to its bytes. Console.WriteLine consumes that pointer.
+        // ldstr "..." → intern the string as a MirGlobal holding a whole string
+        // object and push a reference to it: the symbol plus the header size, i.e.
+        // the address of its length.
         private void TranslateLdstr(int token)
         {
             var value = _method.MetadataReader.GetUserString(
                 MetadataTokens.UserStringHandle(token));
-            var stringKey = $"string{token:X8}";
-            _parent.RegisterStringGlobal(stringKey, value);
+            var stringKey = _parent.RegisterStringGlobal(value);
 
-            var ptr = _builder.BuildMemSymbol(stringKey);
-            _stack.Push(new StackValue(ptr, IRType.Pointer));
+            var symbol = _builder.BuildMemSymbol(stringKey);
+            _stack.Push(new StackValue(EmitFieldAddress(symbol, StringObjectHeaderSize), IRType.Pointer));
         }
 
         // ldsfld <field> → load the static field's value via its symbolic
@@ -2170,6 +2189,18 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(value, IsDefinition: true),
                 new VirtualReg(addr, IsDefinition: false));
             PushTyped(value, type, field.Type);
+        }
+
+        // ldflda <field> → push the address of the field: the object pointer (or
+        // struct address) plus the field's offset.
+        private void TranslateLdflda(EntityHandle fieldHandle)
+        {
+            var field = _method.DeclaringType.Assembly.GetField(
+                (FieldDefinitionHandle)fieldHandle);
+
+            var obj = AsAddress(_stack.Pop());
+            var addr = EmitFieldAddress(obj.Vreg, field.Offset);
+            _stack.Push(new StackValue(addr, IRType.Pointer));
         }
 
         // stfld <field> → store top-of-stack into (base + offset). Stack layout
@@ -2514,8 +2545,8 @@ internal sealed class IlToMirTranslator : IDisposable
 
         // Arrays are heap objects: the reference points at a 2-byte length, the
         // elements follow it, and the (null) vtable slot sits below it like any
-        // object header. No bounds checks are emitted.
-        private const int ArrayLengthSize = 2;
+        // object header. No bounds checks are emitted. (ArrayLengthSize is shared
+        // with string objects, which have the same layout.)
 
         // Size in bytes of an array element of the type named by an IL token. The
         // primitive element types resolve to the structs in DotNetro.CoreLib, whose

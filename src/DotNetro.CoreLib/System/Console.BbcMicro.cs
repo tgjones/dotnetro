@@ -18,7 +18,7 @@ public static partial class Console
 
     // OSWORD 0 into the buffer at $0600; returns a pointer to it.
     [MethodImpl(MethodImplOptions.InternalCall)]
-    private static extern partial string PlatformReadLine();
+    private static extern unsafe partial byte* PlatformReadLine();
 
     // OSWORD 7 (SOUND).
     [MethodImpl(MethodImplOptions.InternalCall)]

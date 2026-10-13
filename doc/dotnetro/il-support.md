@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 140
-- **Implemented and lit-covered:** 134
+- **Implemented:** 142
+- **Implemented and lit-covered:** 135
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -140,7 +140,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldelem.u4` | ✅ | ❌ |
 | `ldelema` | ✅ | ✅ |
 | `ldfld` | ✅ | ✅ |
-| `ldflda` | ❌ | — |
+| `ldflda` | ✅ | ❌ |
 | `ldftn` | ✅ | ✅ |
 | `ldind.i` | ✅ | ✅ |
 | `ldind.i1` | ✅ | ✅ |
@@ -182,7 +182,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `nop` | ✅ | ✅ |
 | `not` | ✅ | ✅ |
 | `or` | ✅ | ✅ |
-| `pop` | ❌ | — |
+| `pop` | ✅ | ✅ |
 | `readonly` | ✅ | ✅ |
 | `refanytype` | ❌ | — |
 | `refanyval` | ❌ | — |

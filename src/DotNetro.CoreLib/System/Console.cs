@@ -8,18 +8,25 @@ namespace System;
 // Console.<Target>.cs (a target that forgets one fails to compile).
 public static partial class Console
 {
-    // A string constant is a pointer to its ASCII bytes followed by CR (0x0D) and NUL
-    // (see RegisterStringGlobal in the translator), so the CR is the newline. PutChar
-    // expands CR to CR LF on the BBC Micro. Stage 3 gives String a real layout.
+    // PutChar expands CR to CR LF on the BBC Micro, so CR is the newline.
     public static unsafe void WriteLine(string value)
     {
-        var p = StringBytes(value);
-        byte c;
-        while ((c = *p) != 0)
+        if ((object)value != null)
         {
-            PutChar(c);
-            p++;
+            var p = value.GetChars();
+            for (var remaining = (nint)value.Length; remaining > 0; remaining--)
+            {
+                PutChar(*p);
+                p++;
+            }
         }
+        PutChar(13);
+    }
+
+    public static void WriteLine(char value)
+    {
+        PutChar((byte)value);
+        PutChar(13);
     }
 
     public static void WriteLine(int value) => PlatformWriteLineInt32(value);
@@ -32,13 +39,17 @@ public static partial class Console
             WriteLine("False");
     }
 
-    public static string ReadLine() => PlatformReadLine();
+    public static unsafe string ReadLine()
+    {
+        // The platform leaves the line in a buffer, terminated by CR.
+        var line = PlatformReadLine();
+        nint length = 0;
+        while (line[length] != 13)
+            length++;
+        return String.FromBytes(line, length);
+    }
 
     public static void Beep() => PlatformBeep();
-
-    // The string reference is already a pointer to its bytes; this reinterprets it.
-    [MethodImpl(MethodImplOptions.InternalCall)]
-    private static extern unsafe byte* StringBytes(string value);
 
     // Platform half. Each name must be unique across the runtime: an InternalCall
     // method is routed by name to the function of that name in the target's runtime.irie.
@@ -46,7 +57,7 @@ public static partial class Console
 
     private static partial void PlatformWriteLineInt32(int value);
 
-    private static partial string PlatformReadLine();
+    private static unsafe partial byte* PlatformReadLine();
 
     private static partial void PlatformBeep();
 }

@@ -38,10 +38,9 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
         // signature) don't change the representation.
         unmodifiedType;
 
-    public TypeDescription GetPinnedType(TypeDescription elementType)
-    {
-        throw new NotImplementedException();
-    }
+    // Pinning keeps the garbage collector from moving the target; there is no GC here,
+    // so a pinned local is just a local of the underlying type.
+    public TypeDescription GetPinnedType(TypeDescription elementType) => elementType;
 
     public TypeDescription GetPointerType(TypeDescription elementType) => elementType.MakePointerType();
 
