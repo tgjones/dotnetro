@@ -1,4 +1,6 @@
-﻿namespace DotNetro.Runtime;
+using System;
+
+namespace DotNetro.Runtime;
 
 internal static class ManagedHeap
 {
