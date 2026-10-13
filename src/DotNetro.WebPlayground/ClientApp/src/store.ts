@@ -6,7 +6,7 @@ export type PanelResult =
   | { kind: 'csharp'; result: CSharpResult }
   | { kind: 'target'; targetId: string; result: TargetResult };
 
-export interface PanelInfo { id: string; type: string; upstreamId?: string }
+export interface PanelInfo { id: string; type: string; upstreamId?: string; focus?: () => void }
 
 type Listener = (id: string, result: PanelResult | undefined) => void;
 
@@ -16,22 +16,34 @@ export class Store {
   private readonly panels = new Map<string, PanelInfo>();
   private readonly listeners = new Set<Listener>();
   private readonly panelListeners = new Set<() => void>();
-  private counter = 0;
+  private readonly revealers = new Map<string, (line: number, column: number) => void>();
+  private readonly counters = new Map<string, number>();
 
   newId(prefix: string): string {
+    // Numbering is per prefix, so panel titles read "C# Editor #1", "Compiler #1", "Emulator #1".
     let id: string;
-    do { id = `${prefix}${++this.counter}`; } while (this.panels.has(id));
+    do {
+      const n = (this.counters.get(prefix) ?? 0) + 1;
+      this.counters.set(prefix, n);
+      id = `${prefix}${n}`;
+    } while (this.panels.has(id));
     return id;
   }
 
   /** Call when restoring panels with known ids so newId never collides. */
   reserve(id: string) {
-    const n = Number(id.replace(/^\D+/, ''));
-    if (Number.isFinite(n)) this.counter = Math.max(this.counter, n);
+    const prefix = id.replace(/\d+$/, '');
+    const n = Number(id.slice(prefix.length));
+    if (Number.isFinite(n)) this.counters.set(prefix, Math.max(this.counters.get(prefix) ?? 0, n));
   }
 
   registerPanel(info: PanelInfo) { this.panels.set(info.id, info); this.reserve(info.id); this.panelListeners.forEach(l => l()); }
   unregisterPanel(id: string) { this.panels.delete(id); this.publish(id, undefined); this.panelListeners.forEach(l => l()); }
+  /** An editor panel registers how to put the cursor on a location; the Problems panel calls it. */
+  setRevealer(id: string, reveal: ((line: number, column: number) => void) | undefined) {
+    if (reveal) this.revealers.set(id, reveal); else this.revealers.delete(id);
+  }
+  reveal(id: string, line: number, column: number) { this.revealers.get(id)?.(line, column); }
   getPanels(): PanelInfo[] { return [...this.panels.values()]; }
   onPanelsChanged(listener: () => void): () => void { this.panelListeners.add(listener); return () => this.panelListeners.delete(listener); }
 

@@ -1,5 +1,5 @@
 import type { ComponentContainer } from 'golden-layout';
-import { el, type AppContext, type PanelState } from './context';
+import { el, emulatorTitle, type AppContext, type PanelState } from './context';
 import { BbcMicroMachine } from './bbcMicroMachine';
 
 /**
@@ -10,10 +10,8 @@ export class BbcMicroEmulatorPanel {
   private readonly screen = el('canvas', 'bbc-screen');
   private readonly status = el('span', 'status', 'Waiting for a successful compile…');
   private readonly pauseButton = el('button', undefined, 'Pause');
-  private readonly download = el('a', undefined, 'MAIN.ssd');
   private readonly machine: BbcMicroMachine;
   private readonly disposers: (() => void)[] = [];
-  private url: string | undefined;
   private image: Uint8Array | undefined;
   private paused = false;
   private visible = true;
@@ -25,15 +23,14 @@ export class BbcMicroEmulatorPanel {
     const reset = el('button', undefined, 'Reset');
     reset.onclick = () => this.restart();
     this.pauseButton.onclick = () => { this.paused = !this.paused; this.sync(); };
-    this.download.download = 'MAIN.ssd';
-    this.download.hidden = true;
-    this.download.className = 'bbc-download';
     const bar = el('div', 'toolbar');
-    bar.append(reset, this.pauseButton, this.download, this.status);
+    bar.append(reset, this.pauseButton);
     const root = el('div', 'panel');
     const wrap = el('div', 'bbc-screen-wrap');
     wrap.append(this.screen);
-    root.append(bar, wrap);
+    const footer = el('div', 'statusbar');
+    footer.append(this.status);
+    root.append(bar, wrap, footer);
     container.element.append(root);
 
     // Keys reach the machine only while the screen has focus.
@@ -50,6 +47,10 @@ export class BbcMicroEmulatorPanel {
 
     ctx.store.registerPanel({ id: state.id, type: container.componentType as string, upstreamId: state.upstreamId });
     container.setState(state as never);
+    // The compiler panel may register after this one when a layout is restored, so retitle on changes.
+    const updateTitle = () => container.setTitle(emulatorTitle(ctx.store, state.id, state.upstreamId));
+    updateTitle();
+    this.disposers.push(ctx.store.onPanelsChanged(updateTitle));
     if (state.upstreamId) this.disposers.push(ctx.store.subscribe(state.upstreamId, r => this.onResult(r)));
     container.on('beforeComponentRelease', () => this.dispose());
   }
@@ -57,10 +58,6 @@ export class BbcMicroEmulatorPanel {
   private onResult(r: ReturnType<AppContext['store']['get']>) {
     if (r?.kind !== 'target' || !r.result.ok || !r.result.image) return;
     this.image = Uint8Array.from(atob(r.result.image), c => c.charCodeAt(0));
-    if (this.url) URL.revokeObjectURL(this.url);
-    this.url = URL.createObjectURL(new Blob([this.image as BlobPart]));
-    this.download.href = this.url;
-    this.download.hidden = false;
     this.restart();
   }
 
@@ -83,7 +80,6 @@ export class BbcMicroEmulatorPanel {
   private dispose() {
     this.machine.pause();
     this.disposers.forEach(d => d());
-    if (this.url) URL.revokeObjectURL(this.url);
     this.ctx.store.unregisterPanel(this.state.id);
   }
 }

@@ -18,22 +18,22 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotNetro.Compiler\DotNetro.Compiler.csproj" />
-    <!-- The runtime library is compiled by the user's program at link time, not executed
+    <!-- The core library is compiled by the user's program at link time, not executed
          here, so it is shipped as data (embedded below) rather than referenced. -->
-    <ProjectReference Include="..\DotNetro\DotNetro.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\DotNetro.CoreLib\DotNetro.CoreLib.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!--
     Compile-time and link-time assemblies, embedded as data (see AssemblySet.cs):
       * System.Runtime / System.Console *reference* assemblies from the targeting pack
-        serve Roslyn (user code is compiled against them) AND the DotNetro compiler
-        (System.Runtime doubles as the link-time core library — see the plan, WP2).
-      * DotNetro.dll is the runtime library the compiler links in.
+        serve Roslyn only (user code is compiled against them).
+      * DotNetro.CoreLib.dll is the core library the DotNetro compiler links in; it
+        redirects every framework reference in the user's program to it.
   -->
   <Target Name="EmbedPlaygroundAssemblies"
           BeforeTargets="AssignTargetPaths"
           DependsOnTargets="ResolveTargetingPackAssets;ResolveProjectReferences">
-    <MSBuild Projects="..\DotNetro\DotNetro.csproj" Targets="GetTargetPath" SkipNonexistentTargets="false">
+    <MSBuild Projects="..\DotNetro.CoreLib\DotNetro.CoreLib.csproj" Targets="GetTargetPath" SkipNonexistentTargets="false">
       <Output TaskParameter="TargetOutputs" ItemName="_PlaygroundRuntimeLib" />
     </MSBuild>
     <ItemGroup>

@@ -1,9 +1,10 @@
 import { GoldenLayout, LayoutConfig, type ComponentContainer } from 'golden-layout';
 import { CompileClient } from './compileClient';
 import { DEFAULT_SOURCE, SourcePanel } from './panels/sourcePanel';
+import { ProblemsPanel } from './panels/problemsPanel';
 import { DisassemblyPanel } from './panels/disassemblyPanel';
 import { BbcMicroEmulatorPanel } from './panels/emulatorPanel';
-import { DISASSEMBLY, EMULATOR_BBC, SOURCE, type AppContext, type PanelState } from './panels/context';
+import { DISASSEMBLY, EMULATOR_BBC, PROBLEMS, SOURCE, problemsTitle, type AppContext, type PanelState } from './panels/context';
 import { Store } from './store';
 import { initTheme } from './theme';
 import { Overlay } from './overlay';
@@ -40,6 +41,11 @@ const ctx: AppContext = {
   // New panels get their own stack at the end of the top row (TypeId.FirstRow = 4; GoldenLayout
   // declares the enum `const`, which isolatedModules cannot import) rather than hiding a sibling tab.
   addPanel: (type, state, title) => { layout.addComponentAtLocation(type, state as never, title, [{ typeId: 4 }]); },
+  showProblems: sourceId => {
+    const existing = store.getPanels().find(p => p.type === PROBLEMS && p.upstreamId === sourceId);
+    if (existing) existing.focus?.();
+    else ctx.addPanel(PROBLEMS, { id: store.newId('p'), upstreamId: sourceId, options: {} }, problemsTitle(sourceId));
+  },
 };
 
 const factory = <T>(Panel: new (c: ComponentContainer, s: PanelState, ctx: AppContext) => T) =>
@@ -48,21 +54,22 @@ const factory = <T>(Panel: new (c: ComponentContainer, s: PanelState, ctx: AppCo
 layout.registerComponentFactoryFunction(SOURCE, factory(SourcePanel));
 layout.registerComponentFactoryFunction(DISASSEMBLY, factory(DisassemblyPanel));
 layout.registerComponentFactoryFunction(EMULATOR_BBC, factory(BbcMicroEmulatorPanel));
+layout.registerComponentFactoryFunction(PROBLEMS, factory(ProblemsPanel));
 
 const defaultLayout: LayoutConfig = {
   header: { popout: false },
   root: {
     type: 'row',
     content: [
-      { type: 'component', componentType: SOURCE, title: 'C#', width: 36, componentState: { id: 's1', options: { source: DEFAULT_SOURCE } } satisfies PanelState },
-      { type: 'component', componentType: DISASSEMBLY, title: 'BBC Micro asm', width: 36, componentState: { id: 'd1', upstreamId: 's1', options: { targetId: 'bbcmicro' } } satisfies PanelState },
-      { type: 'component', componentType: EMULATOR_BBC, title: 'Emulator', width: 28, componentState: { id: 'e1', upstreamId: 'd1', options: {} } satisfies PanelState },
+      { type: 'component', componentType: SOURCE, title: 'C# Editor #1', width: 36, componentState: { id: 's1', options: { source: DEFAULT_SOURCE } } satisfies PanelState },
+      { type: 'component', componentType: DISASSEMBLY, title: 'BBC Micro Compiler #1 (C# Editor #1)', width: 36, componentState: { id: 'd1', upstreamId: 's1', options: { targetId: 'bbcmicro' } } satisfies PanelState },
+      { type: 'component', componentType: EMULATOR_BBC, title: 'Emulator #1 (C# Editor #1, Compiler #1)', width: 28, componentState: { id: 'e1', upstreamId: 'd1', options: {} } satisfies PanelState },
     ],
   },
 };
 
 const saved = loadSavedState();
-const restored = saved && sanitizeLayout(saved, new Set([SOURCE, DISASSEMBLY, EMULATOR_BBC]));
+const restored = saved && sanitizeLayout(saved, new Set([SOURCE, DISASSEMBLY, EMULATOR_BBC, PROBLEMS]));
 try {
   layout.loadLayout(restored ?? defaultLayout);
 } catch (e) {
@@ -75,14 +82,14 @@ try {
 const shareWarning = document.createElement('span');
 shareWarning.className = 'share-warning';
 const copyLink = document.createElement('button');
-copyLink.textContent = 'Copy link';
+copyLink.textContent = 'Copy Permalink';
 copyLink.onclick = async () => {
   save();
   try { await navigator.clipboard.writeText(location.href); copyLink.textContent = 'Copied!'; }
   catch { copyLink.textContent = 'Copy the address bar'; }
-  setTimeout(() => { copyLink.textContent = 'Copy link'; }, 2000);
+  setTimeout(() => { copyLink.textContent = 'Copy Permalink'; }, 2000);
 };
-document.querySelector('header')!.append(copyLink, shareWarning);
+document.querySelector('header')!.append(shareWarning, copyLink);
 
 // Debounced save of the whole layout (which embeds every panel's state) to the hash and localStorage.
 let saveTimer: number | undefined;

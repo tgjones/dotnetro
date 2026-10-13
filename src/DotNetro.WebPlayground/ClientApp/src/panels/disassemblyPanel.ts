@@ -1,13 +1,15 @@
 import type { ComponentContainer } from 'golden-layout';
 import { ASM_LANGUAGE, monaco, type Monaco } from '../monaco';
 import { monacoTheme } from '../theme';
-import { EMULATOR_PANELS, el, type AppContext, type PanelState } from './context';
+import { EMULATOR_PANELS, disassemblyTitle, el, summarize, type AppContext, type PanelState } from './context';
 
 /** Read-only assembly view for one target. Feeds emulator panels with the image. */
 export class DisassemblyPanel {
   private readonly editor: Monaco.editor.IStandaloneCodeEditor;
   private readonly status = el('span', 'status');
   private readonly targetSelect = el('select');
+  private readonly download = el('a', 'download', 'MAIN.ssd');
+  private url: string | undefined;
   private readonly disposers: (() => void)[] = [];
 
   constructor(private readonly container: ComponentContainer, private readonly state: PanelState, private readonly ctx: AppContext) {
@@ -15,9 +17,13 @@ export class DisassemblyPanel {
     const toolbar = el('div', 'toolbar');
     const addEmulator = el('button', undefined, '+ Emulator');
     addEmulator.title = 'Add an emulator panel that runs this output';
-    toolbar.append(el('label', undefined, 'Target '), this.targetSelect, addEmulator, this.status);
+    toolbar.append(el('label', undefined, 'Target '), this.targetSelect, addEmulator);
     const host = el('div', 'editor-host');
-    root.append(toolbar, host);
+    this.download.download = 'MAIN.ssd';
+    this.download.hidden = true;
+    const footer = el('div', 'statusbar');
+    footer.append(this.status, this.download);
+    root.append(toolbar, host, footer);
     container.element.append(root);
 
     this.editor = monaco.editor.create(host, {
@@ -33,6 +39,8 @@ export class DisassemblyPanel {
 
     ctx.store.registerPanel({ id: state.id, type: container.componentType as string, upstreamId: state.upstreamId });
     container.setState(state as never);
+    this.updateTitle();
+    this.status.onclick = () => { if (this.status.classList.contains('link') && state.upstreamId) ctx.showProblems(state.upstreamId); };
 
     void ctx.client.ready.then(targets => {
       for (const t of targets) {
@@ -70,7 +78,7 @@ export class DisassemblyPanel {
 
   private updateTitle() {
     const name = this.ctx.client.targets.find(t => t.id === this.targetId)?.displayName ?? this.targetId;
-    this.container.setTitle(`${name} asm`);
+    this.container.setTitle(disassemblyTitle(name, this.state.id, this.state.upstreamId));
   }
 
   private async recompile() {
@@ -79,10 +87,12 @@ export class DisassemblyPanel {
     if (!upstream.result.ok || !upstream.result.assembly) {
       // Roslyn errors: keep the last good output, say why it is stale.
       this.status.textContent = 'C# has errors';
+      this.status.classList.add('link', 'error');
       return;
     }
 
     this.status.textContent = 'Compiling…';
+    this.status.classList.remove('link', 'error');
     const targetId = this.targetId;
     const result = await this.ctx.client.compileForTarget(this.state.id, upstream.result.assembly, targetId);
     if (!result) return; // superseded
@@ -91,13 +101,24 @@ export class DisassemblyPanel {
     if (result.ok) {
       this.editor.setValue(result.asm ?? '');
       const size = result.image ? atob(result.image).length : 0;
+      this.setImage(result.image);
       this.status.textContent = `OK (image ${size} bytes @ $${(result.origin ?? 0).toString(16).toUpperCase()})`;
     } else {
-      this.status.textContent = result.diagnostics.map(d => d.message).join('; ') || 'Compilation failed';
+      const summary = summarize(result.diagnostics);
+      this.status.textContent = `Compilation failed${summary ? `: ${summary}` : ''}`;
+      this.status.classList.add('link', 'error');
     }
   }
 
+  private setImage(base64: string | undefined) {
+    if (this.url) URL.revokeObjectURL(this.url);
+    this.url = base64 ? URL.createObjectURL(new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))])) : undefined;
+    this.download.hidden = !this.url;
+    if (this.url) this.download.href = this.url;
+  }
+
   private dispose() {
+    if (this.url) URL.revokeObjectURL(this.url);
     this.disposers.forEach(d => d());
     this.ctx.store.unregisterPanel(this.state.id);
     this.editor.dispose();
