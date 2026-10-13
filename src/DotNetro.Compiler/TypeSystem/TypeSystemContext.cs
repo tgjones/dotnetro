@@ -24,9 +24,31 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
     private readonly ConcurrentDictionary<(Instantiation, int), GenericParameter> _genericTypeParameters = new();
     private readonly ConcurrentDictionary<(TypeDescription, Instantiation), InstantiatedType> _instantiatedTypes = new();
 
-    public EcmaAssembly CoreAssembly => ResolveAssembly(new AssemblyName("System.Private.CoreLib"));
+    /// <summary>Simple name of DotNetro's own core library (see <c>src/DotNetro.CoreLib</c>).</summary>
+    public const string CoreLibraryName = WellKnownAssemblies.CoreLib;
 
-    public EcmaAssembly RuntimeAssembly => ResolveAssembly(new AssemblyName("DotNetro"));
+    // Framework assembly names that user programs (compiled by Roslyn against the
+    // standard reference assemblies) and the host's facades refer to. They are all
+    // redirected to DotNetro.CoreLib, which defines every type we support under the
+    // same namespace and name; the host's own copies are never loaded. Add a name
+    // here when we fold another framework assembly's types into the core library.
+    private static readonly HashSet<string> s_redirectedFrameworkAssemblies = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mscorlib",
+        "netstandard",
+        "System.Private.CoreLib",
+        "System.Runtime",
+        "System.Runtime.Extensions",
+        "System.Runtime.InteropServices",
+        "System.Collections",
+        "System.Console",
+        "System.Memory",
+    };
+
+    public EcmaAssembly CoreAssembly => ResolveAssembly(new AssemblyName(CoreLibraryName));
+
+    // The runtime helpers (ManagedHeap, ConsoleHelper, MathHelper) live in the core library.
+    public EcmaAssembly RuntimeAssembly => CoreAssembly;
 
     public int PointerSize { get; } = pointerSize;
 
@@ -98,6 +120,7 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
 
     public EcmaAssembly ResolveAssembly(AssemblyName assemblyName)
     {
+        assemblyName = Redirect(assemblyName);
         var fullName = assemblyName.FullName;
 
         if (!_assembliesByReference.TryGetValue(fullName, out var result))
@@ -109,6 +132,31 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
         }
 
         return result;
+    }
+
+    // Maps a framework assembly reference onto DotNetro.CoreLib before the resolver
+    // is asked, so the host's CoreLib/facades can never be loaded by accident. A
+    // framework assembly we have no mapping for is an error naming it. Everything
+    // else (the user's own assembly, third-party libraries) resolves normally.
+    private static AssemblyName Redirect(AssemblyName assemblyName)
+    {
+        var name = assemblyName.Name;
+        if (name is null || string.Equals(name, CoreLibraryName, StringComparison.OrdinalIgnoreCase))
+            return assemblyName;
+
+        if (s_redirectedFrameworkAssemblies.Contains(name))
+            return new AssemblyName(CoreLibraryName);
+
+        if (name.StartsWith("System.", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith("Microsoft.", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, "WindowsBase", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new NotSupportedException(
+                $"The program references the framework assembly '{name}', which DotNetro does not support. "
+                + $"Only {CoreLibraryName} is available (framework references are redirected to it).");
+        }
+
+        return assemblyName;
     }
 
     public void Dispose()

@@ -14,17 +14,44 @@ public interface IAssemblyResolver
     byte[]? Resolve(AssemblyName assemblyName);
 }
 
+/// <summary>Names of assemblies the compiler itself knows about.</summary>
+public static class WellKnownAssemblies
+{
+    /// <summary>
+    /// DotNetro's own core library. It also holds the runtime helpers, and every framework
+    /// assembly reference in a program is redirected to it.
+    /// </summary>
+    public const string CoreLib = "DotNetro.CoreLib";
+}
+
 /// <summary>
-/// Resolves assemblies through the host runtime (<see cref="Assembly.Load(string)"/>).
-/// This is what <c>dnrc</c> and the tests use: the host's own CoreLib and the DotNetro
-/// runtime library sitting next to the compiler.
+/// Resolves assemblies from the file system. This is what <c>dnrc</c> and the tests
+/// use: <c>DotNetro.CoreLib.dll</c> sitting next to the compiler, and any other
+/// assembly through the host runtime (<see cref="Assembly.Load(string)"/>). Framework
+/// assemblies never get here: the type system redirects them to the core library first.
 /// </summary>
 public sealed class HostAssemblyResolver : IAssemblyResolver
 {
     public static HostAssemblyResolver Instance { get; } = new();
 
     public byte[]? Resolve(AssemblyName assemblyName)
-        => File.ReadAllBytes(Assembly.Load(assemblyName.FullName).Location);
+    {
+        if (string.Equals(assemblyName.Name, WellKnownAssemblies.CoreLib, StringComparison.OrdinalIgnoreCase))
+        {
+            // The core library is data for the compiler, not code to load, so it is copied
+            // beside the compiler as a plain file rather than being on the app's dependency list.
+            foreach (var directory in new[] { AppContext.BaseDirectory, Path.GetDirectoryName(typeof(HostAssemblyResolver).Assembly.Location)! })
+            {
+                var path = Path.Combine(directory, WellKnownAssemblies.CoreLib + ".dll");
+                if (File.Exists(path))
+                    return File.ReadAllBytes(path);
+            }
+
+            return null;
+        }
+
+        return File.ReadAllBytes(Assembly.Load(assemblyName.FullName).Location);
+    }
 }
 
 /// <summary>

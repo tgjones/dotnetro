@@ -99,7 +99,7 @@ public static class CompilerDriver
 
 /// <summary>Input to <see cref="CompilerDriver.Compile(CompileRequest)"/>.</summary>
 /// <param name="Assembly">The PE image of the program to compile.</param>
-/// <param name="Resolver">Supplies every other assembly the compiler needs (see <see cref="TargetDescriptor.ImplementationAssemblies"/>).</param>
+/// <param name="Resolver">Supplies every other assembly the compiler needs. Framework references in the program are redirected to <see cref="WellKnownAssemblies.CoreLib"/>, so that is all it has to supply besides third-party libraries.</param>
 /// <param name="TargetId">A <see cref="TargetRegistry"/> id.</param>
 /// <param name="EntryPoint">Name of the entry point method (falls back to the top-level-statements <c>&lt;Main&gt;$</c>).</param>
 /// <param name="CaptureSnapshots">Capture the MIR after each pass into <see cref="CompilationResult.PassSnapshots"/>.</param>

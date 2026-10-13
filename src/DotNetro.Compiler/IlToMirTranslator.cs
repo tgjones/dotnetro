@@ -2587,31 +2587,11 @@ internal sealed class IlToMirTranslator : IDisposable
         // object header. No bounds checks are emitted.
         private const int ArrayLengthSize = 2;
 
-        // Size in bytes of an array element of the type named by an IL token.
-        // Primitive element types arrive as System.* type references, which have
-        // no useful layout of their own, so they are sized by name.
-        private int ElementSize(EntityHandle typeHandle)
-        {
-            var assembly = _method.DeclaringType.Assembly;
-            if (typeHandle.Kind == HandleKind.TypeReference)
-            {
-                var reader = _method.MetadataReader;
-                var reference = reader.GetTypeReference((TypeReferenceHandle)typeHandle);
-                if (reader.GetString(reference.Namespace) == "System")
-                {
-                    switch (reader.GetString(reference.Name))
-                    {
-                        case "Byte": case "SByte": case "Boolean": return 1;
-                        case "Int16": case "UInt16": case "Char": return 2;
-                        case "Int32": case "UInt32": return 4;
-                        case "Int64": case "UInt64": return 8;
-                        case "IntPtr": case "UIntPtr": case "Object": case "String":
-                            return PointerSize;
-                    }
-                }
-            }
-            return assembly.ResolveType(typeHandle).Size;
-        }
+        // Size in bytes of an array element of the type named by an IL token. The
+        // primitive element types resolve to the structs in DotNetro.CoreLib, whose
+        // single value field gives them their size; reference types are pointers.
+        private int ElementSize(EntityHandle typeHandle) =>
+            _method.DeclaringType.Assembly.ResolveType(typeHandle).Size;
 
         // newarr <T> → %arr = call @ManagedHeap_AllocArray(length, length * sizeof(T))
         private void TranslateNewarr(EntityHandle typeHandle)
@@ -2681,33 +2661,28 @@ internal sealed class IlToMirTranslator : IDisposable
         // 1, 2 or 4 bytes) can be loaded as a single value.
         private void TranslateLdelem(EntityHandle typeHandle)
         {
-            var type = ElementIRType(typeHandle, "ldelem");
-            var name = typeHandle.Kind == HandleKind.TypeReference
-                ? _method.MetadataReader.GetString(_method.MetadataReader
-                    .GetTypeReference((TypeReferenceHandle)typeHandle).Name)
-                : null;
-            TranslateLdelem(type, signed: name is "SByte" or "Int16" or "Int32" or "Int64");
+            var elementType = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            var type = ElementIRType(elementType, "ldelem");
+            var signed = elementType.Assembly.Context.CoreAssembly == elementType.Assembly
+                && elementType.FullName is "System.SByte" or "System.Int16" or "System.Int32" or "System.Int64";
+            TranslateLdelem(type, signed);
         }
 
         // The IR type an `ldelem <T>` / `stelem <T>` token moves: a ptr for a
         // reference-type element, otherwise the integer of the element's size.
         // Only elements of 1, 2, 4 or 8 bytes can be moved as a single value.
-        private IRType ElementIRType(EntityHandle typeHandle, string opName)
+        private IRType ElementIRType(EcmaType elementType, string opName)
         {
-            var isReference = typeHandle.Kind == HandleKind.TypeReference
-                ? _method.MetadataReader.GetString(_method.MetadataReader
-                    .GetTypeReference((TypeReferenceHandle)typeHandle).Name) is "Object" or "String"
-                : IsReferenceLike(_method.DeclaringType.Assembly.ResolveType(typeHandle));
-            if (isReference) return IRType.Pointer;
+            if (IsReferenceLike(elementType)) return IRType.Pointer;
 
-            return ElementSize(typeHandle) switch
+            return elementType.Size switch
             {
                 1 => IRType.I8,
                 2 => IRType.I16,
                 4 => IRType.I32,
                 8 => IRType.I64,
                 _ => throw new NotSupportedException(
-                    $"IL→MIR: {opName} of a {ElementSize(typeHandle)}-byte element is not supported yet."),
+                    $"IL→MIR: {opName} of a {elementType.Size}-byte element is not supported yet."),
             };
         }
 
@@ -2723,7 +2698,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private void TranslateStelem(EntityHandle typeHandle)
         {
-            TranslateStelem(ElementIRType(typeHandle, "stelem"));
+            TranslateStelem(ElementIRType(_method.DeclaringType.Assembly.ResolveType(typeHandle), "stelem"));
         }
 
         // Address `offset` bytes *below* a pointer (e.g. the object header at

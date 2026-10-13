@@ -36,6 +36,21 @@ public sealed class CompilerDriverTests
         await Assert.That(result.PassSnapshots).IsNull();
     }
 
+    // Every framework reference (System.Runtime, System.Console, ...) is redirected to
+    // DotNetro.CoreLib before the resolver is asked, so the only assembly the compiler
+    // ever requests is the core library: the host's CoreLib and facades are unreachable.
+    [Test]
+    public async Task OnlyTheDotNetroCoreLibraryIsRequestedFromTheResolver()
+    {
+        var dll = CompileCSharp(HelloWorld);
+        var resolver = new RecordingResolver(CreateInMemoryResolver());
+
+        var result = CompilerDriver.Compile(new CompileRequest(dll, resolver, TargetRegistry.BbcMicroId));
+
+        await Assert.That(result.Succeeded).IsTrue();
+        await Assert.That(resolver.Requested.Distinct()).IsEquivalentTo([WellKnownAssemblies.CoreLib]);
+    }
+
     [Test]
     public async Task UnsupportedConstructIsReportedAsDiagnostic()
     {
@@ -82,17 +97,24 @@ public sealed class CompilerDriverTests
 
         await Assert.That(target.DisplayName).IsEqualTo("BBC Micro");
         await Assert.That(target.EmulatorKind).IsEqualTo("jsbeeb");
-        await Assert.That(target.ImplementationAssemblies).Contains("DotNetro");
     }
 
-    // Everything the target declares it links against, supplied from the host's
-    // copies as bytes, the way the playground supplies them from fetched files.
+    // The core library supplied as bytes (the DotNetro.CoreLib.dll copied beside the
+    // tests), the way the playground supplies it from an embedded file.
     private static InMemoryAssemblyResolver CreateInMemoryResolver()
+        => new InMemoryAssemblyResolver().Add(
+            WellKnownAssemblies.CoreLib,
+            File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, WellKnownAssemblies.CoreLib + ".dll")));
+
+    private sealed class RecordingResolver(IAssemblyResolver inner) : IAssemblyResolver
     {
-        var resolver = new InMemoryAssemblyResolver();
-        foreach (var name in TargetRegistry.Get(TargetRegistry.BbcMicroId).ImplementationAssemblies)
-            resolver.Add(name, File.ReadAllBytes(System.Reflection.Assembly.Load(name).Location));
-        return resolver;
+        public List<string> Requested { get; } = [];
+
+        public byte[]? Resolve(System.Reflection.AssemblyName assemblyName)
+        {
+            Requested.Add(assemblyName.Name ?? assemblyName.FullName);
+            return inner.Resolve(assemblyName);
+        }
     }
 
     // Mirrors DotNetro.Compiler.Tests.CsCompiler (Release IL, top-level statements).

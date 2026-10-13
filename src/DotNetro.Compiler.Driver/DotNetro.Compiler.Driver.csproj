@@ -12,7 +12,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DotNetro.Compiler\DotNetro.Compiler.csproj" />
-    <ProjectReference Include="..\DotNetro\DotNetro.csproj" />
+    <!-- DotNetro.CoreLib is data for the compiler (read as metadata + IL), not a reference to compile
+         against: its System.Object would clash with the real one. Copy it beside the binary instead. -->
+    <ProjectReference Include="..\DotNetro.CoreLib\DotNetro.CoreLib.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

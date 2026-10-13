@@ -12,7 +12,7 @@ on:
     paths:
       - 'src/DotNetro.WebPlayground/**'
       - 'src/DotNetro.Compiler/**'
-      - 'src/DotNetro/**'
+      - 'src/DotNetro.CoreLib/**'
       - 'src/Irie/**'
       - '.github/workflows/playground.yml'
 

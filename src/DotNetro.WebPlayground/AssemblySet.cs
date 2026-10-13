@@ -16,19 +16,14 @@ internal static class AssemblySet
     public static IReadOnlyList<byte[]> RoslynReferences { get; } = [s_images["System.Runtime"], s_images["System.Console"]];
 
     /// <summary>
-    /// Link-time assemblies for the DotNetro compiler. The <c>System.Runtime</c>
-    /// *reference* assembly stands in for the core library (it defines System.Object,
-    /// String, ...; the translator only needs signatures of BCL types, never BCL bodies),
-    /// so no CoreLib implementation has to be shipped.
+    /// Link-time assemblies for the DotNetro compiler: just <c>DotNetro.CoreLib</c>. The
+    /// compiler redirects every framework reference in the user's program to it, so the
+    /// reference assemblies above serve Roslyn only.
     /// </summary>
     public static IAssemblyResolver CreateResolver(TargetDescriptor target)
     {
         var resolver = new InMemoryAssemblyResolver();
-        foreach (var name in target.ImplementationAssemblies)
-        {
-            var image = name == "System.Private.CoreLib" ? s_images["System.Runtime"] : s_images[name];
-            resolver.Add(name, image);
-        }
+        resolver.Add(WellKnownAssemblies.CoreLib, s_images[WellKnownAssemblies.CoreLib]);
 
         return resolver;
     }
