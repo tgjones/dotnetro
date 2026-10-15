@@ -237,11 +237,14 @@ ends the run with `EmulationStatus.Fault` (exit code 4, message on stderr). Cove
 Notes: the OOM halt is silent (the test harness reports `Completed` with truncated output, which a DIFF catches); a
 visible failure needs an output path. The soft stack pointer (finding 8) was not investigated here.
 
-### Stage 4 — Real-machine sanity (not automated)
+### Stage 4 — Real-machine sanity (not automated) — partly done
 
-- [ ] Run the produced `.prg` in a known-good emulator (VICE, desktop; or the playground machine once it exists)
+- [~] Run the produced `.prg` in a known-good emulator (VICE, desktop; or the playground machine once it exists)
       for: hello world, ReadLine round trip, beep, a long program (checks no `$00/$01`/`$90+` clobber and the
       IRQ keeps ticking), and the halt loop at program end. Record results here.
+
+Result (2026-10-15, run by Tim in an emulator): a small program (hello with mixed case, negative int, ReadLine round trip,
+beep, halt) works as expected. Not yet exercised: a long program (zero-page/`$90+` clobber, IRQ ticking over a long run).
 
 ### Stage 5 — Playground integration
 
