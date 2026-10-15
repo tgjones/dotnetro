@@ -31,7 +31,7 @@ public sealed class String
 
     public static unsafe string Concat(string str0, string str1, string str2, string str3)
     {
-        var result = Allocate(LengthOf(str0) + LengthOf(str1) + LengthOf(str2) + LengthOf(str3));
+        var result = AllocateString(LengthOf(str0) + LengthOf(str1) + LengthOf(str2) + LengthOf(str3));
         var destination = result.GetChars();
         destination = Append(destination, str0);
         destination = Append(destination, str1);
@@ -86,7 +86,7 @@ public sealed class String
     // A new string of `length` characters copied from `source`.
     internal static unsafe string FromBytes(byte* source, nint length)
     {
-        var result = Allocate(length);
+        var result = AllocateString(length);
         var destination = result.GetChars();
         var from = source;
         for (var remaining = length; remaining > 0; remaining--)
@@ -124,16 +124,8 @@ public sealed class String
         return destination;
     }
 
-    // A zeroed string of `length` characters (the NUL terminator comes from the zeroing).
-    internal static unsafe string Allocate(nint length)
-        => StringFromPointer(ManagedHeap.AllocArray(length, length + 1));
-
-    // A string reference is the address of its length, which is what AllocArray
-    // returns: store the address into a string local through a pointer to it.
-    private static unsafe string StringFromPointer(byte* address)
-    {
-        string result = null;
-        *(byte**)&result = address;
-        return result;
-    }
+    // A zeroed string of `length` characters (the NUL terminator comes from the
+    // zeroing). Implemented by the compiler, which allocates the string object.
+    [MethodImpl(MethodImplOptions.InternalCall)]
+    internal static extern string AllocateString(nint length);
 }

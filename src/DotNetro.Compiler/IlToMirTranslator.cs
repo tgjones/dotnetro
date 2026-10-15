@@ -124,7 +124,7 @@ internal sealed class IlToMirTranslator : IDisposable
         // static-constructor list is known.
         module.Functions.Insert(0, BuildEntryFunction(entryPointMethod, startupMethod));
 
-        // Append the runtime functions (StringFromPointer, …).
+        // Append the runtime functions (the indirect-call trampoline, …).
         module.Functions.AddRange(runtimeModule.Functions);
 
         // Vtables for every newobj'd type (registered after the walk, once all
@@ -212,7 +212,7 @@ internal sealed class IlToMirTranslator : IDisposable
         _emitNameOverrides.TryGetValue(method, out var pinned) ? pinned : null;
 
     // True if `name` matches a function supplied by the hand-written runtime
-    // (StringFromPointer, …). Used to validate InternalCall routing.
+    // (the indirect-call trampoline, …). Used to validate InternalCall routing.
     internal bool IsRuntimeFunction(string name) => _runtimeFunctionNames.Contains(name);
 
     // The dispatch table for `type`: slot index → the method that index resolves
@@ -2342,6 +2342,11 @@ internal sealed class IlToMirTranslator : IDisposable
             // matching runtime symbol (the method name) and don't enqueue anything.
             if (callee.IsInternalCall)
             {
+                if (callee.Name == "AllocateString")
+                {
+                    TranslateAllocateString();
+                    return;
+                }
                 if (!_parent.IsRuntimeFunction(callee.Name))
                     throw new NotSupportedException(
                         $"IL→MIR: [MethodImpl(InternalCall)] method {callee.UniqueName} has no " +
@@ -2741,8 +2746,27 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var elementSize = ElementSize(typeHandle);
             var length = Resize(PopMaterialised(), IRType.I16).Vreg;
-            var contentSize = EmitScaledIndex(length, elementSize);
+            EmitAllocArray(length, EmitScaledIndex(length, elementSize));
+        }
 
+        // String.AllocateString(length) (an InternalCall implemented here, like
+        // CoreCLR's FastAllocateString): a string is an array of `length` bytes plus
+        // a NUL terminator, and its reference is the pointer AllocArray returns.
+        private void TranslateAllocateString()
+        {
+            var length = Resize(PopMaterialised(), IRType.I16).Vreg;
+            var one = _builder.BuildConstant(IRType.I16, 1);
+            var contentSize = _function.CreateVirtualRegister(IRType.I16);
+            _builder.BuildInstruction(ArithDialect.OpRef(ArithOp.AddI),
+                new VirtualReg(contentSize, IsDefinition: true),
+                new VirtualReg(length, IsDefinition: false),
+                new VirtualReg(one, IsDefinition: false));
+            EmitAllocArray(length, contentSize);
+        }
+
+        // Call ManagedHeap.AllocArray and push the resulting reference.
+        private void EmitAllocArray(int length, int contentSize)
+        {
             var allocArray = _parent.GetAllocArrayMethod();
             _parent.EnqueueMethod(allocArray);
             var ptr = _builder.BuildCall(allocArray.UniqueName, [IRType.Pointer], length, contentSize)[0];

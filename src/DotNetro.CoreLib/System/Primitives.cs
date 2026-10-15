@@ -41,7 +41,7 @@ public readonly struct Int32
             digits++;
 
         var length = negative ? digits + 1 : digits;
-        var result = String.Allocate(length);
+        var result = String.AllocateString(length);
         var chars = result.GetChars();
         if (negative)
             *chars = (byte)'-';
