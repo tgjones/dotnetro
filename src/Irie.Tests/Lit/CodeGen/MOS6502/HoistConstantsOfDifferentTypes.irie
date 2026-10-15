@@ -1,0 +1,42 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; HoistCommonCodePass must not treat `arith.constant 0 : i32` in one successor and
+; `arith.constant 0 : i16` in the other as the same computation: the result type is
+; not in the operands. It used to hoist the i32 constant and replace the i16 use
+; with it, leaving a wide vreg that register allocation rejected.
+func @hoist_constants : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 1
+    %2 : i1 = arith.cmpi eq, %0, %1
+    cf.cond_br %2, bb1, bb2
+bb1():
+    %3 : i32 = arith.constant 0
+    %4 : i16 = cast.trunc %3
+    core.return %4
+bb2():
+    %5 : i16 = arith.constant 0
+    %6 : i16 = arith.xor %0, %5
+    core.return %6
+}
+
+; CHECK: hoist_constants:
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     BNE .bb3
+; CHECK:     TYA
+; CHECK:     CMP #$01
+; CHECK:     BNE .bb3
+; CHECK: .bb1:
+; CHECK:     LDY #$00
+; CHECK:     LDX #$00
+; CHECK: .bb2:
+; CHECK:     TYA
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     TYA
+; CHECK:     EOR #$00
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     EOR #$00
+; CHECK:     TAX
+; CHECK:     JMP .bb2

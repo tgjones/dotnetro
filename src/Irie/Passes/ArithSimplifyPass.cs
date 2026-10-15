@@ -203,6 +203,10 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         }
 
         function.ReplaceAllUsesOfRegister(resultDef.Id, acc);
+        // Erase the root now: when the tree collapsed to an existing value (`x + 0`)
+        // it still uses that value, so it would be re-enqueued as a user of the
+        // result and simplified again, forever.
+        builder.Remove(instr);
         newResult = acc;
         return true;
     }

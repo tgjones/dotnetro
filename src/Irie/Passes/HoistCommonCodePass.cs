@@ -155,7 +155,7 @@ public sealed class HoistCommonCodePass : MirFunctionPass
     private static MirInstruction? FindMatch(MirFunction function, MirBlock target, MirInstruction template)
     {
         foreach (var instr in target.Instructions)
-            if (IsHoistable(function, instr) && SameComputation(template, instr))
+            if (IsHoistable(function, instr) && SameComputation(function, template, instr))
                 return instr;
         return null;
     }
@@ -224,8 +224,10 @@ public sealed class HoistCommonCodePass : MirFunctionPass
     // Two instructions compute the same value iff they share an opcode and have
     // pairwise-matching operands, where definition vregs are allowed to differ
     // (they name the *result*, not the computation) but every use, immediate and
-    // symbol must be identical.
-    private static bool SameComputation(MirInstruction a, MirInstruction b)
+    // symbol must be identical. The result *types* must agree too: the type of an
+    // op like `arith.constant` is not in its operands, so `constant 0 : i32` and
+    // `constant 0 : i16` would otherwise match.
+    private static bool SameComputation(MirFunction function, MirInstruction a, MirInstruction b)
     {
         if (a.Opcode != b.Opcode || a.Operands.Length != b.Operands.Length)
             return false;
@@ -234,7 +236,13 @@ public sealed class HoistCommonCodePass : MirFunctionPass
         {
             if (a.Operands[i] is VirtualReg { IsDefinition: true } &&
                 b.Operands[i] is VirtualReg { IsDefinition: true })
-                continue; // result vregs may differ
+            {
+                // Result vregs may differ, but not in type.
+                if (!function.GetVRegAnnotation(((VirtualReg)a.Operands[i]).Id).Equals(
+                        function.GetVRegAnnotation(((VirtualReg)b.Operands[i]).Id)))
+                    return false;
+                continue;
+            }
             if (!a.Operands[i].Equals(b.Operands[i]))
                 return false;
         }

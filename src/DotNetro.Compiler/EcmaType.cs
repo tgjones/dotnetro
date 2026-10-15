@@ -16,6 +16,7 @@ internal sealed class EcmaType : TypeDescription
     private EcmaType? _baseType;
     private bool _builtIsValueType;
     private bool _isValueType;
+    private bool _isEnum;
 
     public EcmaAssembly Assembly { get; }
 
@@ -48,6 +49,38 @@ internal sealed class EcmaType : TypeDescription
         {
             EnsureBaseType();
             return _baseType;
+        }
+    }
+
+    /// <summary>
+    /// True for an <c>enum</c> type (derives from <c>System.Enum</c>). Enums are value types
+    /// whose representation is that of their underlying integer type.
+    /// </summary>
+    public bool IsEnum
+    {
+        get
+        {
+            EnsureIsValueType();
+            return _isEnum;
+        }
+    }
+
+    public bool IsInterface => TypeDefinition.Attributes.HasFlag(TypeAttributes.Interface);
+
+    public bool IsSealed => TypeDefinition.Attributes.HasFlag(TypeAttributes.Sealed);
+
+    /// <summary>The integer type an enum is stored as: the type of its <c>value__</c> field.</summary>
+    public TypeDescription EnumUnderlyingType
+    {
+        get
+        {
+            foreach (var fieldDefinitionHandle in TypeDefinition.GetFields())
+            {
+                var fieldDefinition = Assembly.MetadataReader.GetFieldDefinition(fieldDefinitionHandle);
+                if (!fieldDefinition.Attributes.HasFlag(FieldAttributes.Static))
+                    return fieldDefinition.DecodeSignature(Assembly.SignatureTypeProvider, Instantiation.Empty);
+            }
+            throw new InvalidOperationException($"Enum {FullName} has no value__ field.");
         }
     }
 
@@ -195,7 +228,11 @@ internal sealed class EcmaType : TypeDescription
             return;
         }
 
-        _isValueType = BaseType?.IsWellKnownType(WellKnownType.ValueType) ?? false;
+        // System.Enum itself derives from ValueType but is a reference type.
+        var isEnumClass = Assembly == Context.CoreAssembly && FullName == "System.Enum";
+        _isEnum = !isEnumClass && (BaseType?.IsWellKnownType(WellKnownType.Enum) ?? false);
+        _isValueType = _isEnum
+            || (!isEnumClass && (BaseType?.IsWellKnownType(WellKnownType.ValueType) ?? false));
 
         _builtIsValueType = true;
     }

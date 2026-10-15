@@ -51,14 +51,20 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
     public TypeDescription GetTypeFromDefinition(MetadataReader reader, TypeDefinitionHandle handle, byte rawTypeKind)
     {
         Debug.Assert(reader == assembly.MetadataReader);
-        return assembly.GetType(handle);
+        return Underlying(assembly.GetType(handle));
     }
 
     public TypeDescription GetTypeFromReference(MetadataReader reader, TypeReferenceHandle handle, byte rawTypeKind)
     {
         Debug.Assert(reader == assembly.MetadataReader);
-        return assembly.ResolveType(handle);
+        return Underlying(assembly.ResolveType(handle));
     }
+
+    // An enum is represented by its underlying integer type everywhere a signature
+    // names it (locals, fields, parameters, arrays); the enum type itself is only
+    // needed by `box` & co, which take a type token and so never come through here.
+    private static TypeDescription Underlying(EcmaType type) =>
+        type.IsEnum ? type.EnumUnderlyingType : type;
 
     public TypeDescription GetTypeFromSpecification(MetadataReader reader, Instantiation genericContext, TypeSpecificationHandle handle, byte rawTypeKind)
     {

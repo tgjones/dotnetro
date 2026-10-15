@@ -59,6 +59,8 @@ internal sealed class EcmaMethod
 
     public bool IsVirtual => MethodDefinition.Attributes.HasFlag(MethodAttributes.Virtual);
 
+    public bool IsFinal => MethodDefinition.Attributes.HasFlag(MethodAttributes.Final);
+
     // [MethodImpl(MethodImplOptions.InternalCall)]: the method has no IL body and
     // is provided by the "runtime". DotNetro uses this to mark ROM-call wrappers
     // (e.g. PutChar) whose bodies are hand-written MOS6502 MIR in runtime.irie; the

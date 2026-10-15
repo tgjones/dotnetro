@@ -174,6 +174,14 @@ internal sealed class IlToMirTranslator : IDisposable
         return _allocArrayMethod;
     }
 
+    // DotNetro.Runtime.TypeCheck.<name>(object, vtable) → object, the run-time half of
+    // isinst / castclass / unbox.any. Resolved on first use.
+    internal EcmaMethod GetTypeCheckMethod(string name)
+    {
+        var type = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "TypeCheck");
+        return type.GetMethod(name);
+    }
+
     // The software multiply / divide / remainder helpers in DotNetro.Runtime.MathHelper,
     // which Irie's legalizer calls by these stable names (compiler-rt naming). Each
     // is emitted under its own name so the call the legalizer builds links.
@@ -214,52 +222,39 @@ internal sealed class IlToMirTranslator : IDisposable
     // their index) then extended with `type`'s own NewSlot virtuals; overrides
     // replace the inherited slot in place.
     //
-    // Recursion stops at the root (BaseType == null, i.e. System.Object): the
-    // BCL's virtuals (ToString/Equals/…) are never dispatched by the supported
-    // corpus, so they get no slots. This also makes slot indices a pure function
-    // of metadata — independent of which methods turn out to be "used" — so the
-    // translator can emit the right offset at each callvirt without a whole-
+    // Recursion stops at System.Object, which has no base and contributes its own
+    // virtuals (Equals/GetHashCode/ToString) as slots 0..2. Slot indices are a pure
+    // function of metadata, independent of which methods turn out to be "used", so
+    // the translator can emit the right offset at each callvirt without a whole-
     // program fixpoint over the used set.
     private List<EcmaMethod> GetVtableLayout(EcmaType type)
     {
         if (_vtableLayouts.TryGetValue(type, out var cached))
             return cached;
 
-        // The root (System.Object, BaseType == null) contributes no slots: its
-        // virtuals (Equals/GetHashCode/ToString/…) are never dispatched by the
-        // supported corpus, and enumerating them would pull their (unsupported)
-        // bodies into the program. Stopping here also makes slot indices a pure
-        // function of metadata, independent of which methods turn out "used".
-        List<EcmaMethod> slots;
-        if (type.BaseType == null)
-        {
-            slots = [];
-        }
-        else
-        {
-            slots = new List<EcmaMethod>(GetVtableLayout(type.BaseType));
+        var slots = type.BaseType == null
+            ? []
+            : new List<EcmaMethod>(GetVtableLayout(type.BaseType));
 
-            foreach (var methodDefinitionHandle in type.TypeDefinition.GetMethods())
+        foreach (var methodDefinitionHandle in type.TypeDefinition.GetMethods())
+        {
+            var methodDefinition = type.Assembly.MetadataReader.GetMethodDefinition(methodDefinitionHandle);
+            if (!methodDefinition.Attributes.HasFlag(MethodAttributes.Virtual))
+                continue;
+
+            var method = type.Assembly.GetMethod(methodDefinitionHandle);
+            if (methodDefinition.Attributes.HasFlag(MethodAttributes.NewSlot))
             {
-                var methodDefinition = type.Assembly.MetadataReader.GetMethodDefinition(methodDefinitionHandle);
-                if (!methodDefinition.Attributes.HasFlag(MethodAttributes.Virtual))
-                    continue;
-
-                var method = type.Assembly.GetMethod(methodDefinitionHandle);
-                if (methodDefinition.Attributes.HasFlag(MethodAttributes.NewSlot))
-                {
-                    slots.Add(method);
-                }
-                else
-                {
-                    var overridden = FindOverriddenMethod(method);
-                    var index = GetVtableLayout(overridden.DeclaringType).IndexOf(overridden);
-                    if (index < 0)
-                        throw new NotSupportedException(
-                            $"IL→MIR: override {method.UniqueName} has no user vtable slot " +
-                            $"(overriding a BCL virtual method is not supported yet).");
-                    slots[index] = method;
-                }
+                slots.Add(method);
+            }
+            else
+            {
+                var overridden = FindOverriddenMethod(method);
+                var index = GetVtableLayout(overridden.DeclaringType).IndexOf(overridden);
+                if (index < 0)
+                    throw new NotSupportedException(
+                        $"IL→MIR: override {method.UniqueName} has no vtable slot for {overridden.UniqueName}.");
+                slots[index] = method;
             }
         }
 
@@ -314,30 +309,65 @@ internal sealed class IlToMirTranslator : IDisposable
         }
     }
 
-    // Emit a `Vtable_<type>` global per used type: a packed array of 2-byte
-    // little-endian function pointers, one per dispatch slot (plain pointers —
-    // no RTS-trick offset; the indirect-call trampoline does JMP (zp)).
-    // Symbol name for a type's vtable global. Plain pointers, no RTS-trick offset.
+    // A vtable is a packed array of 2-byte little-endian pointers (plain pointers —
+    // no RTS-trick offset; the indirect-call trampoline does JMP (zp)):
+    //   word 0         the base type's vtable (0 for System.Object); a type test
+    //                  walks this chain
+    //   word 1 + slot  the dispatch targets, one per vtable slot
+    // An object's header (at obj-2) points at its vtable. Strings and arrays have
+    // no vtable (a null header).
+    private const int VtableHeaderSize = PointerSize;
+
+    // Symbol name for a type's vtable global.
     private static string VtableName(EcmaType type) => $"Vtable_{type.EncodedName}";
+
+    // Types whose vtable global is needed: those instances are made of (_usedTypes), the
+    // targets of a type test, and every base of those (the chain is walked at run time).
+    private readonly HashSet<EcmaType> _vtableTypes = [];
+
+    // Make sure `type` (and its bases) have a vtable global, e.g. as the target of isinst.
+    internal void RequireVtable(EcmaType type)
+    {
+        for (var t = type; t != null && _vtableTypes.Add(t); t = t.BaseType)
+        {
+        }
+    }
 
     private void RegisterVtableGlobals()
     {
         foreach (var type in _usedTypes)
+            RequireVtable(type);
+
+        foreach (var type in _vtableTypes)
         {
             var name = VtableName(type);
             if (_globals.ContainsKey(name))
                 continue;
 
             var slots = GetVtableLayout(type);
-            var items = slots
-                .Select(method => (MirDataItem)new DataSymbolRef(method.UniqueName))
-                .ToArray();
+            var items = new List<MirDataItem>
+            {
+                type.BaseType is { } baseType
+                    ? new DataSymbolRef(VtableName(baseType))
+                    : new DataBytes(new byte[PointerSize]),
+            };
+
+            // Only a type that has instances dispatches through its vtable; for the
+            // rest (a type test target, a base class) the slots are never read, and
+            // their methods were not compiled.
+            var hasInstances = _usedTypes.Contains(type);
+            foreach (var method in slots)
+            {
+                items.Add(hasInstances
+                    ? new DataSymbolRef(method.UniqueName)
+                    : new DataBytes(new byte[PointerSize]));
+            }
 
             _globals[name] = new MirGlobal(
                 SymbolName:  name,
                 Type:        IRType.Pointer,
-                SizeInBytes: slots.Count * PointerSize,
-                Initializer: new MirInitializer(items));
+                SizeInBytes: VtableHeaderSize + slots.Count * PointerSize,
+                Initializer: new MirInitializer([.. items]));
         }
     }
 
@@ -901,6 +931,19 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateDup();
                         break;
 
+                    case ILOpCode.Box:
+                        TranslateBox(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Unbox_any:
+                        TranslateUnboxAny(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Isinst:
+                        TranslateTypeTest(MetadataTokens.EntityHandle(ilReader.ReadInt32()), "IsInstance");
+                        break;
+                    case ILOpCode.Castclass:
+                        TranslateTypeTest(MetadataTokens.EntityHandle(ilReader.ReadInt32()), "CastClass");
+                        break;
+
                     // pop → discard the top of the stack (any instructions that produced
                     // it, such as a call, have already been emitted).
                     case ILOpCode.Pop:
@@ -1276,10 +1319,29 @@ internal sealed class IlToMirTranslator : IDisposable
         // local as a block argument, in local-index order.
         private void EmitBranchTo(MirBlock from, MirBlock target)
         {
+            if (MaterialiseStackCompares()) from = _currentBlock;
             _builder.SetInsertionPointAtEnd(from);
             _builder.BuildInstruction(
                 CfDialect.OpRef(CfOp.Br),
                 new BlockTarget(target, EdgeArgsFor(target)));
+        }
+
+        // A compare still pending on the eval stack (`a && b` used as a value leaves
+        // one across the branch) travels as a block argument, which needs a concrete
+        // 0/1 byte. Materialise each one in place; that splits the current block, so
+        // the branch must then be emitted from `_currentBlock`. Returns whether it did.
+        private bool MaterialiseStackCompares()
+        {
+            if (!_stack.Any(static v => v.Type.Equals(IRType.I1)))
+                return false;
+
+            var values = _stack.Reverse().ToArray();
+            _stack.Clear();
+            foreach (var value in values)
+                _stack.Push(value.Type.Equals(IRType.I1)
+                    ? new StackValue(MaterialiseCompare(value.Vreg), IRType.I8)
+                    : value);
+            return true;
         }
 
         // Block arguments for an edge to `target`: locals, then the eval stack.
@@ -2000,6 +2062,11 @@ internal sealed class IlToMirTranslator : IDisposable
             // i1 operand's materialisation (PopMaterialised) moves _currentBlock
             // to a synthetic merge block with no IL offset.
             var fallThrough = NextBlockAfterIlBlock();
+
+            // A compare pending beneath the two operands (`(a == b) == (c > d ? …)`)
+            // must become a byte before the branch carries the stack. Done before the
+            // compare so its cmpi stays at the end of the block the cond_br is in.
+            MaterialiseStackCompares();
             TranslateCompare(predicate);
             var cond = _stack.Pop();
 
@@ -2068,6 +2135,7 @@ internal sealed class IlToMirTranslator : IDisposable
             var fallThrough = NextBlockAfterIlBlock();
             var targetBlock = BlockAt(target);
 
+            if (MaterialiseStackCompares()) from = _currentBlock;
             _builder.SetInsertionPointAtEnd(from);
             // A reference tested for null compares as its address.
             if (cond.IsPointer) cond = AsInteger(cond);
@@ -2272,7 +2340,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 if (opCode == ILOpCode.Ldloca_s)
                     result.Add(scan.ReadByte());
                 else
-                    SkipOperand(ref scan, opCode);
+                    SkipBranchOrOperand(ref scan, opCode);
             }
             return result;
         }
@@ -2427,7 +2495,9 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
 
-            if (!callee.IsVirtual)
+            // A non-virtual method, a final one, or one of a sealed type (a string has
+            // no vtable to dispatch through) has exactly one possible target.
+            if (!callee.IsVirtual || callee.IsFinal || callee.DeclaringType.IsSealed)
             {
                 TranslateDirectCall(callee);
                 return;
@@ -2448,7 +2518,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(headerAddr, IsDefinition: false));
 
             var slotIndex = _parent.GetVtableSlotIndex(callee);
-            var slotAddr = EmitFieldAddress(vtablePtr, slotIndex * PointerSize);
+            var slotAddr = EmitFieldAddress(vtablePtr, VtableHeaderSize + slotIndex * PointerSize);
             var fptr = _function.CreateVirtualRegister(IRType.Pointer);
             _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
                 new VirtualReg(fptr, IsDefinition: true),
@@ -2494,6 +2564,122 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildCall(constructor.UniqueName, [], ctorArgs);
 
             _stack.Push(new StackValue(ptr, IRType.Pointer));
+        }
+
+        // The IR type and signedness of a value type that lives in a register: a
+        // primitive (a struct in DotNetro.CoreLib, named for it) or an enum (its
+        // underlying integer). Any other value type is a struct, which on the eval
+        // stack is the address of its bytes.
+        private static bool TryGetScalar(EcmaType type, out IRType irType, out bool signed)
+        {
+            irType = IRType.Void;
+            signed = false;
+
+            if (type.IsEnum)
+            {
+                var underlying = type.EnumUnderlyingType;
+                irType = ToIRType(underlying);
+                signed = IsSignedClr(underlying);
+                return true;
+            }
+
+            if (type.Assembly != type.Context.CoreAssembly || type.TypeDefinition.Namespace.IsNil
+                || type.FullName is not ("System.Boolean" or "System.Byte" or "System.SByte" or "System.Int16"
+                    or "System.UInt16" or "System.Char" or "System.Int32" or "System.UInt32" or "System.Int64"
+                    or "System.UInt64" or "System.IntPtr" or "System.UIntPtr"))
+                return false;
+
+            irType = type.Size switch { 1 => IRType.I8, 2 => IRType.I16, 4 => IRType.I32, _ => IRType.I64 };
+            signed = type.FullName is "System.SByte" or "System.Int16" or "System.Int32" or "System.Int64";
+            return true;
+        }
+
+        // box <T> → a heap object holding a copy of the value: the vtable of T in the
+        // header, the value as the contents. Boxing a reference type does nothing.
+        //   %obj = call.func @ManagedHeap_Alloc(sizeof(T), &Vtable_<T>)
+        //   store the value (or copy the struct) into %obj
+        private void TranslateBox(EntityHandle typeHandle)
+        {
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            if (!type.IsValueType)
+                return;
+
+            _parent.MarkTypeUsed(type);
+
+            var value = PopMaterialised();
+            var size = _builder.BuildConstant(IRType.I16, type.InstanceSize);
+            var vtablePtr = _builder.BuildMemSymbol(IlToMirTranslator.VtableName(type));
+            var allocMethod = _parent.GetAllocMethod();
+            _parent.EnqueueMethod(allocMethod);
+            var ptr = _builder.BuildCall(allocMethod.UniqueName, [IRType.Pointer], size, vtablePtr)[0];
+
+            if (TryGetScalar(type, out var irType, out _))
+            {
+                _builder.BuildInstruction(MemDialect.OpRef(StoreOpFor(irType)),
+                    new VirtualReg(ptr, IsDefinition: false),
+                    new VirtualReg(Resize(value, irType).Vreg, IsDefinition: false));
+            }
+            else
+            {
+                // A struct on the eval stack is its address.
+                EmitStructCopy(ptr, value.Vreg, type.InstanceSize);
+            }
+
+            _stack.Push(new StackValue(ptr, IRType.Pointer));
+        }
+
+        // unbox.any <T> → for a reference type a castclass; for a value type, check that
+        // the object is a boxed T and read the value out (a struct stays in the box and
+        // is pushed as its address, like any struct on the stack).
+        private void TranslateUnboxAny(EntityHandle typeHandle)
+        {
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            TranslateTypeTest(type, "CastClass");
+            if (!type.IsValueType || !TryGetScalar(type, out var irType, out var signed))
+                return;
+
+            var address = _stack.Pop();
+            var value = _function.CreateVirtualRegister(irType);
+            _builder.BuildInstruction(MemDialect.OpRef(LoadOpFor(irType)),
+                new VirtualReg(value, IsDefinition: true),
+                new VirtualReg(address.Vreg, IsDefinition: false));
+            _stack.Push(new StackValue(value, irType, signed));
+        }
+
+        private void TranslateTypeTest(EntityHandle typeHandle, string helperName) =>
+            TranslateTypeTest(_method.DeclaringType.Assembly.ResolveType(typeHandle), helperName);
+
+        // isinst / castclass <T>: the object (or null) if it is a T, else null (isinst) or
+        // a halt (castclass; there are no exceptions yet). The test is TypeCheck's walk
+        // of the object's vtable chain looking for T's vtable. Everything is a
+        // System.Object, so that needs no test; a string has no vtable, which the
+        // helper takes a null target to mean.
+        private void TranslateTypeTest(EcmaType type, string helperName)
+        {
+            if (type.IsInterface)
+                throw new NotSupportedException(
+                    $"IL→MIR: {helperName} against the interface {type.FullName} is not supported yet (method {_method.UniqueName}).");
+
+            var isCore = type.Assembly == type.Context.CoreAssembly;
+            if (isCore && type.FullName == "System.Object")
+                return;
+
+            var obj = AsAddress(_stack.Pop());
+            int target;
+            if (isCore && type.FullName == "System.String")
+            {
+                target = BuildZero(_builder, IRType.Pointer);
+            }
+            else
+            {
+                _parent.RequireVtable(type);
+                target = _builder.BuildMemSymbol(IlToMirTranslator.VtableName(type));
+            }
+
+            var helper = _parent.GetTypeCheckMethod(helperName);
+            _parent.EnqueueMethod(helper);
+            var result = _builder.BuildCall(helper.UniqueName, [IRType.Pointer], obj.Vreg, target)[0];
+            _stack.Push(new StackValue(result, IRType.Pointer));
         }
 
         // dup → re-push the top stack value (same vreg).

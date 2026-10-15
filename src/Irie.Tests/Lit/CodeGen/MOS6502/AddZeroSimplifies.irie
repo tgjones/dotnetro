@@ -1,0 +1,14 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; ArithSimplify collapses `x + 0` to `x`. The add used to stay in the block until the
+; final sweep and was re-enqueued as a user of its own replacement, so the pass never
+; terminated.
+func @add_zero : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 0
+    %2 : i16 = arith.addi %0, %1
+    core.return %2
+}
+
+; CHECK: add_zero:
+; CHECK:     RTS

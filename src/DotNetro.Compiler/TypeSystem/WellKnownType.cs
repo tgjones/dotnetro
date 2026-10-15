@@ -3,4 +3,5 @@
 internal enum WellKnownType
 {
     ValueType,
+    Enum,
 }

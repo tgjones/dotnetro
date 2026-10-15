@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 142
-- **Implemented and lit-covered:** 135
+- **Implemented:** 146
+- **Implemented and lit-covered:** 139
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -40,7 +40,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `blt.un.s` | ✅ | ✅ |
 | `bne.un` | ✅ | ✅ |
 | `bne.un.s` | ✅ | ✅ |
-| `box` | ❌ | — |
+| `box` | ✅ | ✅ |
 | `br` | ✅ | ✅ |
 | `br.s` | ✅ | ✅ |
 | `break` | ❌ | — |
@@ -51,7 +51,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `call` | ✅ | ✅ |
 | `calli` | ✅ | ✅ |
 | `callvirt` | ✅ | ✅ |
-| `castclass` | ❌ | — |
+| `castclass` | ✅ | ✅ |
 | `ceq` | ✅ | ✅ |
 | `cgt` | ✅ | ✅ |
 | `cgt.un` | ✅ | ✅ |
@@ -101,7 +101,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `endfinally` | ❌ | — |
 | `initblk` | ❌ | — |
 | `initobj` | ✅ | ✅ |
-| `isinst` | ❌ | — |
+| `isinst` | ✅ | ✅ |
 | `jmp` | ❌ | — |
 | `ldarg` | ❌ | — |
 | `ldarg.0` | ✅ | ✅ |
@@ -230,6 +230,6 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `throw` | ❌ | — |
 | `unaligned` | ✅ | ❌ |
 | `unbox` | ❌ | — |
-| `unbox.any` | ❌ | — |
+| `unbox.any` | ✅ | ✅ |
 | `volatile` | ✅ | ✅ |
 | `xor` | ✅ | ✅ |

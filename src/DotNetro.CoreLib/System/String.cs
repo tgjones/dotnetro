@@ -1,5 +1,3 @@
-#pragma warning disable CS0660, CS0661 // ==/!= without Equals(object)/GetHashCode: Object has no virtuals yet (stage 4).
-
 using System.Runtime.CompilerServices;
 
 using DotNetro.Runtime;
@@ -63,6 +61,24 @@ public sealed class String
 
     public bool Equals(string value) => Equals(this, value);
 
+    public override bool Equals(object obj) => obj is string other && Equals(this, other);
+
+    // A string cannot be dispatched through a vtable (it has none), so this and
+    // ToString are reached by direct calls on a string only.
+    public override unsafe int GetHashCode()
+    {
+        var hash = 0;
+        var p = GetChars();
+        for (var remaining = (nint)_length; remaining > 0; remaining--)
+        {
+            hash = hash * 31 + *p;
+            p++;
+        }
+        return hash;
+    }
+
+    public override string ToString() => this;
+
     public static bool operator ==(string a, string b) => Equals(a, b);
 
     public static bool operator !=(string a, string b) => !Equals(a, b);
@@ -109,7 +125,7 @@ public sealed class String
     }
 
     // A zeroed string of `length` characters (the NUL terminator comes from the zeroing).
-    private static unsafe string Allocate(nint length)
+    internal static unsafe string Allocate(nint length)
         => StringFromPointer(ManagedHeap.AllocArray(length, length + 1));
 
     // A string reference is the address of its length, which is what AllocArray returns.
