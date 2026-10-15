@@ -65,3 +65,9 @@ header .share-warning { margin-left: auto; color: #ffb347; background: #000; pad
 :root[data-theme='dark'] .pipeline-row.changed { color: #56d364; }
 .pipeline-row:hover { background: var(--bar); }
 .pipeline-row.selected { background: var(--accent); color: #fff; opacity: 1; }
+
+.menu-anchor { position: relative; }
+.menu { position: absolute; top: 100%; left: 0; z-index: 50; display: flex; flex-direction: column; min-width: 9rem; margin-top: 2px; background: var(--bg); border: 1px solid var(--border); box-shadow: 0 2px 8px rgba(0, 0, 0, .25); }
+.menu-item { font: inherit; color: var(--fg); background: none; border: 0; padding: .3rem .75rem; text-align: left; cursor: pointer; }
+.menu-item:hover:not([disabled]) { background: var(--accent); color: #fff; }
+.menu-item[disabled] { opacity: .4; cursor: default; }

@@ -123,7 +123,7 @@ export class OptPipelinePanel {
 
   private renderList() {
     this.list.replaceChildren(...this.visibleRows().map(r => {
-      const item = el('div', `pipeline-row${r.changed ? ' changed' : ''}${r.index === this.selected ? ' selected' : ''}`, `${r.index} ${r.name}`);
+      const item = el('div', `pipeline-row${r.changed ? ' changed' : ''}${r.index === this.selected ? ' selected' : ''}`, r.name);
       item.onclick = () => { this.select(r.index); this.list.focus(); };
       return item;
     }));

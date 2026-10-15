@@ -1,7 +1,7 @@
 import type { ComponentContainer } from 'golden-layout';
 import { ASM_LANGUAGE, monaco, type Monaco } from '../monaco';
 import { monacoTheme } from '../theme';
-import { EMULATOR_PANELS, disassemblyTitle, el, summarize, type AppContext, type PanelState } from './context';
+import { ADD_PANEL_ITEMS, OPT_PIPELINE, disassemblyTitle, el, summarize, type AppContext, type PanelState } from './context';
 
 /** Read-only assembly view for one target. Feeds emulator panels with the image. */
 export class DisassemblyPanel {
@@ -15,9 +15,11 @@ export class DisassemblyPanel {
   constructor(private readonly container: ComponentContainer, private readonly state: PanelState, private readonly ctx: AppContext) {
     const root = el('div', 'panel');
     const toolbar = el('div', 'toolbar');
-    const addEmulator = el('button', undefined, '+ Emulator');
-    addEmulator.title = 'Add an emulator panel that runs this output';
-    toolbar.append(el('label', undefined, 'Target '), this.targetSelect, addEmulator);
+    const add = el('button', undefined, '+');
+    add.title = 'Add a panel that consumes this output';
+    const addWrap = el('span', 'menu-anchor');
+    addWrap.append(add);
+    toolbar.append(el('label', undefined, 'Target '), this.targetSelect, addWrap);
     const host = el('div', 'editor-host');
     this.download.download = 'MAIN.ssd';
     this.download.hidden = true;
@@ -64,14 +66,52 @@ export class DisassemblyPanel {
       this.recompile();
     };
 
-    addEmulator.onclick = () => {
-      const kind = ctx.client.targets.find(t => t.id === this.targetId)?.emulatorKind ?? 'jsbeeb';
-      const type = EMULATOR_PANELS[kind];
-      if (type) ctx.addPanel(type, { id: ctx.store.newId('e'), upstreamId: state.id, options: {} }, 'Emulator');
-    };
+    add.onclick = e => { e.stopPropagation(); this.menuClose ? this.menuClose() : this.openMenu(addWrap); };
+    this.disposers.push(() => this.menuClose?.());
+
+    // A new Opt Pipeline viewer has nothing to show until the next compile, so recompile with snapshots.
+    this.disposers.push(ctx.store.onPanelsChanged(() => {
+      if (this.wantsSnapshots() && !this.requestedSnapshots) void this.recompile();
+    }));
 
     if (state.upstreamId) this.disposers.push(ctx.store.subscribe(state.upstreamId, () => this.recompile()));
     container.on('beforeComponentRelease', () => this.dispose());
+  }
+
+  private menuClose: (() => void) | undefined;
+  private requestedSnapshots = false;
+
+  private wantsSnapshots() {
+    return this.ctx.store.getPanels().some(p => p.type === OPT_PIPELINE && p.upstreamId === this.state.id);
+  }
+
+  private openMenu(anchor: HTMLElement) {
+    const kind = this.ctx.client.targets.find(t => t.id === this.targetId)?.emulatorKind ?? 'jsbeeb';
+    const menu = el('div', 'menu');
+    for (const item of ADD_PANEL_ITEMS) {
+      const type = item.panelType(kind);
+      const button = el('button', 'menu-item', item.label);
+      button.disabled = !type;
+      button.onclick = () => {
+        this.menuClose?.();
+        if (!type) return;
+        const id = this.ctx.store.newId(item.idPrefix);
+        this.ctx.addPanel(type, { id, upstreamId: this.state.id, options: {} }, item.title(this.ctx.store, id, this.state.id));
+      };
+      menu.append(button);
+    }
+    anchor.append(menu);
+    const onDown = (e: MouseEvent) => { if (!menu.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    const close = () => {
+      menu.remove();
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      this.menuClose = undefined;
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    this.menuClose = close;
   }
 
   private get targetId() { return (this.state.options.targetId as string | undefined) ?? 'bbcmicro'; }
@@ -94,7 +134,8 @@ export class DisassemblyPanel {
     this.status.textContent = 'Compiling…';
     this.status.classList.remove('link', 'error');
     const targetId = this.targetId;
-    const result = await this.ctx.client.compileForTarget(this.state.id, upstream.result.assembly, targetId);
+    const snapshots = this.requestedSnapshots = this.wantsSnapshots();
+    const result = await this.ctx.client.compileForTarget(this.state.id, upstream.result.assembly, targetId, snapshots);
     if (!result) return; // superseded
     this.ctx.store.publish(this.state.id, { kind: 'target', targetId, result });
 
