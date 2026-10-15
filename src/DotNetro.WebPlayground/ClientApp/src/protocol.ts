@@ -13,7 +13,8 @@ export interface Diagnostic {
 }
 
 export interface CSharpResult { ok: boolean; diagnostics: Diagnostic[]; assembly?: string }
-export interface PassSnapshot { passName: string; mirText: string }
+/** `mirText` is absent when the module text is identical to the previous snapshot's. */
+export interface PassSnapshot { passName: string; mirText?: string }
 export interface TargetResult {
   ok: boolean;
   diagnostics: Diagnostic[];
