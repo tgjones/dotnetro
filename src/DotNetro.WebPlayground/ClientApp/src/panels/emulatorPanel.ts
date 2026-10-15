@@ -1,24 +1,34 @@
 import type { ComponentContainer } from 'golden-layout';
 import { el, emulatorTitle, type AppContext, type PanelState } from './context';
 import { BbcMicroMachine } from './bbcMicroMachine';
+import { C64Machine } from './c64Machine';
+import type { Machine } from './machine';
 
 /**
- * BBC Micro emulator (jsbeeb). Consumes the image published by its upstream disassembly panel:
- * every successful compile boots the new image. Pauses while hidden or when the page is hidden.
+ * An emulator panel. Consumes the image published by its upstream disassembly panel: every
+ * successful compile boots the new image. Pauses while hidden or when the page is hidden.
+ * The machine (BBC Micro, C64) comes from the subclass.
  */
-export class BbcMicroEmulatorPanel {
+abstract class EmulatorPanel {
+  /** The `emulatorKind` of the targets whose images this machine runs. */
+  protected abstract get emulatorKind(): string;
+
   private readonly screen = el('canvas', 'bbc-screen');
   private readonly status = el('span', 'status', 'Waiting for a successful compile…');
   private readonly pauseButton = el('button', undefined, 'Pause');
-  private readonly machine: BbcMicroMachine;
+  private readonly machine: Machine;
   private readonly disposers: (() => void)[] = [];
   private image: Uint8Array | undefined;
   private paused = false;
   private visible = true;
 
-  constructor(container: ComponentContainer, private readonly state: PanelState, private readonly ctx: AppContext) {
-    this.machine = new BbcMicroMachine(this.screen);
-    this.screen.tabIndex = 0;
+  constructor(
+    container: ComponentContainer,
+    private readonly state: PanelState,
+    private readonly ctx: AppContext,
+    createMachine: (screen: HTMLCanvasElement) => Machine,
+  ) {
+    this.machine = createMachine(this.screen);
 
     const reset = el('button', undefined, 'Reset');
     reset.onclick = () => this.restart();
@@ -32,12 +42,7 @@ export class BbcMicroEmulatorPanel {
     footer.append(this.status);
     root.append(bar, wrap, footer);
     container.element.append(root);
-
-    // Keys reach the machine only while the screen has focus.
-    this.screen.addEventListener('keydown', e => { e.preventDefault(); if (e.code === 'F12' || e.code === 'Pause') this.machine.breakKey(true); else this.machine.keyDown(e); });
-    this.screen.addEventListener('keyup', e => { e.preventDefault(); if (e.code === 'F12' || e.code === 'Pause') this.machine.breakKey(false); else this.machine.keyUp(e); });
-    this.screen.addEventListener('blur', () => this.machine.clearKeys());
-    this.screen.addEventListener('mousedown', () => this.screen.focus());
+    this.machine.bindInput(this.screen);
 
     const onVisibility = () => this.sync();
     document.addEventListener('visibilitychange', onVisibility);
@@ -57,6 +62,9 @@ export class BbcMicroEmulatorPanel {
 
   private onResult(r: ReturnType<AppContext['store']['get']>) {
     if (r?.kind !== 'target' || !r.result.ok || !r.result.image) return;
+    // An image for another system would boot as garbage here.
+    const kind = this.ctx.client.targets.find(t => t.id === r.targetId)?.emulatorKind;
+    if (kind !== this.emulatorKind) return;
     this.image = Uint8Array.from(atob(r.result.image), c => c.charCodeAt(0));
     this.restart();
   }
@@ -78,8 +86,24 @@ export class BbcMicroEmulatorPanel {
   }
 
   private dispose() {
-    this.machine.pause();
+    this.machine.dispose();
     this.disposers.forEach(d => d());
     this.ctx.store.unregisterPanel(this.state.id);
+  }
+}
+
+export class BbcMicroEmulatorPanel extends EmulatorPanel {
+  protected get emulatorKind() { return 'jsbeeb'; }
+
+  constructor(container: ComponentContainer, state: PanelState, ctx: AppContext) {
+    super(container, state, ctx, screen => new BbcMicroMachine(screen));
+  }
+}
+
+export class C64EmulatorPanel extends EmulatorPanel {
+  protected get emulatorKind() { return 'vice-c64'; }
+
+  constructor(container: ComponentContainer, state: PanelState, ctx: AppContext) {
+    super(container, state, ctx, screen => new C64Machine(screen));
   }
 }

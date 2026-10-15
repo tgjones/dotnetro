@@ -8,7 +8,7 @@ export class DisassemblyPanel {
   private readonly editor: Monaco.editor.IStandaloneCodeEditor;
   private readonly status = el('span', 'status');
   private readonly targetSelect = el('select');
-  private readonly download = el('a', 'download', 'MAIN.ssd');
+  private readonly download = el('a', 'download');
   private url: string | undefined;
   private readonly disposers: (() => void)[] = [];
 
@@ -21,7 +21,6 @@ export class DisassemblyPanel {
     addWrap.append(add);
     toolbar.append(el('label', undefined, 'Target '), this.targetSelect, addWrap);
     const host = el('div', 'editor-host');
-    this.download.download = 'MAIN.ssd';
     this.download.hidden = true;
     const footer = el('div', 'statusbar');
     footer.append(this.status, this.download);
@@ -155,7 +154,12 @@ export class DisassemblyPanel {
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = base64 ? URL.createObjectURL(new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))])) : undefined;
     this.download.hidden = !this.url;
-    if (this.url) this.download.href = this.url;
+    if (this.url) {
+      const fileName = this.ctx.client.targets.find(t => t.id === this.targetId)?.imageFileName ?? 'image';
+      this.download.href = this.url;
+      this.download.download = fileName;
+      this.download.textContent = fileName;
+    }
   }
 
   private dispose() {

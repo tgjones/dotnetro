@@ -8,11 +8,12 @@ import { findModel } from 'jsbeeb/src/models.js';
 import { machineSpec, nullIo } from 'jsbeeb/src/machine-spec.js';
 import { discFor } from 'jsbeeb/src/fdc.js';
 import { Typist } from 'jsbeeb/src/typist.js';
+import type { Machine } from './machine';
 
 const MaxCyclesPerFrame = 200_000;
 const ShiftBreakHoldMs = 1000;
 
-export class BbcMicroMachine {
+export class BbcMicroMachine implements Machine {
   private readonly model = findModel('B-DFS1.2');
   private readonly canvas: any;
   private cpu: any;
@@ -60,6 +61,17 @@ export class BbcMicroMachine {
   }
 
   pause() { this.running = false; this.clearKeys(); }
+
+  dispose() { this.pause(); }
+
+  /** Keys reach the machine only while the screen has focus. */
+  bindInput(screen: HTMLCanvasElement) {
+    screen.tabIndex = 0;
+    screen.addEventListener('keydown', e => { e.preventDefault(); if (e.code === 'F12' || e.code === 'Pause') this.breakKey(true); else this.keyDown(e); });
+    screen.addEventListener('keyup', e => { e.preventDefault(); if (e.code === 'F12' || e.code === 'Pause') this.breakKey(false); else this.keyUp(e); });
+    screen.addEventListener('blur', () => this.clearKeys());
+    screen.addEventListener('mousedown', () => screen.focus());
+  }
 
   // The natural layout names a key by the character it produced, so what you type comes out right
   // whatever your keyboard layout; remember the name used on the way down for the release.

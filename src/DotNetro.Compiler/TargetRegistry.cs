@@ -10,6 +10,7 @@ namespace DotNetro.Compiler;
 /// <param name="Id">Stable identifier used in requests and shared links (e.g. <c>bbcmicro</c>).</param>
 /// <param name="DisplayName">Name shown to users.</param>
 /// <param name="CoreLibId">Names this system's build of <c>DotNetro.CoreLib</c>: the <c>corelib/&lt;id&gt;</c> folder beside the compiler and the playground's <c>DotNetro.CoreLib.&lt;id&gt;</c> resource.</param>
+/// <param name="ImageFileName">File name offered when the image is downloaded (e.g. <c>MAIN.ssd</c>).</param>
 /// <param name="EmulatorKind">Which emulator runs the produced image (e.g. <c>jsbeeb</c>).</param>
 /// <param name="CreateTarget">Creates the Irie target (fresh per compile).</param>
 /// <param name="Encode">Encodes machine code to raw bytes loaded at the given origin.</param>
@@ -18,6 +19,7 @@ public sealed record TargetDescriptor(
     string Id,
     string DisplayName,
     string CoreLibId,
+    string ImageFileName,
     string EmulatorKind,
     Func<Target> CreateTarget,
     Func<MachineCodeModule, int, byte[]> Encode,
@@ -34,6 +36,7 @@ public static class TargetRegistry
             BbcMicroId,
             "BBC Micro",
             CoreLibId: BbcMicroId,
+            ImageFileName: "MAIN.ssd",
             EmulatorKind: "jsbeeb",
             CreateTarget: () => new MOS6502BbcMicroTarget(),
             Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),
@@ -42,7 +45,8 @@ public static class TargetRegistry
             C64Id,
             "Commodore 64",
             CoreLibId: C64Id,
-            EmulatorKind: "chips-c64",
+            ImageFileName: "program.prg",
+            EmulatorKind: "vice-c64",
             CreateTarget: () => new MOS6502C64Target(),
             Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),
             WriteAssembly: MOS6502AssemblyWriter.Write),

@@ -1,7 +1,7 @@
 // Contract between the shell and the compile worker. The result shapes mirror the JSON that
 // DotNetro.WebPlayground.Playground returns (camelCase).
 
-export interface TargetInfo { id: string; displayName: string; emulatorKind: string }
+export interface TargetInfo { id: string; displayName: string; emulatorKind: string; imageFileName: string }
 
 export type Severity = 'error' | 'warning' | 'info';
 export interface Diagnostic {

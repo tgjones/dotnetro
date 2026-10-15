@@ -110,11 +110,53 @@ There is no OS in the BBC sense; there is the KERNAL, a ROM jump table at `$FF81
 | `jenoksen/c64-emulator` | GPL-2.0 | created 2026-10-10 (4 days old) | Single HTML file, claims cycle-exact 6510/VIC-II/SID/1541. Brand new, unproven, GPL, single-file → hard to drive. Not a base. |
 | `mborgbrant/c64js` | MIT | last push 2022; README: VIC-II "isn't fully emulated" | Too incomplete. |
 | `luxocrates/viciious` | none stated | last push 2023 | Single HTML, tinkering-oriented; no licence. |
+| `@emulatorjs/core-vice_x64` 4.2.3 (VICE libretro core built by EmulatorJS) | core GPL-2.0, frontend `@emulatorjs/emulatorjs` GPL-3.0 | npm package built 2025-06 (frontend repo active) | **Investigated 2026-10-15, not yet run.** The package is only four `.data` files, each a 7z of one Emscripten build (`vice_x64_libretro.js` + `.wasm`, 6.7 MB; variants: plain, legacy, thread, thread-legacy). It is a whole RetroArch build, not a library: no documented embedding API, the API is the EmulatorJS frontend. **The wasm embeds the C64 ROMs** (KERNAL 901227, BASIC, chargen found at fixed offsets), so no separate ROM hosting. See "EmulatorJS core" below. |
 | VICE → WASM (`vice.js` 2.4, Internet Archive's 3.2 build) | GPL | old/unmaintained ports (web search only, not verified) | Most accurate, but heavy and no maintained embeddable build found. |
 
 **Recommendation:** chips `c64.h` compiled to WASM with our own thin wrapper, exposing the same surface as
 `BbcMicroMachine` (`boot(image)`, `run`, `pause`, `isRunning`, `keyDown`, `keyUp`, `clearKeys`). Zlib is the
 friendliest licence, it is actively maintained and the machine is complete enough (VIC-II, SID, CIA, keyboard).
+
+#### EmulatorJS core (investigated 2026-10-15; nothing run yet)
+
+- **Shape:** `vice_x64_libretro.js` defines a global `EJS_Runtime`, an Emscripten factory returning a `Module` for a
+  RetroArch/libretro build. Rather than use the 6k-line GPL-3 frontend, we can do what its `GameManager.js` does:
+  `EJS_Runtime({ noInitialRun: true, canvas, locateFile })`, write a `retroarch.cfg` and the `.prg` into `Module.FS`,
+  `Module.callMain(['/game.prg'])`, `resumeMainLoop()`. Exported C helpers (via `cwrap`): `system_restart`,
+  `simulate_input(player, index, value)`, `ejs_set_variable` (core options), `toggleMainLoop`, `load_state`,
+  `get_video_dimensions`, `ejs_set_keyboard_enabled`.
+- **Hosting:** use the non-thread wasm (the thread builds need `SharedArrayBuffer`, i.e. COOP/COEP headers that GitHub
+  Pages cannot send). Extract the 7z at build time (`7z`/`bsdtar`; both on `ubuntu-latest` or via an npm 7z package)
+  and serve `.js` + `.wasm` directly. Add the npm package as a build-time dependency copied into `dist`, so neither the
+  core nor the ROMs it embeds are committed (same stance as the BBC ROMs, see `THIRD-PARTY-NOTICES.md`).
+- **Licence:** GPL-2.0 core served as an unmodified separate file next to the MIT playground (as jsbeeb is GPL-3);
+  add it to `THIRD-PARTY-NOTICES.md` with a source link. The embedded ROMs are Commodore/Cloanto copyright (accepted
+  for publication by the repo owner, 2026-10-15).
+- **Spike results (2026-10-15, headless Chromium via Playwright, a plain page with no frontend; page and driver were
+  throwaway in `/tmp/c64-spike`):**
+  - Loading works as sketched above (`EJS_Runtime(...)`, `retroarch.cfg` + `.prg` into `FS`, `callMain`,
+    `resumeMainLoop`). One extra: `Module.callbacks.setupCoreSettingFile = path => { mkdir -p its parent; FS.writeFile(path, '') }`
+    must create the directory, or the core throws an `ErrnoError`.
+  - The `.prg` autostarts through the SYS stub: first frame after ~1 s, our output on screen by ~4.5 s (software GL).
+    The test program (mixed case, negative int, ReadLine, halt) renders correctly.
+  - **Running another program: write the new bytes over `/game.prg` and call `system_restart`.** It reset the machine and
+    ran the second program, so no module teardown is needed.
+  - **Keyboard** (`ejs_set_keyboard_enabled(1)`, canvas clicked): letters, shifted letters, space and RETURN reach
+    `Console.ReadLine` correctly. Quirk: with the default `vice_keyboard_keymap = positional`, Shift+digit gives the digit
+    (Shift+1 = `1`, not `!`). Switching with `ejs_set_variable('vice_keyboard_keymap','symbolic')` fixed Shift+2 (`@`)
+    but Shift+1 still gave `1` in one try; needs more work (other options: `vice_physical_keyboard_pass_through`, or
+    our own DOM-key → `simulate_input` mapping). RUN/STOP, `£`, `←` untested.
+  - Not tested: audio (SID beep; needs a user gesture), PAL border/canvas sizing in the panel, a module created while
+    the panel is hidden.
+  - The "Built for EmulatorJS … Download a copy from github.com/EmulatorJS/EmulatorJS … View the licence here" text is
+    three lines the wasm sends to `Module.print` at start-up. It is never drawn on the canvas; it only showed up in the
+    spike because the page appended `print` output to the DOM. Pass `print`/`printErr` handlers that ignore it (or log
+    to the console) and nothing EmulatorJS-branded appears in the panel. (The licence notice then belongs in
+    `THIRD-PARTY-NOTICES.md`.)
+- **Versus `chips` `c64.h`:** the VICE core is far more accurate and brings ROMs and sound with it, but it is a
+  RetroArch build that we control only through a thin C surface; `c64.h` would give a clean API but needs our own
+  wrapper, audio, input and separately hosted ROMs. Recommendation after the spike: use the EmulatorJS core; the
+  restart path works and the keyboard is mostly there. Fall back to `chips` only if the keyboard quirks cannot be tamed.
 
 **ROMs are the real playground risk** (applies to every option): KERNAL, BASIC and character ROMs are
 copyrighted (now Cloanto). The only open alternative seen is `mega65/open-roms` (pushed 2026-05-16, GitHub reports
@@ -186,7 +228,7 @@ Each stage ends green under `dotnet test --solution src` in Debug and Release.
       `PackageImage` → `C64PrgImage.Build(code, origin)`.
 - [x] `C64PrgImage` (internal, like `BbcMicroDfsImage`): load address `$0801`, BASIC line `SYS <origin>`, code.
       Unit tests: header bytes, SYS digits for several origins, size.
-- [x] `TargetRegistry`: `C64Id = "c64"`, display name "Commodore 64", `EmulatorKind: "chips-c64"`, same encoder /
+- [x] `TargetRegistry`: `C64Id = "c64"`, display name "Commodore 64", `EmulatorKind: "vice-c64"`, same encoder /
       assembly writer as the BBC descriptor, `CoreLibId = "c64"`; add `mos6502-c64` to `iriec`'s target switch
       (`Irie.Tools.Compiler/Program.cs`, deferred from Stage 0).
 - [x] `.irie` lit tests: `IntegerAdd32-Prg.irie` (byte-exact `.prg`), zp-base test (`sta $02` for RC0, nothing
@@ -195,7 +237,7 @@ Each stage ends green under `dotnet test --solution src` in Debug and Release.
 Notes: `C64PrgImage` throws if the origin overlaps the BASIC stub or the program runs past `$FFFF` (the `$9FFF` ROM
 limit is not checked; see Risks). Registering `c64` makes the playground list "Commodore 64" before Stage 3/5: its
 compile fails with an "Internal compiler error" (no `DotNetro.CoreLib.c64` resource) and no emulator panel exists for
-`chips-c64`. Hide it from `GetTargets` if the playground ships before then.
+`vice-c64` (now renamed from `chips-c64`; Stage 5 added the panel).
 
 ### Stage 2 — Test emulator system — DONE
 
@@ -246,16 +288,27 @@ visible failure needs an output path. The soft stack pointer (finding 8) was not
 Result (2026-10-15, run by Tim in an emulator): a small program (hello with mixed case, negative int, ReadLine round trip,
 beep, halt) works as expected. Not yet exercised: a long program (zero-page/`$90+` clobber, IRQ ticking over a long run).
 
-### Stage 5 — Playground integration
+### Stage 5 — Playground integration — DONE (core: EmulatorJS VICE; see the spike notes above)
 
-- [ ] Build `c64.h` from chips to WASM (Emscripten or clang-only, as in the 8bitworkshop write-up) with exports:
-      init, tick/run-frame, framebuffer, audio, key down/up, reset, quickload PRG, set ROMs. If the ZX plan's chips
-      fallback is also built, share the build tooling.
-- [ ] Settle the ROM question (open-roms vs user-supplied) and record it in the repo (`NOTICE`/docs).
-- [ ] `panels/c64Machine.ts` implementing the `BbcMicroMachine` surface; generalise `emulatorPanel.ts` or add a
-      sibling; extend `EMULATOR_PANELS` with `chips-c64`.
-- [ ] Keyboard mapping (C64 matrix, positional vs symbolic, RUN/STOP and the `£`/`←` keys).
-- [ ] Target picker gets the C64 for free from `TargetRegistry`; add a sample program.
+- [x] Emulator: the EmulatorJS `vice_x64` libretro core instead of building `c64.h` from `chips` (spike results above).
+      `@emulatorjs/core-vice_x64` and `7z-wasm` are devDependencies; `scripts/c64Core.ts` unpacks the plain wasm build
+      once into `node_modules/.cache/c64-core/`, which the Vite dev server serves under `c64/` and the build copies
+      into `dist/c64/`. Neither the core nor the ROMs embedded in it are in the repo.
+- [x] ROMs: nothing to settle in the repo; they ship inside the core's wasm. Accepted for publication by the repo
+      owner (2026-10-15); recorded in `THIRD-PARTY-NOTICES.md` with the core's GPL notice.
+- [x] `panels/c64Machine.ts` implements a new `Machine` interface (`panels/machine.ts`: boot/run/pause/bindInput/dispose);
+      `BbcMicroMachine` implements it too. `emulatorPanel.ts` is now an abstract `EmulatorPanel` with
+      `BbcMicroEmulatorPanel` / `C64EmulatorPanel` subclasses; `EMULATOR_PANELS` maps `vice-c64` → `emulator-c64`.
+      A panel ignores images compiled for another system's target. The core's `print` output (EmulatorJS banner) is dropped.
+- [x] Keyboard: the core binds key events itself; the panel enables it (`ejs_set_keyboard_enabled`) only while the canvas has
+      focus. **Known quirk, not fixed:** the default positional mapping gives digits for Shift+digit (see spike notes).
+- [x] Target picker shows "Commodore 64" from `TargetRegistry`; the download link now takes its name from the target
+      (`TargetDescriptor.ImageFileName`: `MAIN.ssd` / `program.prg`). Canvas is letterboxed to 4:3 by `C64Machine`.
+- [ ] Not done: a C64 sample program (the default source is shared), audio verified in a real browser, RUN/STOP and the
+      `£`/`←` keys, Shift+digit symbols.
+- Verified headlessly (Playwright + Chromium, software GL): select the C64 target, add an Emulator panel from the `+`
+  menu, the program runs; a second compile restarts it; typing into the panel reaches `Console.ReadLine`; `vite dev`
+  and `vite build` both serve the core.
 
 ## Risks / open questions
 

@@ -24,7 +24,7 @@ public static partial class Playground
     [JSExport]
     public static string GetTargets()
         => JsonSerializer.Serialize(
-            TargetRegistry.Targets.Select(t => new TargetInfo(t.Id, t.DisplayName, t.EmulatorKind)).ToArray(),
+            TargetRegistry.Targets.Select(t => new TargetInfo(t.Id, t.DisplayName, t.EmulatorKind, t.ImageFileName)).ToArray(),
             PlaygroundJson.Default.TargetInfoArray);
 
     /// <summary>
@@ -114,7 +114,7 @@ public static partial class Playground
     }
 }
 
-public sealed record TargetInfo(string Id, string DisplayName, string EmulatorKind);
+public sealed record TargetInfo(string Id, string DisplayName, string EmulatorKind, string ImageFileName);
 
 public sealed record Diagnostic(string Severity, string Message, int? Line, int? Column, string Source);
 

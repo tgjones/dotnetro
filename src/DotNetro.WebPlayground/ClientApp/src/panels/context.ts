@@ -20,10 +20,11 @@ export const SOURCE = 'source';
 export const DISASSEMBLY = 'disassembly';
 export const PROBLEMS = 'problems';
 export const EMULATOR_BBC = 'emulator-bbcmicro';
+export const EMULATOR_C64 = 'emulator-c64';
 export const OPT_PIPELINE = 'opt-pipeline';
 
 /** emulatorKind (from TargetInfo) → panel component type. One emulator per system. */
-export const EMULATOR_PANELS: Record<string, string> = { jsbeeb: EMULATOR_BBC };
+export const EMULATOR_PANELS: Record<string, string> = { jsbeeb: EMULATOR_BBC, 'vice-c64': EMULATOR_C64 };
 
 export function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);

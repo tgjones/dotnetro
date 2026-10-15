@@ -2,6 +2,7 @@ import { cpSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync,
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import { c64CoreFiles, ensureC64Core } from './scripts/c64Core';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -44,6 +45,16 @@ function dotnetFramework(): Plugin {
           res.end(frameworkManifest());
           return;
         }
+        const c64Index = url.indexOf('/c64/');
+        if (c64Index >= 0) {
+          const file = url.slice(c64Index + '/c64/'.length);
+          if (!c64CoreFiles.includes(file)) return next();
+          ensureC64Core().then(dir => {
+            res.setHeader('Content-Type', mimeTypes[extname(file)] ?? 'application/octet-stream');
+            res.end(readFileSync(join(dir, file)));
+          }, next);
+          return;
+        }
         const romIndex = url.indexOf('/roms/');
         if (romIndex >= 0) {
           const rom = url.slice(romIndex + '/roms/'.length);
@@ -60,8 +71,13 @@ function dotnetFramework(): Plugin {
         res.end(readFileSync(file));
       });
     },
-    closeBundle() {
+    async closeBundle() {
       const outDir = resolve(here, 'dist');
+      const c64Dir = await ensureC64Core();
+      for (const file of c64CoreFiles) {
+        mkdirSync(join(outDir, 'c64'), { recursive: true });
+        cpSync(join(c64Dir, file), join(outDir, 'c64', file));
+      }
       for (const rom of romFiles) {
         mkdirSync(dirname(join(outDir, 'roms', rom)), { recursive: true });
         cpSync(join(jsbeebRoms, rom), join(outDir, 'roms', rom));
