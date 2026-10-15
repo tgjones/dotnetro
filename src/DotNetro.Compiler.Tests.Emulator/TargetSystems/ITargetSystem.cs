@@ -6,9 +6,9 @@ internal interface ITargetSystem
     EmulationResult Run(byte[] memory, TextReader input, TextWriter? trace, int maxTicks);
 }
 
-internal sealed record EmulationResult(string Output, EmulationStatus Status);
+internal sealed record EmulationResult(string Output, EmulationStatus Status, string? Message = null);
 
-internal enum EmulationStatus { Completed, RunawayTimeout }
+internal enum EmulationStatus { Completed, RunawayTimeout, Fault }
 
 internal static class HaltDetection
 {

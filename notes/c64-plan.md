@@ -197,16 +197,22 @@ limit is not checked; see Risks). Registering `c64` makes the playground list "C
 compile fails with an "Internal compiler error" (no `DotNetro.CoreLib.c64` resource) and no emulator panel exists for
 `chips-c64`. Hide it from `GetTargets` if the playground ships before then.
 
-### Stage 2 — Test emulator system
+### Stage 2 — Test emulator system — DONE
 
-- [ ] `DotNetro.Compiler.Tests.Emulator/TargetSystems/C64TargetSystem.cs`: load at `$080D`, reset vector → `JSR
+- [x] `DotNetro.Compiler.Tests.Emulator/TargetSystems/C64TargetSystem.cs`: load at `$080D`, reset vector → `JSR
       $080D`, stub `$FFD2` (record PETSCII→ASCII output; `$0D` → `\n`; ignore `$0E`/`$8E`/`$93`), `$FFCF`
       and `$FFE4` (feed `--input`, ASCII→PETSCII), completion = halt detection via the existing `HaltDetection.IsHalt` helper (`ITargetSystem.cs`), called at `pins.Sync`
       exactly as `BbcMicroTargetSystem` does. The BBC harness no longer needs a return marker; the C64 reset stub is just
       `JSR $080D`. The Aemula core is a plain NMOS 6502, which is
       all we need; do not emulate the port at `$01` (tests must simply never touch `$00/$01`: add a trap that
       fails the run if they do, as it would be a codegen bug).
-- [ ] `Program.cs`: `--target-system c64`; update the option description.
+- [x] `Program.cs`: `--target-system c64`; update the option description.
+
+Notes: `$FFCF` hands back a line a character at a time ending in `$0D`, like the screen editor; `$FFE4` returns 0
+when no characters are pending (it never reads a new line). Unmapped PETSCII output shows as `?` so stray bytes are
+visible in a DIFF. The `$00/$01` trap arms at the first opcode fetch (the reset sequence touches low addresses) and
+ends the run with `EmulationStatus.Fault` (exit code 4, message on stderr). Covered by two hand-assembled lit tests in
+`DotNetro.Compiler.Tests/Lit/Emulator/` (`printf` octal escapes, as CI's `/bin/sh` is dash).
 
 ### Stage 3 — CoreLib and runtime for the C64
 

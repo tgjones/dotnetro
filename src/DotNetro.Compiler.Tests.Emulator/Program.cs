@@ -1,7 +1,7 @@
 using System.CommandLine;
 
 var programFileArgument = new Argument<string?>("program-file") { Description = "Path to a raw 6502 program file, or - for stdin.", Arity = ArgumentArity.ZeroOrOne };
-var targetSystemOption = new Option<string>("--target-system") { Description = "Target system. Currently: bbcmicro (default).", DefaultValueFactory = _ => "bbcmicro" };
+var targetSystemOption = new Option<string>("--target-system") { Description = "Target system. One of: bbcmicro (default), c64.", DefaultValueFactory = _ => "bbcmicro" };
 var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
 var maxTicksOption = new Option<int>("--max-ticks") { Description = "Tick budget before the run is aborted as a runaway. Default: 1,000,000.", DefaultValueFactory = _ => 1_000_000 };
 var traceOption = new Option<FileInfo?>("--trace") { Description = "Write a per-instruction PC/A/X/Y/P/SP trace to file." };
@@ -47,6 +47,7 @@ rootCommand.SetAction(parseResult =>
         target = targetSystemName switch
         {
             "bbcmicro" => new BbcMicroTargetSystem(),
+            "c64" => new C64TargetSystem(),
             _ => throw new ArgumentException($"Unknown --target-system '{targetSystemName}'."),
         };
     }
@@ -78,11 +79,14 @@ rootCommand.SetAction(parseResult =>
     {
         var result = target.Run(memory, inputReader, traceWriter, maxTicks);
         Console.Write(result.Output);
+        if (result.Message is not null)
+            Console.Error.WriteLine(result.Message);
 
         return result.Status switch
         {
             EmulationStatus.Completed => 0,
             EmulationStatus.RunawayTimeout => 2,
+            EmulationStatus.Fault => 4,
             _ => 3,
         };
     }
