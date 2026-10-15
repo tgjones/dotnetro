@@ -214,24 +214,28 @@ visible in a DIFF. The `$00/$01` trap arms at the first opcode fetch (the reset 
 ends the run with `EmulationStatus.Fault` (exit code 4, message on stderr). Covered by two hand-assembled lit tests in
 `DotNetro.Compiler.Tests/Lit/Emulator/` (`printf` octal escapes, as CI's `/bin/sh` is dash).
 
-### Stage 3 — CoreLib and runtime for the C64
+### Stage 3 — CoreLib and runtime for the C64 — DONE
 
-- [ ] `DotNetro.CoreLib.C64` project (`CoreLibTarget` = `C64`), `Console.C64.cs` with the same four `InternalCall`
-      externs as `Console.BbcMicro.cs`, added to the solution and as a content reference of `dnrc`/tests/playground.
-- [ ] PETSCII/KERNAL wrappers: prefer CoreLib C# in `Console.C64.cs` (as `Console.BbcMicro.cs` does, via
-      `delegate* unmanaged[...]` to `$FFD2`/`$FFCF`) over a new `runtime.c64.irie`; only fall back to MIR if C# cannot
-      express it. A KERNAL call needs its own calling convention (A/X/Y in, A/X/Y/flags clobbered, RC untouched),
-      like `CallConvBbcMicroOS` — or reuse that lowering if identical. Contents: `PutChar` (ASCII→PETSCII then `jsr $FFD2`), `PlatformReadLine` (`jsr $FFCF` loop
-      into a static 80-byte buffer until `$0D`, PETSCII→ASCII, NUL-terminate, return pointer),
-      `PlatformBeep` (SID), plus any `oswrch`-style helper the shared `PlatformWriteLineInt32` uses.
-- [ ] `ManagedHeap.C64.cs` (`partial HeapStart()` exists; C64 value `$0800`-ish above the image, or `__image_end`) per
-      decision 4, plus the end limit / OOM check.
-- [ ] `Startup.C64.cs` (the hook already exists): `CHROUT($0E)` for the lower/upper charset, `CHROUT($93)` clear screen;
-      optionally set border/background.
-- [x] Nothing C64-specific for exit: the halt comes from `__entry` (decision 6, done in Stage 0).
-- [ ] Port the `.cs` lit corpus: add a `RUN-emulated-c64` line (`@dnrc --target c64 --emit program | @emulator
-      --target-system c64`) and `DIFF: dotnet emulated-c64` to every test that is not BBC-specific. Tests that
-      pin BBC behaviour (e.g. `ReadAndWriteLine` input handling) stay BBC-only unless they port cleanly.
+- [x] `DotNetro.CoreLib.C64` project (in the solution, copied beside `dnrc` and the tests as `corelib/c64/`, embedded in
+      the playground as `DotNetro.CoreLib.c64`), with `Console.C64.cs` and `Startup.C64.cs`.
+- [x] KERNAL calls are CoreLib C# through `delegate* unmanaged[C64Kernal]` at `$FFD2` (CHROUT) and `$FFCF` (CHRIN). New
+      calling convention `CallConvention.C64Kernal` (`c64_kernal`, marker type `CallConvC64Kernal`); its lowering is
+      the BBC ROM one, now shared as `MOS6502RomCallLowering` (A/X/Y in, A/X/Y/flags clobbered, no RC clobbered).
+      `PutChar` converts ASCII→PETSCII (swap letter case); `PlatformReadLine` loops CHRIN into the tape buffer at
+      `$033C` (max 80 chars, PETSCII→ASCII, ends in CR); `PlatformBeep` writes SID voice 1 directly and busy-waits.
+      Note `starg` is not supported by the translator, so these use locals instead of assigning to parameters.
+- [x] Heap: `ManagedHeap` has per-target `HeapStart()` / `HeapEnd()`. The C64 start is the encoder-defined symbol
+      `__image_end` (`MOS6502BinaryEncoder.ImageEndSymbol`, the address past the last image byte) read by
+      `@HeapStart` in the new `runtime.c64.irie` (the first user of `SystemRuntimeResource`), which backs an
+      `InternalCall` partial; the end is `$A000`. `Alloc` now halts (a `while (true)` loop) when out of memory, on
+      every target; BBC end is `$7C00`.
+- [x] Start-up: `CHROUT($0E)` (lower/upper-case set) then `CHROUT($93)` (clear screen); colours left at the defaults.
+- [x] Exit: halt from `__entry` (Stage 0).
+- [x] Lit corpus: every `.cs` test now has `RUN-emulated-c64` and `DIFF: dotnet emulated-c64` (all 103+ pass,
+      including `ReadAndWriteLine`). None needed to stay BBC-only.
+
+Notes: the OOM halt is silent (the test harness reports `Completed` with truncated output, which a DIFF catches); a
+visible failure needs an output path. The soft stack pointer (finding 8) was not investigated here.
 
 ### Stage 4 — Real-machine sanity (not automated)
 

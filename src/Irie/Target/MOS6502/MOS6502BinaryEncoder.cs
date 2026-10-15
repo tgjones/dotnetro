@@ -254,6 +254,9 @@ public sealed class MOS6502BinaryEncoder
         return addr;
     }
 
+    // Defined by the encoder: the address just past the last byte of the image.
+    public const string ImageEndSymbol = "__image_end";
+
     private int ResolveSymbol(string name, int referringAddr)
     {
         if (_functionAddrs.TryGetValue(name, out var addr)) return addr;
@@ -348,6 +351,10 @@ public sealed class MOS6502BinaryEncoder
             globalEntries.Add(new GlobalLayoutEntry(cursor, global));
             cursor += global.SizeInBytes;
         }
+
+        // The first address past the program image, for runtimes that place something
+        // (the managed heap) right after it.
+        globalAddrs.TryAdd(ImageEndSymbol, cursor);
 
         return new LayoutResult(functionAddrs, globalAddrs, localLabelAddrs, entries, globalEntries);
     }

@@ -7,6 +7,9 @@ internal static partial class ManagedHeap
     // Where the heap starts: free memory above the program, per target (ManagedHeap.<Target>.cs).
     private static unsafe partial byte* HeapStart();
 
+    // The first address past the heap, per target.
+    private static unsafe partial byte* HeapEnd();
+
     private static unsafe byte* s_heapPtr = HeapStart();
 
     // Allocate `size` bytes of zeroed object contents behind a vtable header.
@@ -14,6 +17,14 @@ internal static partial class ManagedHeap
     public static unsafe byte* Alloc(nint size, void* vtablePtr)
     {
         var result = s_heapPtr;
+
+        // Out of memory: there are no exceptions, so stop.
+        if (size > (nint)(HeapEnd() - result) - sizeof(IntPtr))
+        {
+            while (true)
+            {
+            }
+        }
 
         // Increment by size of object header + size of object.
         s_heapPtr += sizeof(IntPtr) + size;

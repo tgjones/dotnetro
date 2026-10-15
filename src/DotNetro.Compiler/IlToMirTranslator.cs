@@ -2487,6 +2487,8 @@ internal sealed class IlToMirTranslator : IDisposable
                 };
                 if (name == "CallConvBbcMicroOS")
                     return CallConvention.BbcMicroOS;
+                if (name == "CallConvC64Kernal")
+                    return CallConvention.C64Kernal;
             }
             return CallConvention.Default;
         }

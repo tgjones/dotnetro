@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\DotNetro.CoreLib\CoreLib.props" />
+
+  <PropertyGroup>
+    <CoreLibTarget>C64</CoreLibTarget>
+  </PropertyGroup>
+
+  <Import Project="..\DotNetro.CoreLib\CoreLib.targets" />
+
+</Project>

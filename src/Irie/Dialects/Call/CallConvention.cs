@@ -12,15 +12,28 @@ public static class CallConvention
     // The BBC Micro OS ROM entry points: byte arguments in A, X, Y.
     public const int BbcMicroOS = 1;
 
+    // The Commodore 64 KERNAL jump table ($FF81-$FFF3): byte arguments in A, X, Y.
+    public const int C64Kernal = 2;
+
     public static bool TryGetName(long id, out string name)
     {
-        name = id == BbcMicroOS ? "bbcmicro_os" : string.Empty;
+        name = id switch
+        {
+            BbcMicroOS => "bbcmicro_os",
+            C64Kernal => "c64_kernal",
+            _ => string.Empty,
+        };
         return name.Length > 0;
     }
 
     public static bool TryFromName(string name, out long id)
     {
-        id = name == "bbcmicro_os" ? BbcMicroOS : Default;
+        id = name switch
+        {
+            "bbcmicro_os" => BbcMicroOS,
+            "c64_kernal" => C64Kernal,
+            _ => Default,
+        };
         return id != Default;
     }
 }

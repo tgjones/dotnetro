@@ -21,6 +21,9 @@
     <ProjectReference Include="..\DotNetro.CoreLib.BbcMicro\DotNetro.CoreLib.BbcMicro.csproj"
                       ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest"
                       Link="corelib\bbcmicro\DotNetro.CoreLib.dll" />
+    <ProjectReference Include="..\DotNetro.CoreLib.C64\DotNetro.CoreLib.C64.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="Content" CopyToOutputDirectory="PreserveNewest"
+                      Link="corelib\c64\DotNetro.CoreLib.dll" />
     <ProjectReference Include="..\DotNetro.Compiler.Tests.CsCompiler\DotNetro.Compiler.Tests.CsCompiler.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DotNetro.Compiler.Tests.DotNetRunner\DotNetro.Compiler.Tests.DotNetRunner.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\DotNetro.Compiler.Tests.Emulator\DotNetro.Compiler.Tests.Emulator.csproj" ReferenceOutputAssembly="false" />

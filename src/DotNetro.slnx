@@ -16,6 +16,7 @@
   <Project Path="DotNetro.Tools.ILSupport/DotNetro.Tools.ILSupport.csproj" />
   <Project Path="DotNetro.WebPlayground/DotNetro.WebPlayground.csproj" />
   <Project Path="DotNetro.CoreLib.BbcMicro/DotNetro.CoreLib.BbcMicro.csproj" />
+  <Project Path="DotNetro.CoreLib.C64/DotNetro.CoreLib.C64.csproj" />
   <Project Path="Irie.Tests/Irie.Tests.csproj" Id="ac6701c7-b5f6-4024-911f-921547398161" />
   <Project Path="Irie.Tools.Assembler/Irie.Tools.Assembler.csproj" />
   <Project Path="Irie.Tools.Disassembler/Irie.Tools.Disassembler.csproj" />
