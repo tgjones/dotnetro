@@ -30,3 +30,7 @@ repository's source and are not covered by the licences above. They are copyrigh
 and are distributed here on the same basis as in VICE and the EmulatorJS core. If you are a rights holder and want
 them removed, please open an issue.
 
+
+## Octicons
+
+The GitHub and link icons in the header are inlined SVG paths from [Octicons](https://github.com/primer/octicons) by GitHub, licensed under the MIT License.

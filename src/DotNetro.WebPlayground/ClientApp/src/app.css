@@ -13,6 +13,10 @@ header h1 { display: flex; align-items: center; gap: .6rem; font: 14px/1 ui-mono
 header h1 img { height: 44px; width: auto; image-rendering: pixelated; }
 header button { font: inherit; color: #f3ead2; background: #000; border: 2px solid #f3ead2; border-radius: 0; padding: .2rem .6rem; cursor: pointer; }
 header button:hover { background: #f3ead2; color: #000; }
+header .share-button { display: flex; align-items: center; gap: .4rem; border: 0; padding: .2rem; }
+header .github-link { display: flex; align-items: center; color: #f3ead2; padding: .2rem; }
+header .share-button:hover { background: none; color: #fff; }
+header .github-link:hover { color: #fff; }
 #layout { flex: 1; min-height: 0; position: relative; }
 
 .panel { display: flex; flex-direction: column; height: 100%; }
