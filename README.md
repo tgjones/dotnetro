@@ -1,4 +1,4 @@
-# DotNetro [![ci](https://github.com/tgjones/DotNetro/actions/workflows/ci.yml/badge.svg)](https://github.com/tgjones/DotNetro/actions/workflows/ci.yml)
+# DotNetro [![ci](https://github.com/tgjones/dotnetro/actions/workflows/ci.yml/badge.svg)](https://github.com/tgjones/dotnetro/actions/workflows/ci.yml)
 
 <img align="right" width="160px" height="160px" src="img/dotnetro-logo.png">
 
