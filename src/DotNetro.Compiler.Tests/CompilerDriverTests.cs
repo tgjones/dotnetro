@@ -77,8 +77,22 @@ public sealed class CompilerDriverTests
         var result = CompilerDriver.Compile(new CompileRequest(dll, CreateInMemoryResolver(), TargetRegistry.BbcMicroId, CaptureSnapshots: true));
 
         await Assert.That(result.PassSnapshots).IsNotNull();
-        await Assert.That(result.PassSnapshots!).IsNotEmpty();
-        await Assert.That(result.PassSnapshots!.All(s => s.PassName.Length > 0 && s.MirText.Length > 0)).IsTrue();
+        var snapshots = result.PassSnapshots!;
+        await Assert.That(snapshots).IsNotEmpty();
+        await Assert.That(snapshots[0].PassName).IsEqualTo("Translation");
+        await Assert.That(snapshots[0].MirText).IsNotNull().And.IsNotEmpty();
+        await Assert.That(snapshots.All(s => s.PassName.Length > 0)).IsTrue();
+        await Assert.That(snapshots.Skip(1).Any(s => s.MirText != null)).IsTrue();
+        await Assert.That(snapshots.Skip(1).Any(s => s.MirText == null)).IsTrue();
+
+        var last = snapshots[0].MirText;
+        foreach (var snapshot in snapshots.Skip(1))
+        {
+            if (snapshot.MirText == null)
+                continue;
+            await Assert.That(snapshot.MirText).IsNotEqualTo(last);
+            last = snapshot.MirText;
+        }
     }
 
     [Test]

@@ -65,11 +65,20 @@ public static class CompilerDriver
         if (request.CaptureSnapshots)
         {
             snapshots = [];
-            passMgr.AfterEachPass = (pass, _) =>
+            string WriteModule()
             {
                 var writer = new StringWriter();
                 module.Write(writer, target.RegisterInfo.GetRegisterName);
-                snapshots.Add(new PassSnapshot(pass.Name, writer.ToString()));
+                return writer.ToString();
+            }
+
+            var previous = WriteModule();
+            snapshots.Add(new PassSnapshot("Translation", previous));
+            passMgr.AfterEachPass = (pass, _) =>
+            {
+                var text = WriteModule();
+                snapshots.Add(new PassSnapshot(pass.Name, text == previous ? null : text));
+                previous = text;
             };
         }
 
@@ -102,7 +111,7 @@ public static class CompilerDriver
 /// <param name="Resolver">Supplies every other assembly the compiler needs. Framework references in the program are redirected to <see cref="WellKnownAssemblies.CoreLib"/>, so that is all it has to supply besides third-party libraries.</param>
 /// <param name="TargetId">A <see cref="TargetRegistry"/> id.</param>
 /// <param name="EntryPoint">Name of the entry point method (falls back to the top-level-statements <c>&lt;Main&gt;$</c>).</param>
-/// <param name="CaptureSnapshots">Capture the MIR after each pass into <see cref="CompilationResult.PassSnapshots"/>.</param>
+/// <param name="CaptureSnapshots">Capture the module's MIR before the first pass and after each pass into <see cref="CompilationResult.PassSnapshots"/>.</param>
 public sealed record CompileRequest(
     byte[] Assembly,
     IAssemblyResolver Resolver,
@@ -114,8 +123,11 @@ public enum DiagnosticSeverity { Info, Warning, Error }
 
 public sealed record CompileDiagnostic(DiagnosticSeverity Severity, string Message, string Source);
 
-/// <summary>MIR text after one pass of the pipeline.</summary>
-public sealed record PassSnapshot(string PassName, string MirText);
+/// <summary>
+/// The module's MIR text after one pass of the pipeline. <paramref name="MirText"/> is <c>null</c> when
+/// it is identical to the previous snapshot's (pass names are not unique; identify a snapshot by its index).
+/// </summary>
+public sealed record PassSnapshot(string PassName, string? MirText);
 
 public sealed record CompilationResult(string AssemblyCode, string Listing, ReadOnlyCollection<byte> CompiledProgram, ReadOnlyCollection<byte> CompiledImage)
 {
@@ -124,7 +136,11 @@ public sealed record CompilationResult(string AssemblyCode, string Listing, Read
 
     public IReadOnlyList<CompileDiagnostic> Diagnostics { get; init; } = [];
 
-    /// <summary>Set only when <see cref="CompileRequest.CaptureSnapshots"/> was requested.</summary>
+    /// <summary>
+    /// Set only when <see cref="CompileRequest.CaptureSnapshots"/> was requested. The first entry is the
+    /// <c>Translation</c> baseline (before any pass) and always has text; a later entry's text is
+    /// <c>null</c> when the pass left the module unchanged.
+    /// </summary>
     public IReadOnlyList<PassSnapshot>? PassSnapshots { get; init; }
 
     public bool Succeeded => !Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error);

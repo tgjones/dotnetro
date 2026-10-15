@@ -56,6 +56,8 @@ public static partial class Playground
     /// <summary>
     /// Compiles an IL assembly for a target. Returns JSON
     /// <c>{ ok, diagnostics[], asm?, origin?, image?, passSnapshots? }</c> (<c>image</c> is base64).
+    /// <c>passSnapshots</c> (only when <paramref name="captureSnapshots"/>) starts with a <c>Translation</c>
+    /// baseline; a later entry omits <c>mirText</c> when the pass did not change the module.
     /// </summary>
     [JSExport]
     public static string CompileForTarget(byte[] assembly, string targetId, bool captureSnapshots)
@@ -118,7 +120,7 @@ public sealed record Diagnostic(string Severity, string Message, int? Line, int?
 
 public sealed record CSharpResult(bool Ok, Diagnostic[] Diagnostics, string? Assembly);
 
-public sealed record PassSnapshotInfo(string PassName, string MirText);
+public sealed record PassSnapshotInfo(string PassName, string? MirText);
 
 public sealed record TargetResult(
     bool Ok,
