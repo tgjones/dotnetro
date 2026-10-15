@@ -20,6 +20,7 @@ export const SOURCE = 'source';
 export const DISASSEMBLY = 'disassembly';
 export const PROBLEMS = 'problems';
 export const EMULATOR_BBC = 'emulator-bbcmicro';
+export const OPT_PIPELINE = 'opt-pipeline';
 
 /** emulatorKind (from TargetInfo) → panel component type. One emulator per system. */
 export const EMULATOR_PANELS: Record<string, string> = { jsbeeb: EMULATOR_BBC };
@@ -51,6 +52,30 @@ export function emulatorTitle(store: Store, id: string, upstreamId?: string) {
   }
   return `Emulator #${ordinal(id)}${parents.length ? ` (${parents.join(', ')})` : ''}`;
 }
+
+export function pipelineTitle(store: Store, id: string, upstreamId?: string) {
+  const parents: string[] = [];
+  if (upstreamId) {
+    const compiler = store.getPanels().find(p => p.id === upstreamId);
+    if (compiler?.upstreamId) parents.push(sourceTitle(compiler.upstreamId));
+    parents.push(compilerLabel(upstreamId));
+  }
+  return `Opt Pipeline #${ordinal(id)}${parents.length ? ` (${parents.join(', ')})` : ''}`;
+}
+
+/** An entry of the disassembly panel's `+` menu: a panel type that hangs off a disassembly panel. */
+export interface AddPanelItem {
+  label: string;
+  /** Panel component type for the current target's emulator kind; undefined means unavailable. */
+  panelType(emulatorKind: string | undefined): string | undefined;
+  idPrefix: string;
+  title(store: Store, id: string, upstreamId: string): string;
+}
+
+export const ADD_PANEL_ITEMS: AddPanelItem[] = [
+  { label: 'Emulator', panelType: kind => (kind ? EMULATOR_PANELS[kind] : undefined), idPrefix: 'e', title: emulatorTitle },
+  { label: 'Opt Pipeline', panelType: () => OPT_PIPELINE, idPrefix: 'o', title: pipelineTitle },
+];
 
 export const problemsTitle = (sourceId: string) => `Problems (${sourceTitle(sourceId)})`;
 

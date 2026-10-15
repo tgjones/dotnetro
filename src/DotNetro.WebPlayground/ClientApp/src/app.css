@@ -56,3 +56,12 @@ header .share-warning { margin-left: auto; color: #ffb347; background: #000; pad
 .problem .where { flex: none; opacity: .6; }
 .statusbar .status.error { color: #d12a2a; opacity: 1; }
 :root[data-theme='dark'] .statusbar .status.error { color: #ff6b6b; }
+
+.toolbar input[type='search'] { margin-left: auto; width: 10rem; }
+.pipeline-body { flex: 1; min-height: 0; display: flex; }
+.pipeline-list { width: 14rem; flex: none; overflow: auto; border-right: 1px solid var(--border); outline: none; }
+.pipeline-row { padding: .15rem .5rem; cursor: pointer; white-space: nowrap; opacity: .55; }
+.pipeline-row.changed { opacity: 1; color: #1a7f37; }
+:root[data-theme='dark'] .pipeline-row.changed { color: #56d364; }
+.pipeline-row:hover { background: var(--bar); }
+.pipeline-row.selected { background: var(--accent); color: #fff; opacity: 1; }

@@ -4,7 +4,8 @@ import { DEFAULT_SOURCE, SourcePanel } from './panels/sourcePanel';
 import { ProblemsPanel } from './panels/problemsPanel';
 import { DisassemblyPanel } from './panels/disassemblyPanel';
 import { BbcMicroEmulatorPanel } from './panels/emulatorPanel';
-import { DISASSEMBLY, EMULATOR_BBC, PROBLEMS, SOURCE, problemsTitle, type AppContext, type PanelState } from './panels/context';
+import { OptPipelinePanel } from './panels/optPipelinePanel';
+import { DISASSEMBLY, EMULATOR_BBC, OPT_PIPELINE, PROBLEMS, SOURCE, problemsTitle, type AppContext, type PanelState } from './panels/context';
 import { Store } from './store';
 import { initTheme } from './theme';
 import { Overlay } from './overlay';
@@ -55,6 +56,7 @@ layout.registerComponentFactoryFunction(SOURCE, factory(SourcePanel));
 layout.registerComponentFactoryFunction(DISASSEMBLY, factory(DisassemblyPanel));
 layout.registerComponentFactoryFunction(EMULATOR_BBC, factory(BbcMicroEmulatorPanel));
 layout.registerComponentFactoryFunction(PROBLEMS, factory(ProblemsPanel));
+layout.registerComponentFactoryFunction(OPT_PIPELINE, factory(OptPipelinePanel));
 
 const defaultLayout: LayoutConfig = {
   header: { popout: false },
@@ -69,7 +71,7 @@ const defaultLayout: LayoutConfig = {
 };
 
 const saved = loadSavedState();
-const restored = saved && sanitizeLayout(saved, new Set([SOURCE, DISASSEMBLY, EMULATOR_BBC, PROBLEMS]));
+const restored = saved && sanitizeLayout(saved, new Set([SOURCE, DISASSEMBLY, EMULATOR_BBC, PROBLEMS, OPT_PIPELINE]));
 try {
   layout.loadLayout(restored ?? defaultLayout);
 } catch (e) {
