@@ -1,0 +1,29 @@
+; RUN: @iriec --target mos6502-c64 --emit=asm @file
+
+; The C64 subtarget moves the imaginary zero-page register file up to start at
+; $02, because $00/$01 are the 6510's data-direction register and memory-map
+; port (CC_MOS keeps its soft stack pointer in RC0/RC1, and a write there would
+; remap ROM/RAM/IO). The second operand arrives in RC4..RC7, so it is read from
+; $06..$09; nothing may address $00 or $01.
+
+; CHECK: TestFunction:
+; CHECK:     CLC
+; CHECK:     ADC $06
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $07
+; CHECK:     TAX
+; CHECK:     LDA $04
+; CHECK:     ADC $08
+; CHECK:     STA $04
+; CHECK:     LDA $05
+; CHECK:     ADC $09
+; CHECK:     STA $05
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @TestFunction : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.addi %0, %1
+    core.return %2
+}

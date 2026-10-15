@@ -26,6 +26,7 @@ public sealed record TargetDescriptor(
 public static class TargetRegistry
 {
     public const string BbcMicroId = "bbcmicro";
+    public const string C64Id = "c64";
 
     private static readonly TargetDescriptor[] s_targets =
     [
@@ -35,6 +36,14 @@ public static class TargetRegistry
             CoreLibId: BbcMicroId,
             EmulatorKind: "jsbeeb",
             CreateTarget: () => new MOS6502BbcMicroTarget(),
+            Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),
+            WriteAssembly: MOS6502AssemblyWriter.Write),
+        new TargetDescriptor(
+            C64Id,
+            "Commodore 64",
+            CoreLibId: C64Id,
+            EmulatorKind: "chips-c64",
+            CreateTarget: () => new MOS6502C64Target(),
             Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),
             WriteAssembly: MOS6502AssemblyWriter.Write),
     ];

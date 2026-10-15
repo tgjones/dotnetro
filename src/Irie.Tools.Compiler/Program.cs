@@ -11,7 +11,7 @@ var inputArgument = new Argument<string?>("input")
     Arity = ArgumentArity.ZeroOrOne,
 };
 
-var targetOption = new Option<string>("--target") { Description = "Target architecture (currently only 'mos6502')" };
+var targetOption = new Option<string>("--target") { Description = "Target architecture ('mos6502', 'mos6502-bbcmicro' or 'mos6502-c64')" };
 
 var stopAfter = new Option<string>("--stop-after") { Description = "Stop after the specified pass (for debugging)" };
 
@@ -61,6 +61,7 @@ rootCommand.SetAction(parseResult =>
     {
         "mos6502"          => new MOS6502Target(),
         "mos6502-bbcmicro" => new MOS6502BbcMicroTarget(),
+        "mos6502-c64"      => new MOS6502C64Target(),
         _ => throw new ArgumentException($"Unknown --target '{targetName}'."),
     };
 

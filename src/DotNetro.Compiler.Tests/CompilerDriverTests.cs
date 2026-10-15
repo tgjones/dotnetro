@@ -105,6 +105,18 @@ public sealed class CompilerDriverTests
     }
 
     [Test]
+    public async Task C64TargetIsRegistered()
+    {
+        var descriptor = TargetRegistry.Get(TargetRegistry.C64Id);
+
+        await Assert.That(descriptor.DisplayName).IsEqualTo("Commodore 64");
+        await Assert.That(descriptor.EmulatorKind).IsEqualTo("chips-c64");
+        await Assert.That(descriptor.CoreLibId).IsEqualTo("c64");
+        await Assert.That(descriptor.CreateTarget().DefaultOrigin).IsEqualTo(0x080D);
+        await Assert.That(descriptor.CreateTarget().ZeroPageBase).IsEqualTo(2);
+    }
+
+    [Test]
     public async Task FileBasedCompileRejectsAnUnknownTarget()
     {
         var path = Path.Combine(Path.GetTempPath(), $"dnrc-{Guid.NewGuid():N}.dll");

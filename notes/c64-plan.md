@@ -179,18 +179,23 @@ Each stage ends green under `dotnet test --solution src` in Debug and Release.
 - [x] `ManagedHeap` start is per target via `partial HeapStart()` (`ManagedHeap.BbcMicro.cs`). The `__image_end`
       symbol and an out-of-memory check from decision 4 are still open (Stage 3).
 
-### Stage 1 — C64 target class and packaging
+### Stage 1 — C64 target class and packaging — DONE
 
-- [ ] `MOS6502C64Target : MOS6502Target`: `DefaultOrigin = 0x080D`, `ZeroPageBase = 2`, zp frame placement (`AddPostRegisterAllocationPasses` adds `new MOS6502FramePlacementPass(0x70, 0x20)`; the pass
+- [x] `MOS6502C64Target : MOS6502Target`: `DefaultOrigin = 0x080D`, `ZeroPageBase = 2`, zp frame placement (`AddPostRegisterAllocationPasses` adds `new MOS6502FramePlacementPass(0x70, 0x20)`; the pass
       already takes its window),
       `PackageImage` → `C64PrgImage.Build(code, origin)`.
-- [ ] `C64PrgImage` (internal, like `BbcMicroDfsImage`): load address `$0801`, BASIC line `SYS <origin>`, code.
+- [x] `C64PrgImage` (internal, like `BbcMicroDfsImage`): load address `$0801`, BASIC line `SYS <origin>`, code.
       Unit tests: header bytes, SYS digits for several origins, size.
-- [ ] `TargetRegistry`: `C64Id = "c64"`, display name "Commodore 64", `EmulatorKind: "chips-c64"`, same encoder /
+- [x] `TargetRegistry`: `C64Id = "c64"`, display name "Commodore 64", `EmulatorKind: "chips-c64"`, same encoder /
       assembly writer as the BBC descriptor, `CoreLibId = "c64"`; add `mos6502-c64` to `iriec`'s target switch
       (`Irie.Tools.Compiler/Program.cs`, deferred from Stage 0).
-- [ ] `.irie` lit tests: `IntegerAdd32-Prg.irie` (byte-exact `.prg`), zp-base test (`sta $02` for RC0, nothing
+- [x] `.irie` lit tests: `IntegerAdd32-Prg.irie` (byte-exact `.prg`), zp-base test (`sta $02` for RC0, nothing
       emitted to `$00/$01`), frame window.
+
+Notes: `C64PrgImage` throws if the origin overlaps the BASIC stub or the program runs past `$FFFF` (the `$9FFF` ROM
+limit is not checked; see Risks). Registering `c64` makes the playground list "Commodore 64" before Stage 3/5: its
+compile fails with an "Internal compiler error" (no `DotNetro.CoreLib.c64` resource) and no emulator panel exists for
+`chips-c64`. Hide it from `GetTargets` if the playground ships before then.
 
 ### Stage 2 — Test emulator system
 

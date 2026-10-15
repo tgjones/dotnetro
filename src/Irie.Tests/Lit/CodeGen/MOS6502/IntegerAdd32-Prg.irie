@@ -1,0 +1,18 @@
+; RUN: @iriec --target mos6502-c64 --emit=bin @file | @irie-mc --hex-dump
+
+; End-to-end Commodore 64 .prg verification: the same IntegerAdd32 input as
+; IntegerAdd32-Binary.irie, packaged as a .prg. Bytes 0-1 are the load address
+; ($0801); then the tokenised BASIC line `10 SYS 2061`:
+;   link $080B, line number 10, SYS token $9E, "2061", end of line, end of program
+; and finally the code at $080D. The zero-page operands are shifted by the C64's
+; ZeroPageBase of 2 (compare $06..$09 here with $04..$07 in the BBC image).
+
+; CHECK: 00000000: 01 08 0B 08 0A 00 9E 32  30 36 31 00 00 00 18 65
+; CHECK: 00000010: 06 A8 8A 65 07 AA A5 04  65 08 85 04 A5 05 65 09
+; CHECK: 00000020: 85 05 98 60
+
+func @TestFunction : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.addi %0, %1
+    core.return %2
+}
