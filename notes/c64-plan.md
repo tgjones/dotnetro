@@ -18,27 +18,35 @@ Stage 0 below. Do it once, whichever target lands first.
   `DotNetro.CoreLib.<Target>` projects), `TargetRegistry` / `TargetDescriptor` (carries `EmulatorKind`).
 - `MOS6502FramePlacementPass` already lives on the BBC subtarget only, not the chip, so C64 chooses its own window.
 
-### Hardcoded to BBC — must change (verified in the repo)
+### Hardcoded to BBC — must change (verified in the repo; items marked *done* were fixed in Stage 0)
 
-1. **Zero-page address of `RC(n)` is `n`** (`MOS6502MachineCodeEmitter.cs:90-91`: `phys.Id - RC(0)`). RC0/RC1 are
+1. *(done: `Target.ZeroPageBase`)* **Zero-page address of `RC(n)` is `n`** (`MOS6502MachineCodeEmitter.cs:90-91`: `phys.Id - RC(0)`). RC0/RC1 are
    the CC_MOS soft stack pointer, so they land on `$00/$01`. On the C64 those are the 6510 data-direction
    register and the memory-map port; storing a stack pointer there remaps ROM/RAM/IO and crashes. **This is the
    one real blocker on the codegen side.** Fix: a target hook `Target.ZeroPageBase` (default 0; C64 = `$02`)
    used by the emitter, `MOS6502FramePlacementPass`, and anything else that turns a zp physreg into an address
    (grep for `RC(0)` and `- 12`). With base `$02`, RC0..RC31 = `$02..$21`.
-2. `IlToMirTranslator.BuildEntryFunction` hardcodes BBC "MODE 7" (`VDU 22,7` via `@oswrch`). Needs a target
-   hook for the start-up prologue (C64: switch to lower/upper charset, set colours, clear screen).
-3. `CompilerDriver.Compile(path, entry)` (line 16-17) and the `IlToMirTranslator` file ctor (line 73) hardcode
+   Stage 0 audit: only `MOS6502MachineCodeEmitter` converted a physreg to an address (now `+ ZeroPageBase`). The one
+   literal zp address that depended on the base was the trampoline's `jmp.ind 30` (now `$42` = RC30). Frame-placement
+   literals are absolute window addresses and need no base. `MOS6502InstructionSelector`'s `PointerZpLo/Hi = 30/31`
+   are physreg ids, not addresses, so they follow the base automatically.
+2. *(stale, nothing to do)* `IlToMirTranslator.BuildEntryFunction` hardcodes BBC "MODE 7" (`VDU 22,7` via `@oswrch`). The prologue is already the per-target CoreLib partial `DotNetro.Runtime.Startup.Initialize`
+   (`Startup.BbcMicro.cs`); the comment was the stale part. C64 adds `Startup.C64.cs`.
+3. *(done except `iriec`)* `CompilerDriver.Compile(path, entry)` (line 16-17) and the `IlToMirTranslator` file ctor (line 73) hardcode
    `HostAssemblyResolver.BbcMicro` / `BbcMicroId`; `dnrc` has no `--target`. `Irie.Tools.Compiler/Program.cs:63`
    lists `mos6502-bbcmicro` by name. `Irie.csproj:8` embeds the single `runtime.irie`.
-4. `runtime.irie` is one file holding both chip-generic functions (`__call_indirect_trampoline`, mul/div libcalls,
+4. *(stale)* `runtime.irie` is one file holding both chip-generic functions (`__call_indirect_trampoline`, mul/div libcalls,
    `StringFromPointer`, `StringBytes`) and BBC OS wrappers (`oswrch`, `PutChar`, `osword`, `PlatformReadLine`,
    `PlatformBeep`, `PlatformWriteLineInt32` — the last calls `PutChar` and is OS-independent in spirit). It must be
    split into a shared 6502 part and a per-system part; `GetRuntime()` returns the concatenation.
-5. `ManagedHeap.s_heapPtr = (byte*)0x1000` is a BBC-specific constant in shared CoreLib code. On the C64 `$1000`
-   is inside the program. The heap start/end must be per target (see Memory).
-6. The `.cs` lit tests' RUN line is `@dnrc --emit program | @emulator --target-system bbcmicro`; C64 needs
-   `--target c64` on `dnrc` and `--target-system c64` on the emulator.
+   **Correction (Stage 0):** `runtime.irie` only contains `__call_indirect_trampoline`. The BBC OS wrappers are
+   CoreLib C# (`Console.BbcMicro.cs`, calling ROM addresses through `delegate* unmanaged[BbcMicroOS]`); the
+   mul/div helpers are `MathHelper.cs`. `GetRuntime()` now supports an optional per-subtarget half
+   (`MOS6502Target.SystemRuntimeResource`, null), but nothing needs it yet.
+5. *(partly done)* `ManagedHeap.s_heapPtr = (byte*)0x1000` is a BBC-specific constant in shared CoreLib code. On the C64 `$1000`
+   is inside the program. The heap start/end must be per target (see Memory). Stage 0 added `partial HeapStart()` per target; the end limit / OOM check remains.
+6. *(open, Stage 2/3)* The `.cs` lit tests' RUN line is `@dnrc --emit program | @emulator --target-system bbcmicro`; C64 needs
+   `--target c64` (`dnrc --target` exists now) on `dnrc` and `--target-system c64` on the emulator.
 7. Playground: `TargetRegistry` already drives the target list; the shell needs a C64 machine (below).
 8. The soft stack pointer (RC0/RC1) is never initialised by `__entry` today (BBC test memory is zeroed). Check
    what actually uses it (`CallerStackArg`, >16-byte argument lists) and, if it can be hit, give it a region and
@@ -145,36 +153,42 @@ redistribution. Decide before Stage 5 ships, not before it starts.
 
 Each stage ends green under `dotnet test --solution src` in Debug and Release.
 
-### Stage 0 — Make the target a parameter (shared with the ZX plan)
+### Stage 0 — Make the target a parameter (shared with the ZX plan) — DONE
 
-- [ ] `TargetDescriptor` gains `CoreLibId`; `HostAssemblyResolver` static for `c64`.
-- [ ] `CompilerDriver.Compile(path, entry)` + `IlToMirTranslator` file ctor take a target id (default `bbcmicro`);
-      `dnrc --target <id>`; `iriec --target mos6502-c64`; clear error for an unknown id (test).
-- [ ] `Target` hook for the start-up prologue; move the MODE 7 code out of `BuildEntryFunction` into BBC.
-- [ ] `BuildEntryFunction` ends in a halt (self-branch block) instead of `core.return` (decision 6), for all
-      targets. Make sure no pass deletes or mis-handles the infinite loop (ReturnMerge, block placement,
-      tail-dup, DCE). Regenerate any golden that contains `__entry` with `dotlit --regenerate`, review the diff.
-- [ ] BBC test harness (`BbcMicroTargetSystem`): completion currently = PC reaches the `$FF03` marker after
-      `__entry` returns. Replace with halt detection: at an opcode fetch (`pins.Sync`), if the instruction is
-      `JMP abs` whose operand equals its own address, return `Completed`. Keep the tick-budget runaway guard.
-      Run the whole `.cs` lit suite to confirm nothing relied on the return.
-- [ ] Playground: nothing to change (the emulator just keeps running), but check the BBC panel does not treat
-      "program ended" specially.
-- [ ] Split `runtime.irie` into `MOS6502/runtime.irie` (shared) + `MOS6502/runtime.bbcmicro.irie`;
-      `Irie.csproj` embeds both; `GetRuntime()` concatenates shared + the subtarget's. Existing lit goldens must not
-      change (verify with the unchanged test suite).
-- [ ] `Target.ZeroPageBase` (default 0) used by `MOS6502MachineCodeEmitter`; test with a synthetic subtarget.
-- [ ] Parameterise `MOS6502FramePlacementPass` window (start, size) via the subtarget.
-- [ ] `ManagedHeap` start/end becomes per target (decision 4).
+- [x] `TargetDescriptor` gains `CoreLibId`; `HostAssemblyResolver.ForTarget(id)` replaces the static `BbcMicro`
+      (the c64 corelib itself arrives in Stage 3).
+- [x] `CompilerDriver.Compile(path, entry, targetId)` + `IlToMirTranslator` file ctor take a target id (default
+      `bbcmicro`); `dnrc --target <id>`; unknown id → `ArgumentException` (test).
+      **Deferred to Stage 1:** `iriec --target mos6502-c64` (needs the `MOS6502C64Target` class).
+- [x] Start-up prologue hook: *already exists* — `DotNetro.Runtime.Startup.Initialize` is a per-target CoreLib partial
+      (`Startup.BbcMicro.cs` holds the MODE 7 code), so Stage 3 only needs `Startup.C64.cs`. Finding 2 was stale.
+- [x] `__entry` ends in a self-branch halt block for all targets (`BuildEntryFunction`). No pass mishandled it; no
+      golden contained `__entry`.
+- [x] BBC test harness: completion = `JMP *` detected at opcode fetch (`HaltDetection.IsHalt`, shared helper in
+      `ITargetSystem.cs`); the `$FF03` marker is gone. Full `.cs` lit suite passes; the tick budget still guards runaways.
+- [x] Playground: no panel code treats program end specially (nothing to change).
+- [x] `GetRuntime()` = shared `runtime.irie` + optional subtarget half (`MOS6502Target.SystemRuntimeResource`, null
+      today). Finding 4 was stale: `runtime.irie` only held the trampoline, the BBC OS wrappers are CoreLib C#
+      (`Console.BbcMicro.cs`), so there is no BBC half to split out. Stage 3's `runtime.c64.irie` may not be needed
+      either (PutChar etc. can be CoreLib C# too); revisit there. (Embedding a second resource in `Irie.csproj` is
+      deferred until a half exists.)
+- [x] `Target.ZeroPageBase` (default 0) used by `MOS6502MachineCodeEmitter(zeroPageBase)`; `ZeroPageBaseTests` uses a
+      synthetic subtarget. The trampoline's hard-coded `jmp.ind 30` literal would have ignored the base, so it is now
+      `jmp.ind $42` (RC30, with `[liveins: $42]`) and the emitter accepts an RC register there.
+- [x] `MOS6502FramePlacementPass(windowStart = 0x70, windowSize = 0x20)` takes its window from the subtarget.
+- [x] `ManagedHeap` start is per target via `partial HeapStart()` (`ManagedHeap.BbcMicro.cs`). The `__image_end`
+      symbol and an out-of-memory check from decision 4 are still open (Stage 3).
 
 ### Stage 1 — C64 target class and packaging
 
-- [ ] `MOS6502C64Target : MOS6502Target`: `DefaultOrigin = 0x080D`, `ZeroPageBase = 2`, zp frame placement,
-      `GetRuntime()` adds the C64 half, `PackageImage` → `C64PrgImage.Build(code, origin)`.
+- [ ] `MOS6502C64Target : MOS6502Target`: `DefaultOrigin = 0x080D`, `ZeroPageBase = 2`, zp frame placement (`AddPostRegisterAllocationPasses` adds `new MOS6502FramePlacementPass(0x70, 0x20)`; the pass
+      already takes its window),
+      `PackageImage` → `C64PrgImage.Build(code, origin)`.
 - [ ] `C64PrgImage` (internal, like `BbcMicroDfsImage`): load address `$0801`, BASIC line `SYS <origin>`, code.
       Unit tests: header bytes, SYS digits for several origins, size.
 - [ ] `TargetRegistry`: `C64Id = "c64"`, display name "Commodore 64", `EmulatorKind: "chips-c64"`, same encoder /
-      assembly writer as the BBC descriptor; `iriec --target mos6502-c64`.
+      assembly writer as the BBC descriptor, `CoreLibId = "c64"`; add `mos6502-c64` to `iriec`'s target switch
+      (`Irie.Tools.Compiler/Program.cs`, deferred from Stage 0).
 - [ ] `.irie` lit tests: `IntegerAdd32-Prg.irie` (byte-exact `.prg`), zp-base test (`sta $02` for RC0, nothing
       emitted to `$00/$01`), frame window.
 
@@ -182,7 +196,9 @@ Each stage ends green under `dotnet test --solution src` in Debug and Release.
 
 - [ ] `DotNetro.Compiler.Tests.Emulator/TargetSystems/C64TargetSystem.cs`: load at `$080D`, reset vector → `JSR
       $080D`, stub `$FFD2` (record PETSCII→ASCII output; `$0D` → `\n`; ignore `$0E`/`$8E`/`$93`), `$FFCF`
-      and `$FFE4` (feed `--input`, ASCII→PETSCII), completion = halt detection (self-`JMP`), shared helper with the BBC system. The Aemula core is a plain NMOS 6502, which is
+      and `$FFE4` (feed `--input`, ASCII→PETSCII), completion = halt detection via the existing `HaltDetection.IsHalt` helper (`ITargetSystem.cs`), called at `pins.Sync`
+      exactly as `BbcMicroTargetSystem` does. The BBC harness no longer needs a return marker; the C64 reset stub is just
+      `JSR $080D`. The Aemula core is a plain NMOS 6502, which is
       all we need; do not emulate the port at `$01` (tests must simply never touch `$00/$01`: add a trap that
       fails the run if they do, as it would be a codegen bug).
 - [ ] `Program.cs`: `--target-system c64`; update the option description.
@@ -191,13 +207,17 @@ Each stage ends green under `dotnet test --solution src` in Debug and Release.
 
 - [ ] `DotNetro.CoreLib.C64` project (`CoreLibTarget` = `C64`), `Console.C64.cs` with the same four `InternalCall`
       externs as `Console.BbcMicro.cs`, added to the solution and as a content reference of `dnrc`/tests/playground.
-- [ ] `MOS6502/runtime.c64.irie`: `PutChar` (ASCII→PETSCII then `jsr $FFD2`), `PlatformReadLine` (`jsr $FFCF` loop
+- [ ] PETSCII/KERNAL wrappers: prefer CoreLib C# in `Console.C64.cs` (as `Console.BbcMicro.cs` does, via
+      `delegate* unmanaged[...]` to `$FFD2`/`$FFCF`) over a new `runtime.c64.irie`; only fall back to MIR if C# cannot
+      express it. A KERNAL call needs its own calling convention (A/X/Y in, A/X/Y/flags clobbered, RC untouched),
+      like `CallConvBbcMicroOS` — or reuse that lowering if identical. Contents: `PutChar` (ASCII→PETSCII then `jsr $FFD2`), `PlatformReadLine` (`jsr $FFCF` loop
       into a static 80-byte buffer until `$0D`, PETSCII→ASCII, NUL-terminate, return pointer),
       `PlatformBeep` (SID), plus any `oswrch`-style helper the shared `PlatformWriteLineInt32` uses.
-- [ ] `ManagedHeap.C64.cs` (or `__image_end`) per decision 4.
-- [ ] Start-up prologue (hook from Stage 0): `CHROUT($0E)` for the lower/upper charset, `CHROUT($93)` clear screen;
+- [ ] `ManagedHeap.C64.cs` (`partial HeapStart()` exists; C64 value `$0800`-ish above the image, or `__image_end`) per
+      decision 4, plus the end limit / OOM check.
+- [ ] `Startup.C64.cs` (the hook already exists): `CHROUT($0E)` for the lower/upper charset, `CHROUT($93)` clear screen;
       optionally set border/background.
-- [ ] Nothing C64-specific for exit: the halt comes from `__entry` (decision 6, done in Stage 0).
+- [x] Nothing C64-specific for exit: the halt comes from `__entry` (decision 6, done in Stage 0).
 - [ ] Port the `.cs` lit corpus: add a `RUN-emulated-c64` line (`@dnrc --target c64 --emit program | @emulator
       --target-system c64`) and `DIFF: dotnet emulated-c64` to every test that is not BBC-specific. Tests that
       pin BBC behaviour (e.g. `ReadAndWriteLine` input handling) stay BBC-only unless they port cleanly.
@@ -224,7 +244,7 @@ Each stage ends green under `dotnet test --solution src` in Debug and Release.
 - **Zero-page collisions are silent.** A stray write to `$00/$01` or `$90-$FF` appears as random crashes or a
   stuck keyboard, not a compile error. The Stage 2 trap on `$00/$01` plus a Stage 4 long-run check are the guard;
   consider a static check in `PackageImage`/encoder that rejects zp addresses outside the allowed set.
-- **Soft stack pointer (RC0/RC1) is uninitialised today** — see finding 8; needs an answer before long argument
+- **Soft stack pointer (RC0/RC1) is uninitialised today** — see finding 8 (still unverified after Stage 0); needs an answer before long argument
   lists run on any real target.
 - **Code size growth.** The default window is `$080D-$9FFF`; the existing corpus is tiny, but string constants and
   the 32-bit/64-bit runtime helpers grow it. Add a clear "program does not fit" error in the encoder (the BBC path

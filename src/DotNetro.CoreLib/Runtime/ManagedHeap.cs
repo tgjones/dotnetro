@@ -2,9 +2,12 @@ using System;
 
 namespace DotNetro.Runtime;
 
-internal static class ManagedHeap
+internal static partial class ManagedHeap
 {
-    private static unsafe byte* s_heapPtr = (byte*)0x1000;
+    // Where the heap starts: free memory above the program, per target (ManagedHeap.<Target>.cs).
+    private static unsafe partial byte* HeapStart();
+
+    private static unsafe byte* s_heapPtr = HeapStart();
 
     // Allocate `size` bytes of zeroed object contents behind a vtable header.
     // Returns a pointer to the contents.

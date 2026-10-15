@@ -141,7 +141,7 @@ public static class MOS6502MachineCodeEmitTable
         // mos6502.jmp.abs T — operands[0] = BlockTarget.
         [MOS6502Op.JmpAbs] = new EmitRule(MOS6502Opcode.JMP_Absolute, EmitOperandKind.AbsoluteAddress, 0),
 
-        // mos6502.jmp.ind <imm> — operands[0] = Immediate (zero-page address).
+        // mos6502.jmp.ind <imm | $zpN> — operands[0] = Immediate (literal zero-page address) or an RC register.
         // AddressingMode.Indirect (from MOS6502InstructionInfo) routes encoding
         // through EncodeTwoByteOperand, which accepts Immediate and writes
         // it as a 2-byte LE word (e.g. `JMP ($001E)` for `mos6502.jmp.ind 30`).

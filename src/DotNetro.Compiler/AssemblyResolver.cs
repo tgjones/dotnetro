@@ -26,18 +26,19 @@ public static class WellKnownAssemblies
 
 /// <summary>
 /// Resolves assemblies from the file system. This is what <c>dnrc</c> and the tests
-/// use: the target's <c>DotNetro.CoreLib.dll</c> in <c>corelib/&lt;target&gt;/</c> next to the
+/// use: the target's <c>DotNetro.CoreLib.dll</c> in <c>corelib/&lt;core library id&gt;/</c> next to the
 /// compiler, and any other assembly through the host runtime
 /// (<see cref="Assembly.Load(string)"/>). Framework assemblies never get here: the type
 /// system redirects them to the core library first.
 /// </summary>
-public sealed class HostAssemblyResolver(string targetId) : IAssemblyResolver
+public sealed class HostAssemblyResolver(string coreLibId) : IAssemblyResolver
 {
     /// <summary>Folder, relative to the compiler, holding one core library build per target.</summary>
     public const string CoreLibFolder = "corelib";
 
-    /// <summary>Resolver for the BBC Micro target.</summary>
-    public static HostAssemblyResolver BbcMicro { get; } = new(TargetRegistry.BbcMicroId);
+    /// <summary>Resolver for a registered target (a clear error for an unknown id).</summary>
+    public static HostAssemblyResolver ForTarget(string targetId)
+        => new(TargetRegistry.Get(targetId).CoreLibId);
 
     public byte[]? Resolve(AssemblyName assemblyName)
     {
@@ -47,7 +48,7 @@ public sealed class HostAssemblyResolver(string targetId) : IAssemblyResolver
             // beside the compiler as a plain file rather than being on the app's dependency list.
             foreach (var directory in new[] { AppContext.BaseDirectory, Path.GetDirectoryName(typeof(HostAssemblyResolver).Assembly.Location)! })
             {
-                var path = Path.Combine(directory, CoreLibFolder, targetId, WellKnownAssemblies.CoreLib + ".dll");
+                var path = Path.Combine(directory, CoreLibFolder, coreLibId, WellKnownAssemblies.CoreLib + ".dll");
                 if (File.Exists(path))
                     return File.ReadAllBytes(path);
             }

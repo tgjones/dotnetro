@@ -6,7 +6,7 @@ namespace Irie.Target.MOS6502;
 // Lowers a post-PseudoExpansion MirModule into a MachineCodeModule by
 // consulting MOS6502MachineCodeEmitTable for each instruction's opcode byte
 // and operand-encoding rule.
-public sealed class MOS6502MachineCodeEmitter : Irie.Target.MachineCodeEmitter
+public sealed class MOS6502MachineCodeEmitter(int zeroPageBase = 0) : Irie.Target.MachineCodeEmitter
 {
     public override MachineCodeModule Emit(MirModule module)
     {
@@ -39,7 +39,7 @@ public sealed class MOS6502MachineCodeEmitter : Irie.Target.MachineCodeEmitter
         { FixedAddress = global.FixedAddress };
     }
 
-    private static void EmitFunction(MirFunction src, MachineCodeFunction dst)
+    private void EmitFunction(MirFunction src, MachineCodeFunction dst)
     {
         for (var blockIndex = 0; blockIndex < src.Blocks.Count; blockIndex++)
         {
@@ -55,7 +55,7 @@ public sealed class MOS6502MachineCodeEmitter : Irie.Target.MachineCodeEmitter
         }
     }
 
-    private static void EmitInstruction(MirInstruction instr, MirFunction parent, MachineCodeFunction dst)
+    private void EmitInstruction(MirInstruction instr, MirFunction parent, MachineCodeFunction dst)
     {
         if (instr.Opcode.Dialect != MOS6502Dialect.Id)
             throw new InvalidOperationException(
@@ -79,16 +79,16 @@ public sealed class MOS6502MachineCodeEmitter : Irie.Target.MachineCodeEmitter
         dst.EmitInstruction(rule.OpcodeByte, operand == null ? [] : [operand]);
     }
 
-    private static MachineCodeOperand EmitZeroPage(MirInstruction instr, int index)
+    private MachineCodeOperand EmitZeroPage(MirInstruction instr, int index)
     {
         // A zero-page address operand is polymorphic (D3): an RC register
-        // (whose zp address equals its index) or a literal zp address (used by
+        // (whose zp address is the target's zero-page base plus its index) or a literal zp address (used by
         // a zp-placed frame slot, base + byte offset baked at instruction
         // selection). Both encode into the same one-byte ZeroPage operand.
         switch (instr.Operands[index])
         {
             case PhysicalReg phys when !phys.IsImplicit && phys.Id >= MOS6502Registers.RC(0):
-                return new MachineCodeOperand.Immediate(phys.Id - MOS6502Registers.RC(0));
+                return new MachineCodeOperand.Immediate(zeroPageBase + phys.Id - MOS6502Registers.RC(0));
 
             case Mir.Immediate imm:
                 return new MachineCodeOperand.Immediate(imm.Value);
@@ -126,7 +126,7 @@ public sealed class MOS6502MachineCodeEmitter : Irie.Target.MachineCodeEmitter
         return new MachineCodeOperand.ExternalRef(sym.Name, half, sym.Offset);
     }
 
-    private static MachineCodeOperand EmitAbsoluteAddress(MirInstruction instr, int index, MirFunction parent)
+    private MachineCodeOperand EmitAbsoluteAddress(MirInstruction instr, int index, MirFunction parent)
     {
         var operand = instr.Operands[index];
         return operand switch
@@ -136,6 +136,9 @@ public sealed class MOS6502MachineCodeEmitter : Irie.Target.MachineCodeEmitter
             // Immediate carries a literal 16-bit address (e.g. `JSR $FFEE` for an
             // OS call). The assembly writer formats this as `$XXXX`.
             Mir.Immediate imm  => new MachineCodeOperand.Immediate(imm.Value),
+            // An RC register (`jmp.ind $zp30`): the pointer lives at the register's zp address.
+            PhysicalReg { IsImplicit: false } phys when phys.Id >= MOS6502Registers.RC(0)
+                               => new MachineCodeOperand.Immediate(zeroPageBase + phys.Id - MOS6502Registers.RC(0)),
             _ => throw new InvalidOperationException(
                 $"MOS6502MachineCodeEmitter: expected a Symbol, BlockTarget or Immediate at operand[{index}] of {(MOS6502Op)instr.Opcode.Code}, got {operand}."),
         };

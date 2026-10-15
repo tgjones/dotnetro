@@ -105,6 +105,21 @@ public sealed class CompilerDriverTests
     }
 
     [Test]
+    public async Task FileBasedCompileRejectsAnUnknownTarget()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"dnrc-{Guid.NewGuid():N}.dll");
+        File.WriteAllBytes(path, CompileCSharp(HelloWorld));
+        try
+        {
+            await Assert.That(() => CompilerDriver.Compile(path, "Main", "zx80")).Throws<ArgumentException>();
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Test]
     public async Task BbcMicroTargetIsRegistered()
     {
         var target = TargetRegistry.Get(TargetRegistry.BbcMicroId);

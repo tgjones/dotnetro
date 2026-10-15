@@ -16,10 +16,9 @@ internal sealed class BbcMicroTargetSystem : ITargetSystem
         memory[0xFFFC] = 0x00; // Reset vector → $FF00
         memory[0xFFFD] = 0xFF;
 
-        memory[0xFF00] = 0x20; // JSR $2000
+        memory[0xFF00] = 0x20; // JSR $2000 (the program halts in a `JMP *` rather than returning)
         memory[0xFF01] = 0x00;
         memory[0xFF02] = 0x20;
-        memory[0xFF03] = 0x60; // RTS (end marker)
     }
 
     public EmulationResult Run(byte[] memory, TextReader input, TextWriter? trace, int maxTicks)
@@ -42,14 +41,14 @@ internal sealed class BbcMicroTargetSystem : ITargetSystem
 
             if (pins.Sync)
             {
+                if (HaltDetection.IsHalt(memory, pins.Address))
+                    return new EmulationResult(output.ToString(), EmulationStatus.Completed);
+
                 trace?.WriteLine($"{cpu.PC:X4}  A:{cpu.A:X2} X:{cpu.X:X2} Y:{cpu.Y:X2} P:{cpu.P.AsByte(false):X2} SP:{cpu.SP:X2}");
             }
 
             switch (cpu.PC)
             {
-                case 0xFF03:
-                    return new EmulationResult(output.ToString(), EmulationStatus.Completed);
-
                 case 0xFFE3:
                     output.Append((char)cpu.A);
                     break;

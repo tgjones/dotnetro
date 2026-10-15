@@ -20,7 +20,7 @@ public class MOS6502Target : Irie.Target.Target
     public override Irie.Target.BranchLowering BranchLowering { get; } = new MOS6502BranchLowering();
     public override Irie.Target.FrameLowering FrameLowering { get; } = new MOS6502FrameLowering();
     public override TargetRegisterInfo RegisterInfo { get; } = new MOS6502RegisterInfo();
-    public override Irie.Target.MachineCodeEmitter MachineCodeEmitter { get; } = new MOS6502MachineCodeEmitter();
+    public override Irie.Target.MachineCodeEmitter MachineCodeEmitter => new MOS6502MachineCodeEmitter(ZeroPageBase);
 
     public override string GetRegisterName(int physReg) => MOS6502Registers.NameOf(physReg);
 
@@ -80,13 +80,24 @@ public class MOS6502Target : Irie.Target.Target
         pm.AddPass(new MOS6502BlockPlacementPass());
     }
 
-    // Hand-written MIR runtime (currently just the indirect-call trampoline;
-    // OS-call wrappers, `start`, ManagedHeap_Alloc, etc. will be added in later
-    // plan steps). Loaded as an embedded resource; the IL→MIR translator will
-    // parse this string and merge the functions into the produced module.
+    // Hand-written MIR runtime: the chip-generic part (the indirect-call
+    // trampoline, ...) followed by the subtarget's system part (OS-call wrappers),
+    // if any. Both are embedded resources; the IL→MIR translator parses the
+    // concatenation and merges its functions into the produced module.
     public override string GetRuntime()
     {
-        const string resourceName = "Irie.Target.MOS6502.runtime.irie";
+        var runtime = ReadResource("runtime.irie");
+        return SystemRuntimeResource is { } system
+            ? runtime + "\n" + ReadResource(system)
+            : runtime;
+    }
+
+    // Embedded-resource file name of the subtarget's runtime half; null = none.
+    protected virtual string? SystemRuntimeResource => null;
+
+    private static string ReadResource(string fileName)
+    {
+        var resourceName = "Irie.Target.MOS6502." + fileName;
         using var stream = typeof(MOS6502Target).Assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException(
                 $"Embedded runtime resource '{resourceName}' not found.");

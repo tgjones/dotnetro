@@ -3,10 +3,11 @@
 ; produced by IL→MIR translation so the resulting program links.
 
 ; Indirect-call trampoline. MOS6502CallLowering.LowerIndirectCall parks the
-; target address in RC30/RC31 (zero-page bytes $1E/$1F) and emits
+; target address in RC30/RC31 (the zero-page bytes of those registers) and emits
 ; `jsr.abs @__call_indirect_trampoline`. The trampoline then dispatches via
-; `JMP ($1E)`, which reads the 16-bit target from $001E/$001F.
+; `JMP (RC30)`, which reads the 16-bit target from RC30/RC31's zero-page address.
 func @__call_indirect_trampoline : () -> void {
 bb0():
-    mos6502.jmp.ind 30
+    [liveins: $42]    ; $42 = RC30 (physreg 12 + 30)
+    mos6502.jmp.ind $42
 }

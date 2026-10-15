@@ -75,6 +75,11 @@ public abstract class Target
     // and merges its functions into the module it produces.
     public abstract string GetRuntime();
 
+    // Address of the first imaginary zero-page register (RC0). 0 on a bare chip;
+    // a system whose low zero-page bytes are hardware (the C64's 6510 port at
+    // $00/$01) moves the register file up.
+    public virtual int ZeroPageBase => 0;
+
     // Default origin (load address) when --origin is not supplied; null = no opinion.
     public virtual int? DefaultOrigin => null;
 

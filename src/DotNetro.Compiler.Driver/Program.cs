@@ -5,7 +5,10 @@ var assemblyOption = new Option<string?>("--assembly") { Description = "Path to 
 var outputOption = new Option<FileInfo?>("--output") { Description = "Path to the output file, or - for stdout" };
 var emitOption = new Option<EmitFormat?>("--emit") { Description = "The format to emit (Assembly, Program, or Executable)", DefaultValueFactory = x => EmitFormat.Executable };
 
+var targetOption = new Option<string>("--target") { Description = "Target system id (e.g. bbcmicro)", DefaultValueFactory = _ => TargetRegistry.BbcMicroId };
+
 var rootCommand = new RootCommand();
+rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(assemblyOption);
 rootCommand.Options.Add(outputOption);
 rootCommand.Options.Add(emitOption);
@@ -30,7 +33,8 @@ rootCommand.SetAction(parseResult =>
 
     var compilationResult = CompilerDriver.Compile(
         Path.GetFullPath(assembly),
-        "Main");
+        "Main",
+        parseResult.GetValue(targetOption)!);
 
     var outputStream = (output == null || output.FullName == "-")
         ? Console.OpenStandardOutput()

@@ -7,14 +7,15 @@ namespace DotNetro.Compiler;
 
 public static class CompilerDriver
 {
-    // File-based entry point used by dnrc and the tests: compiles for the BBC Micro,
-    // resolving the core library and the DotNetro runtime through the host runtime.
-    // Failures surface as exceptions.
-    public static CompilationResult Compile(string dotNetAssemblyPath, string entryPointMethodName)
+    // File-based entry point used by dnrc and the tests: compiles for the given
+    // target (default the BBC Micro), resolving the core library and the DotNetro
+    // runtime through the host runtime. Failures, including an unknown target id,
+    // surface as exceptions.
+    public static CompilationResult Compile(string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
-            HostAssemblyResolver.BbcMicro,
-            TargetRegistry.BbcMicroId,
+            HostAssemblyResolver.ForTarget(targetId),
+            targetId,
             entryPointMethodName));
 
     // Byte-based entry point: nothing here touches the file system. Expected

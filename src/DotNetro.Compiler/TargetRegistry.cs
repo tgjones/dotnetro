@@ -9,6 +9,7 @@ namespace DotNetro.Compiler;
 /// </summary>
 /// <param name="Id">Stable identifier used in requests and shared links (e.g. <c>bbcmicro</c>).</param>
 /// <param name="DisplayName">Name shown to users.</param>
+/// <param name="CoreLibId">Names this system's build of <c>DotNetro.CoreLib</c>: the <c>corelib/&lt;id&gt;</c> folder beside the compiler and the playground's <c>DotNetro.CoreLib.&lt;id&gt;</c> resource.</param>
 /// <param name="EmulatorKind">Which emulator runs the produced image (e.g. <c>jsbeeb</c>).</param>
 /// <param name="CreateTarget">Creates the Irie target (fresh per compile).</param>
 /// <param name="Encode">Encodes machine code to raw bytes loaded at the given origin.</param>
@@ -16,6 +17,7 @@ namespace DotNetro.Compiler;
 public sealed record TargetDescriptor(
     string Id,
     string DisplayName,
+    string CoreLibId,
     string EmulatorKind,
     Func<Target> CreateTarget,
     Func<MachineCodeModule, int, byte[]> Encode,
@@ -30,6 +32,7 @@ public static class TargetRegistry
         new TargetDescriptor(
             BbcMicroId,
             "BBC Micro",
+            CoreLibId: BbcMicroId,
             EmulatorKind: "jsbeeb",
             CreateTarget: () => new MOS6502BbcMicroTarget(),
             Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),

@@ -30,20 +30,18 @@ namespace Irie.Target.MOS6502;
 // zero-page byte (the colour-reuse case) are distinct symbol names all pinned to
 // the same address; the encoder permits distinct names at one address.
 //
-// The window is BBC-Micro-specific ($70–$8F is the portable user zero page); the
-// base-chip MOS6502Target does not add this pass, so its frame slots stay
-// absolute. The window therefore lives here as a private const — no generic
-// Target plumbing. This is the spiritual return of the old
+// The window is system-specific ($70–$8F is the BBC Micro's portable user zero
+// page); the base-chip MOS6502Target does not add this pass, so its frame slots
+// stay absolute. A subtarget that adds the pass passes its own (start, size). This is the spiritual return of the old
 // MOS6502StaticFrameAllocPass, but without the RC conflation, escape check, or
 // opcode rewrite, because placement now precedes addressing instead of following it.
-public sealed class MOS6502FramePlacementPass : Pass
+public sealed class MOS6502FramePlacementPass(int windowStart = 0x70, int windowSize = 0x20) : Pass
 {
     public override string Name => "MOS6502FramePlacement";
 
-    // The BBC Micro's free user zero page, dedicated to static frame storage — a
-    // separate namespace from the RC imaginary register file. 32 bytes.
-    private const int WindowStart = 0x70;
-    private const int WindowSize = 0x20;
+    // The subtarget's free zero page, dedicated to static frame storage — a
+    // separate namespace from the RC imaginary register file. The defaults are
+    // the BBC Micro's 32 bytes at $70.
 
     public override void Run(CompilationContext context)
     {
@@ -56,7 +54,7 @@ public sealed class MOS6502FramePlacementPass : Pass
             module.Functions,
             eligibility: f => f.FrameSlots.Count > 0 && f.IsNonReentrant,
             perFunctionFootprint: FrameSize,
-            budgetSize: WindowSize);
+            budgetSize: windowSize);
 
         // Globals are materialised before this pass (FrameLoweringPass), so a slot
         // is pinned by name to its global once we know its zero-page address.
@@ -87,7 +85,7 @@ public sealed class MOS6502FramePlacementPass : Pass
                 if (slot.StackId != FrameSlot.DefaultStackId) continue;
 
                 slot.StackId = MOS6502FrameStackIds.ZeroPage;
-                slot.Offset = WindowStart + baseOf + within;
+                slot.Offset = windowStart + baseOf + within;
                 if (globalsByName.TryGetValue(slot.SymbolName, out var global))
                     global.FixedAddress = slot.Offset;
                 within += slot.Type.SizeInBits / 8;

@@ -23,7 +23,7 @@ internal static class AssemblySet
     public static IAssemblyResolver CreateResolver(TargetDescriptor target)
     {
         var resolver = new InMemoryAssemblyResolver();
-        resolver.Add(WellKnownAssemblies.CoreLib, s_images[$"{WellKnownAssemblies.CoreLib}.{target.Id}"]);
+        resolver.Add(WellKnownAssemblies.CoreLib, s_images[$"{WellKnownAssemblies.CoreLib}.{target.CoreLibId}"]);
 
         return resolver;
     }

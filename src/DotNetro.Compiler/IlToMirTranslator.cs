@@ -70,8 +70,8 @@ internal sealed class IlToMirTranslator : IDisposable
     // Pointer size is 16-bit on the 6502.
     private const int PointerSize = 2;
 
-    public IlToMirTranslator(string rootAssemblyPath, string runtimeText)
-        : this(File.ReadAllBytes(rootAssemblyPath), HostAssemblyResolver.BbcMicro, runtimeText)
+    public IlToMirTranslator(string rootAssemblyPath, string runtimeText, string targetId = TargetRegistry.BbcMicroId)
+        : this(File.ReadAllBytes(rootAssemblyPath), HostAssemblyResolver.ForTarget(targetId), runtimeText)
     {
     }
 
@@ -119,9 +119,9 @@ internal sealed class IlToMirTranslator : IDisposable
         } while (_methodsToVisit.Count > 0);
 
         // The entry function must lay out first (at `origin`) so the emulator's
-        // `JSR $2000` lands on it. It performs BBC MODE 7 init, runs the static
-        // constructors, calls Main, RTS — so it is built after the walk, once the
-        // static-constructor list is known.
+        // `JSR $2000` lands on it. It runs the target's start-up, the static
+        // constructors, calls Main, then halts — so it is built after the walk,
+        // once the static-constructor list is known.
         module.Functions.Insert(0, BuildEntryFunction(entryPointMethod, startupMethod));
 
         // Append the runtime functions (the indirect-call trampoline, …).
@@ -462,8 +462,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
         builder.BuildCall(startupMethod.UniqueName, []);
 
-        // Run static constructors before Main (e.g. ManagedHeap's s_heapPtr =
-        // 0x1000). They are void and parameterless (.cctor).
+        // Run static constructors before Main (e.g. ManagedHeap's s_heapPtr). They are void and parameterless (.cctor).
         foreach (var cctor in _staticConstructors)
             builder.BuildCall(cctor.UniqueName, []);
 
@@ -479,7 +478,13 @@ internal sealed class IlToMirTranslator : IDisposable
 
         builder.BuildCall(entryPointMethod.UniqueName, [], argVregs);
 
-        builder.BuildInstruction(CoreDialect.OpRef(CoreOp.Return));
+        // Nothing to return to on a retro machine: when Main returns, halt in a
+        // self-branching block (`jmp *`). Targets that have somewhere to go can
+        // add their own exit later.
+        var haltBlock = function.CreateBlock();
+        builder.BuildInstruction(CfDialect.OpRef(CfOp.Br), new BlockTarget(haltBlock, []));
+        builder.SetInsertionPointAtEnd(haltBlock);
+        builder.BuildInstruction(CfDialect.OpRef(CfOp.Br), new BlockTarget(haltBlock, []));
         return function;
     }
 
