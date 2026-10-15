@@ -1,0 +1,20 @@
+; RUN: @iriec --target mos6502-bbcmicro --emit=asm @file
+
+; The `bbcmicro_os` calling convention names the ROM's convention: byte arguments
+; in A, X, Y. A pointer built from an integer constant is a fixed address, so the
+; call is a plain `JSR $FFF1` rather than a trip through the indirect-call
+; trampoline. (CC_MOS has no Y argument register, so @osword could not be written
+; with the default convention.)
+
+func @osword : (i8, i8, i8) -> void {
+bb0(%0 : i8, %1 : i8, %2 : i8):
+    %3 : i16 = arith.constant 65521
+    %4 : ptr = cast.inttoptr %3
+    call.indirect %4, bbcmicro_os, %0, %1, %2
+    core.return
+}
+
+; CHECK: osword:
+; CHECK:     LDY $02
+; CHECK:     JSR $FFF1
+; CHECK:     RTS

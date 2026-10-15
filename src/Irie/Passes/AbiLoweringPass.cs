@@ -1,4 +1,6 @@
+using Irie.Dialects.Arith;
 using Irie.Dialects.Call;
+using Irie.Dialects.Cast;
 using Irie.Dialects.Core;
 using Irie.Dialects.Pseudo;
 using Irie.Mir;
@@ -19,9 +21,11 @@ namespace Irie.Passes;
 // The function signature (ParameterTypes / ReturnType) is preserved.
 // Target-specific decisions (which physregs hold which bytes) live in the
 // supplied CallLowering.
-public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : MirFunctionPass
+public sealed class AbiLoweringPass(Irie.Target.Target target) : MirFunctionPass
 {
     public override string Name => "AbiLowering";
+
+    private readonly Irie.Target.CallLowering callLowering = target.CallLowering;
 
     public override void Run(MirFunction function)
     {
@@ -96,6 +100,7 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
         var returnVregs = new List<int>();
         var returnTypes = new List<IRType>();
         string? calleeName = null;
+        var convention = CallConvention.Default;
         var argVregs = new List<int>();
         var argTypes = new List<IRType>();
 
@@ -109,6 +114,9 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
                     break;
                 case Symbol s when calleeName == null:
                     calleeName = s.Name;
+                    break;
+                case Immediate imm:
+                    convention = (int)imm.Value;
                     break;
                 case VirtualReg v when !v.IsDefinition:
                     argVregs.Add(v.Id);
@@ -125,7 +133,7 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
                 "AbiLowering: call.func is missing the callee Symbol operand.");
 
         builder.SetInsertionPointBefore(call);
-        callLowering.LowerCall(
+        target.GetCallLowering(convention).LowerCall(
             calleeName,
             argTypes.ToArray(),
             argVregs.ToArray(),
@@ -142,6 +150,7 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
         var returnVregs = new List<int>();
         var returnTypes = new List<IRType>();
         int? targetPtrVreg = null;
+        var convention = CallConvention.Default;
         var argVregs = new List<int>();
         var argTypes = new List<IRType>();
 
@@ -155,6 +164,9 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
                     break;
                 case VirtualReg v when !v.IsDefinition && targetPtrVreg == null:
                     targetPtrVreg = v.Id;
+                    break;
+                case Immediate imm:
+                    convention = (int)imm.Value;
                     break;
                 case VirtualReg v when !v.IsDefinition:
                     argVregs.Add(v.Id);
@@ -171,7 +183,20 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
                 "AbiLowering: call.indirect is missing the target-pointer vreg.");
 
         builder.SetInsertionPointBefore(call);
-        callLowering.LowerIndirectCall(
+        var lowering = target.GetCallLowering(convention);
+
+        // A pointer built from an integer constant is a fixed address (a ROM entry
+        // point): call it directly rather than through the trampoline.
+        if (TryGetConstantAddress(function, targetPtrVreg.Value, out var address)
+            && lowering.TryLowerCallToAddress(
+                address, argTypes.ToArray(), argVregs.ToArray(),
+                returnTypes.ToArray(), returnVregs.ToArray(), builder))
+        {
+            builder.Remove(call);
+            return;
+        }
+
+        lowering.LowerIndirectCall(
             targetPtrVreg.Value,
             argTypes.ToArray(),
             argVregs.ToArray(),
@@ -179,6 +204,35 @@ public sealed class AbiLoweringPass(Irie.Target.CallLowering callLowering) : Mir
             returnVregs.ToArray(),
             builder);
         builder.Remove(call);
+    }
+
+    // True when `vreg` is `cast.inttoptr` of an `arith.constant` (looking through
+    // integer width casts).
+    private static bool TryGetConstantAddress(MirFunction function, int vreg, out long address)
+    {
+        address = 0;
+        var def = function.GetDefinition(vreg);
+        if (def is null || def.Opcode != CastDialect.OpRef(CastOp.IntToPtr))
+            return false;
+        var source = def.Operands.OfType<VirtualReg>().FirstOrDefault(r => !r.IsDefinition);
+        while (source is not null)
+        {
+            var d = function.GetDefinition(source.Id);
+            if (d is null) return false;
+            if (d.Opcode == ArithDialect.OpRef(ArithOp.Constant))
+            {
+                if (d.Operands.OfType<Immediate>().FirstOrDefault() is not { } imm) return false;
+                // A 16-bit address: what inttoptr sees.
+                address = imm.Value & 0xFFFF;
+                return true;
+            }
+            if (d.Opcode != CastDialect.OpRef(CastOp.Trunc)
+                && d.Opcode != CastDialect.OpRef(CastOp.Zext)
+                && d.Opcode != CastDialect.OpRef(CastOp.Sext))
+                return false;
+            source = d.Operands.OfType<VirtualReg>().FirstOrDefault(r => !r.IsDefinition);
+        }
+        return false;
     }
 
     private static IRType GetVregType(MirFunction function, int vreg)

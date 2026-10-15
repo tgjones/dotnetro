@@ -9,6 +9,14 @@ public abstract class Target
 {
     public abstract Dialect Dialect { get; }
     public abstract CallLowering CallLowering { get; }
+
+    // The lowering for a calling convention named by a call site
+    // (Irie.Dialects.Call.CallConvention). Default is `CallLowering`; a target
+    // with extra conventions overrides this.
+    public virtual CallLowering GetCallLowering(int convention) =>
+        convention == Irie.Dialects.Call.CallConvention.Default
+            ? CallLowering
+            : throw new NotSupportedException($"Calling convention {convention} is not supported by this target.");
     public abstract LegalizerInfo LegalizerInfo { get; }
     public abstract InstructionSelector InstructionSelector { get; }
     public abstract PseudoExpander PseudoExpander { get; }

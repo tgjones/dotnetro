@@ -13,7 +13,7 @@ public static class PipelineBuilder
         passMgr.AddPass(new HoistCommonCodePass());
         passMgr.AddPass(new ReturnMergePass());
         passMgr.AddPass(new FrameLoweringPass());
-        passMgr.AddPass(new AbiLoweringPass(target.CallLowering));
+        passMgr.AddPass(new AbiLoweringPass(target));
         passMgr.AddPass(new LegalizerPass(target.LegalizerInfo));
         // Target pre-isel passes (e.g. MOS6502 select-lowering) run on legalized,
         // still-SSA MIR — the llvm-mos slot for MOSLowerSelect.

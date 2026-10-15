@@ -28,6 +28,22 @@ public sealed class CallDialect : Dialect
         return false;
     }
 
+    // The optional calling-convention immediate is use 1 (right after the callee
+    // symbol / target pointer); render it by name.
+    public override bool TryFormatImmediateUse(ushort code, int useIndex, long value, out string text)
+    {
+        text = string.Empty;
+        return useIndex == 1 && CallConvention.TryGetName(value, out text);
+    }
+
+    public override bool TryParseImmediateUse(ushort code, int useIndex, string text, out long value)
+    {
+        value = 0;
+        return useIndex == 1 && CallConvention.TryFromName(text, out value);
+    }
+
+    public override bool IsLegalImmediateOperand(ushort code, int useIndex) => useIndex == 1;
+
     public override DialectInstructionInfo GetInstructionInfo(ushort code) =>
         DialectInstructionInfo.Empty;
 

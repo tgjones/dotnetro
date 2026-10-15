@@ -7,6 +7,7 @@ using System.Text;
 using DotNetro.Compiler.TypeSystem;
 
 using Irie.Dialects.Arith;
+using Irie.Dialects.Call;
 using Irie.Dialects.Cast;
 using Irie.Dialects.Cf;
 using Irie.Dialects.Core;
@@ -105,6 +106,8 @@ internal sealed class IlToMirTranslator : IDisposable
         // fixpoint: drain the queue, then re-seed it from the vtables / static
         // fields discovered, until nothing new is enqueued.
         EnqueueMethod(entryPointMethod);
+        var startupMethod = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "Startup").GetMethod("Initialize");
+        EnqueueMethod(startupMethod);
 
         do
         {
@@ -119,15 +122,10 @@ internal sealed class IlToMirTranslator : IDisposable
         // `JSR $2000` lands on it. It performs BBC MODE 7 init, runs the static
         // constructors, calls Main, RTS — so it is built after the walk, once the
         // static-constructor list is known.
-        module.Functions.Insert(0, BuildEntryFunction(entryPointMethod));
+        module.Functions.Insert(0, BuildEntryFunction(entryPointMethod, startupMethod));
 
-        // Append the runtime functions (oswrch, PutChar, PlatformWriteLineInt32, …).
+        // Append the runtime functions (StringFromPointer, …).
         module.Functions.AddRange(runtimeModule.Functions);
-
-        // The whole runtime is always linked in, so the hand-written helpers that
-        // reference module globals (@PlatformBeep → @Sound) need those globals
-        // registered unconditionally for the encoder to resolve the symbols.
-        EnsureRuntimeGlobals();
 
         // Vtables for every newobj'd type (registered after the walk, once all
         // used types and their dispatch targets are known).
@@ -214,7 +212,7 @@ internal sealed class IlToMirTranslator : IDisposable
         _emitNameOverrides.TryGetValue(method, out var pinned) ? pinned : null;
 
     // True if `name` matches a function supplied by the hand-written runtime
-    // (oswrch, PutChar, PlatformWriteLineInt32, …). Used to validate InternalCall routing.
+    // (StringFromPointer, …). Used to validate InternalCall routing.
     internal bool IsRuntimeFunction(string name) => _runtimeFunctionNames.Contains(name);
 
     // The dispatch table for `type`: slot index → the method that index resolves
@@ -407,26 +405,6 @@ internal sealed class IlToMirTranslator : IDisposable
     private const int StringObjectHeaderSize = PointerSize;
     private const int ArrayLengthSize = 2;
 
-    private const string SoundSymbol = "Sound";
-
-    // The OSWORD 7 (SOUND) control block @PlatformBeep points X/Y at: four little-endian
-    // 16-bit fields — channel = 1, amplitude = -15, pitch = 0, duration = 4.
-    // Byte-for-byte identical to the legacy generator's `.word`/`.short` block.
-    private static readonly byte[] SoundControlBlock =
-        [0x01, 0x00, 0xF1, 0xFF, 0x00, 0x00, 0x04, 0x00];
-
-    private void EnsureRuntimeGlobals()
-    {
-        if (!_globals.ContainsKey(SoundSymbol))
-        {
-            _globals[SoundSymbol] = new MirGlobal(
-                SymbolName:  SoundSymbol,
-                Type:        IRType.Pointer,
-                SizeInBytes: SoundControlBlock.Length,
-                Initializer: new MirInitializer([new DataBytes(SoundControlBlock)]));
-        }
-    }
-
     // Register a static field as a zero-initialized (.bss-style) MirGlobal and
     // return its symbol name. Mirrors DotNetCompiler's GetStaticFieldName:
     // `{field.Owner.EncodedName}_{field.Name}`.
@@ -470,19 +448,19 @@ internal sealed class IlToMirTranslator : IDisposable
 
     // Synthesize the program entry point:
     //   func @__entry : () -> void {
-    //     call.func @oswrch(22)   ; MODE 7
-    //     call.func @oswrch(7)    ; MODE 7
+    //     call.func @DotNetro_Runtime_Startup_Initialize()   ; the target's setup (BBC: MODE 7)
+    //     call.func @<static constructors>()
     //     call.func @<Main>()
     //     core.return
     //   }
-    private MirFunction BuildEntryFunction(EcmaMethod entryPointMethod)
+    private MirFunction BuildEntryFunction(EcmaMethod entryPointMethod, EcmaMethod startupMethod)
     {
         var function = new MirFunction("__entry", [], IRType.Void);
         var entryBlock = function.CreateBlock();
         var builder = new MirBuilder(function);
         builder.SetInsertionPointAtEnd(entryBlock);
 
-        EmitModeSeven(function, builder);
+        builder.BuildCall(startupMethod.UniqueName, []);
 
         // Run static constructors before Main (e.g. ManagedHeap's s_heapPtr =
         // 0x1000). They are void and parameterless (.cctor).
@@ -503,19 +481,6 @@ internal sealed class IlToMirTranslator : IDisposable
 
         builder.BuildInstruction(CoreDialect.OpRef(CoreOp.Return));
         return function;
-    }
-
-    private static void EmitModeSeven(MirFunction function, MirBuilder builder)
-    {
-        // VDU 22, 7 selects MODE 7 on the BBC Micro. oswrch takes a single i8.
-        EmitOswrch(function, builder, 22);
-        EmitOswrch(function, builder, 7);
-    }
-
-    private static void EmitOswrch(MirFunction function, MirBuilder builder, long value)
-    {
-        var c = builder.BuildConstant(IRType.I8, value);
-        builder.BuildCall("oswrch", [], c);
     }
 
     private MirFunction TranslateMethod(EcmaMethod method)
@@ -2450,10 +2415,13 @@ internal sealed class IlToMirTranslator : IDisposable
         }
 
         // calli <signature> → an indirect call through the function pointer on top
-        // of the stack, args below it. The call uses CC_MOS whatever convention the
-        // signature names: the target has a single ABI, so cdecl / stdcall /
-        // fastcall / thiscall / managed all collapse to it (as on x64 / arm64, and
-        // as clang does for MOS). Varargs and generic signatures are rejected.
+        // of the stack, args below it. The call uses CC_MOS whatever standard
+        // convention the signature names: the target has a single ABI, so cdecl /
+        // stdcall / fastcall / thiscall / managed all collapse to it (as on x64 /
+        // arm64, and as clang does for MOS). A target-specific convention is named by
+        // a `System.Runtime.CompilerServices.CallConv<Name>` modifier on the return
+        // type (C# `delegate* unmanaged[<Name>]<…>`). Varargs and generic signatures
+        // are rejected.
         private void TranslateCalli(EntityHandle signatureHandle)
         {
             var assembly = _method.DeclaringType.Assembly;
@@ -2480,9 +2448,37 @@ internal sealed class IlToMirTranslator : IDisposable
             var returnType = ToIRType(signature.ReturnType);
             var returnTypes = returnType is VoidType ? Array.Empty<IRType>() : [returnType];
 
-            var defs = _builder.BuildCallIndirect(target.Vreg, returnTypes, argVregs);
+            var convention = GetCalliConvention(assembly, signatureHandle);
+            var defs = _builder.BuildCallIndirect(target.Vreg, convention, returnTypes, argVregs);
             if (returnTypes.Length > 0)
                 PushTyped(defs[0], returnType, signature.ReturnType);
+        }
+
+        // The Irie calling convention a calli signature asks for: the first return
+        // type modifier named CallConv<Name> that Irie knows, else the default.
+        private static int GetCalliConvention(EcmaAssembly assembly, EntityHandle signatureHandle)
+        {
+            var reader = assembly.MetadataReader;
+            var blob = reader.GetBlobReader(
+                reader.GetStandaloneSignature((StandaloneSignatureHandle)signatureHandle).Signature);
+            var header = blob.ReadSignatureHeader();
+            if (header.IsGeneric) blob.ReadCompressedInteger();
+            blob.ReadCompressedInteger(); // parameter count
+
+            // The return type starts with its custom modifiers (modopt 0x20, modreq 0x1F).
+            while (blob.RemainingBytes > 0 && blob.ReadByte() is var b && (b is 0x1F or 0x20))
+            {
+                var modifier = blob.ReadTypeHandle();
+                var name = modifier.Kind switch
+                {
+                    HandleKind.TypeReference => reader.GetString(reader.GetTypeReference((TypeReferenceHandle)modifier).Name),
+                    HandleKind.TypeDefinition => reader.GetString(reader.GetTypeDefinition((TypeDefinitionHandle)modifier).Name),
+                    _ => "",
+                };
+                if (name == "CallConvBbcMicroOS")
+                    return CallConvention.BbcMicroOS;
+            }
+            return CallConvention.Default;
         }
 
         // callvirt → a direct call when the target is non-virtual (C# emits

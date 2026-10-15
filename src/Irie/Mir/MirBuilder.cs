@@ -166,18 +166,24 @@ public sealed class MirBuilder(MirFunction function)
     // call.func @callee, %arg0, %arg1, ... → %r0, %r1, ...
     // Allocates fresh def vregs of the given returnTypes. Caller passes
     // existing arg vregs.
-    public int[] BuildCall(string calleeName, IRType[] returnTypes, params int[] argVregs)
+    public int[] BuildCall(string calleeName, IRType[] returnTypes, params int[] argVregs) =>
+        BuildCall(calleeName, CallConvention.Default, returnTypes, argVregs);
+
+    public int[] BuildCall(string calleeName, int convention, IRType[] returnTypes, params int[] argVregs)
     {
         var defs = new int[returnTypes.Length];
-        var operands = new MirOperand[returnTypes.Length + 1 + argVregs.Length];
+        var operands = new MirOperand[returnTypes.Length + 1 + (convention != CallConvention.Default ? 1 : 0) + argVregs.Length];
         for (var i = 0; i < returnTypes.Length; i++)
         {
             defs[i] = function.CreateVirtualRegister(returnTypes[i]);
             operands[i] = new VirtualReg(defs[i], IsDefinition: true);
         }
         operands[returnTypes.Length] = new Symbol(calleeName);
+        var next = returnTypes.Length + 1;
+        if (convention != CallConvention.Default)
+            operands[next++] = new Immediate(convention);
         for (var i = 0; i < argVregs.Length; i++)
-            operands[returnTypes.Length + 1 + i] = new VirtualReg(argVregs[i], IsDefinition: false);
+            operands[next++] = new VirtualReg(argVregs[i], IsDefinition: false);
         Insert(CallDialect.OpRef(CallOp.Func), operands);
         return defs;
     }
@@ -185,18 +191,24 @@ public sealed class MirBuilder(MirFunction function)
     // call.indirect %target, %arg0, %arg1, ... → %r0, %r1, ...
     // Same shape as BuildCall but the callee is a ptr target vreg
     // instead of a Symbol.
-    public int[] BuildCallIndirect(int targetPtrVreg, IRType[] returnTypes, params int[] argVregs)
+    public int[] BuildCallIndirect(int targetPtrVreg, IRType[] returnTypes, params int[] argVregs) =>
+        BuildCallIndirect(targetPtrVreg, CallConvention.Default, returnTypes, argVregs);
+
+    public int[] BuildCallIndirect(int targetPtrVreg, int convention, IRType[] returnTypes, params int[] argVregs)
     {
         var defs = new int[returnTypes.Length];
-        var operands = new MirOperand[returnTypes.Length + 1 + argVregs.Length];
+        var operands = new MirOperand[returnTypes.Length + 1 + (convention != CallConvention.Default ? 1 : 0) + argVregs.Length];
         for (var i = 0; i < returnTypes.Length; i++)
         {
             defs[i] = function.CreateVirtualRegister(returnTypes[i]);
             operands[i] = new VirtualReg(defs[i], IsDefinition: true);
         }
         operands[returnTypes.Length] = new VirtualReg(targetPtrVreg, IsDefinition: false);
+        var next = returnTypes.Length + 1;
+        if (convention != CallConvention.Default)
+            operands[next++] = new Immediate(convention);
         for (var i = 0; i < argVregs.Length; i++)
-            operands[returnTypes.Length + 1 + i] = new VirtualReg(argVregs[i], IsDefinition: false);
+            operands[next++] = new VirtualReg(argVregs[i], IsDefinition: false);
         Insert(CallDialect.OpRef(CallOp.Indirect), operands);
         return defs;
     }

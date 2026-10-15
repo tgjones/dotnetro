@@ -29,7 +29,23 @@ namespace Irie.Target.MOS6502;
 // preservation recursion-safe and frame-slot-free.
 public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 {
-    private static readonly int[] ArgRegs =
+    // CC_MOS, the default convention.
+    public MOS6502CallLowering() : this(CcMosArgRegs, CcMosCallerSaved) { }
+
+    // A convention over the same lowering machinery with its own argument/result
+    // registers (assigned in order, LSB-first) and its own clobber set (the
+    // registers a call destroys). `callerSaved` must include every register in
+    // `argRegs` that results can come back in.
+    public MOS6502CallLowering(int[] argRegs, int[] callerSaved)
+    {
+        _argRegs = argRegs;
+        _callerSaved = callerSaved;
+    }
+
+    private readonly int[] _argRegs;
+    private readonly int[] _callerSaved;
+
+    private static readonly int[] CcMosArgRegs =
     [
         MOS6502Registers.A,
         MOS6502Registers.X,
@@ -55,7 +71,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         int[] originalParameters,
         MirBuilder builder)
     {
-        // regIdx walks the CC_MOS register budget (ArgRegs); once it's exhausted,
+        // regIdx walks the CC_MOS register budget (_argRegs); once it's exhausted,
         // remaining bytes are caller-placed stack arguments, addressed by their
         // own sequential 0-based position (stackIdx) — see LowerStackArgByte.
         var regIdx = 0;
@@ -69,9 +85,9 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 
             var byteCount = ByteCount(typed.Type);
 
-            if (byteCount == 1 && regIdx < ArgRegs.Length)
+            if (byteCount == 1 && regIdx < _argRegs.Length)
             {
-                var physReg = ArgRegs[regIdx++];
+                var physReg = _argRegs[regIdx++];
                 builder.AddLiveIn(physReg);
                 builder.BuildCopyFromPhysicalRegisterInto(paramVreg, physReg);
                 continue;
@@ -89,9 +105,9 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             var byteVregs = new int[byteCount];
             for (var i = 0; i < byteCount; i++)
             {
-                if (regIdx < ArgRegs.Length)
+                if (regIdx < _argRegs.Length)
                 {
-                    var physReg = ArgRegs[regIdx++];
+                    var physReg = _argRegs[regIdx++];
                     builder.AddLiveIn(physReg);
                     byteVregs[i] = builder.BuildCopyFromPhysicalRegister(physReg, IRType.I8);
                 }
@@ -165,7 +181,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             : builder.BuildUnmerge(IRType.I8, returnValueVreg.Value, byteCount);
 
         for (var i = 0; i < byteCount; i++)
-            builder.BuildCopyToPhysicalRegister(ArgRegs[i], byteVregs[i]);
+            builder.BuildCopyToPhysicalRegister(_argRegs[i], byteVregs[i]);
     }
 
     public override void LowerCall(
@@ -174,10 +190,35 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         int[] argVregs,
         IRType[] returnTypes,
         int[] returnVregs,
+        MirBuilder builder) =>
+        LowerJsr(new Symbol(calleeName), argTypes, argVregs, returnTypes, returnVregs, builder);
+
+    // A call to a fixed address (a ROM entry point) is a plain `jsr.abs $addr`;
+    // there is nothing to dispatch through the trampoline.
+    public override bool TryLowerCallToAddress(
+        long address,
+        IRType[] argTypes,
+        int[] argVregs,
+        IRType[] returnTypes,
+        int[] returnVregs,
+        MirBuilder builder)
+    {
+        if (address is < 0 or > 0xFFFF)
+            return false;
+        LowerJsr(new Immediate(address), argTypes, argVregs, returnTypes, returnVregs, builder);
+        return true;
+    }
+
+    private void LowerJsr(
+        MirOperand callee,
+        IRType[] argTypes,
+        int[] argVregs,
+        IRType[] returnTypes,
+        int[] returnVregs,
         MirBuilder builder)
     {
         // Place each arg into its CC physreg(s) in CC order (LSB-first for
-        // multi-byte values), using the same ArgRegs sequence as formal
+        // multi-byte values), using the same _argRegs sequence as formal
         // argument lowering. Track which physregs got args so we can mark
         // them as implicit uses on the JSR.
         var implicitUses = EmitArgumentSetup(argTypes, argVregs, builder);
@@ -185,10 +226,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         // Build the jsr operand array: Symbol callee first, then implicit-uses
         // for arg physregs, then implicit-defs for return physregs + every
         // caller-saved scratch physreg.
-        var operands = new List<MirOperand>
-        {
-            new Symbol(calleeName),
-        };
+        var operands = new List<MirOperand> { callee };
 
         // Implicit-uses on arg physregs: tells RA that those are live INTO
         // the jsr.
@@ -199,7 +237,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         // (clobber barrier). Track the set so we don't add a register twice.
         // CC_MOS treats $a, $x, $y, $c, $n, $v, $z, $b and RC2..RC19 as
         // caller-saved; RC20..RC31 and the D/I flags are callee-saved.
-        var clobberedDefs = new HashSet<int>(CallerSavedScratch);
+        var clobberedDefs = new HashSet<int>(_callerSaved);
         var returnRegIdx = 0;
         var returnPhysRegs = new List<int>();
         for (var i = 0; i < returnVregs.Length; i++)
@@ -208,7 +246,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             EnsureRegBudget(returnRegIdx + byteCount);
             for (var b = 0; b < byteCount; b++)
             {
-                var physReg = ArgRegs[returnRegIdx++];
+                var physReg = _argRegs[returnRegIdx++];
                 returnPhysRegs.Add(physReg);
                 clobberedDefs.Add(physReg);
             }
@@ -227,13 +265,13 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             var byteCount = ByteCount(returnTypes[i]);
             if (byteCount == 1)
             {
-                builder.BuildCopyFromPhysicalRegisterInto(returnVregs[i], ArgRegs[returnRegIdx++]);
+                builder.BuildCopyFromPhysicalRegisterInto(returnVregs[i], _argRegs[returnRegIdx++]);
                 continue;
             }
 
             var byteVregs = new int[byteCount];
             for (var b = 0; b < byteCount; b++)
-                byteVregs[b] = builder.BuildCopyFromPhysicalRegister(ArgRegs[returnRegIdx++], IRType.I8);
+                byteVregs[b] = builder.BuildCopyFromPhysicalRegister(_argRegs[returnRegIdx++], IRType.I8);
             builder.BuildMergeInto(returnVregs[i], byteVregs);
         }
     }
@@ -283,7 +321,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         foreach (var physReg in implicitUses)
             operands.Add(new PhysicalReg(physReg, IsDefinition: false, IsImplicit: true));
 
-        var clobberedDefs = new HashSet<int>(CallerSavedScratch);
+        var clobberedDefs = new HashSet<int>(_callerSaved);
         // The trampoline reads the pointer slots; treat them as clobbered too
         // (they're scratch, the next call can re-init them).
         clobberedDefs.Add(CallTargetLo);
@@ -295,7 +333,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             var byteCount = ByteCount(returnTypes[i]);
             EnsureRegBudget(returnRegIdx + byteCount);
             for (var b = 0; b < byteCount; b++)
-                clobberedDefs.Add(ArgRegs[returnRegIdx++]);
+                clobberedDefs.Add(_argRegs[returnRegIdx++]);
         }
 
         foreach (var physReg in clobberedDefs.OrderBy(r => r))
@@ -310,13 +348,13 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             var byteCount = ByteCount(returnTypes[i]);
             if (byteCount == 1)
             {
-                builder.BuildCopyFromPhysicalRegisterInto(returnVregs[i], ArgRegs[returnRegIdx++]);
+                builder.BuildCopyFromPhysicalRegisterInto(returnVregs[i], _argRegs[returnRegIdx++]);
                 continue;
             }
 
             var byteVregs = new int[byteCount];
             for (var b = 0; b < byteCount; b++)
-                byteVregs[b] = builder.BuildCopyFromPhysicalRegister(ArgRegs[returnRegIdx++], IRType.I8);
+                byteVregs[b] = builder.BuildCopyFromPhysicalRegister(_argRegs[returnRegIdx++], IRType.I8);
             builder.BuildMergeInto(returnVregs[i], byteVregs);
         }
     }
@@ -362,7 +400,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             for (var b = 0; b < byteCount; b++)
             {
                 byteVregs.Add(bytes[b]);
-                physRegs.Add(ArgRegs[regIdx++]);
+                physRegs.Add(_argRegs[regIdx++]);
             }
         }
         return byteVregs;
@@ -388,7 +426,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
     // cross-call vreg lands there (the RC class orders RC20..RC31 after the
     // caller-saved RC2..RC19) and is preserved by each function's
     // prologue/epilogue (PrologueEpilogueInsertionPass + MOS6502FrameLowering).
-    private static readonly int[] CallerSavedScratch =
+    private static readonly int[] CcMosCallerSaved =
     [
         MOS6502Registers.A,
         MOS6502Registers.X,
@@ -409,9 +447,9 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 
     private static int ByteCount(IRType type) => type.SizeInBits / 8;
 
-    private static void EnsureRegBudget(int needed)
+    private void EnsureRegBudget(int needed)
     {
-        if (needed > ArgRegs.Length)
+        if (needed > _argRegs.Length)
             throw new NotSupportedException(
                 "MOS6502CallLowering: argument list exceeds available CC_MOS registers (stack args not yet supported).");
     }

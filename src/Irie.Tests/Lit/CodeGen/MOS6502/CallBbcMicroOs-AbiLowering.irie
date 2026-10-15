@@ -1,0 +1,28 @@
+; RUN: @iriec --target mos6502-bbcmicro --stop-after=AbiLowering @file
+
+; The convention operand of a call prints and parses by name, and AbiLowering
+; places the arguments in the convention's registers (A, X, Y) and clobbers only
+; the registers and flags, not the CC_MOS zero-page scratch.
+
+func @f : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = call.func @rom, bbcmicro_os, %0, %1, %0
+    core.return %2
+}
+
+func @rom : (i8, i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8, %2 : i8):
+    core.return %0
+}
+; CHECK: func @f : (i8, i8) -> i8 {
+; CHECK: bb0():
+; CHECK:     [liveins: $a, $x]
+; CHECK:     %0 : i8 = pseudo.copy $a
+; CHECK:     %1 : i8 = pseudo.copy $x
+; CHECK:     $a = pseudo.copy %0
+; CHECK:     $x = pseudo.copy %1
+; CHECK:     $y = pseudo.copy %0
+; CHECK:     mos6502.jsr.abs @rom, implicit $a, implicit $x, implicit $y, implicit-def $a, implicit-def $x, implicit-def $y, implicit-def $c, implicit-def $n, implicit-def $v, implicit-def $z, implicit-def $b
+; CHECK:     %2 : i8 = pseudo.copy $a
+; CHECK:     $a = pseudo.copy %2
+; CHECK:     pseudo.return

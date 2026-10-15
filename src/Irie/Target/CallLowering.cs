@@ -66,4 +66,16 @@ public abstract class CallLowering
         throw new NotImplementedException(
             "CallLowering.LowerIndirectCall must be overridden by the target for call.indirect ops.");
     }
+
+    // Called for a `call.indirect` whose target is a known constant address (a
+    // ROM entry point reached through a function pointer built from an integer).
+    // A target that can call an absolute address directly emits that call and
+    // returns true; returning false falls back to LowerIndirectCall.
+    public virtual bool TryLowerCallToAddress(
+        long address,
+        IRType[] argTypes,
+        int[] argVregs,
+        IRType[] returnTypes,
+        int[] returnVregs,
+        MirBuilder builder) => false;
 }

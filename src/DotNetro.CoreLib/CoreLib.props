@@ -26,7 +26,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <!-- The primitive structs' value fields are never assigned in C#; the compiler gives them their layout. -->
-    <NoWarn>$(NoWarn);CS0649;CS0169;CS0414;CS8021</NoWarn>
+    <NoWarn>$(NoWarn);CS0649;CS0169;CS0414;CS8021;CS8500</NoWarn>
 
     <!--
       This library is not executed as .NET; it is transpiled to 6502 by the

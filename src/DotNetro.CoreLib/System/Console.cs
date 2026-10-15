@@ -29,7 +29,41 @@ public static partial class Console
         PutChar(13);
     }
 
-    public static void WriteLine(int value) => PlatformWriteLineInt32(value);
+    public static void WriteLine(int value)
+    {
+        var magnitude = (uint)value;
+        if (value < 0)
+        {
+            PutChar((byte)'-');
+            magnitude = 0u - magnitude;
+        }
+        WriteDigits(magnitude);
+        PutChar(13);
+    }
+
+    // The decimal digits of `value`, most significant first: the quotient's digits
+    // come first, so recurse on it (at most ten deep) rather than buffer them. The
+    // division by ten is Hacker's Delight's divu10, shifts and adds only: a general
+    // 32-bit software division takes tens of thousands of cycles per number, and
+    // links in its own routine.
+    private static void WriteDigits(uint value)
+    {
+        var quotient = (value >> 1) + (value >> 2);
+        quotient += quotient >> 4;
+        quotient += quotient >> 8;
+        quotient += quotient >> 16;
+        quotient >>= 3;
+        var remainder = value - ((quotient << 3) + (quotient << 1));
+        if (remainder > 9)
+        {
+            quotient++;
+            remainder -= 10;
+        }
+
+        if (quotient != 0)
+            WriteDigits(quotient);
+        PutChar((byte)('0' + remainder));
+    }
 
     public static void WriteLine(bool value)
     {
@@ -53,11 +87,9 @@ public static partial class Console
 
     // Platform half. Each name must be unique across the runtime: an InternalCall
     // method is routed by name to the function of that name in the target's runtime.irie.
-    private static partial void PutChar(byte c);
-
-    private static partial void PlatformWriteLineInt32(int value);
+    private static unsafe partial void PutChar(byte c);
 
     private static unsafe partial byte* PlatformReadLine();
 
-    private static partial void PlatformBeep();
+    private static unsafe partial void PlatformBeep();
 }

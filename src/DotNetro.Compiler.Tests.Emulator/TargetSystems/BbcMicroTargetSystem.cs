@@ -58,7 +58,9 @@ internal sealed class BbcMicroTargetSystem : ITargetSystem
                     if (cpu.A == 0) // OSWORD 0: read line
                     {
                         var line = input.ReadLine() ?? string.Empty;
-                        var stringAddress = BinaryPrimitives.ReadUInt16LittleEndian(memory.AsSpan(0x37));
+                        // X/Y point at the control block, whose first word is the buffer address.
+                        var controlBlock = cpu.X | (cpu.Y << 8);
+                        var stringAddress = BinaryPrimitives.ReadUInt16LittleEndian(memory.AsSpan(controlBlock));
                         Encoding.ASCII.GetBytes(line + '\r').CopyTo(memory.AsSpan(stringAddress));
                     }
                     break;

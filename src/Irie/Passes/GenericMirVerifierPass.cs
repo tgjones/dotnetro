@@ -205,7 +205,7 @@ public sealed class GenericMirVerifierPass : Pass
         if (target is null)
             return;
 
-        var args = uses.Skip(1).ToList();
+        var args = uses.Skip(1).Where(u => u is not Immediate).ToList(); // an Immediate is the calling convention
         if (args.Count != target.ParameterTypes.Length)
             throw new MirVerificationException(
                 $"MirVerifier: in @{function.Name}, {opName} @{callee.Name} passes {args.Count} " +

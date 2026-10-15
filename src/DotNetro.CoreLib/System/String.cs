@@ -128,7 +128,12 @@ public sealed class String
     internal static unsafe string Allocate(nint length)
         => StringFromPointer(ManagedHeap.AllocArray(length, length + 1));
 
-    // A string reference is the address of its length, which is what AllocArray returns.
-    [MethodImpl(MethodImplOptions.InternalCall)]
-    private static extern unsafe string StringFromPointer(byte* address);
+    // A string reference is the address of its length, which is what AllocArray
+    // returns: store the address into a string local through a pointer to it.
+    private static unsafe string StringFromPointer(byte* address)
+    {
+        string result = null;
+        *(byte**)&result = address;
+        return result;
+    }
 }
