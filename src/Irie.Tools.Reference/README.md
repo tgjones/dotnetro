@@ -1,7 +1,7 @@
 # irie-report
 
-Compares Irie's MOS6502 codegen against the llvm-mos reference corpus. Two
-subcommands:
+Compares Irie's MOS6502 codegen against the llvm-mos reference corpus, and scores
+it on a C#-derived benchmark set. Three subcommands:
 
 ```bash
 # Build iriec + this tool, then:
@@ -67,6 +67,33 @@ README's *Fidelity rule*). A few deltas are still apples-to-oranges, but only
 because of *output*-level optimizations Irie's pipeline does not perform (e.g.
 loop strength reduction in `loop-counter`) — never because the input was
 simplified; see the suite README's pairing caveat.
+
+## `generate-benchmarks`
+
+```bash
+# Build the solution first (needs dnrc and the C# test compiler), then:
+dotnet run --project src/Irie.Tools.Reference -- generate-benchmarks
+# → writes doc/dotnetro/benchmarks.md
+```
+
+The C#-derived counterpart to the C corpus, aimed at the workload C# actually
+produces (i32 arithmetic, multiply/divide helper calls, field and array access
+through references, byte loops). Programs live in
+[`src/DotNetro.Compiler.Tests/Lit/Benchmarks/`](../DotNetro.Compiler.Tests/Lit/Benchmarks);
+each is also a normal lit test (host .NET vs emulator output must match), so the
+measured code is known to run correctly. Convention: the kernels are the methods of
+a top-level `Bench` class (mangled to labels starting `Bench_`); only those are
+counted, not the runtime helpers they call. Each program is compiled with Roslyn
+`--optimize`, run through `dnrc --emit assembly` for the BBC Micro, and the report
+lists instruction count and code bytes per kernel. There is no reference compiler:
+this is a regression baseline for Irie against itself. Bytes are computed from the
+addressing modes in the emitted asm (about 2% under the real image size, which also
+holds data). The generated [`doc/dotnetro/benchmarks.md`](../../doc/dotnetro/benchmarks.md)
+is checked in; regenerate after codegen changes.
+
+To add a benchmark, drop a `.cs` file in that directory with the same `RUN`/`DIFF`
+header as the others. Stick to what the compiler supports (no array initialisers,
+no `starg`, no by-value struct or `ref` parameters yet).
 
 ## `generate-diff`
 

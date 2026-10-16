@@ -13,6 +13,9 @@ using System.Text.RegularExpressions;
 //                      markdown report with per-case deltas and an aggregate
 //                      ratio.
 //
+//   generate-benchmarks  Compile the C# benchmark programs and report Irie's
+//                      instruction count and code bytes per kernel.
+//
 //   generate-diff      For a single corpus case, run `iriec --print-changed`
 //                      and emit an uncommitted HTML artifact that lays the
 //                      llvm-mos IR pipeline (from the committed .txt dump) and
@@ -21,6 +24,7 @@ using System.Text.RegularExpressions;
 var root = new RootCommand("Compare Irie's MOS6502 codegen against the llvm-mos reference corpus.");
 root.Subcommands.Add(BuildGenerateReportCommand());
 root.Subcommands.Add(BuildGenerateDiffCommand());
+root.Subcommands.Add(BenchmarkReport.Build());
 return root.Parse(args).Invoke();
 
 // ---------------------------------------------------------------------------
