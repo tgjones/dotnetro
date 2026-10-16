@@ -21,8 +21,7 @@
 ; CHECK:     STX $13
 ; CHECK:     LDY #$00
 ; CHECK:     STA ($12),Y
-; CHECK:     JSR recur
-; CHECK:     RTS
+; CHECK:     JMP recur
 
 func @recur : () -> void {
   frame_slot 0 : i16 @recur_local0

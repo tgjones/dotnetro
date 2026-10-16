@@ -5,26 +5,21 @@
 ; (zero-extended for shl/lshr, sign-extended for ashr) and the result truncated.
 
 ; CHECK: ShlVar16:
-; CHECK:     JSR __ashlhi3
-; CHECK:     RTS
+; CHECK:     JMP __ashlhi3
 ; CHECK:
 ; CHECK: LShrVar16:
-; CHECK:     JSR __lshrhi3
-; CHECK:     RTS
+; CHECK:     JMP __lshrhi3
 ; CHECK:
 ; CHECK: AShrVar32:
-; CHECK:     JSR __ashrsi3
-; CHECK:     RTS
+; CHECK:     JMP __ashrsi3
 ; CHECK:
 ; CHECK: ShlVar64:
-; CHECK:     JSR __ashldi3
-; CHECK:     RTS
+; CHECK:     JMP __ashldi3
 ; CHECK:
 ; CHECK: LShrVar8:
 ; CHECK:     STX $02
 ; CHECK:     LDX #$00
-; CHECK:     JSR __lshrhi3
-; CHECK:     RTS
+; CHECK:     JMP __lshrhi3
 ; CHECK:
 ; CHECK: AShrVar8:
 ; CHECK:     STX $02
@@ -33,8 +28,7 @@
 ; CHECK: .bb1:
 ; CHECK:     LDX #$00
 ; CHECK: .bb2:
-; CHECK:     JSR __ashrhi3
-; CHECK:     RTS
+; CHECK:     JMP __ashrhi3
 ; CHECK: .bb3:
 ; CHECK:     LDX #$FF
 ; CHECK:     JMP .bb2

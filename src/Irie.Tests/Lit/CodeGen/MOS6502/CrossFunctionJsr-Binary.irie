@@ -2,18 +2,21 @@
 
 ; Verifies cross-function ExternalRef resolution: @Caller's `mos6502.jsr.abs
 ; @helper` resolves to the absolute address of @helper, which is laid out
-; immediately after @Caller at $1004.
+; immediately after @Caller at $1005. (The clc keeps the call out of tail position,
+; where jsr; rts folds to jmp.)
 ;
 ; Layout starting at $1000:
-;   $1000: JSR $1004      ; 20 04 10 — JSR to helper
-;   $1003: RTS            ; 60       — end of Caller
-;   $1004: RTS            ; 60       — helper
+;   $1000: JSR $1005      ; 20 05 10 — JSR to helper
+;   $1003: CLC            ; 18
+;   $1004: RTS            ; 60       — end of Caller
+;   $1005: RTS            ; 60       — helper
 
-; CHECK: 00000000: 20 04 10 60 60
+; CHECK: 00000000: 20 05 10 18 60 60
 
 func @Caller : () -> void {
 bb0():
     mos6502.jsr.abs @helper
+    mos6502.clc
     mos6502.rts
 }
 

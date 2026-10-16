@@ -6,8 +6,7 @@
 ; saves.
 
 ; CHECK: TestCall:
-; CHECK:     JSR Callee
-; CHECK:     RTS
+; CHECK:     JMP Callee
 
 func @TestCall : (i8) -> i8 {
 bb0(%0 : i8):

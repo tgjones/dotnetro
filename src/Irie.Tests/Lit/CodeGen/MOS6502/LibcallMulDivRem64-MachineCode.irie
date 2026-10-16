@@ -5,24 +5,19 @@
 ; sit in the helper's argument registers, so each is a bare JSR.
 
 ; CHECK: Mul64:
-; CHECK:     JSR __muldi3
-; CHECK:     RTS
+; CHECK:     JMP __muldi3
 ; CHECK:
 ; CHECK: UDiv64:
-; CHECK:     JSR __udivdi3
-; CHECK:     RTS
+; CHECK:     JMP __udivdi3
 ; CHECK:
 ; CHECK: SDiv64:
-; CHECK:     JSR __divdi3
-; CHECK:     RTS
+; CHECK:     JMP __divdi3
 ; CHECK:
 ; CHECK: URem64:
-; CHECK:     JSR __umoddi3
-; CHECK:     RTS
+; CHECK:     JMP __umoddi3
 ; CHECK:
 ; CHECK: SRem64:
-; CHECK:     JSR __moddi3
-; CHECK:     RTS
+; CHECK:     JMP __moddi3
 
 func @Mul64 : (i64, i64) -> i64 {
 bb0(%0 : i64, %1 : i64):

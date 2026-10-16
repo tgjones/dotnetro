@@ -582,8 +582,7 @@
 ; CHECK:     JSR osasci
 ; CHECK: .bb64:
 ; CHECK:     LDA #$0D
-; CHECK:     JSR osasci
-; CHECK:     RTS
+; CHECK:     JMP osasci
 ; CHECK: .bb65:
 ; CHECK:     INX
 ; CHECK:     JMP .bb3

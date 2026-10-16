@@ -22,8 +22,7 @@
 ; CHECK:     STY $02
 ; CHECK:     LDY #$12
 ; CHECK:     STY $03
-; CHECK:     JSR SinkI32
-; CHECK:     RTS
+; CHECK:     JMP SinkI32
 ; The $02-home byte 0 is evacuated to scratch before $02 is reused ...
 ; ... and byte 0 is loaded into $a LAST, just before the call.
 

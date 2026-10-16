@@ -7,16 +7,13 @@
 ; because nothing between the live-in and the JSR clobbers them.
 
 ; CHECK: oswrch:
-; CHECK:     JSR $FFEE
-; CHECK:     RTS
+; CHECK:     JMP $FFEE
 
 ; CHECK: osasci:
-; CHECK:     JSR $FFE3
-; CHECK:     RTS
+; CHECK:     JMP $FFE3
 
 ; CHECK: osword:
-; CHECK:     JSR $FFF1
-; CHECK:     RTS
+; CHECK:     JMP $FFF1
 
 func @oswrch : (i8) -> void {
 bb0(%0 : i8):

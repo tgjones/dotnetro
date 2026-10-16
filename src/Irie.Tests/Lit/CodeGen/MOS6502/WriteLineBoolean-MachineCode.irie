@@ -31,8 +31,7 @@
 ; CHECK:     LDA #>False_String
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     JSR WriteLineString
-; CHECK:     RTS
+; CHECK:     JMP WriteLineString
 
 func @WriteLineString : (ptr) -> void {
 bb0(%0 : ptr):

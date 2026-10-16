@@ -30,8 +30,7 @@
 ; CHECK:     LDA #>owner_local0
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     JSR sink
-; CHECK:     RTS
+; CHECK:     JMP sink
 
 func @sink : (ptr) -> void {
   bb0(%0 : ptr):

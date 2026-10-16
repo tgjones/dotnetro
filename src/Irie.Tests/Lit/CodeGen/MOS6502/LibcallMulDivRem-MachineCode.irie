@@ -8,36 +8,29 @@
 ; forms) and the result truncated back.
 
 ; CHECK: Mul16:
-; CHECK:     JSR __mulhi3
-; CHECK:     RTS
+; CHECK:     JMP __mulhi3
 ; CHECK:
 ; CHECK: Mul32:
-; CHECK:     JSR __mulsi3
-; CHECK:     RTS
+; CHECK:     JMP __mulsi3
 ; CHECK:
 ; CHECK: Mul8:
 ; CHECK:     STX $02
 ; CHECK:     LDX #$00
 ; CHECK:     LDY #$00
 ; CHECK:     STY $03
-; CHECK:     JSR __mulhi3
-; CHECK:     RTS
+; CHECK:     JMP __mulhi3
 ; CHECK:
 ; CHECK: UDiv32:
-; CHECK:     JSR __udivsi3
-; CHECK:     RTS
+; CHECK:     JMP __udivsi3
 ; CHECK:
 ; CHECK: SDiv32:
-; CHECK:     JSR __divsi3
-; CHECK:     RTS
+; CHECK:     JMP __divsi3
 ; CHECK:
 ; CHECK: URem32:
-; CHECK:     JSR __umodsi3
-; CHECK:     RTS
+; CHECK:     JMP __umodsi3
 ; CHECK:
 ; CHECK: SRem32:
-; CHECK:     JSR __modsi3
-; CHECK:     RTS
+; CHECK:     JMP __modsi3
 ; CHECK:
 ; CHECK: SDiv8:
 ; CHECK:     TAY
@@ -62,8 +55,7 @@
 ; CHECK:     STY $05
 ; CHECK:     LDY $07
 ; CHECK:     STY $06
-; CHECK:     JSR __divsi3
-; CHECK:     RTS
+; CHECK:     JMP __divsi3
 ; CHECK: .bb5:
 ; CHECK:     LDA #$FF
 ; CHECK:     STA $03

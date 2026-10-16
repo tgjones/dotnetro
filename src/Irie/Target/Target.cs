@@ -70,6 +70,11 @@ public abstract class Target
     // MirBlock.LiveIns / Successors) must therefore have already run.
     public virtual void AddFinalPasses(Irie.Passes.PassManager pm) { }
 
+    // Called after tail-duplication, the last generic pass: it can leave a call
+    // directly followed by a return (the duplicated return tail), which a target
+    // may fold into a tail jump.
+    public virtual void AddPostTailDuplicationPasses(Irie.Passes.PassManager pm) { }
+
     // Hand-written MIR runtime for this target (OS-call wrappers, `start`, the
     // indirect-call trampoline, ...), as MIR text. The IL→MIR translator parses it
     // and merges its functions into the module it produces.

@@ -11,8 +11,7 @@
 ; CHECK: CallI16:
 ; CHECK:     LDA #$34
 ; CHECK:     LDX #$12
-; CHECK:     JSR SinkI16
-; CHECK:     RTS
+; CHECK:     JMP SinkI16
 
 func @SinkI16 : (i16) -> void {
 bb0(%0 : i16):

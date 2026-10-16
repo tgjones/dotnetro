@@ -81,5 +81,6 @@ public static class PipelineBuilder
         // llvm-mos `tailduplication` analogue); it follows block-placement because
         // our block-placement has no integrated tail-dup. See TailDuplicationPass.
         passMgr.AddPass(new TailDuplicationPass(target.BranchLowering));
+        target.AddPostTailDuplicationPasses(passMgr);
     }
 }

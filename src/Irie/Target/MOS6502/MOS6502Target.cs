@@ -63,6 +63,11 @@ public class MOS6502Target : Irie.Target.Target
         pm.AddPass(new MOS6502LateOptimizationPass());
     }
 
+    public override void AddPostTailDuplicationPasses(Irie.Passes.PassManager pm)
+    {
+        pm.AddPass(new MOS6502TailCallPass());
+    }
+
     public override void AddFinalPasses(Irie.Passes.PassManager pm)
     {
         // The llvm-mos block-placement analogue (minimal fall-through form):

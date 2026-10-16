@@ -18,8 +18,7 @@
 ; CHECK:     STY $02
 ; CHECK:     LDY #$56
 ; CHECK:     STY $03
-; CHECK:     JSR SinkI16x2
-; CHECK:     RTS
+; CHECK:     JMP SinkI16x2
 ; The first argument's low byte is loaded into $a LAST, after every zp→zp move.
 
 func @SinkI16x2 : (i16, i16) -> void {

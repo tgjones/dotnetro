@@ -6,12 +6,14 @@
 ; byte level.
 ;
 ;   JSR $FFEE           ; 20 EE FF
+;   CLC                 ; 18 — keeps the call out of tail position (jsr; rts folds to jmp)
 ;   RTS                 ; 60
 
-; CHECK: 00000000: 20 EE FF 60
+; CHECK: 00000000: 20 EE FF 18 60
 
 func @CallOswrch : () -> void {
 bb0():
     mos6502.jsr.abs 65518
+    mos6502.clc
     mos6502.rts
 }

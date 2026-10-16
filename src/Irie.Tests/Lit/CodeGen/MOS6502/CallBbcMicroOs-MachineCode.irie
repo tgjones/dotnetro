@@ -16,5 +16,4 @@ bb0(%0 : i8, %1 : i8, %2 : i8):
 
 ; CHECK: osword:
 ; CHECK:     LDY $02
-; CHECK:     JSR $FFF1
-; CHECK:     RTS
+; CHECK:     JMP $FFF1

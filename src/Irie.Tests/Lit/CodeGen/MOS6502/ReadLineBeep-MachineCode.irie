@@ -41,8 +41,7 @@
 ; CHECK:     STA $00
 ; CHECK:     LDY $00
 ; CHECK:     LDA #$07
-; CHECK:     JSR $FFF1
-; CHECK:     RTS
+; CHECK:     JMP $FFF1
 
 func @ReadLine : () -> i16 {
 bb0():

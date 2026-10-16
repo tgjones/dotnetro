@@ -8,8 +8,7 @@
 ; `mem.symbol @name` address, not a runtime pointer.
 
 ; CHECK: osasci:
-; CHECK:     JSR $FFE3
-; CHECK:     RTS
+; CHECK:     JMP $FFE3
 ; CHECK:
 ; CHECK: WriteLineString:
 ; CHECK:     STA $00

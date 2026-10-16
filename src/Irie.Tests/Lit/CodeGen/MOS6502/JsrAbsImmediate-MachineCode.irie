@@ -3,14 +3,17 @@
 ; Verifies that `mos6502.jsr.abs` accepts an Immediate operand (a literal
 ; 16-bit absolute address) in addition to a Symbol. Used by hand-written
 ; runtime.mir helpers that target fixed OS-call entry points such as the
-; BBC Micro's OSWRCH ($FFEE) and OSWORD ($FFF1).
+; BBC Micro's OSWRCH ($FFEE) and OSWORD ($FFF1). The clc keeps the call out of
+; tail position, where jsr; rts folds to jmp.
 
 ; CHECK: CallOswrch:
 ; CHECK:     JSR $FFEE
+; CHECK:     CLC
 ; CHECK:     RTS
 
 func @CallOswrch : () -> void {
 bb0():
     mos6502.jsr.abs 65518
+    mos6502.clc
     mos6502.rts
 }
