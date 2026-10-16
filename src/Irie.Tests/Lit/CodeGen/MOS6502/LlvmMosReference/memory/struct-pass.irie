@@ -1,0 +1,16 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/memory/struct-pass
+; Incomparable: the by-value struct ABI is modelled as two i16 arguments, which llvm-mos does not pass the same way
+; struct point {int x, y} passed by value is two i16 arguments in the llvm-mos ABI; returns p.x * p.y.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/memory/struct-pass.s; close gaps via irie-report.
+
+; CHECK: struct_pass:
+
+func @struct_pass : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = arith.muli %0, %1
+    core.return %2
+}

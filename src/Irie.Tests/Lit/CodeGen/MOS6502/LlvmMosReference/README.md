@@ -47,7 +47,9 @@ Irie limitation, then the faithful mirror compiles on its own.
 Filenames match the corpus basename (`add-i16.irie` ↔
 `ext/llvm-mos-reference/basics/add-i16.{c,s,txt}`) so `irie-report` can pair them.
 
-## Converted (28 tests)
+## Converted (43 tests)
+
+The four `coalescing/` tests carry a `; Duplicate-of:` header and `loop-counter`, `strlen` and `struct-pass` an `; Incomparable:` one; `irie-report` keeps them out of the headline totals (see its README).
 
 | Corpus case | Test |
 |-------------|------|
@@ -75,6 +77,21 @@ Filenames match the corpus basename (`add-i16.irie` ↔
 | constraints/bitops | `bitops` |
 | pressure/pressure-i16 | `pressure-i16` |
 | constraints/inc-dec | `inc-dec` |
+| basics/chain-arith | `chain-arith` |
+| control-flow/nested-loop | `nested-loop` |
+| control-flow/loop-sum-array | `loop-sum-array` |
+| memory/array-index | `array-index` |
+| memory/two-pointer-copy | `two-pointer-copy` |
+| memory/struct-pass (by-value struct as two i16 args) | `struct-pass` |
+| constraints/shift-const | `shift-const` |
+| constraints/shift-var (runtime-helper call) | `shift-var` |
+| constraints/compare-flags | `compare-flags` |
+| pressure/pressure-high | `pressure-high` |
+| pressure/pressure-i64 | `pressure-i64` |
+| realistic/strlen | `strlen` |
+| realistic/gcd | `gcd` |
+| realistic/factorial-recursive | `factorial-recursive` |
+| realistic/crc8 (uchar arithmetic at i8) | `crc8` |
 | coalescing/commutative (identical MIR shape to `add-i16`) | `commutative` |
 | coalescing/copy-passthrough (identical MIR shape to `identity-i8`, but i16) | `copy-passthrough` |
 | coalescing/redundant-copy (identical MIR shape to `select`) | `redundant-copy` |
@@ -82,26 +99,24 @@ Filenames match the corpus basename (`add-i16.irie` ↔
 
 ## Blocked — by reason
 
-These corpus cases cannot yet be expressed in Irie's generic MIR *and* survive
+These corpus cases still cannot be expressed in Irie's generic MIR *and* survive
 the full pipeline to asm. The blockers are **Irie's current limitations**; this
 doubles as a punch-list (and `irie-report` flags each as uncovered):
 
 | Reason | Corpus cases |
 |--------|--------------|
-| **No `arith` multiply** | basics/chain-arith, control-flow/nested-loop, pressure/pressure-high, memory/struct-pass, realistic/factorial-recursive |
-| **No divide/modulo** | realistic/gcd |
-| **No shift op** | constraints/shift-const, constraints/shift-var, realistic/crc8 |
-| **No bitwise ops on i1** (`and` of compare results) | constraints/compare-flags |
-| **i64 not supported** | pressure/pressure-i64 |
-| **`mem.load`/`mem.store` only accept `mem.symbol` addresses** (no arbitrary i16 pointers / frame slots) | memory/ptr-deref, memory/array-index, control-flow/loop-sum-array, realistic/strlen, memory/two-pointer-copy, realistic/crc8 |
-| **multi-way control flow (switch)** — only a single two-way cmp+branch fusion exists | control-flow/switch |
-| **aggregate / sret ABI not modelled** | memory/struct-return, memory/struct-return-sret |
+| **Multi-way control flow** — there is no `cf.switch`; only two-way `cf.cond_br` (a compare chain would not mirror llvm-mos's lowering) | control-flow/switch |
+| **Aggregate returns / sret ABI not modelled** | memory/struct-return, memory/struct-return-sret |
 
 ### Pairing caveat
 
 `irie-report` pairs by basename. All tests are faithful translations of the
 corpus C; one has an *output*-comparison caveat (not a fidelity issue):
 
+- **`strlen`** is faithful, but llvm-mos recognises the loop as `strlen` and
+  tail-calls the library routine, so it is excluded from the totals.
+- **`struct-pass`** models the by-value struct as two `i16` arguments; llvm-mos
+  passes the struct differently, so it is excluded from the totals.
 - **`loop-counter`** is faithful (`s += i`), but llvm-mos strength-reduces the
   whole loop to a closed-form multiply (`__mulsi3`) — an optimisation Irie's
   pipeline does not perform — so the instruction-count comparison is

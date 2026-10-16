@@ -2,61 +2,1035 @@
 
 # Irie vs llvm-mos — MOS6502 codegen
 
-Irie emits **-10.6%** instructions vs llvm-mos (**734** vs **821**, ratio **0.89**) across **28/47** corpus cases.
+Irie emits **+1.7%** instructions vs llvm-mos (**1917** vs **1885**, ratio **1.02**) across **36/47** corpus cases.
+
+Code size: Irie **3167** vs llvm-mos **3517** bytes (**-10.0%**), both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.
+
+7 cases (marked 🚫) are excluded from the totals above: duplicates of another case's MIR shape, or not comparable (reason shown in the Status column).
 
 Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).
 
-| Category | Case | Status | llvm-mos | Irie | Δ | Ratio | |
-| --- | --- | --- | --: | --: | --: | --: | :-: |
-| widths | zero-extend | converted | 6 | 9 | +3 | 1.50 | 🔴 |
-| constraints | bitops | converted | 30 | 37 | +7 | 1.23 | 🔴 |
-| widths | sign-extend | converted | 11 | 13 | +2 | 1.18 | 🔴 |
-| pressure | pressure-i16 | converted | 55 | 61 | +6 | 1.11 | 🔴 |
-| widths | mixed-widths | converted | 43 | 46 | +3 | 1.07 | 🔴 |
-| realistic | fibonacci | converted | 50 | 51 | +1 | 1.02 | 🔴 |
-| basics | add-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ |
-| basics | add-i32 | converted | 14 | 14 | 0 | 1.00 | ⚪ |
-| basics | add-i8 | converted | 4 | 4 | 0 | 1.00 | ⚪ |
-| basics | identity-i8 | converted | 1 | 1 | 0 | 1.00 | ⚪ |
-| basics | many-args | converted | 36 | 36 | 0 | 1.00 | ⚪ |
-| basics | ret-const | converted | 3 | 3 | 0 | 1.00 | ⚪ |
-| basics | sub-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ |
-| coalescing | commutative | converted | 8 | 8 | 0 | 1.00 | ⚪ |
-| coalescing | copy-passthrough | converted | 1 | 1 | 0 | 1.00 | ⚪ |
-| coalescing | redundant-copy | converted | 12 | 12 | 0 | 1.00 | ⚪ |
-| coalescing | swap | converted | 11 | 11 | 0 | 1.00 | ⚪ |
-| constraints | inc-dec | converted | 4 | 4 | 0 | 1.00 | ⚪ |
-| control-flow | select | converted | 12 | 12 | 0 | 1.00 | ⚪ |
-| memory | global-rw | converted | 10 | 10 | 0 | 1.00 | ⚪ |
-| widths | truncate | converted | 3 | 3 | 0 | 1.00 | ⚪ |
-| pressure | live-across-call | converted | 23 | 22 | -1 | 0.96 | 🟢 |
-| control-flow | early-return | converted | 28 | 26 | -2 | 0.93 | 🟢 |
-| control-flow | common-subexpr | converted | 39 | 36 | -3 | 0.92 | 🟢 |
-| control-flow | if-else | converted | 36 | 32 | -4 | 0.89 | 🟢 |
-| basics | stack-args | converted | 122 | 92 | -30 | 0.75 | 🟢 |
-| pressure | many-calls | converted | 178 | 134 | -44 | 0.75 | 🟢 |
-| control-flow | loop-counter | converted | 65 | 40 | -25 | 0.62 | 🟢 |
-| basics | chain-arith | blocked | 51 | — | — | — |  |
-| constraints | compare-flags | blocked | 47 | — | — | — |  |
-| constraints | shift-const | blocked | 26 | — | — | — |  |
-| constraints | shift-var | blocked | 1 | — | — | — |  |
-| control-flow | loop-sum-array | blocked | 43 | — | — | — |  |
-| control-flow | nested-loop | blocked | 139 | — | — | — |  |
-| control-flow | switch | blocked | 38 | — | — | — |  |
-| memory | array-index | blocked | 37 | — | — | — |  |
-| memory | ptr-deref | blocked | 23 | — | — | — |  |
-| memory | struct-pass | blocked | 10 | — | — | — |  |
-| memory | struct-return | blocked | 14 | — | — | — |  |
-| memory | struct-return-sret | blocked | 99 | — | — | — |  |
-| memory | two-pointer-copy | blocked | 47 | — | — | — |  |
-| pressure | pressure-high | blocked | 230 | — | — | — |  |
-| pressure | pressure-i64 | blocked | 392 | — | — | — |  |
-| realistic | crc8 | blocked | 48 | — | — | — |  |
-| realistic | factorial-recursive | blocked | 60 | — | — | — |  |
-| realistic | gcd | blocked | 40 | — | — | — |  |
-| realistic | strlen | blocked | 1 | — | — | — |  |
+| Category | Case | Status | llvm-mos | Irie | Δ | Ratio | | llvm-mos bytes | Irie bytes |
+| --- | --- | --- | --: | --: | --: | --: | :-: | --: | --: |
+| realistic | strlen | converted 🚫 incomparable: llvm-mos recognises the loop as strlen and tail-calls the library routine | 1 | 26 | +25 | 26.00 | 🔴 | 3 | 44 |
+| realistic | crc8 | converted | 48 | 80 | +32 | 1.67 | 🔴 | 89 | 150 |
+| memory | array-index | converted | 37 | 61 | +24 | 1.65 | 🔴 | 61 | 104 |
+| realistic | gcd | converted | 40 | 65 | +25 | 1.63 | 🔴 | 76 | 124 |
+| constraints | shift-const | converted | 26 | 41 | +15 | 1.58 | 🔴 | 41 | 56 |
+| memory | two-pointer-copy | converted | 47 | 71 | +24 | 1.51 | 🔴 | 86 | 134 |
+| widths | zero-extend | converted | 6 | 9 | +3 | 1.50 | 🔴 | 9 | 12 |
+| control-flow | loop-sum-array | converted | 43 | 63 | +20 | 1.47 | 🔴 | 78 | 116 |
+| constraints | compare-flags | converted | 47 | 65 | +18 | 1.38 | 🔴 | 89 | 125 |
+| constraints | bitops | converted | 30 | 37 | +7 | 1.23 | 🔴 | 48 | 62 |
+| widths | sign-extend | converted | 11 | 13 | +2 | 1.18 | 🔴 | 19 | 21 |
+| pressure | pressure-high | converted | 230 | 261 | +31 | 1.13 | 🔴 | 466 | 497 |
+| pressure | pressure-i16 | converted | 55 | 61 | +6 | 1.11 | 🔴 | 99 | 107 |
+| widths | mixed-widths | converted | 43 | 46 | +3 | 1.07 | 🔴 | 75 | 77 |
+| realistic | fibonacci | converted | 50 | 51 | +1 | 1.02 | 🔴 | 91 | 96 |
+| basics | add-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 10 |
+| basics | add-i32 | converted | 14 | 14 | 0 | 1.00 | ⚪ | 22 | 22 |
+| basics | add-i8 | converted | 4 | 4 | 0 | 1.00 | ⚪ | 6 | 6 |
+| basics | identity-i8 | converted | 1 | 1 | 0 | 1.00 | ⚪ | 1 | 1 |
+| basics | many-args | converted | 36 | 36 | 0 | 1.00 | ⚪ | 60 | 46 |
+| basics | ret-const | converted | 3 | 3 | 0 | 1.00 | ⚪ | 5 | 5 |
+| basics | sub-i16 | converted | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 10 |
+| coalescing | commutative | converted 🚫 duplicate of basics/add-i16 | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 10 |
+| coalescing | copy-passthrough | converted 🚫 duplicate of basics/identity-i8 | 1 | 1 | 0 | 1.00 | ⚪ | 1 | 1 |
+| coalescing | redundant-copy | converted 🚫 duplicate of control-flow/select | 12 | 12 | 0 | 1.00 | ⚪ | 22 | 20 |
+| coalescing | swap | converted 🚫 duplicate of basics/sub-i16 | 11 | 11 | 0 | 1.00 | ⚪ | 17 | 17 |
+| constraints | inc-dec | converted | 4 | 4 | 0 | 1.00 | ⚪ | 6 | 6 |
+| constraints | shift-var | converted | 1 | 1 | 0 | 1.00 | ⚪ | 3 | 3 |
+| control-flow | select | converted | 12 | 12 | 0 | 1.00 | ⚪ | 22 | 20 |
+| memory | global-rw | converted | 10 | 10 | 0 | 1.00 | ⚪ | 18 | 18 |
+| widths | truncate | converted | 3 | 3 | 0 | 1.00 | ⚪ | 4 | 4 |
+| pressure | live-across-call | converted | 23 | 22 | -1 | 0.96 | 🟢 | 37 | 32 |
+| control-flow | early-return | converted | 28 | 26 | -2 | 0.93 | 🟢 | 42 | 39 |
+| control-flow | common-subexpr | converted | 39 | 36 | -3 | 0.92 | 🟢 | 83 | 73 |
+| control-flow | nested-loop | converted | 139 | 126 | -13 | 0.91 | 🟢 | 271 | — |
+| control-flow | if-else | converted | 36 | 32 | -4 | 0.89 | 🟢 | 56 | 54 |
+| pressure | pressure-i64 | converted | 392 | 333 | -59 | 0.85 | 🟢 | 808 | 646 |
+| realistic | factorial-recursive | converted | 60 | 48 | -12 | 0.80 | 🟢 | 110 | 83 |
+| basics | chain-arith | converted | 51 | 40 | -11 | 0.78 | 🟢 | 85 | 60 |
+| basics | stack-args | converted | 122 | 92 | -30 | 0.75 | 🟢 | 219 | 130 |
+| pressure | many-calls | converted | 178 | 134 | -44 | 0.75 | 🟢 | 312 | 218 |
+| control-flow | loop-counter | converted 🚫 incomparable: llvm-mos replaces the loop with a closed-form __mulsi3 call | 65 | 38 | -27 | 0.58 | 🟢 | 117 | 70 |
+| memory | struct-pass | converted 🚫 incomparable: the by-value struct ABI is modelled as two i16 arguments, which llvm-mos does not pass the same way | 10 | 1 | -9 | 0.10 | 🟢 | 18 | 3 |
+| control-flow | switch | blocked | 38 | — | — | — |  | 62 | — |
+| memory | ptr-deref | blocked | 23 | — | — | — |  | 41 | — |
+| memory | struct-return | blocked | 14 | — | — | — |  | 25 | — |
+| memory | struct-return-sret | blocked | 99 | — | — | — |  | 182 | — |
 
 ## Per-case assembly
+
+<details>
+<summary>realistic/strlen — llvm-mos 1, Irie 26, ratio 26.00</summary>
+
+llvm-mos (1):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "strlen.c"
+    .section    .text.strlen_impl,"ax",@progbits
+    .globl    strlen_impl                     ; -- Begin function strlen_impl
+    .type    strlen_impl,@function
+strlen_impl:                            ; @strlen_impl
+; %bb.0:
+    jmp    strlen
+.Lfunc_end0:
+    .size    strlen_impl, .Lfunc_end0-strlen_impl
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (26):
+
+```asm
+strlen_impl:
+    STA $04
+    STX $03
+    STA $02
+.bb1:
+    LDA $02
+    STA $12
+    STX $13
+    LDY #$00
+    LDA ($12),Y
+    BEQ .bb3
+.bb2:
+    CLC
+    LDA $02
+    ADC #$01
+    STA $02
+    TXA
+    ADC #$00
+    TAX
+    JMP .bb1
+.bb3:
+    SEC
+    LDA $02
+    SBC $04
+    TAY
+    TXA
+    SBC $03
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>realistic/crc8 — llvm-mos 48, Irie 80, ratio 1.67</summary>
+
+llvm-mos (48):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "crc8.c"
+    .section    .text.crc8,"ax",@progbits
+    .globl    crc8                            ; -- Begin function crc8
+    .type    crc8,@function
+crc8:                                   ; @crc8
+; %bb.0:
+    sta    __rc4
+    lda    #255
+    stx    __rc5
+    ldx    __rc5
+    bne    .LBB0_2
+; %bb.1:
+    ldx    __rc4
+    beq    .LBB0_11
+.LBB0_2:
+    ldx    #0
+    ldy    __rc2
+    sty    __rc8
+    ldy    __rc3
+    sty    __rc9
+    stx    __rc2
+    stx    __rc3
+.LBB0_3:                                ; =>This Loop Header: Depth=1
+                                        ;     Child Loop BB0_4 Depth 2
+    clc
+    tay
+    lda    __rc8
+    adc    __rc2
+    sta    __rc6
+    sty    __rc10
+    lda    __rc9
+    adc    __rc3
+    sta    __rc7
+    ldy    #0
+    lda    __rc10
+    eor    (__rc6),y
+    ldx    #8
+.LBB0_4:                                ;   Parent Loop BB0_3 Depth=1
+                                        ; =>  This Inner Loop Header: Depth=2
+    sta    __rc6
+    asl
+    ldy    __rc6
+    bpl    .LBB0_6
+; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=2
+    eor    #49
+.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=2
+    dex
+    bne    .LBB0_4
+; %bb.7:                                ;   in Loop: Header=BB0_3 Depth=1
+    ldy    __rc3
+    ldx    __rc2
+    inx
+    bne    .LBB0_9
+; %bb.8:                                ;   in Loop: Header=BB0_3 Depth=1
+    iny
+.LBB0_9:                                ;   in Loop: Header=BB0_3 Depth=1
+    stx    __rc2
+    sty    __rc3
+    cpy    __rc5
+    bne    .LBB0_3
+; %bb.10:                               ;   in Loop: Header=BB0_3 Depth=1
+    stx    __rc2
+    sty    __rc3
+    cpx    __rc4
+    bne    .LBB0_3
+.LBB0_11:
+    rts
+.Lfunc_end0:
+    .size    crc8, .Lfunc_end0-crc8
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (80):
+
+```asm
+crc8:
+    STA $04
+    LDA #$FF
+    STA $0A
+    LDA #$00
+    STA $07
+    LDA #$00
+    STA $05
+.bb1:
+    LDA $05
+    CMP $03
+    BCC .bb2
+    BNE .bb8
+    LDA $07
+    CMP $02
+    BCS .bb9
+.bb2:
+    CLC
+    LDA $04
+    ADC $07
+    TAY
+    TXA
+    ADC $05
+    STY $12
+    STA $13
+    LDY #$00
+    LDA ($12),Y
+    STA $06
+    LDA $0A
+    EOR $06
+    STA $0A
+    LDA #$00
+    STA $09
+    LDA #$00
+    STA $08
+.bb3:
+    LDA #$08
+    STA $0B
+    LDA #$00
+    STA $06
+    LDA $08
+    EOR #$80
+    TAY
+    LDA $06
+    EOR #$80
+    STA $06
+    TYA
+    CMP $06
+    BCC .bb5
+    BNE .bb4
+    LDA $09
+    CMP $0B
+    BCC .bb5
+.bb4:
+    CLC
+    LDA $07
+    ADC #$01
+    STA $07
+    LDA $05
+    ADC #$00
+    STA $05
+    JMP .bb1
+.bb5:
+    LDA $0A
+    AND #$80
+    TAY
+    LDA $0A
+    ASL
+    STA $0A
+    TYA
+    BEQ .bb7
+.bb6:
+    LDA $0A
+    EOR #$31
+    STA $0A
+.bb7:
+    CLC
+    LDA $09
+    ADC #$01
+    STA $09
+    LDA $08
+    ADC #$00
+    STA $08
+    JMP .bb3
+.bb8:
+    LDA $0A
+    RTS
+.bb9:
+    LDA $0A
+    RTS
+```
+
+</details>
+
+<details>
+<summary>memory/array-index — llvm-mos 37, Irie 61, ratio 1.65</summary>
+
+llvm-mos (37):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "array-index.c"
+    .section    .text.array_index,"ax",@progbits
+    .globl    array_index                     ; -- Begin function array_index
+    .type    array_index,@function
+array_index:                            ; @array_index
+; %bb.0:
+    stx    __rc4
+    asl
+    rol    __rc4
+    clc
+    adc    __rc2
+    tay
+    lda    __rc3
+    adc    __rc4
+    tax
+    sty    __rc2
+    sty    __rc4
+    sta    __rc3
+    ldy    #0
+    lda    (__rc2),y
+    sta    __rc6
+    clc
+    lda    __rc4
+    adc    #2
+    sta    __rc4
+    txa
+    adc    #0
+    sta    __rc5
+    iny
+    lda    (__rc2),y
+    tax
+    sty    __rc7
+    iny
+    clc
+    lda    __rc6
+    adc    (__rc2),y
+    sta    __rc2
+    txa
+    ldy    __rc7
+    adc    (__rc4),y
+    tax
+    lda    __rc2
+    rts
+.Lfunc_end0:
+    .size    array_index, .Lfunc_end0-array_index
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (61):
+
+```asm
+array_index:
+    STA $04
+    LDA $02
+    STA $07
+    LDA $03
+    STA $06
+    LDA $02
+    ASL
+    STA $03
+    LDA $06
+    ROL
+    STA $02
+    CLC
+    LDA $04
+    ADC $03
+    TAY
+    TXA
+    ADC $02
+    STY $12
+    STA $13
+    LDY #$00
+    LDA ($12),Y
+    STA $05
+    LDY #$01
+    LDA ($12),Y
+    STA $03
+    CLC
+    LDA $07
+    ADC #$01
+    STA $02
+    LDA $06
+    ADC #$00
+    TAY
+    LDA $02
+    ASL
+    STA $06
+    TYA
+    ROL
+    STA $02
+    CLC
+    LDA $04
+    ADC $06
+    TAY
+    TXA
+    ADC $02
+    STY $12
+    STA $13
+    LDY #$00
+    LDA ($12),Y
+    STA $04
+    LDY #$01
+    LDA ($12),Y
+    STA $02
+    CLC
+    LDA $05
+    ADC $04
+    TAY
+    LDA $03
+    ADC $02
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>realistic/gcd — llvm-mos 40, Irie 65, ratio 1.63</summary>
+
+llvm-mos (40):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "gcd.c"
+    .section    .text.gcd,"ax",@progbits
+    .globl    gcd                             ; -- Begin function gcd
+    .type    gcd,@function
+gcd:                                    ; @gcd
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc16
+    ldy    __rc2
+    inc    __rc3
+    dec    __rc3
+    bne    .LBB0_2
+; %bb.1:
+    cpy    #0
+    beq    .LBB0_5
+.LBB0_2:                                ; =>This Inner Loop Header: Depth=1
+    sty    __rc17
+    ldy    __rc3
+    sty    __rc21
+    ldy    __rc17
+    sty    __rc20
+    sty    __rc2
+    jsr    __modhi3
+    tay
+    stx    __rc3
+    lda    __rc20
+    ldx    __rc21
+    inc    __rc3
+    dec    __rc3
+    bne    .LBB0_2
+; %bb.3:                                ;   in Loop: Header=BB0_2 Depth=1
+    cpy    #0
+    bne    .LBB0_2
+.LBB0_4:
+    ldx    __rc21
+    lda    __rc20
+    sta    __rc16
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.LBB0_5:
+    sta    __rc20
+    stx    __rc21
+    jmp    .LBB0_4
+.Lfunc_end0:
+    .size    gcd, .Lfunc_end0-gcd
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (65):
+
+```asm
+gcd:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    TYA
+    STA $04
+    TXA
+    TAY
+.bb1:
+    LDA $03
+    BNE .bb11
+    LDA $02
+    BNE .bb12
+.bb2:
+    LDA $04
+    STY $02
+    LDX $02
+.bb3:
+    TAY
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
+.bb4:
+    TYA
+    BMI .bb9
+.bb5:
+    LDA #$00
+    STA $03
+.bb6:
+    LDA $14
+    BMI .bb10
+.bb7:
+    LDA #$00
+    STA $07
+.bb8:
+    LDA $04
+    STY $02
+    LDX $02
+    LDY $03
+    STY $02
+    LDY $15
+    STY $04
+    LDY $14
+    STY $05
+    LDY $07
+    STY $06
+    JSR __modsi3
+    LDY $15
+    STY $04
+    LDY $14
+    STA $02
+    STX $03
+    JMP .bb1
+.bb9:
+    LDA #$FF
+    STA $03
+    JMP .bb6
+.bb10:
+    LDA #$FF
+    STA $07
+    JMP .bb8
+.bb11:
+    LDA $02
+    STA $15
+    LDA $03
+    STA $14
+    JMP .bb4
+.bb12:
+    LDA $02
+    STA $15
+    LDA $03
+    STA $14
+    JMP .bb4
+```
+
+</details>
+
+<details>
+<summary>constraints/shift-const — llvm-mos 26, Irie 41, ratio 1.58</summary>
+
+llvm-mos (26):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "shift-const.c"
+    .section    .text.shift_const,"ax",@progbits
+    .globl    shift_const                     ; -- Begin function shift_const
+    .type    shift_const,@function
+shift_const:                            ; @shift_const
+; %bb.0:
+    tay
+    txa
+    sty    __rc2
+    asl    __rc2
+    stx    __rc3
+    rol    __rc3
+    asl    __rc2
+    rol    __rc3
+    asl    __rc2
+    rol    __rc3
+    cpx    #128
+    ror
+    sty    __rc4
+    ror    __rc4
+    cmp    #128
+    ror
+    tax
+    lda    __rc4
+    ror
+    ora    __rc2
+    tay
+    txa
+    ora    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    shift_const, .Lfunc_end0-shift_const
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (41):
+
+```asm
+shift_const:
+    STA $05
+    STX $04
+    ASL
+    TAX
+    LDA $04
+    ROL
+    TAY
+    TXA
+    ASL
+    TAX
+    TYA
+    ROL
+    TAY
+    TXA
+    ASL
+    STA $03
+    TYA
+    ROL
+    STA $02
+    LDA $04
+    CMP #$80
+    ROR
+    TAY
+    LDA $05
+    ROR
+    TAX
+    TYA
+    CMP #$80
+    ROR
+    STA $04
+    TXA
+    ROR
+    STA $05
+    LDA $03
+    ORA $05
+    TAY
+    LDA $02
+    ORA $04
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>memory/two-pointer-copy — llvm-mos 47, Irie 71, ratio 1.51</summary>
+
+llvm-mos (47):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "two-pointer-copy.c"
+    .section    .text.two_pointer_copy,"ax",@progbits
+    .globl    two_pointer_copy                ; -- Begin function two_pointer_copy
+    .type    two_pointer_copy,@function
+two_pointer_copy:                       ; @two_pointer_copy
+; %bb.0:
+    tay
+    cmp    #1
+    txa
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bmi    .LBB0_8
+; %bb.3:
+    sty    __rc6
+.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
+    ldy    #0
+    lda    (__rc4),y
+    sta    __rc8
+    sty    __rc9
+    iny
+    lda    (__rc4),y
+    sta    __rc7
+    sty    __rc10
+    lda    __rc8
+    ldy    __rc9
+    sta    (__rc2),y
+    lda    __rc7
+    ldy    __rc10
+    sta    (__rc2),y
+    lda    #255
+    dec    __rc6
+    cmp    __rc6
+    bne    .LBB0_6
+; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
+    dex
+.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
+    lda    __rc2
+    clc
+    adc    #2
+    sta    __rc2
+    lda    __rc3
+    adc    #0
+    sta    __rc3
+    lda    __rc4
+    clc
+    adc    #2
+    sta    __rc4
+    lda    __rc5
+    adc    #0
+    sta    __rc5
+    txa
+    bne    .LBB0_4
+; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
+    lda    __rc6
+    bne    .LBB0_4
+.LBB0_8:
+    rts
+.Lfunc_end0:
+    .size    two_pointer_copy, .Lfunc_end0-two_pointer_copy
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (71):
+
+```asm
+two_pointer_copy:
+    STA $06
+    LDA #$00
+    STA $08
+    LDA #$00
+    STA $09
+.bb1:
+    LDA $09
+    EOR #$80
+    TAY
+    LDA $05
+    EOR #$80
+    STA $07
+    TYA
+    CMP $07
+    BCC .bb4
+    BNE .bb2
+    LDA $08
+    CMP $04
+    BCC .bb5
+.bb2:
+    RTS
+.bb3:
+    LDA $08
+    ASL
+    STA $0B
+    LDA $07
+    ROL
+    STA $0A
+    CLC
+    LDA $0B
+    STA $09
+    LDA $02
+    ADC $09
+    TAY
+    LDA $0A
+    STA $09
+    LDA $03
+    ADC $09
+    STY $12
+    STA $13
+    LDY #$00
+    LDA ($12),Y
+    STA $0C
+    LDY #$01
+    LDA ($12),Y
+    STA $09
+    CLC
+    LDA $06
+    ADC $0B
+    TAY
+    TXA
+    ADC $0A
+    STY $12
+    STA $13
+    LDY #$00
+    LDA $0C
+    STA ($12),Y
+    LDY #$01
+    LDA $09
+    STA ($12),Y
+    CLC
+    LDA $08
+    ADC #$01
+    STA $08
+    LDA $07
+    ADC #$00
+    STA $09
+    JMP .bb1
+.bb4:
+    LDA $09
+    STA $07
+    JMP .bb3
+.bb5:
+    LDA $09
+    STA $07
+    JMP .bb3
+```
+
+</details>
 
 <details>
 <summary>widths/zero-extend — llvm-mos 6, Irie 9, ratio 1.50</summary>
@@ -132,6 +1106,394 @@ zero_extend:
     ADC #$00
     TAX
     TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>control-flow/loop-sum-array — llvm-mos 43, Irie 63, ratio 1.47</summary>
+
+llvm-mos (43):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "loop-sum-array.c"
+    .section    .text.loop_sum_array,"ax",@progbits
+    .globl    loop_sum_array                  ; -- Begin function loop_sum_array
+    .type    loop_sum_array,@function
+loop_sum_array:                         ; @loop_sum_array
+; %bb.0:
+    tay
+    cmp    #1
+    txa
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bmi    .LBB0_8
+; %bb.3:
+    sty    __rc4
+    ldy    #0
+    tya
+    sty    __rc6
+.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
+    clc
+    ldy    #0
+    adc    (__rc2),y
+    sta    __rc5
+    iny
+    lda    __rc6
+    adc    (__rc2),y
+    sta    __rc6
+    lda    __rc2
+    clc
+    adc    #2
+    sta    __rc2
+    lda    __rc3
+    adc    #0
+    sta    __rc3
+    lda    #255
+    dec    __rc4
+    cmp    __rc4
+    bne    .LBB0_6
+; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
+    dex
+.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
+    lda    __rc5
+    cpx    #0
+    bne    .LBB0_4
+; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
+    ldy    __rc4
+    bne    .LBB0_4
+    jmp    .LBB0_9
+.LBB0_8:
+    lda    #0
+    tax
+    stx    __rc6
+.LBB0_9:
+    ldx    __rc6
+    rts
+.Lfunc_end0:
+    .size    loop_sum_array, .Lfunc_end0-loop_sum_array
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (63):
+
+```asm
+loop_sum_array:
+    STA $04
+    LDA #$00
+    STA $0A
+    LDA #$00
+    STA $09
+    LDA $0A
+    STA $08
+    LDA $09
+    STA $07
+.bb1:
+    LDA $07
+    EOR #$80
+    TAY
+    LDA $03
+    EOR #$80
+    STA $05
+    TYA
+    CMP $05
+    BCC .bb4
+    BNE .bb5
+    LDA $08
+    CMP $02
+    BCC .bb4
+.bb2:
+    LDA $0A
+    LDX $09
+.bb3:
+    RTS
+.bb4:
+    LDA $08
+    ASL
+    STA $06
+    LDA $07
+    ROL
+    STA $05
+    CLC
+    LDA $04
+    ADC $06
+    TAY
+    TXA
+    ADC $05
+    STY $12
+    STA $13
+    LDY #$00
+    LDA ($12),Y
+    STA $06
+    LDY #$01
+    LDA ($12),Y
+    STA $05
+    CLC
+    LDA $0A
+    ADC $06
+    STA $0A
+    LDA $09
+    ADC $05
+    STA $09
+    CLC
+    LDA $08
+    ADC #$01
+    STA $08
+    LDA $07
+    ADC #$00
+    STA $07
+    JMP .bb1
+.bb5:
+    LDA $0A
+    LDX $09
+    RTS
+```
+
+</details>
+
+<details>
+<summary>constraints/compare-flags — llvm-mos 47, Irie 65, ratio 1.38</summary>
+
+llvm-mos (47):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "compare-flags.c"
+    .section    .text.compare_flags,"ax",@progbits
+    .globl    compare_flags                   ; -- Begin function compare_flags
+    .type    compare_flags,@function
+compare_flags:                          ; @compare_flags
+; %bb.0:
+    ldy    __rc2
+    sta    __rc7
+    cmp    __rc2
+    stx    __rc6
+    txa
+    sbc    __rc3
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    tax
+    bpl    .LBB0_4
+; %bb.3:
+    ldx    #0
+    lda    #1
+    jmp    .LBB0_5
+.LBB0_4:
+    ldx    #0
+    txa
+.LBB0_5:
+    sta    __rc2
+    cpy    __rc4
+    lda    __rc3
+    sbc    __rc5
+    bvc    .LBB0_7
+; %bb.6:
+    eor    #128
+.LBB0_7:
+    tax
+    bpl    .LBB0_9
+; %bb.8:
+    bit    __set_v
+    jmp    .LBB0_10
+.LBB0_9:
+    clv
+.LBB0_10:
+    ldy    #1
+    tya
+    ldx    __rc2
+    bne    .LBB0_12
+; %bb.11:
+    lda    #0
+.LBB0_12:
+    sty    __rc2
+    bvs    .LBB0_14
+; %bb.13:
+    ldx    #0
+    stx    __rc2
+.LBB0_14:
+    and    __rc2
+    sta    __rc2
+    ldx    __rc6
+    cpx    __rc5
+    bne    .LBB0_17
+; %bb.15:
+    ldx    __rc7
+    cpx    __rc4
+    bne    .LBB0_17
+; %bb.16:
+    ldy    #0
+.LBB0_17:
+    tya
+    and    __rc2
+    rts
+.Lfunc_end0:
+    .size    compare_flags, .Lfunc_end0-compare_flags
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (65):
+
+```asm
+compare_flags:
+    STA $07
+    LDA $02
+    STA $08
+    LDA $04
+    STA $06
+    TXA
+    EOR #$80
+    TAY
+    LDA $03
+    EOR #$80
+    STA $02
+    TYA
+    CMP $02
+    BCC .bb11
+    BNE .bb1
+    LDA $07
+    CMP $08
+    BCC .bb11
+.bb1:
+    LDA #$00
+    STA $04
+.bb2:
+    LDA $03
+    EOR #$80
+    TAY
+    LDA $05
+    EOR #$80
+    STA $02
+    TYA
+    CMP $02
+    BCC .bb12
+    BNE .bb3
+    LDA $08
+    CMP $06
+    BCC .bb12
+.bb3:
+    LDA #$00
+    STA $02
+.bb4:
+    LDA $04
+    AND $02
+    BEQ .bb13
+.bb5:
+    LDY #$01
+.bb6:
+    TXA
+    CMP $05
+    BNE .bb14
+    LDA $07
+    CMP $06
+    BNE .bb14
+.bb7:
+    LDA #$00
+    STA $02
+.bb8:
+    TYA
+    AND $02
+    BEQ .bb15
+.bb9:
+    LDA #$01
+.bb10:
+    RTS
+.bb11:
+    LDA #$01
+    STA $04
+    JMP .bb2
+.bb12:
+    LDA #$01
+    STA $02
+    JMP .bb4
+.bb13:
+    LDY #$00
+    JMP .bb6
+.bb14:
+    LDA #$01
+    STA $02
+    JMP .bb8
+.bb15:
+    LDA #$00
     RTS
 ```
 
@@ -356,6 +1718,568 @@ sign_extend:
 .bb3:
     LDX #$FF
     JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>pressure/pressure-high — llvm-mos 230, Irie 261, ratio 1.13</summary>
+
+llvm-mos (230):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "pressure-high.c"
+    .section    .text.pressure_high,"ax",@progbits
+    .globl    pressure_high                   ; -- Begin function pressure_high
+    .type    pressure_high,@function
+pressure_high:                          ; @pressure_high
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    __rc23
+    pha
+    lda    __rc16
+    ldy    __rc24
+    sty    .Lpressure_high_sstk+8          ; 1-byte Folded Spill
+    ldy    __rc25
+    sty    .Lpressure_high_sstk+9          ; 1-byte Folded Spill
+    ldy    __rc26
+    sty    .Lpressure_high_sstk+10         ; 1-byte Folded Spill
+    ldy    __rc27
+    sty    .Lpressure_high_sstk+11         ; 1-byte Folded Spill
+    ldy    __rc28
+    sty    .Lpressure_high_sstk+12         ; 1-byte Folded Spill
+    ldy    __rc29
+    sty    .Lpressure_high_sstk+13         ; 1-byte Folded Spill
+    ldy    __rc30
+    sty    .Lpressure_high_sstk+14         ; 1-byte Folded Spill
+    ldy    __rc31
+    sty    .Lpressure_high_sstk+15         ; 1-byte Folded Spill
+    sta    __rc24
+    stx    __rc25
+    ldx    __rc2
+    stx    __rc26
+    ldx    __rc3
+    stx    __rc27
+    ldx    __rc4
+    stx    .Lpressure_high_sstk            ; 1-byte Folded Spill
+    ldx    __rc5
+    stx    .Lpressure_high_sstk+1          ; 1-byte Folded Spill
+    ldx    __rc6
+    stx    .Lpressure_high_sstk+2          ; 1-byte Folded Spill
+    ldx    __rc7
+    stx    .Lpressure_high_sstk+3          ; 1-byte Folded Spill
+    ldx    __rc8
+    stx    __rc21
+    ldx    __rc9
+    stx    __rc30
+    ldx    __rc10
+    stx    __rc20
+    ldx    __rc11
+    stx    __rc31
+    ldx    __rc12
+    stx    __rc22
+    ldx    __rc13
+    stx    __rc23
+    ldx    __rc14
+    stx    __rc28
+    ldx    __rc15
+    stx    __rc29
+    ldx    __rc14
+    stx    __rc2
+    ldx    __rc15
+    stx    __rc3
+    ldx    __rc8
+    stx    __rc4
+    ldx    __rc9
+    stx    __rc5
+    ldx    __rc10
+    stx    __rc6
+    ldx    __rc11
+    stx    __rc7
+    ldx    __rc13
+    lda    __rc12
+    jsr    __mulsi3
+    sta    .Lpressure_high_sstk+7          ; 1-byte Folded Spill
+    stx    .Lpressure_high_sstk+6          ; 1-byte Folded Spill
+    ldx    __rc2
+    stx    .Lpressure_high_sstk+5          ; 1-byte Folded Spill
+    ldx    __rc3
+    stx    .Lpressure_high_sstk+4          ; 1-byte Folded Spill
+    ldx    __rc28
+    stx    __rc2
+    ldx    __rc29
+    stx    __rc3
+    ldx    __rc24
+    stx    __rc4
+    ldx    __rc25
+    stx    __rc5
+    ldx    __rc26
+    stx    __rc6
+    ldx    __rc27
+    stx    __rc7
+    ldx    __rc23
+    lda    __rc22
+    jsr    __mulsi3
+    sta    __rc29
+    stx    __rc28
+    ldx    __rc2
+    stx    __rc23
+    ldx    __rc3
+    stx    __rc22
+    clc
+    lda    __rc21
+    adc    __rc24
+    tay
+    lda    __rc30
+    adc    __rc25
+    sta    __rc8
+    lda    __rc20
+    adc    __rc26
+    sta    __rc2
+    lda    __rc31
+    adc    __rc27
+    sta    __rc3
+    ldx    .Lpressure_high_sstk            ; 1-byte Folded Reload
+    stx    __rc4
+    ldx    .Lpressure_high_sstk+1          ; 1-byte Folded Reload
+    stx    __rc5
+    ldx    .Lpressure_high_sstk+2          ; 1-byte Folded Reload
+    stx    __rc6
+    ldx    .Lpressure_high_sstk+3          ; 1-byte Folded Reload
+    stx    __rc7
+    ldx    __rc8
+    tya
+    jsr    __mulsi3
+    sta    __rc24
+    stx    __rc27
+    ldx    __rc2
+    stx    __rc25
+    ldx    __rc3
+    stx    __rc26
+    ldx    .Lpressure_high_sstk+7          ; 1-byte Folded Reload
+    stx    __rc31
+    txa
+    clc
+    adc    __rc29
+    tay
+    ldx    .Lpressure_high_sstk+6          ; 1-byte Folded Reload
+    stx    __rc30
+    txa
+    adc    __rc28
+    sta    __rc8
+    ldx    .Lpressure_high_sstk+5          ; 1-byte Folded Reload
+    stx    __rc21
+    txa
+    adc    __rc23
+    sta    __rc2
+    ldx    .Lpressure_high_sstk+4          ; 1-byte Folded Reload
+    stx    __rc20
+    txa
+    adc    __rc22
+    sta    __rc3
+    ldx    __rc24
+    stx    __rc4
+    ldx    __rc27
+    stx    __rc5
+    ldx    __rc25
+    stx    __rc6
+    ldx    __rc26
+    stx    __rc7
+    ldx    __rc8
+    tya
+    jsr    __mulsi3
+    sta    __rc4
+    stx    __rc5
+    clc
+    lda    __rc24
+    adc    __rc31
+    tax
+    lda    __rc27
+    adc    __rc30
+    sta    __rc8
+    lda    __rc25
+    adc    __rc21
+    sta    __rc6
+    lda    __rc26
+    adc    __rc20
+    sta    __rc7
+    clc
+    txa
+    adc    __rc29
+    tay
+    lda    __rc8
+    adc    __rc28
+    sta    __rc8
+    lda    __rc6
+    adc    __rc23
+    sta    __rc6
+    lda    __rc7
+    adc    __rc22
+    tax
+    clc
+    tya
+    adc    __rc4
+    tay
+    lda    __rc8
+    adc    __rc5
+    sta    __rc4
+    lda    __rc6
+    adc    __rc2
+    sta    __rc2
+    txa
+    adc    __rc3
+    sta    __rc3
+    ldx    __rc4
+    tya
+    sta    __rc16
+    ldy    .Lpressure_high_sstk+15         ; 1-byte Folded Reload
+    sty    __rc31
+    ldy    .Lpressure_high_sstk+14         ; 1-byte Folded Reload
+    sty    __rc30
+    ldy    .Lpressure_high_sstk+13         ; 1-byte Folded Reload
+    sty    __rc29
+    ldy    .Lpressure_high_sstk+12         ; 1-byte Folded Reload
+    sty    __rc28
+    ldy    .Lpressure_high_sstk+11         ; 1-byte Folded Reload
+    sty    __rc27
+    ldy    .Lpressure_high_sstk+10         ; 1-byte Folded Reload
+    sty    __rc26
+    ldy    .Lpressure_high_sstk+9          ; 1-byte Folded Reload
+    sty    __rc25
+    ldy    .Lpressure_high_sstk+8          ; 1-byte Folded Reload
+    sty    __rc24
+    pla
+    sta    __rc23
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    pressure_high, .Lfunc_end0-pressure_high
+                                        ; -- End function
+    .type    .Lstatic_stack,@object          ; @static_stack
+    .section    .noinit..Lstatic_stack,"aw",@nobits
+.Lstatic_stack:
+    .zero    16
+    .size    .Lstatic_stack, 16
+
+.Lpressure_high_sstk = .Lstatic_stack
+    .size    .Lpressure_high_sstk, 16
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    .addrsig_sym .Lstatic_stack
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (261):
+
+```asm
+pressure_high:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    LDA $16
+    PHA
+    LDA $17
+    PHA
+    LDA $18
+    PHA
+    LDA $19
+    PHA
+    LDA $1A
+    PHA
+    LDA $1B
+    PHA
+    LDA $1C
+    PHA
+    LDA $1D
+    PHA
+    LDA $1E
+    PHA
+    LDA $1F
+    PHA
+    TYA
+    STA pressure_high_spill15
+    STX pressure_high_spill16
+    LDA $02
+    STA pressure_high_spill17
+    LDA $03
+    STA pressure_high_spill18
+    LDA $04
+    STA $1F
+    LDA $05
+    STA $1E
+    LDA $06
+    STA $1D
+    LDA $07
+    STA $1C
+    LDA $08
+    STA $1B
+    LDA $09
+    STA $1A
+    LDA $0A
+    STA $19
+    LDA $0B
+    STA $18
+    LDA $0C
+    STA $17
+    LDA $0D
+    STA $16
+    LDA $0E
+    STA $15
+    LDA $0F
+    STA $14
+    LDA pressure_high_spill15
+    LDX pressure_high_spill16
+    LDY pressure_high_spill17
+    STY $02
+    LDY pressure_high_spill18
+    STY $03
+    JSR __mulsi3
+    STA pressure_high_spill193
+    TXA
+    STA pressure_high_spill194
+    LDA $02
+    STA pressure_high_spill195
+    LDA $03
+    STA pressure_high_spill196
+    LDA $1F
+    LDX $1E
+    LDY $1D
+    STY $02
+    LDY $1C
+    STY $03
+    LDY $1B
+    STY $04
+    LDY $1A
+    STY $05
+    LDY $19
+    STY $06
+    LDY $18
+    STY $07
+    JSR __mulsi3
+    STA $1C
+    STX $1D
+    LDA $02
+    STA $1E
+    LDA $03
+    STA $1F
+    LDA $1B
+    LDX $1A
+    LDY $19
+    STY $02
+    LDY $18
+    STY $03
+    LDY $17
+    STY $04
+    LDY $16
+    STY $05
+    LDY $15
+    STY $06
+    LDY $14
+    STY $07
+    JSR __mulsi3
+    STA $18
+    STX $19
+    LDA $02
+    STA $1A
+    LDA $03
+    STA $1B
+    LDA $17
+    LDX $16
+    LDY $15
+    STY $02
+    LDY $14
+    STY $03
+    LDY pressure_high_spill15
+    STY $04
+    LDY pressure_high_spill16
+    STY $05
+    LDY pressure_high_spill17
+    STY $06
+    LDY pressure_high_spill18
+    STY $07
+    JSR __mulsi3
+    STA $14
+    STX $15
+    LDA $02
+    STA $16
+    LDA $03
+    STA $17
+    CLC
+    LDA pressure_high_spill193
+    ADC $1C
+    STA $02
+    LDA pressure_high_spill194
+    ADC $1D
+    TAX
+    LDA pressure_high_spill195
+    ADC $1E
+    STA $03
+    LDA pressure_high_spill196
+    ADC $1F
+    STA $04
+    CLC
+    LDA $18
+    ADC $14
+    TAY
+    LDA $19
+    ADC $15
+    STA $05
+    LDA $1A
+    ADC $16
+    STA $06
+    LDA $1B
+    ADC $17
+    STA $07
+    LDA $02
+    STA $08
+    LDA $03
+    STA $02
+    LDA $08
+    STA $08
+    LDA $04
+    STA $03
+    LDA $08
+    STY $04
+    JSR __mulsi3
+    TAY
+    LDA $02
+    STA $05
+    LDA $03
+    STA $04
+    CLC
+    LDA pressure_high_spill193
+    STA $02
+    TYA
+    ADC $02
+    TAY
+    LDA pressure_high_spill194
+    STA $02
+    TXA
+    ADC $02
+    TAX
+    LDA pressure_high_spill195
+    STA $02
+    LDA $05
+    ADC $02
+    STA $02
+    LDA pressure_high_spill196
+    STA $03
+    LDA $04
+    ADC $03
+    STA $03
+    CLC
+    TYA
+    ADC $1C
+    TAY
+    TXA
+    ADC $1D
+    TAX
+    LDA $02
+    ADC $1E
+    STA $02
+    LDA $03
+    ADC $1F
+    STA $03
+    CLC
+    TYA
+    ADC $18
+    TAY
+    TXA
+    ADC $19
+    TAX
+    LDA $02
+    ADC $1A
+    STA $02
+    LDA $03
+    ADC $1B
+    STA $03
+    CLC
+    TYA
+    ADC $14
+    TAY
+    TXA
+    ADC $15
+    TAX
+    LDA $02
+    ADC $16
+    STA $02
+    LDA $03
+    ADC $17
+    STA $03
+    PLA
+    STA $1F
+    PLA
+    STA $1E
+    PLA
+    STA $1D
+    PLA
+    STA $1C
+    PLA
+    STA $1B
+    PLA
+    STA $1A
+    PLA
+    STA $19
+    PLA
+    STA $18
+    PLA
+    STA $17
+    PLA
+    STA $16
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
 ```
 
 </details>
@@ -1840,6 +3764,70 @@ inc_dec:
 </details>
 
 <details>
+<summary>constraints/shift-var — llvm-mos 1, Irie 1, ratio 1.00</summary>
+
+llvm-mos (1):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "shift-var.c"
+    .section    .text.shift_var,"ax",@progbits
+    .globl    shift_var                       ; -- Begin function shift_var
+    .type    shift_var,@function
+shift_var:                              ; @shift_var
+; %bb.0:
+    jmp    __ashlhi3
+.Lfunc_end0:
+    .size    shift_var, .Lfunc_end0-shift_var
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (1):
+
+```asm
+shift_var:
+    JMP __ashlhi3
+```
+
+</details>
+
+<details>
 <summary>control-flow/select — llvm-mos 12, Irie 12, ratio 1.00</summary>
 
 llvm-mos (12):
@@ -2502,6 +4490,370 @@ common_subexpr:
 </details>
 
 <details>
+<summary>control-flow/nested-loop — llvm-mos 139, Irie 126, ratio 0.91</summary>
+
+llvm-mos (139):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "nested-loop.c"
+    .section    .text.nested_loop,"ax",@progbits
+    .globl    nested_loop                     ; -- Begin function nested_loop
+    .type    nested_loop,@function
+nested_loop:                            ; @nested_loop
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc22
+    pha
+    lda    __rc16
+    tay
+    sty    __rc17
+    ldy    __rc2
+    sty    __rc20
+    ldy    __rc17
+    cmp    #1
+    txa
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bpl    .LBB0_3
+    jmp    .LBB0_19
+.LBB0_3:
+    lda    __rc2
+    sta    __rc9
+    lda    __rc3
+    sta    __rc8
+    sty    .Lnested_loop_sstk+2            ; 1-byte Folded Spill
+    ldy    #255
+    dec    __rc9
+    cpy    __rc9
+    bne    .LBB0_5
+; %bb.4:
+    dec    __rc8
+.LBB0_5:
+    lda    __rc2
+    clc
+    adc    #254
+    sta    __rc4
+    lda    __rc3
+    adc    #255
+    ldy    #0
+    sty    __rc2
+    sty    __rc5
+    ldy    __rc3
+    sty    .Lnested_loop_sstk              ; 1-byte Folded Spill
+    ldy    __rc5
+    sty    __rc3
+    sta    __rc5
+    sty    __rc6
+    sty    __rc7
+    sty    __rc22
+    stx    .Lnested_loop_sstk+1            ; 1-byte Folded Spill
+    ldx    __rc8
+    lda    __rc9
+    jsr    __mulsi3
+    ldy    .Lnested_loop_sstk              ; 1-byte Folded Reload
+    sty    __rc3
+    sta    __rc4
+    stx    __rc5
+    ldx    .Lnested_loop_sstk+1            ; 1-byte Folded Reload
+    stx    __rc6
+    lda    __rc2
+    and    #1
+    lsr
+    ror    __rc5
+    ror    __rc4
+    lda    __rc20
+    ldx    #0
+    stx    __rc9
+    clc
+    adc    __rc4
+    sta    __rc7
+    tya
+    adc    __rc5
+    sta    __rc8
+    ldy    .Lnested_loop_sstk+2            ; 1-byte Folded Reload
+    ldx    __rc22
+    stx    __rc2
+    ldx    __rc22
+    stx    __rc5
+    ldx    __rc22
+    stx    __rc4
+    ldx    #0
+    stx    __rc10
+    jmp    .LBB0_13
+.LBB0_6:                                ;   in Loop: Header=BB0_13 Depth=1
+    ldx    __rc9
+    cpx    #1
+.LBB0_7:                                ;   in Loop: Header=BB0_13 Depth=1
+    lda    __rc7
+    ldx    #0
+    stx    __rc9
+    adc    __rc2
+    sta    __rc2
+    lda    __rc8
+    adc    __rc4
+    ldx    #255
+    dec    __rc2
+    cpx    __rc2
+    bne    .LBB0_9
+; %bb.8:                                ;   in Loop: Header=BB0_13 Depth=1
+    clc
+    adc    #255
+.LBB0_9:                                ;   in Loop: Header=BB0_13 Depth=1
+    dey
+    cpy    #255
+    bne    .LBB0_11
+; %bb.10:                               ;   in Loop: Header=BB0_13 Depth=1
+    dec    __rc6
+.LBB0_11:                               ;   in Loop: Header=BB0_13 Depth=1
+    sta    __rc4
+    lda    __rc6
+    bne    .LBB0_13
+; %bb.12:                               ;   in Loop: Header=BB0_13 Depth=1
+    tya
+    beq    .LBB0_20
+.LBB0_13:                               ; =>This Inner Loop Header: Depth=1
+    ldx    __rc20
+    cpx    #1
+    lda    __rc3
+    sbc    #0
+    bvc    .LBB0_15
+; %bb.14:                               ;   in Loop: Header=BB0_13 Depth=1
+    eor    #128
+.LBB0_15:                               ;   in Loop: Header=BB0_13 Depth=1
+    tax
+    bmi    .LBB0_6
+; %bb.16:                               ;   in Loop: Header=BB0_13 Depth=1
+    lda    __rc5
+    clc
+    ldx    #1
+    bcs    .LBB0_18
+; %bb.17:                               ;   in Loop: Header=BB0_13 Depth=1
+    ldx    #0
+.LBB0_18:                               ;   in Loop: Header=BB0_13 Depth=1
+    stx    __rc9
+    adc    __rc2
+    sta    __rc5
+    lda    __rc10
+    adc    __rc4
+    ldx    __rc9
+    cpx    #1
+    sta    __rc10
+    jmp    .LBB0_7
+.LBB0_19:
+    lda    #0
+    sta    __rc5
+    tax
+    stx    __rc10
+.LBB0_20:
+    ldx    __rc10
+    lda    __rc5
+    sta    __rc16
+    pla
+    sta    __rc22
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    nested_loop, .Lfunc_end0-nested_loop
+                                        ; -- End function
+    .type    .Lstatic_stack,@object          ; @static_stack
+    .section    .noinit..Lstatic_stack,"aw",@nobits
+.Lstatic_stack:
+    .zero    3
+    .size    .Lstatic_stack, 3
+
+.Lnested_loop_sstk = .Lstatic_stack
+    .size    .Lnested_loop_sstk, 3
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    .addrsig_sym .Lstatic_stack
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (126):
+
+```asm
+nested_loop:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    LDA $16
+    PHA
+    LDA $17
+    PHA
+    LDA $18
+    PHA
+    LDA $19
+    PHA
+    LDA $1A
+    PHA
+    LDA $1B
+    PHA
+    LDA $1C
+    PHA
+    LDA $1D
+    PHA
+    TYA
+    STA $1D
+    STX $1C
+    LDA $02
+    STA $1B
+    LDA $03
+    STA $1A
+    LDA #$00
+    STA $18
+    LDA #$00
+    STA $19
+    LDA $18
+    STA $17
+    LDA $19
+    STA $16
+.bb1:
+    LDA $16
+    EOR #$80
+    TAY
+    LDA $1C
+    EOR #$80
+    STA $02
+    TYA
+    CMP $02
+    BCC .bb4
+    BNE .bb8
+    LDA $17
+    CMP $1D
+    BCC .bb4
+.bb2:
+    LDA $18
+    LDX $19
+.bb3:
+    TAY
+    PLA
+    STA $1D
+    PLA
+    STA $1C
+    PLA
+    STA $1B
+    PLA
+    STA $1A
+    PLA
+    STA $19
+    PLA
+    STA $18
+    PLA
+    STA $17
+    PLA
+    STA $16
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
+.bb4:
+    LDA #$00
+    STA $14
+    LDA #$00
+    STA $15
+.bb5:
+    LDA $15
+    EOR #$80
+    TAX
+    LDA $1A
+    EOR #$80
+    STA $02
+    TXA
+    CMP $02
+    BCC .bb7
+    BNE .bb6
+    LDA $14
+    CMP $1B
+    BCC .bb7
+.bb6:
+    CLC
+    LDA $17
+    ADC #$01
+    STA $17
+    LDA $16
+    ADC #$00
+    STA $16
+    JMP .bb1
+.bb7:
+    LDA $17
+    LDX $16
+    LDY $14
+    STY $02
+    LDY $15
+    STY $03
+    JSR __mulhi3
+    STA $03
+    STX $02
+    CLC
+    LDA $18
+    ADC $03
+    STA $18
+    LDA $19
+    ADC $02
+    STA $19
+    CLC
+    LDA $14
+    ADC #$01
+    STA $14
+    LDA $15
+    ADC #$00
+    STA $15
+    JMP .bb5
+.bb8:
+    LDA $18
+    LDX $19
+    JMP .bb3
+```
+
+</details>
+
+<details>
 <summary>control-flow/if-else — llvm-mos 36, Irie 32, ratio 0.89</summary>
 
 llvm-mos (36):
@@ -2635,6 +4987,1149 @@ abs_diff:
     SBC $04
     TAX
     JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>pressure/pressure-i64 — llvm-mos 392, Irie 333, ratio 0.85</summary>
+
+llvm-mos (392):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "pressure-i64.c"
+    .section    .text.pressure_i64,"ax",@progbits
+    .globl    pressure_i64                    ; -- Begin function pressure_i64
+    .type    pressure_i64,@function
+pressure_i64:                           ; @pressure_i64
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    __rc23
+    pha
+    lda    __rc16
+    ldy    __rc24
+    sty    .Lpressure_i64_sstk+15          ; 1-byte Folded Spill
+    ldy    __rc25
+    sty    .Lpressure_i64_sstk+16          ; 1-byte Folded Spill
+    ldy    __rc26
+    sty    .Lpressure_i64_sstk+17          ; 1-byte Folded Spill
+    ldy    __rc27
+    sty    .Lpressure_i64_sstk+18          ; 1-byte Folded Spill
+    ldy    __rc28
+    sty    .Lpressure_i64_sstk+19          ; 1-byte Folded Spill
+    ldy    __rc29
+    sty    .Lpressure_i64_sstk+20          ; 1-byte Folded Spill
+    ldy    __rc30
+    sty    .Lpressure_i64_sstk+21          ; 1-byte Folded Spill
+    ldy    __rc31
+    sty    .Lpressure_i64_sstk+22          ; 1-byte Folded Spill
+    sta    __rc27
+    stx    __rc25
+    ldx    __rc2
+    stx    __rc26
+    ldx    __rc3
+    stx    .Lpressure_i64_sstk+13          ; 1-byte Folded Spill
+    ldx    __rc4
+    stx    .Lpressure_i64_sstk+12          ; 1-byte Folded Spill
+    ldx    __rc5
+    stx    .Lpressure_i64_sstk+11          ; 1-byte Folded Spill
+    ldx    __rc6
+    stx    .Lpressure_i64_sstk+1           ; 1-byte Folded Spill
+    ldx    __rc7
+    stx    .Lpressure_i64_sstk+10          ; 1-byte Folded Spill
+    ldx    __rc8
+    stx    __rc20
+    ldx    __rc9
+    stx    __rc21
+    ldx    __rc10
+    stx    __rc24
+    ldx    __rc13
+    stx    __rc10
+    ldx    __rc14
+    stx    __rc8
+    ldy    __rc15
+    sty    .Lpressure_i64_sstk+2           ; 1-byte Folded Spill
+    ldy    #0
+    clc
+    ldx    __rc0
+    stx    __rc2
+    ldx    __rc1
+    stx    __rc3
+    lda    (__rc2),y
+    sta    .Lpressure_i64_sstk             ; 1-byte Folded Spill
+    lda    __rc0
+    adc    #1
+    sta    __rc2
+    lda    __rc1
+    adc    #0
+    sta    __rc3
+    lda    (__rc2),y
+    sta    __rc15
+    clc
+    lda    __rc0
+    adc    #2
+    sta    __rc28
+    lda    __rc1
+    adc    #0
+    sta    __rc29
+    clc
+    lda    __rc0
+    adc    #3
+    sta    __rc30
+    lda    __rc1
+    adc    #0
+    sta    __rc31
+    clc
+    lda    __rc0
+    adc    #4
+    sta    __rc18
+    lda    __rc1
+    adc    #0
+    sta    __rc19
+    clc
+    lda    __rc0
+    adc    #5
+    sta    __rc22
+    lda    __rc1
+    adc    #0
+    sta    __rc23
+    clc
+    lda    __rc0
+    adc    #6
+    sta    __rc4
+    lda    __rc1
+    adc    #0
+    sta    __rc5
+    clc
+    lda    __rc0
+    adc    #7
+    sta    __rc2
+    lda    __rc1
+    adc    #0
+    sta    __rc3
+    clc
+    lda    __rc20
+    adc    __rc27
+    sta    .Lpressure_i64_sstk+3           ; 1-byte Folded Spill
+    lda    __rc9
+    adc    __rc25
+    sta    .Lpressure_i64_sstk+5           ; 1-byte Folded Spill
+    lda    __rc24
+    adc    __rc26
+    sta    .Lpressure_i64_sstk+4           ; 1-byte Folded Spill
+    lda    __rc11
+    ldx    __rc11
+    stx    __rc14
+    ldx    .Lpressure_i64_sstk+13          ; 1-byte Folded Reload
+    stx    __rc7
+    adc    __rc7
+    sta    .Lpressure_i64_sstk+6           ; 1-byte Folded Spill
+    lda    __rc12
+    ldx    __rc12
+    stx    __rc13
+    ldx    .Lpressure_i64_sstk+12          ; 1-byte Folded Reload
+    stx    __rc12
+    adc    __rc12
+    sta    .Lpressure_i64_sstk+7           ; 1-byte Folded Spill
+    lda    __rc10
+    ldx    .Lpressure_i64_sstk+11          ; 1-byte Folded Reload
+    stx    __rc9
+    adc    __rc9
+    sta    .Lpressure_i64_sstk+8           ; 1-byte Folded Spill
+    ldx    __rc8
+    stx    __rc6
+    lda    __rc8
+    ldx    .Lpressure_i64_sstk+1           ; 1-byte Folded Reload
+    stx    __rc8
+    adc    __rc8
+    ldx    #1
+    bcs    .LBB0_2
+; %bb.1:
+    ldx    #0
+.LBB0_2:
+    stx    __rc11
+    sta    .Lpressure_i64_sstk+9           ; 1-byte Folded Spill
+    lda    (__rc28),y
+    sta    __rc29
+    lda    (__rc30),y
+    sta    __rc28
+    lda    (__rc18),y
+    sta    __rc18
+    lda    (__rc22),y
+    tax
+    lda    (__rc4),y
+    sta    __rc4
+    lda    (__rc2),y
+    sta    __rc5
+    lda    .Lpressure_i64_sstk             ; 1-byte Folded Reload
+    clc
+    adc    __rc20
+    sta    __rc22
+    lda    __rc15
+    adc    __rc21
+    sta    __rc20
+    lda    __rc29
+    adc    __rc24
+    sta    __rc19
+    lda    __rc28
+    adc    __rc14
+    sta    __rc24
+    lda    __rc18
+    adc    __rc13
+    sta    __rc23
+    txa
+    adc    __rc10
+    sta    __rc10
+    lda    __rc4
+    adc    __rc6
+    sta    __rc21
+    lda    __rc5
+    ldy    .Lpressure_i64_sstk+2           ; 1-byte Folded Reload
+    sty    __rc2
+    adc    __rc2
+    sta    __rc30
+    tya
+    ldy    .Lpressure_i64_sstk+10          ; 1-byte Folded Reload
+    sty    __rc2
+    ldy    __rc11
+    cpy    #1
+    adc    __rc2
+    sta    .Lpressure_i64_sstk+14          ; 1-byte Folded Spill
+    lda    .Lpressure_i64_sstk             ; 1-byte Folded Reload
+    clc
+    adc    __rc27
+    sta    .Lpressure_i64_sstk             ; 1-byte Folded Spill
+    sta    __rc6
+    lda    __rc15
+    adc    __rc25
+    sta    __rc3
+    lda    __rc29
+    adc    __rc26
+    sta    __rc26
+    lda    __rc28
+    adc    __rc7
+    tay
+    lda    __rc18
+    adc    __rc12
+    sta    __rc31
+    txa
+    adc    __rc9
+    sta    .Lpressure_i64_sstk+2           ; 1-byte Folded Spill
+    lda    __rc4
+    adc    __rc8
+    sta    .Lpressure_i64_sstk+1           ; 1-byte Folded Spill
+    lda    __rc5
+    adc    __rc2
+    sta    __rc25
+    lda    __rc22
+    sta    __rc12
+    eor    __rc6
+    sta    __rc2
+    ldx    __rc3
+    stx    __rc22
+    lda    __rc20
+    sta    __rc13
+    eor    __rc3
+    sta    __rc3
+    lda    __rc19
+    sta    __rc14
+    eor    __rc26
+    sta    __rc4
+    sty    __rc5
+    lda    __rc24
+    sta    __rc8
+    eor    __rc5
+    sta    __rc5
+    lda    __rc23
+    sta    __rc18
+    eor    __rc31
+    sta    __rc6
+    ldx    .Lpressure_i64_sstk+2           ; 1-byte Folded Reload
+    stx    __rc7
+    lda    __rc10
+    sta    __rc19
+    eor    __rc7
+    sta    __rc7
+    ldx    .Lpressure_i64_sstk+1           ; 1-byte Folded Reload
+    stx    __rc9
+    lda    __rc21
+    sta    __rc27
+    eor    __rc9
+    sta    __rc9
+    lda    __rc30
+    sta    __rc28
+    eor    __rc25
+    sta    __rc10
+    ldx    .Lpressure_i64_sstk+3           ; 1-byte Folded Reload
+    stx    __rc11
+    lda    __rc12
+    eor    __rc11
+    sta    __rc15
+    ldx    .Lpressure_i64_sstk+5           ; 1-byte Folded Reload
+    stx    __rc12
+    lda    __rc13
+    eor    __rc12
+    sta    __rc13
+    clc
+    lda    __rc15
+    adc    __rc2
+    sta    __rc29
+    lda    __rc13
+    adc    __rc3
+    sta    __rc24
+    ldx    .Lpressure_i64_sstk+4           ; 1-byte Folded Reload
+    stx    __rc13
+    lda    __rc14
+    eor    __rc13
+    adc    __rc4
+    sta    __rc30
+    ldx    .Lpressure_i64_sstk+6           ; 1-byte Folded Reload
+    stx    __rc14
+    lda    __rc8
+    eor    __rc14
+    adc    __rc5
+    sta    __rc21
+    ldx    .Lpressure_i64_sstk+7           ; 1-byte Folded Reload
+    stx    __rc15
+    lda    __rc18
+    eor    __rc15
+    adc    __rc6
+    sta    __rc23
+    ldx    .Lpressure_i64_sstk+8           ; 1-byte Folded Reload
+    stx    __rc18
+    lda    __rc19
+    eor    __rc18
+    adc    __rc7
+    sta    __rc20
+    ldx    .Lpressure_i64_sstk+9           ; 1-byte Folded Reload
+    stx    __rc19
+    lda    __rc27
+    eor    __rc19
+    adc    __rc9
+    sta    __rc27
+    lda    __rc28
+    ldx    .Lpressure_i64_sstk+14          ; 1-byte Folded Reload
+    stx    __rc8
+    eor    __rc8
+    adc    __rc10
+    tax
+    lda    .Lpressure_i64_sstk             ; 1-byte Folded Reload
+    eor    __rc11
+    sta    __rc2
+    lda    __rc22
+    eor    __rc12
+    sta    __rc3
+    lda    __rc26
+    eor    __rc13
+    sta    __rc4
+    tya
+    eor    __rc14
+    sta    __rc5
+    lda    __rc31
+    eor    __rc15
+    sta    __rc6
+    lda    .Lpressure_i64_sstk+2           ; 1-byte Folded Reload
+    eor    __rc18
+    sta    __rc7
+    lda    .Lpressure_i64_sstk+1           ; 1-byte Folded Reload
+    eor    __rc19
+    sta    __rc9
+    lda    __rc25
+    eor    __rc8
+    sta    __rc8
+    clc
+    lda    __rc29
+    adc    __rc2
+    tay
+    lda    __rc24
+    adc    __rc3
+    sta    __rc10
+    lda    __rc30
+    adc    __rc4
+    sta    __rc2
+    lda    __rc21
+    adc    __rc5
+    sta    __rc3
+    lda    __rc23
+    adc    __rc6
+    sta    __rc4
+    lda    __rc20
+    adc    __rc7
+    sta    __rc5
+    lda    __rc27
+    adc    __rc9
+    sta    __rc6
+    txa
+    adc    __rc8
+    sta    __rc7
+    ldx    __rc10
+    tya
+    sta    __rc16
+    ldy    .Lpressure_i64_sstk+22          ; 1-byte Folded Reload
+    sty    __rc31
+    ldy    .Lpressure_i64_sstk+21          ; 1-byte Folded Reload
+    sty    __rc30
+    ldy    .Lpressure_i64_sstk+20          ; 1-byte Folded Reload
+    sty    __rc29
+    ldy    .Lpressure_i64_sstk+19          ; 1-byte Folded Reload
+    sty    __rc28
+    ldy    .Lpressure_i64_sstk+18          ; 1-byte Folded Reload
+    sty    __rc27
+    ldy    .Lpressure_i64_sstk+17          ; 1-byte Folded Reload
+    sty    __rc26
+    ldy    .Lpressure_i64_sstk+16          ; 1-byte Folded Reload
+    sty    __rc25
+    ldy    .Lpressure_i64_sstk+15          ; 1-byte Folded Reload
+    sty    __rc24
+    pla
+    sta    __rc23
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    pressure_i64, .Lfunc_end0-pressure_i64
+                                        ; -- End function
+    .type    .Lstatic_stack,@object          ; @static_stack
+    .section    .noinit..Lstatic_stack,"aw",@nobits
+.Lstatic_stack:
+    .zero    23
+    .size    .Lstatic_stack, 23
+
+.Lpressure_i64_sstk = .Lstatic_stack
+    .size    .Lpressure_i64_sstk, 23
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    .addrsig_sym .Lstatic_stack
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (333):
+
+```asm
+pressure_i64:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    LDA $16
+    PHA
+    LDA $17
+    PHA
+    LDA $18
+    PHA
+    LDA $19
+    PHA
+    LDA $1A
+    PHA
+    LDA $1B
+    PHA
+    LDA $1C
+    PHA
+    LDA $1D
+    PHA
+    LDA $1E
+    PHA
+    LDA $1F
+    PHA
+    TYA
+    STA $19
+    LDA $02
+    STA $1A
+    LDA $03
+    STA $1B
+    LDA $04
+    STA $1C
+    LDA $05
+    STA $1D
+    LDA $06
+    STA $1E
+    LDA $07
+    STA $1F
+    LDY #$00
+    LDA ($00),Y
+    STA $02
+    LDY #$01
+    LDA ($00),Y
+    STA $03
+    LDY #$02
+    LDA ($00),Y
+    STA $04
+    LDY #$03
+    LDA ($00),Y
+    STA $05
+    LDY #$04
+    LDA ($00),Y
+    STA $06
+    LDY #$05
+    LDA ($00),Y
+    STA $07
+    LDY #$06
+    LDA ($00),Y
+    STA $17
+    LDY #$07
+    LDA ($00),Y
+    STA $18
+    CLC
+    LDA $19
+    ADC $08
+    STA pressure_i64_spill445
+    TXA
+    ADC $09
+    STA pressure_i64_spill446
+    LDA $1A
+    ADC $0A
+    STA pressure_i64_spill447
+    LDA $1B
+    ADC $0B
+    STA pressure_i64_spill448
+    LDA $1C
+    ADC $0C
+    STA pressure_i64_spill449
+    LDA $1D
+    ADC $0D
+    STA pressure_i64_spill450
+    LDA $1E
+    ADC $0E
+    STA pressure_i64_spill451
+    LDA $1F
+    ADC $0F
+    TAY
+    CLC
+    LDA $08
+    ADC $02
+    STA $16
+    LDA $09
+    ADC $03
+    STA $15
+    LDA $0A
+    ADC $04
+    STA $14
+    LDA $0B
+    ADC $05
+    STA $11
+    LDA $0C
+    ADC $06
+    STA $10
+    LDA $0D
+    ADC $07
+    STA $0C
+    LDA $0E
+    ADC $17
+    STA $0B
+    LDA $0F
+    ADC $18
+    STA $0A
+    CLC
+    LDA $19
+    ADC $02
+    STA $08
+    TXA
+    ADC $03
+    STA $02
+    LDA $1A
+    ADC $04
+    STA $03
+    LDA $1B
+    ADC $05
+    STA $04
+    LDA $1C
+    ADC $06
+    STA $05
+    LDA $1D
+    ADC $07
+    STA $06
+    LDA $1E
+    ADC $17
+    STA $07
+    LDA $1F
+    ADC $18
+    STA $09
+    LDA $16
+    STA $0D
+    LDA pressure_i64_spill445
+    EOR $0D
+    STA $17
+    LDA $15
+    STA $0D
+    LDA pressure_i64_spill446
+    EOR $0D
+    STA $18
+    LDA $14
+    STA $0D
+    LDA pressure_i64_spill447
+    EOR $0D
+    STA $19
+    LDA $11
+    STA $0D
+    LDA pressure_i64_spill448
+    EOR $0D
+    STA $1A
+    LDA $10
+    STA $0D
+    LDA pressure_i64_spill449
+    EOR $0D
+    STA $1B
+    LDA $0C
+    STA $0D
+    LDA pressure_i64_spill450
+    EOR $0D
+    STA $1C
+    LDA $0B
+    STA $0D
+    LDA pressure_i64_spill451
+    EOR $0D
+    STA $1D
+    LDA $0A
+    STA $0D
+    TYA
+    EOR $0D
+    STA $1E
+    LDA $08
+    STA $0D
+    LDA $16
+    EOR $0D
+    STA $0E
+    LDA $02
+    STA $0D
+    LDA $15
+    EOR $0D
+    STA $0D
+    LDA $03
+    STA $0F
+    LDA $14
+    EOR $0F
+    STA $14
+    LDA $04
+    STA $0F
+    LDA $11
+    EOR $0F
+    STA $11
+    LDA $05
+    STA $0F
+    LDA $10
+    EOR $0F
+    STA $0F
+    LDA $06
+    STA $10
+    LDA $0C
+    EOR $10
+    STA $0C
+    LDA $07
+    STA $10
+    LDA $0B
+    EOR $10
+    STA $0B
+    LDA $09
+    STA $10
+    LDA $0A
+    EOR $10
+    STA $0A
+    LDA pressure_i64_spill445
+    EOR $08
+    STA $16
+    LDA pressure_i64_spill446
+    EOR $02
+    STA $15
+    LDA pressure_i64_spill447
+    EOR $03
+    STA $10
+    LDA pressure_i64_spill448
+    EOR $04
+    STA $08
+    LDA pressure_i64_spill449
+    EOR $05
+    STA $05
+    LDA pressure_i64_spill450
+    EOR $06
+    STA $04
+    LDA pressure_i64_spill451
+    EOR $07
+    STA $03
+    TYA
+    EOR $09
+    STA $02
+    CLC
+    LDA $17
+    ADC $0E
+    STA $06
+    LDA $18
+    ADC $0D
+    STA $07
+    LDA $19
+    ADC $14
+    STA $09
+    LDA $1A
+    ADC $11
+    STA $0D
+    LDA $1B
+    ADC $0F
+    STA $0E
+    LDA $1C
+    ADC $0C
+    STA $0C
+    LDA $1D
+    ADC $0B
+    STA $0B
+    LDA $1E
+    ADC $0A
+    STA $0A
+    CLC
+    LDA $06
+    ADC $16
+    STA $06
+    LDA $07
+    ADC $15
+    TAX
+    LDA $09
+    ADC $10
+    STA $0F
+    LDA $0D
+    ADC $08
+    STA $09
+    LDA $0E
+    ADC $05
+    STA $08
+    LDA $0C
+    ADC $04
+    STA $05
+    LDA $0B
+    ADC $03
+    TAY
+    LDA $0A
+    ADC $02
+    STA $07
+    LDA $06
+    STA $03
+    LDA $0F
+    STA $02
+    LDA $03
+    STA $04
+    LDA $09
+    STA $03
+    LDA $04
+    STA $06
+    LDA $08
+    STA $04
+    LDA $06
+    STY $06
+    TAY
+    PLA
+    STA $1F
+    PLA
+    STA $1E
+    PLA
+    STA $1D
+    PLA
+    STA $1C
+    PLA
+    STA $1B
+    PLA
+    STA $1A
+    PLA
+    STA $19
+    PLA
+    STA $18
+    PLA
+    STA $17
+    PLA
+    STA $16
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>realistic/factorial-recursive — llvm-mos 60, Irie 48, ratio 0.80</summary>
+
+llvm-mos (60):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "factorial-recursive.c"
+    .section    .text.factorial,"ax",@progbits
+    .globl    factorial                       ; -- Begin function factorial
+    .type    factorial,@function
+factorial:                              ; @factorial
+; %bb.0:
+    tay
+    cmp    #2
+    txa
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bpl    .LBB0_4
+; %bb.3:
+    ldx    #0
+    lda    #1
+    rts
+.LBB0_4:
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    #1
+    stx    __rc22
+    ldx    #0
+.LBB0_5:                                ; =>This Inner Loop Header: Depth=1
+    sty    __rc21
+    pha
+    lda    __rc22
+    sta    __rc20
+    pla
+    sty    __rc5
+    ldy    #255
+    dec    __rc21
+    cpy    __rc21
+    bne    .LBB0_7
+; %bb.6:                                ;   in Loop: Header=BB0_5 Depth=1
+    dec    __rc20
+.LBB0_7:                                ;   in Loop: Header=BB0_5 Depth=1
+    sta    __rc2
+    stx    __rc3
+    ldx    __rc22
+    ldy    __rc5
+    sty    .Lfactorial_sstk                ; 1-byte Folded Spill
+    lda    __rc5
+    jsr    __mulhi3
+    ldy    __rc22
+    bne    .LBB0_9
+; %bb.8:                                ;   in Loop: Header=BB0_5 Depth=1
+    ldy    .Lfactorial_sstk                ; 1-byte Folded Reload
+    cpy    #3
+    jmp    .LBB0_10
+.LBB0_9:                                ;   in Loop: Header=BB0_5 Depth=1
+    ldy    __rc22
+    cpy    #0
+.LBB0_10:                               ;   in Loop: Header=BB0_5 Depth=1
+    ldy    __rc21
+    pha
+    lda    __rc20
+    sta    __rc22
+    pla
+    bcs    .LBB0_5
+; %bb.11:
+    sta    __rc16
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    factorial, .Lfunc_end0-factorial
+                                        ; -- End function
+    .type    .Lstatic_stack,@object          ; @static_stack
+    .section    .noinit..Lstatic_stack,"aw",@nobits
+.Lstatic_stack:
+    .zero    1
+    .size    .Lstatic_stack, 1
+
+.Lfactorial_sstk = .Lstatic_stack
+    .size    .Lfactorial_sstk, 1
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    .addrsig_sym .Lstatic_stack
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (48):
+
+```asm
+factorial:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    TYA
+    STA $15
+    STX $14
+    LDA #$01
+    STA $03
+    LDX #$00
+    TXA
+    EOR #$80
+    TAY
+    LDA $14
+    EOR #$80
+    STA $02
+    TYA
+    CMP $02
+    BCC .bb2
+    BNE .bb1
+    LDA $03
+    CMP $15
+    BCC .bb2
+.bb1:
+    LDA $03
+    TAY
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
+.bb2:
+    SEC
+    LDA $15
+    SBC #$01
+    TAY
+    LDA $14
+    SBC #$00
+    TAX
+    TYA
+    JSR factorial
+    STA $02
+    STX $03
+    LDA $15
+    LDX $14
+    JSR __mulhi3
+    STA $03
+    JMP .bb1
+```
+
+</details>
+
+<details>
+<summary>basics/chain-arith — llvm-mos 51, Irie 40, ratio 0.78</summary>
+
+llvm-mos (51):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "chain-arith.c"
+    .section    .text.chain_arith,"ax",@progbits
+    .globl    chain_arith                     ; -- Begin function chain_arith
+    .type    chain_arith,@function
+chain_arith:                            ; @chain_arith
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    __rc23
+    pha
+    lda    __rc16
+    sta    __rc20
+    stx    __rc21
+    lda    __rc2
+    ldx    __rc3
+    ldy    __rc4
+    sty    __rc22
+    ldy    __rc5
+    sty    __rc23
+    ldy    __rc20
+    sty    __rc2
+    ldy    __rc21
+    sty    __rc3
+    jsr    __mulhi3
+    sta    __rc2
+    stx    __rc3
+    sec
+    lda    __rc22
+    sbc    __rc20
+    tay
+    lda    __rc23
+    sbc    __rc21
+    tax
+    clc
+    tya
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    tax
+    tya
+    sta    __rc16
+    pla
+    sta    __rc23
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.Lfunc_end0:
+    .size    chain_arith, .Lfunc_end0-chain_arith
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Irie (40):
+
+```asm
+chain_arith:
+    TAY
+    LDA $14
+    PHA
+    LDA $15
+    PHA
+    LDA $16
+    PHA
+    LDA $17
+    PHA
+    TYA
+    STA $14
+    STX $15
+    LDY $04
+    STY $16
+    LDY $05
+    STY $17
+    JSR __mulhi3
+    CLC
+    ADC $16
+    TAY
+    TXA
+    ADC $17
+    TAX
+    SEC
+    TYA
+    SBC $14
+    TAY
+    TXA
+    SBC $15
+    TAX
+    PLA
+    STA $17
+    PLA
+    STA $16
+    PLA
+    STA $15
+    PLA
+    STA $14
+    TYA
+    RTS
 ```
 
 </details>
@@ -3301,7 +6796,7 @@ many_calls:
 </details>
 
 <details>
-<summary>control-flow/loop-counter — llvm-mos 65, Irie 40, ratio 0.62</summary>
+<summary>control-flow/loop-counter — llvm-mos 65, Irie 38, ratio 0.58</summary>
 
 llvm-mos (65):
 
@@ -3436,17 +6931,17 @@ loop_counter:                           ; @loop_counter
     .globl    __do_init_stack
 ```
 
-Irie (40):
+Irie (38):
 
 ```asm
 loop_counter:
     STA $07
     STX $06
     LDA #$00
-    STA $04
-    LDX #$00
-    LDA $04
     STA $05
+    LDX #$00
+    LDA $05
+    STA $03
     STX $02
 .bb1:
     LDA $02
@@ -3454,31 +6949,29 @@ loop_counter:
     TAY
     LDA $06
     EOR #$80
-    STA $03
+    STA $04
     TYA
-    CMP $03
+    CMP $04
     BCC .bb3
     BNE .bb2
-    LDA $05
+    LDA $03
     CMP $07
     BCC .bb3
 .bb2:
-    LDA $04
+    LDA $05
     RTS
 .bb3:
     CLC
     LDA $05
-    STA $03
-    LDA $04
     ADC $03
-    STA $04
+    STA $05
     TXA
     ADC $02
     TAX
     CLC
-    LDA $05
+    LDA $03
     ADC #$01
-    STA $05
+    STA $03
     LDA $02
     ADC #$00
     STA $02
@@ -3488,122 +6981,9 @@ loop_counter:
 </details>
 
 <details>
-<summary>basics/chain-arith — llvm-mos 51, Irie —</summary>
+<summary>memory/struct-pass — llvm-mos 10, Irie 1, ratio 0.10</summary>
 
-llvm-mos (51):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "chain-arith.c"
-    .section    .text.chain_arith,"ax",@progbits
-    .globl    chain_arith                     ; -- Begin function chain_arith
-    .type    chain_arith,@function
-chain_arith:                            ; @chain_arith
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    __rc23
-    pha
-    lda    __rc16
-    sta    __rc20
-    stx    __rc21
-    lda    __rc2
-    ldx    __rc3
-    ldy    __rc4
-    sty    __rc22
-    ldy    __rc5
-    sty    __rc23
-    ldy    __rc20
-    sty    __rc2
-    ldy    __rc21
-    sty    __rc3
-    jsr    __mulhi3
-    sta    __rc2
-    stx    __rc3
-    sec
-    lda    __rc22
-    sbc    __rc20
-    tay
-    lda    __rc23
-    sbc    __rc21
-    tax
-    clc
-    tya
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    tax
-    tya
-    sta    __rc16
-    pla
-    sta    __rc23
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    chain_arith, .Lfunc_end0-chain_arith
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>constraints/compare-flags — llvm-mos 47, Irie —</summary>
-
-llvm-mos (47):
+llvm-mos (10):
 
 ```asm
     .zeropage    __rc0
@@ -3638,166 +7018,24 @@ llvm-mos (47):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "compare-flags.c"
-    .section    .text.compare_flags,"ax",@progbits
-    .globl    compare_flags                   ; -- Begin function compare_flags
-    .type    compare_flags,@function
-compare_flags:                          ; @compare_flags
+    .file    "struct-pass.c"
+    .section    .text.struct_pass,"ax",@progbits
+    .globl    struct_pass                     ; -- Begin function struct_pass
+    .type    struct_pass,@function
+struct_pass:                            ; @struct_pass
 ; %bb.0:
     ldy    __rc2
-    sta    __rc7
-    cmp    __rc2
-    stx    __rc6
-    txa
-    sbc    __rc3
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    tax
-    bpl    .LBB0_4
-; %bb.3:
-    ldx    #0
-    lda    #1
-    jmp    .LBB0_5
-.LBB0_4:
-    ldx    #0
-    txa
-.LBB0_5:
-    sta    __rc2
-    cpy    __rc4
+    pha
     lda    __rc3
-    sbc    __rc5
-    bvc    .LBB0_7
-; %bb.6:
-    eor    #128
-.LBB0_7:
-    tax
-    bpl    .LBB0_9
-; %bb.8:
-    bit    __set_v
-    jmp    .LBB0_10
-.LBB0_9:
-    clv
-.LBB0_10:
-    ldy    #1
-    tya
-    ldx    __rc2
-    bne    .LBB0_12
-; %bb.11:
-    lda    #0
-.LBB0_12:
-    sty    __rc2
-    bvs    .LBB0_14
-; %bb.13:
-    ldx    #0
-    stx    __rc2
-.LBB0_14:
-    and    __rc2
+    sta    __rc4
+    pla
     sta    __rc2
-    ldx    __rc6
-    cpx    __rc5
-    bne    .LBB0_17
-; %bb.15:
-    ldx    __rc7
-    cpx    __rc4
-    bne    .LBB0_17
-; %bb.16:
-    ldy    #0
-.LBB0_17:
-    tya
-    and    __rc2
-    rts
-.Lfunc_end0:
-    .size    compare_flags, .Lfunc_end0-compare_flags
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>constraints/shift-const — llvm-mos 26, Irie —</summary>
-
-llvm-mos (26):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "shift-const.c"
-    .section    .text.shift_const,"ax",@progbits
-    .globl    shift_const                     ; -- Begin function shift_const
-    .type    shift_const,@function
-shift_const:                            ; @shift_const
-; %bb.0:
-    tay
-    txa
-    sty    __rc2
-    asl    __rc2
     stx    __rc3
-    rol    __rc3
-    asl    __rc2
-    rol    __rc3
-    asl    __rc2
-    rol    __rc3
-    cpx    #128
-    ror
-    sty    __rc4
-    ror    __rc4
-    cmp    #128
-    ror
-    tax
-    lda    __rc4
-    ror
-    ora    __rc2
-    tay
-    txa
-    ora    __rc3
-    tax
+    ldx    __rc4
     tya
-    rts
+    jmp    __mulhi3
 .Lfunc_end0:
-    .size    shift_const, .Lfunc_end0-shift_const
+    .size    struct_pass, .Lfunc_end0-struct_pass
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
@@ -3806,417 +7044,11 @@ shift_const:                            ; @shift_const
     .globl    __do_init_stack
 ```
 
-Irie (—):
+Irie (1):
 
 ```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>constraints/shift-var — llvm-mos 1, Irie —</summary>
-
-llvm-mos (1):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "shift-var.c"
-    .section    .text.shift_var,"ax",@progbits
-    .globl    shift_var                       ; -- Begin function shift_var
-    .type    shift_var,@function
-shift_var:                              ; @shift_var
-; %bb.0:
-    jmp    __ashlhi3
-.Lfunc_end0:
-    .size    shift_var, .Lfunc_end0-shift_var
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>control-flow/loop-sum-array — llvm-mos 43, Irie —</summary>
-
-llvm-mos (43):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "loop-sum-array.c"
-    .section    .text.loop_sum_array,"ax",@progbits
-    .globl    loop_sum_array                  ; -- Begin function loop_sum_array
-    .type    loop_sum_array,@function
-loop_sum_array:                         ; @loop_sum_array
-; %bb.0:
-    tay
-    cmp    #1
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bmi    .LBB0_8
-; %bb.3:
-    sty    __rc4
-    ldy    #0
-    tya
-    sty    __rc6
-.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
-    clc
-    ldy    #0
-    adc    (__rc2),y
-    sta    __rc5
-    iny
-    lda    __rc6
-    adc    (__rc2),y
-    sta    __rc6
-    lda    __rc2
-    clc
-    adc    #2
-    sta    __rc2
-    lda    __rc3
-    adc    #0
-    sta    __rc3
-    lda    #255
-    dec    __rc4
-    cmp    __rc4
-    bne    .LBB0_6
-; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
-    dex
-.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
-    lda    __rc5
-    cpx    #0
-    bne    .LBB0_4
-; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
-    ldy    __rc4
-    bne    .LBB0_4
-    jmp    .LBB0_9
-.LBB0_8:
-    lda    #0
-    tax
-    stx    __rc6
-.LBB0_9:
-    ldx    __rc6
-    rts
-.Lfunc_end0:
-    .size    loop_sum_array, .Lfunc_end0-loop_sum_array
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>control-flow/nested-loop — llvm-mos 139, Irie —</summary>
-
-llvm-mos (139):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "nested-loop.c"
-    .section    .text.nested_loop,"ax",@progbits
-    .globl    nested_loop                     ; -- Begin function nested_loop
-    .type    nested_loop,@function
-nested_loop:                            ; @nested_loop
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc22
-    pha
-    lda    __rc16
-    tay
-    sty    __rc17
-    ldy    __rc2
-    sty    __rc20
-    ldy    __rc17
-    cmp    #1
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bpl    .LBB0_3
-    jmp    .LBB0_19
-.LBB0_3:
-    lda    __rc2
-    sta    __rc9
-    lda    __rc3
-    sta    __rc8
-    sty    .Lnested_loop_sstk+2            ; 1-byte Folded Spill
-    ldy    #255
-    dec    __rc9
-    cpy    __rc9
-    bne    .LBB0_5
-; %bb.4:
-    dec    __rc8
-.LBB0_5:
-    lda    __rc2
-    clc
-    adc    #254
-    sta    __rc4
-    lda    __rc3
-    adc    #255
-    ldy    #0
-    sty    __rc2
-    sty    __rc5
-    ldy    __rc3
-    sty    .Lnested_loop_sstk              ; 1-byte Folded Spill
-    ldy    __rc5
-    sty    __rc3
-    sta    __rc5
-    sty    __rc6
-    sty    __rc7
-    sty    __rc22
-    stx    .Lnested_loop_sstk+1            ; 1-byte Folded Spill
-    ldx    __rc8
-    lda    __rc9
-    jsr    __mulsi3
-    ldy    .Lnested_loop_sstk              ; 1-byte Folded Reload
-    sty    __rc3
-    sta    __rc4
-    stx    __rc5
-    ldx    .Lnested_loop_sstk+1            ; 1-byte Folded Reload
-    stx    __rc6
-    lda    __rc2
-    and    #1
-    lsr
-    ror    __rc5
-    ror    __rc4
-    lda    __rc20
-    ldx    #0
-    stx    __rc9
-    clc
-    adc    __rc4
-    sta    __rc7
-    tya
-    adc    __rc5
-    sta    __rc8
-    ldy    .Lnested_loop_sstk+2            ; 1-byte Folded Reload
-    ldx    __rc22
-    stx    __rc2
-    ldx    __rc22
-    stx    __rc5
-    ldx    __rc22
-    stx    __rc4
-    ldx    #0
-    stx    __rc10
-    jmp    .LBB0_13
-.LBB0_6:                                ;   in Loop: Header=BB0_13 Depth=1
-    ldx    __rc9
-    cpx    #1
-.LBB0_7:                                ;   in Loop: Header=BB0_13 Depth=1
-    lda    __rc7
-    ldx    #0
-    stx    __rc9
-    adc    __rc2
-    sta    __rc2
-    lda    __rc8
-    adc    __rc4
-    ldx    #255
-    dec    __rc2
-    cpx    __rc2
-    bne    .LBB0_9
-; %bb.8:                                ;   in Loop: Header=BB0_13 Depth=1
-    clc
-    adc    #255
-.LBB0_9:                                ;   in Loop: Header=BB0_13 Depth=1
-    dey
-    cpy    #255
-    bne    .LBB0_11
-; %bb.10:                               ;   in Loop: Header=BB0_13 Depth=1
-    dec    __rc6
-.LBB0_11:                               ;   in Loop: Header=BB0_13 Depth=1
-    sta    __rc4
-    lda    __rc6
-    bne    .LBB0_13
-; %bb.12:                               ;   in Loop: Header=BB0_13 Depth=1
-    tya
-    beq    .LBB0_20
-.LBB0_13:                               ; =>This Inner Loop Header: Depth=1
-    ldx    __rc20
-    cpx    #1
-    lda    __rc3
-    sbc    #0
-    bvc    .LBB0_15
-; %bb.14:                               ;   in Loop: Header=BB0_13 Depth=1
-    eor    #128
-.LBB0_15:                               ;   in Loop: Header=BB0_13 Depth=1
-    tax
-    bmi    .LBB0_6
-; %bb.16:                               ;   in Loop: Header=BB0_13 Depth=1
-    lda    __rc5
-    clc
-    ldx    #1
-    bcs    .LBB0_18
-; %bb.17:                               ;   in Loop: Header=BB0_13 Depth=1
-    ldx    #0
-.LBB0_18:                               ;   in Loop: Header=BB0_13 Depth=1
-    stx    __rc9
-    adc    __rc2
-    sta    __rc5
-    lda    __rc10
-    adc    __rc4
-    ldx    __rc9
-    cpx    #1
-    sta    __rc10
-    jmp    .LBB0_7
-.LBB0_19:
-    lda    #0
-    sta    __rc5
-    tax
-    stx    __rc10
-.LBB0_20:
-    ldx    __rc10
-    lda    __rc5
-    sta    __rc16
-    pla
-    sta    __rc22
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    nested_loop, .Lfunc_end0-nested_loop
-                                        ; -- End function
-    .type    .Lstatic_stack,@object          ; @static_stack
-    .section    .noinit..Lstatic_stack,"aw",@nobits
-.Lstatic_stack:
-    .zero    3
-    .size    .Lstatic_stack, 3
-
-.Lnested_loop_sstk = .Lstatic_stack
-    .size    .Lnested_loop_sstk, 3
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    .addrsig_sym .Lstatic_stack
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
+struct_pass:
+    JMP __mulhi3
 ```
 
 </details>
@@ -4327,105 +7159,6 @@ Irie (—):
 </details>
 
 <details>
-<summary>memory/array-index — llvm-mos 37, Irie —</summary>
-
-llvm-mos (37):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "array-index.c"
-    .section    .text.array_index,"ax",@progbits
-    .globl    array_index                     ; -- Begin function array_index
-    .type    array_index,@function
-array_index:                            ; @array_index
-; %bb.0:
-    stx    __rc4
-    asl
-    rol    __rc4
-    clc
-    adc    __rc2
-    tay
-    lda    __rc3
-    adc    __rc4
-    tax
-    sty    __rc2
-    sty    __rc4
-    sta    __rc3
-    ldy    #0
-    lda    (__rc2),y
-    sta    __rc6
-    clc
-    lda    __rc4
-    adc    #2
-    sta    __rc4
-    txa
-    adc    #0
-    sta    __rc5
-    iny
-    lda    (__rc2),y
-    tax
-    sty    __rc7
-    iny
-    clc
-    lda    __rc6
-    adc    (__rc2),y
-    sta    __rc2
-    txa
-    ldy    __rc7
-    adc    (__rc4),y
-    tax
-    lda    __rc2
-    rts
-.Lfunc_end0:
-    .size    array_index, .Lfunc_end0-array_index
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
 <summary>memory/ptr-deref — llvm-mos 23, Irie —</summary>
 
 llvm-mos (23):
@@ -4496,78 +7229,6 @@ ptr_deref:                              ; @ptr_deref
     rts
 .Lfunc_end0:
     .size    ptr_deref, .Lfunc_end0-ptr_deref
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>memory/struct-pass — llvm-mos 10, Irie —</summary>
-
-llvm-mos (10):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "struct-pass.c"
-    .section    .text.struct_pass,"ax",@progbits
-    .globl    struct_pass                     ; -- Begin function struct_pass
-    .type    struct_pass,@function
-struct_pass:                            ; @struct_pass
-; %bb.0:
-    ldy    __rc2
-    pha
-    lda    __rc3
-    sta    __rc4
-    pla
-    sta    __rc2
-    stx    __rc3
-    ldx    __rc4
-    tya
-    jmp    __mulhi3
-.Lfunc_end0:
-    .size    struct_pass, .Lfunc_end0-struct_pass
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
@@ -4817,1324 +7478,6 @@ make_big:                               ; @make_big
     rts
 .Lfunc_end0:
     .size    make_big, .Lfunc_end0-make_big
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>memory/two-pointer-copy — llvm-mos 47, Irie —</summary>
-
-llvm-mos (47):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "two-pointer-copy.c"
-    .section    .text.two_pointer_copy,"ax",@progbits
-    .globl    two_pointer_copy                ; -- Begin function two_pointer_copy
-    .type    two_pointer_copy,@function
-two_pointer_copy:                       ; @two_pointer_copy
-; %bb.0:
-    tay
-    cmp    #1
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bmi    .LBB0_8
-; %bb.3:
-    sty    __rc6
-.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
-    ldy    #0
-    lda    (__rc4),y
-    sta    __rc8
-    sty    __rc9
-    iny
-    lda    (__rc4),y
-    sta    __rc7
-    sty    __rc10
-    lda    __rc8
-    ldy    __rc9
-    sta    (__rc2),y
-    lda    __rc7
-    ldy    __rc10
-    sta    (__rc2),y
-    lda    #255
-    dec    __rc6
-    cmp    __rc6
-    bne    .LBB0_6
-; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
-    dex
-.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
-    lda    __rc2
-    clc
-    adc    #2
-    sta    __rc2
-    lda    __rc3
-    adc    #0
-    sta    __rc3
-    lda    __rc4
-    clc
-    adc    #2
-    sta    __rc4
-    lda    __rc5
-    adc    #0
-    sta    __rc5
-    txa
-    bne    .LBB0_4
-; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
-    lda    __rc6
-    bne    .LBB0_4
-.LBB0_8:
-    rts
-.Lfunc_end0:
-    .size    two_pointer_copy, .Lfunc_end0-two_pointer_copy
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>pressure/pressure-high — llvm-mos 230, Irie —</summary>
-
-llvm-mos (230):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "pressure-high.c"
-    .section    .text.pressure_high,"ax",@progbits
-    .globl    pressure_high                   ; -- Begin function pressure_high
-    .type    pressure_high,@function
-pressure_high:                          ; @pressure_high
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    __rc23
-    pha
-    lda    __rc16
-    ldy    __rc24
-    sty    .Lpressure_high_sstk+8          ; 1-byte Folded Spill
-    ldy    __rc25
-    sty    .Lpressure_high_sstk+9          ; 1-byte Folded Spill
-    ldy    __rc26
-    sty    .Lpressure_high_sstk+10         ; 1-byte Folded Spill
-    ldy    __rc27
-    sty    .Lpressure_high_sstk+11         ; 1-byte Folded Spill
-    ldy    __rc28
-    sty    .Lpressure_high_sstk+12         ; 1-byte Folded Spill
-    ldy    __rc29
-    sty    .Lpressure_high_sstk+13         ; 1-byte Folded Spill
-    ldy    __rc30
-    sty    .Lpressure_high_sstk+14         ; 1-byte Folded Spill
-    ldy    __rc31
-    sty    .Lpressure_high_sstk+15         ; 1-byte Folded Spill
-    sta    __rc24
-    stx    __rc25
-    ldx    __rc2
-    stx    __rc26
-    ldx    __rc3
-    stx    __rc27
-    ldx    __rc4
-    stx    .Lpressure_high_sstk            ; 1-byte Folded Spill
-    ldx    __rc5
-    stx    .Lpressure_high_sstk+1          ; 1-byte Folded Spill
-    ldx    __rc6
-    stx    .Lpressure_high_sstk+2          ; 1-byte Folded Spill
-    ldx    __rc7
-    stx    .Lpressure_high_sstk+3          ; 1-byte Folded Spill
-    ldx    __rc8
-    stx    __rc21
-    ldx    __rc9
-    stx    __rc30
-    ldx    __rc10
-    stx    __rc20
-    ldx    __rc11
-    stx    __rc31
-    ldx    __rc12
-    stx    __rc22
-    ldx    __rc13
-    stx    __rc23
-    ldx    __rc14
-    stx    __rc28
-    ldx    __rc15
-    stx    __rc29
-    ldx    __rc14
-    stx    __rc2
-    ldx    __rc15
-    stx    __rc3
-    ldx    __rc8
-    stx    __rc4
-    ldx    __rc9
-    stx    __rc5
-    ldx    __rc10
-    stx    __rc6
-    ldx    __rc11
-    stx    __rc7
-    ldx    __rc13
-    lda    __rc12
-    jsr    __mulsi3
-    sta    .Lpressure_high_sstk+7          ; 1-byte Folded Spill
-    stx    .Lpressure_high_sstk+6          ; 1-byte Folded Spill
-    ldx    __rc2
-    stx    .Lpressure_high_sstk+5          ; 1-byte Folded Spill
-    ldx    __rc3
-    stx    .Lpressure_high_sstk+4          ; 1-byte Folded Spill
-    ldx    __rc28
-    stx    __rc2
-    ldx    __rc29
-    stx    __rc3
-    ldx    __rc24
-    stx    __rc4
-    ldx    __rc25
-    stx    __rc5
-    ldx    __rc26
-    stx    __rc6
-    ldx    __rc27
-    stx    __rc7
-    ldx    __rc23
-    lda    __rc22
-    jsr    __mulsi3
-    sta    __rc29
-    stx    __rc28
-    ldx    __rc2
-    stx    __rc23
-    ldx    __rc3
-    stx    __rc22
-    clc
-    lda    __rc21
-    adc    __rc24
-    tay
-    lda    __rc30
-    adc    __rc25
-    sta    __rc8
-    lda    __rc20
-    adc    __rc26
-    sta    __rc2
-    lda    __rc31
-    adc    __rc27
-    sta    __rc3
-    ldx    .Lpressure_high_sstk            ; 1-byte Folded Reload
-    stx    __rc4
-    ldx    .Lpressure_high_sstk+1          ; 1-byte Folded Reload
-    stx    __rc5
-    ldx    .Lpressure_high_sstk+2          ; 1-byte Folded Reload
-    stx    __rc6
-    ldx    .Lpressure_high_sstk+3          ; 1-byte Folded Reload
-    stx    __rc7
-    ldx    __rc8
-    tya
-    jsr    __mulsi3
-    sta    __rc24
-    stx    __rc27
-    ldx    __rc2
-    stx    __rc25
-    ldx    __rc3
-    stx    __rc26
-    ldx    .Lpressure_high_sstk+7          ; 1-byte Folded Reload
-    stx    __rc31
-    txa
-    clc
-    adc    __rc29
-    tay
-    ldx    .Lpressure_high_sstk+6          ; 1-byte Folded Reload
-    stx    __rc30
-    txa
-    adc    __rc28
-    sta    __rc8
-    ldx    .Lpressure_high_sstk+5          ; 1-byte Folded Reload
-    stx    __rc21
-    txa
-    adc    __rc23
-    sta    __rc2
-    ldx    .Lpressure_high_sstk+4          ; 1-byte Folded Reload
-    stx    __rc20
-    txa
-    adc    __rc22
-    sta    __rc3
-    ldx    __rc24
-    stx    __rc4
-    ldx    __rc27
-    stx    __rc5
-    ldx    __rc25
-    stx    __rc6
-    ldx    __rc26
-    stx    __rc7
-    ldx    __rc8
-    tya
-    jsr    __mulsi3
-    sta    __rc4
-    stx    __rc5
-    clc
-    lda    __rc24
-    adc    __rc31
-    tax
-    lda    __rc27
-    adc    __rc30
-    sta    __rc8
-    lda    __rc25
-    adc    __rc21
-    sta    __rc6
-    lda    __rc26
-    adc    __rc20
-    sta    __rc7
-    clc
-    txa
-    adc    __rc29
-    tay
-    lda    __rc8
-    adc    __rc28
-    sta    __rc8
-    lda    __rc6
-    adc    __rc23
-    sta    __rc6
-    lda    __rc7
-    adc    __rc22
-    tax
-    clc
-    tya
-    adc    __rc4
-    tay
-    lda    __rc8
-    adc    __rc5
-    sta    __rc4
-    lda    __rc6
-    adc    __rc2
-    sta    __rc2
-    txa
-    adc    __rc3
-    sta    __rc3
-    ldx    __rc4
-    tya
-    sta    __rc16
-    ldy    .Lpressure_high_sstk+15         ; 1-byte Folded Reload
-    sty    __rc31
-    ldy    .Lpressure_high_sstk+14         ; 1-byte Folded Reload
-    sty    __rc30
-    ldy    .Lpressure_high_sstk+13         ; 1-byte Folded Reload
-    sty    __rc29
-    ldy    .Lpressure_high_sstk+12         ; 1-byte Folded Reload
-    sty    __rc28
-    ldy    .Lpressure_high_sstk+11         ; 1-byte Folded Reload
-    sty    __rc27
-    ldy    .Lpressure_high_sstk+10         ; 1-byte Folded Reload
-    sty    __rc26
-    ldy    .Lpressure_high_sstk+9          ; 1-byte Folded Reload
-    sty    __rc25
-    ldy    .Lpressure_high_sstk+8          ; 1-byte Folded Reload
-    sty    __rc24
-    pla
-    sta    __rc23
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    pressure_high, .Lfunc_end0-pressure_high
-                                        ; -- End function
-    .type    .Lstatic_stack,@object          ; @static_stack
-    .section    .noinit..Lstatic_stack,"aw",@nobits
-.Lstatic_stack:
-    .zero    16
-    .size    .Lstatic_stack, 16
-
-.Lpressure_high_sstk = .Lstatic_stack
-    .size    .Lpressure_high_sstk, 16
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    .addrsig_sym .Lstatic_stack
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>pressure/pressure-i64 — llvm-mos 392, Irie —</summary>
-
-llvm-mos (392):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "pressure-i64.c"
-    .section    .text.pressure_i64,"ax",@progbits
-    .globl    pressure_i64                    ; -- Begin function pressure_i64
-    .type    pressure_i64,@function
-pressure_i64:                           ; @pressure_i64
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    __rc23
-    pha
-    lda    __rc16
-    ldy    __rc24
-    sty    .Lpressure_i64_sstk+15          ; 1-byte Folded Spill
-    ldy    __rc25
-    sty    .Lpressure_i64_sstk+16          ; 1-byte Folded Spill
-    ldy    __rc26
-    sty    .Lpressure_i64_sstk+17          ; 1-byte Folded Spill
-    ldy    __rc27
-    sty    .Lpressure_i64_sstk+18          ; 1-byte Folded Spill
-    ldy    __rc28
-    sty    .Lpressure_i64_sstk+19          ; 1-byte Folded Spill
-    ldy    __rc29
-    sty    .Lpressure_i64_sstk+20          ; 1-byte Folded Spill
-    ldy    __rc30
-    sty    .Lpressure_i64_sstk+21          ; 1-byte Folded Spill
-    ldy    __rc31
-    sty    .Lpressure_i64_sstk+22          ; 1-byte Folded Spill
-    sta    __rc27
-    stx    __rc25
-    ldx    __rc2
-    stx    __rc26
-    ldx    __rc3
-    stx    .Lpressure_i64_sstk+13          ; 1-byte Folded Spill
-    ldx    __rc4
-    stx    .Lpressure_i64_sstk+12          ; 1-byte Folded Spill
-    ldx    __rc5
-    stx    .Lpressure_i64_sstk+11          ; 1-byte Folded Spill
-    ldx    __rc6
-    stx    .Lpressure_i64_sstk+1           ; 1-byte Folded Spill
-    ldx    __rc7
-    stx    .Lpressure_i64_sstk+10          ; 1-byte Folded Spill
-    ldx    __rc8
-    stx    __rc20
-    ldx    __rc9
-    stx    __rc21
-    ldx    __rc10
-    stx    __rc24
-    ldx    __rc13
-    stx    __rc10
-    ldx    __rc14
-    stx    __rc8
-    ldy    __rc15
-    sty    .Lpressure_i64_sstk+2           ; 1-byte Folded Spill
-    ldy    #0
-    clc
-    ldx    __rc0
-    stx    __rc2
-    ldx    __rc1
-    stx    __rc3
-    lda    (__rc2),y
-    sta    .Lpressure_i64_sstk             ; 1-byte Folded Spill
-    lda    __rc0
-    adc    #1
-    sta    __rc2
-    lda    __rc1
-    adc    #0
-    sta    __rc3
-    lda    (__rc2),y
-    sta    __rc15
-    clc
-    lda    __rc0
-    adc    #2
-    sta    __rc28
-    lda    __rc1
-    adc    #0
-    sta    __rc29
-    clc
-    lda    __rc0
-    adc    #3
-    sta    __rc30
-    lda    __rc1
-    adc    #0
-    sta    __rc31
-    clc
-    lda    __rc0
-    adc    #4
-    sta    __rc18
-    lda    __rc1
-    adc    #0
-    sta    __rc19
-    clc
-    lda    __rc0
-    adc    #5
-    sta    __rc22
-    lda    __rc1
-    adc    #0
-    sta    __rc23
-    clc
-    lda    __rc0
-    adc    #6
-    sta    __rc4
-    lda    __rc1
-    adc    #0
-    sta    __rc5
-    clc
-    lda    __rc0
-    adc    #7
-    sta    __rc2
-    lda    __rc1
-    adc    #0
-    sta    __rc3
-    clc
-    lda    __rc20
-    adc    __rc27
-    sta    .Lpressure_i64_sstk+3           ; 1-byte Folded Spill
-    lda    __rc9
-    adc    __rc25
-    sta    .Lpressure_i64_sstk+5           ; 1-byte Folded Spill
-    lda    __rc24
-    adc    __rc26
-    sta    .Lpressure_i64_sstk+4           ; 1-byte Folded Spill
-    lda    __rc11
-    ldx    __rc11
-    stx    __rc14
-    ldx    .Lpressure_i64_sstk+13          ; 1-byte Folded Reload
-    stx    __rc7
-    adc    __rc7
-    sta    .Lpressure_i64_sstk+6           ; 1-byte Folded Spill
-    lda    __rc12
-    ldx    __rc12
-    stx    __rc13
-    ldx    .Lpressure_i64_sstk+12          ; 1-byte Folded Reload
-    stx    __rc12
-    adc    __rc12
-    sta    .Lpressure_i64_sstk+7           ; 1-byte Folded Spill
-    lda    __rc10
-    ldx    .Lpressure_i64_sstk+11          ; 1-byte Folded Reload
-    stx    __rc9
-    adc    __rc9
-    sta    .Lpressure_i64_sstk+8           ; 1-byte Folded Spill
-    ldx    __rc8
-    stx    __rc6
-    lda    __rc8
-    ldx    .Lpressure_i64_sstk+1           ; 1-byte Folded Reload
-    stx    __rc8
-    adc    __rc8
-    ldx    #1
-    bcs    .LBB0_2
-; %bb.1:
-    ldx    #0
-.LBB0_2:
-    stx    __rc11
-    sta    .Lpressure_i64_sstk+9           ; 1-byte Folded Spill
-    lda    (__rc28),y
-    sta    __rc29
-    lda    (__rc30),y
-    sta    __rc28
-    lda    (__rc18),y
-    sta    __rc18
-    lda    (__rc22),y
-    tax
-    lda    (__rc4),y
-    sta    __rc4
-    lda    (__rc2),y
-    sta    __rc5
-    lda    .Lpressure_i64_sstk             ; 1-byte Folded Reload
-    clc
-    adc    __rc20
-    sta    __rc22
-    lda    __rc15
-    adc    __rc21
-    sta    __rc20
-    lda    __rc29
-    adc    __rc24
-    sta    __rc19
-    lda    __rc28
-    adc    __rc14
-    sta    __rc24
-    lda    __rc18
-    adc    __rc13
-    sta    __rc23
-    txa
-    adc    __rc10
-    sta    __rc10
-    lda    __rc4
-    adc    __rc6
-    sta    __rc21
-    lda    __rc5
-    ldy    .Lpressure_i64_sstk+2           ; 1-byte Folded Reload
-    sty    __rc2
-    adc    __rc2
-    sta    __rc30
-    tya
-    ldy    .Lpressure_i64_sstk+10          ; 1-byte Folded Reload
-    sty    __rc2
-    ldy    __rc11
-    cpy    #1
-    adc    __rc2
-    sta    .Lpressure_i64_sstk+14          ; 1-byte Folded Spill
-    lda    .Lpressure_i64_sstk             ; 1-byte Folded Reload
-    clc
-    adc    __rc27
-    sta    .Lpressure_i64_sstk             ; 1-byte Folded Spill
-    sta    __rc6
-    lda    __rc15
-    adc    __rc25
-    sta    __rc3
-    lda    __rc29
-    adc    __rc26
-    sta    __rc26
-    lda    __rc28
-    adc    __rc7
-    tay
-    lda    __rc18
-    adc    __rc12
-    sta    __rc31
-    txa
-    adc    __rc9
-    sta    .Lpressure_i64_sstk+2           ; 1-byte Folded Spill
-    lda    __rc4
-    adc    __rc8
-    sta    .Lpressure_i64_sstk+1           ; 1-byte Folded Spill
-    lda    __rc5
-    adc    __rc2
-    sta    __rc25
-    lda    __rc22
-    sta    __rc12
-    eor    __rc6
-    sta    __rc2
-    ldx    __rc3
-    stx    __rc22
-    lda    __rc20
-    sta    __rc13
-    eor    __rc3
-    sta    __rc3
-    lda    __rc19
-    sta    __rc14
-    eor    __rc26
-    sta    __rc4
-    sty    __rc5
-    lda    __rc24
-    sta    __rc8
-    eor    __rc5
-    sta    __rc5
-    lda    __rc23
-    sta    __rc18
-    eor    __rc31
-    sta    __rc6
-    ldx    .Lpressure_i64_sstk+2           ; 1-byte Folded Reload
-    stx    __rc7
-    lda    __rc10
-    sta    __rc19
-    eor    __rc7
-    sta    __rc7
-    ldx    .Lpressure_i64_sstk+1           ; 1-byte Folded Reload
-    stx    __rc9
-    lda    __rc21
-    sta    __rc27
-    eor    __rc9
-    sta    __rc9
-    lda    __rc30
-    sta    __rc28
-    eor    __rc25
-    sta    __rc10
-    ldx    .Lpressure_i64_sstk+3           ; 1-byte Folded Reload
-    stx    __rc11
-    lda    __rc12
-    eor    __rc11
-    sta    __rc15
-    ldx    .Lpressure_i64_sstk+5           ; 1-byte Folded Reload
-    stx    __rc12
-    lda    __rc13
-    eor    __rc12
-    sta    __rc13
-    clc
-    lda    __rc15
-    adc    __rc2
-    sta    __rc29
-    lda    __rc13
-    adc    __rc3
-    sta    __rc24
-    ldx    .Lpressure_i64_sstk+4           ; 1-byte Folded Reload
-    stx    __rc13
-    lda    __rc14
-    eor    __rc13
-    adc    __rc4
-    sta    __rc30
-    ldx    .Lpressure_i64_sstk+6           ; 1-byte Folded Reload
-    stx    __rc14
-    lda    __rc8
-    eor    __rc14
-    adc    __rc5
-    sta    __rc21
-    ldx    .Lpressure_i64_sstk+7           ; 1-byte Folded Reload
-    stx    __rc15
-    lda    __rc18
-    eor    __rc15
-    adc    __rc6
-    sta    __rc23
-    ldx    .Lpressure_i64_sstk+8           ; 1-byte Folded Reload
-    stx    __rc18
-    lda    __rc19
-    eor    __rc18
-    adc    __rc7
-    sta    __rc20
-    ldx    .Lpressure_i64_sstk+9           ; 1-byte Folded Reload
-    stx    __rc19
-    lda    __rc27
-    eor    __rc19
-    adc    __rc9
-    sta    __rc27
-    lda    __rc28
-    ldx    .Lpressure_i64_sstk+14          ; 1-byte Folded Reload
-    stx    __rc8
-    eor    __rc8
-    adc    __rc10
-    tax
-    lda    .Lpressure_i64_sstk             ; 1-byte Folded Reload
-    eor    __rc11
-    sta    __rc2
-    lda    __rc22
-    eor    __rc12
-    sta    __rc3
-    lda    __rc26
-    eor    __rc13
-    sta    __rc4
-    tya
-    eor    __rc14
-    sta    __rc5
-    lda    __rc31
-    eor    __rc15
-    sta    __rc6
-    lda    .Lpressure_i64_sstk+2           ; 1-byte Folded Reload
-    eor    __rc18
-    sta    __rc7
-    lda    .Lpressure_i64_sstk+1           ; 1-byte Folded Reload
-    eor    __rc19
-    sta    __rc9
-    lda    __rc25
-    eor    __rc8
-    sta    __rc8
-    clc
-    lda    __rc29
-    adc    __rc2
-    tay
-    lda    __rc24
-    adc    __rc3
-    sta    __rc10
-    lda    __rc30
-    adc    __rc4
-    sta    __rc2
-    lda    __rc21
-    adc    __rc5
-    sta    __rc3
-    lda    __rc23
-    adc    __rc6
-    sta    __rc4
-    lda    __rc20
-    adc    __rc7
-    sta    __rc5
-    lda    __rc27
-    adc    __rc9
-    sta    __rc6
-    txa
-    adc    __rc8
-    sta    __rc7
-    ldx    __rc10
-    tya
-    sta    __rc16
-    ldy    .Lpressure_i64_sstk+22          ; 1-byte Folded Reload
-    sty    __rc31
-    ldy    .Lpressure_i64_sstk+21          ; 1-byte Folded Reload
-    sty    __rc30
-    ldy    .Lpressure_i64_sstk+20          ; 1-byte Folded Reload
-    sty    __rc29
-    ldy    .Lpressure_i64_sstk+19          ; 1-byte Folded Reload
-    sty    __rc28
-    ldy    .Lpressure_i64_sstk+18          ; 1-byte Folded Reload
-    sty    __rc27
-    ldy    .Lpressure_i64_sstk+17          ; 1-byte Folded Reload
-    sty    __rc26
-    ldy    .Lpressure_i64_sstk+16          ; 1-byte Folded Reload
-    sty    __rc25
-    ldy    .Lpressure_i64_sstk+15          ; 1-byte Folded Reload
-    sty    __rc24
-    pla
-    sta    __rc23
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    pressure_i64, .Lfunc_end0-pressure_i64
-                                        ; -- End function
-    .type    .Lstatic_stack,@object          ; @static_stack
-    .section    .noinit..Lstatic_stack,"aw",@nobits
-.Lstatic_stack:
-    .zero    23
-    .size    .Lstatic_stack, 23
-
-.Lpressure_i64_sstk = .Lstatic_stack
-    .size    .Lpressure_i64_sstk, 23
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    .addrsig_sym .Lstatic_stack
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>realistic/crc8 — llvm-mos 48, Irie —</summary>
-
-llvm-mos (48):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "crc8.c"
-    .section    .text.crc8,"ax",@progbits
-    .globl    crc8                            ; -- Begin function crc8
-    .type    crc8,@function
-crc8:                                   ; @crc8
-; %bb.0:
-    sta    __rc4
-    lda    #255
-    stx    __rc5
-    ldx    __rc5
-    bne    .LBB0_2
-; %bb.1:
-    ldx    __rc4
-    beq    .LBB0_11
-.LBB0_2:
-    ldx    #0
-    ldy    __rc2
-    sty    __rc8
-    ldy    __rc3
-    sty    __rc9
-    stx    __rc2
-    stx    __rc3
-.LBB0_3:                                ; =>This Loop Header: Depth=1
-                                        ;     Child Loop BB0_4 Depth 2
-    clc
-    tay
-    lda    __rc8
-    adc    __rc2
-    sta    __rc6
-    sty    __rc10
-    lda    __rc9
-    adc    __rc3
-    sta    __rc7
-    ldy    #0
-    lda    __rc10
-    eor    (__rc6),y
-    ldx    #8
-.LBB0_4:                                ;   Parent Loop BB0_3 Depth=1
-                                        ; =>  This Inner Loop Header: Depth=2
-    sta    __rc6
-    asl
-    ldy    __rc6
-    bpl    .LBB0_6
-; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=2
-    eor    #49
-.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=2
-    dex
-    bne    .LBB0_4
-; %bb.7:                                ;   in Loop: Header=BB0_3 Depth=1
-    ldy    __rc3
-    ldx    __rc2
-    inx
-    bne    .LBB0_9
-; %bb.8:                                ;   in Loop: Header=BB0_3 Depth=1
-    iny
-.LBB0_9:                                ;   in Loop: Header=BB0_3 Depth=1
-    stx    __rc2
-    sty    __rc3
-    cpy    __rc5
-    bne    .LBB0_3
-; %bb.10:                               ;   in Loop: Header=BB0_3 Depth=1
-    stx    __rc2
-    sty    __rc3
-    cpx    __rc4
-    bne    .LBB0_3
-.LBB0_11:
-    rts
-.Lfunc_end0:
-    .size    crc8, .Lfunc_end0-crc8
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>realistic/factorial-recursive — llvm-mos 60, Irie —</summary>
-
-llvm-mos (60):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "factorial-recursive.c"
-    .section    .text.factorial,"ax",@progbits
-    .globl    factorial                       ; -- Begin function factorial
-    .type    factorial,@function
-factorial:                              ; @factorial
-; %bb.0:
-    tay
-    cmp    #2
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bpl    .LBB0_4
-; %bb.3:
-    ldx    #0
-    lda    #1
-    rts
-.LBB0_4:
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    #1
-    stx    __rc22
-    ldx    #0
-.LBB0_5:                                ; =>This Inner Loop Header: Depth=1
-    sty    __rc21
-    pha
-    lda    __rc22
-    sta    __rc20
-    pla
-    sty    __rc5
-    ldy    #255
-    dec    __rc21
-    cpy    __rc21
-    bne    .LBB0_7
-; %bb.6:                                ;   in Loop: Header=BB0_5 Depth=1
-    dec    __rc20
-.LBB0_7:                                ;   in Loop: Header=BB0_5 Depth=1
-    sta    __rc2
-    stx    __rc3
-    ldx    __rc22
-    ldy    __rc5
-    sty    .Lfactorial_sstk                ; 1-byte Folded Spill
-    lda    __rc5
-    jsr    __mulhi3
-    ldy    __rc22
-    bne    .LBB0_9
-; %bb.8:                                ;   in Loop: Header=BB0_5 Depth=1
-    ldy    .Lfactorial_sstk                ; 1-byte Folded Reload
-    cpy    #3
-    jmp    .LBB0_10
-.LBB0_9:                                ;   in Loop: Header=BB0_5 Depth=1
-    ldy    __rc22
-    cpy    #0
-.LBB0_10:                               ;   in Loop: Header=BB0_5 Depth=1
-    ldy    __rc21
-    pha
-    lda    __rc20
-    sta    __rc22
-    pla
-    bcs    .LBB0_5
-; %bb.11:
-    sta    __rc16
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.Lfunc_end0:
-    .size    factorial, .Lfunc_end0-factorial
-                                        ; -- End function
-    .type    .Lstatic_stack,@object          ; @static_stack
-    .section    .noinit..Lstatic_stack,"aw",@nobits
-.Lstatic_stack:
-    .zero    1
-    .size    .Lstatic_stack, 1
-
-.Lfactorial_sstk = .Lstatic_stack
-    .size    .Lfactorial_sstk, 1
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    .addrsig_sym .Lstatic_stack
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>realistic/gcd — llvm-mos 40, Irie —</summary>
-
-llvm-mos (40):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "gcd.c"
-    .section    .text.gcd,"ax",@progbits
-    .globl    gcd                             ; -- Begin function gcd
-    .type    gcd,@function
-gcd:                                    ; @gcd
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc16
-    ldy    __rc2
-    inc    __rc3
-    dec    __rc3
-    bne    .LBB0_2
-; %bb.1:
-    cpy    #0
-    beq    .LBB0_5
-.LBB0_2:                                ; =>This Inner Loop Header: Depth=1
-    sty    __rc17
-    ldy    __rc3
-    sty    __rc21
-    ldy    __rc17
-    sty    __rc20
-    sty    __rc2
-    jsr    __modhi3
-    tay
-    stx    __rc3
-    lda    __rc20
-    ldx    __rc21
-    inc    __rc3
-    dec    __rc3
-    bne    .LBB0_2
-; %bb.3:                                ;   in Loop: Header=BB0_2 Depth=1
-    cpy    #0
-    bne    .LBB0_2
-.LBB0_4:
-    ldx    __rc21
-    lda    __rc20
-    sta    __rc16
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.LBB0_5:
-    sta    __rc20
-    stx    __rc21
-    jmp    .LBB0_4
-.Lfunc_end0:
-    .size    gcd, .Lfunc_end0-gcd
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Irie (—):
-
-```asm
-(no Irie test — blocked, see LlvmMosReference/README.md)
-```
-
-</details>
-
-<details>
-<summary>realistic/strlen — llvm-mos 1, Irie —</summary>
-
-llvm-mos (1):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "strlen.c"
-    .section    .text.strlen_impl,"ax",@progbits
-    .globl    strlen_impl                     ; -- Begin function strlen_impl
-    .type    strlen_impl,@function
-strlen_impl:                            ; @strlen_impl
-; %bb.0:
-    jmp    strlen
-.Lfunc_end0:
-    .size    strlen_impl, .Lfunc_end0-strlen_impl
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits

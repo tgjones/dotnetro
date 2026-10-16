@@ -1,0 +1,85 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/memory/array-index
+; Two indexed i16 loads off one base pointer: a[i] + a[i + 1].
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/memory/array-index.s; close gaps via irie-report.
+
+; CHECK: array_index:
+; CHECK:     STA $04
+; CHECK:     LDA $02
+; CHECK:     STA $07
+; CHECK:     LDA $03
+; CHECK:     STA $06
+; CHECK:     LDA $02
+; CHECK:     ASL
+; CHECK:     STA $03
+; CHECK:     LDA $06
+; CHECK:     ROL
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     LDA $04
+; CHECK:     ADC $03
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $02
+; CHECK:     STY $12
+; CHECK:     STA $13
+; CHECK:     LDY #$00
+; CHECK:     LDA ($12),Y
+; CHECK:     STA $05
+; CHECK:     LDY #$01
+; CHECK:     LDA ($12),Y
+; CHECK:     STA $03
+; CHECK:     CLC
+; CHECK:     LDA $07
+; CHECK:     ADC #$01
+; CHECK:     STA $02
+; CHECK:     LDA $06
+; CHECK:     ADC #$00
+; CHECK:     TAY
+; CHECK:     LDA $02
+; CHECK:     ASL
+; CHECK:     STA $06
+; CHECK:     TYA
+; CHECK:     ROL
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     LDA $04
+; CHECK:     ADC $06
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $02
+; CHECK:     STY $12
+; CHECK:     STA $13
+; CHECK:     LDY #$00
+; CHECK:     LDA ($12),Y
+; CHECK:     STA $04
+; CHECK:     LDY #$01
+; CHECK:     LDA ($12),Y
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     LDA $05
+; CHECK:     ADC $04
+; CHECK:     TAY
+; CHECK:     LDA $03
+; CHECK:     ADC $02
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @array_index : (ptr, i16) -> i16 {
+bb0(%0 : ptr, %1 : i16):
+    %2 : i8 = arith.constant 1
+    %3 : i16 = arith.shl %1, %2
+    %4 : ptr = mem.ptradd %0, %3
+    %5 : i16 = mem.load.i16 %4
+    %6 : i16 = arith.constant 1
+    %7 : i16 = arith.addi %1, %6
+    %8 : i16 = arith.shl %7, %2
+    %9 : ptr = mem.ptradd %0, %8
+    %10 : i16 = mem.load.i16 %9
+    %11 : i16 = arith.addi %5, %10
+    core.return %11
+}

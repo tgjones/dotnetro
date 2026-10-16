@@ -1,0 +1,57 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/basics/chain-arith
+; a * b + c - a.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/basics/chain-arith.s; close gaps via irie-report.
+
+; CHECK: chain_arith:
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
+; CHECK:     LDA $16
+; CHECK:     PHA
+; CHECK:     LDA $17
+; CHECK:     PHA
+; CHECK:     TYA
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDY $04
+; CHECK:     STY $16
+; CHECK:     LDY $05
+; CHECK:     STY $17
+; CHECK:     JSR __mulhi3
+; CHECK:     CLC
+; CHECK:     ADC $16
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $17
+; CHECK:     TAX
+; CHECK:     SEC
+; CHECK:     TYA
+; CHECK:     SBC $14
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     SBC $15
+; CHECK:     TAX
+; CHECK:     PLA
+; CHECK:     STA $17
+; CHECK:     PLA
+; CHECK:     STA $16
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @chain_arith : (i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16):
+    %3 : i16 = arith.muli %0, %1
+    %4 : i16 = arith.addi %3, %2
+    %5 : i16 = arith.subi %4, %0
+    core.return %5
+}

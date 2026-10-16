@@ -1,0 +1,170 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/control-flow/nested-loop
+; s += i * j over nested loops i < n, j < m.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/control-flow/nested-loop.s; close gaps via irie-report.
+
+; CHECK: nested_loop:
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
+; CHECK:     LDA $16
+; CHECK:     PHA
+; CHECK:     LDA $17
+; CHECK:     PHA
+; CHECK:     LDA $18
+; CHECK:     PHA
+; CHECK:     LDA $19
+; CHECK:     PHA
+; CHECK:     LDA $1A
+; CHECK:     PHA
+; CHECK:     LDA $1B
+; CHECK:     PHA
+; CHECK:     LDA $1C
+; CHECK:     PHA
+; CHECK:     LDA $1D
+; CHECK:     PHA
+; CHECK:     TYA
+; CHECK:     STA $1D
+; CHECK:     STX $1C
+; CHECK:     LDA $02
+; CHECK:     STA $1B
+; CHECK:     LDA $03
+; CHECK:     STA $1A
+; CHECK:     LDA #$00
+; CHECK:     STA $18
+; CHECK:     LDA #$00
+; CHECK:     STA $19
+; CHECK:     LDA $18
+; CHECK:     STA $17
+; CHECK:     LDA $19
+; CHECK:     STA $16
+; CHECK: .bb1:
+; CHECK:     LDA $16
+; CHECK:     EOR #$80
+; CHECK:     TAY
+; CHECK:     LDA $1C
+; CHECK:     EOR #$80
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     CMP $02
+; CHECK:     BCC .bb4
+; CHECK:     BNE .bb8
+; CHECK:     LDA $17
+; CHECK:     CMP $1D
+; CHECK:     BCC .bb4
+; CHECK: .bb2:
+; CHECK:     LDA $18
+; CHECK:     LDX $19
+; CHECK: .bb3:
+; CHECK:     TAY
+; CHECK:     PLA
+; CHECK:     STA $1D
+; CHECK:     PLA
+; CHECK:     STA $1C
+; CHECK:     PLA
+; CHECK:     STA $1B
+; CHECK:     PLA
+; CHECK:     STA $1A
+; CHECK:     PLA
+; CHECK:     STA $19
+; CHECK:     PLA
+; CHECK:     STA $18
+; CHECK:     PLA
+; CHECK:     STA $17
+; CHECK:     PLA
+; CHECK:     STA $16
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
+; CHECK:     RTS
+; CHECK: .bb4:
+; CHECK:     LDA #$00
+; CHECK:     STA $14
+; CHECK:     LDA #$00
+; CHECK:     STA $15
+; CHECK: .bb5:
+; CHECK:     LDA $15
+; CHECK:     EOR #$80
+; CHECK:     TAX
+; CHECK:     LDA $1A
+; CHECK:     EOR #$80
+; CHECK:     STA $02
+; CHECK:     TXA
+; CHECK:     CMP $02
+; CHECK:     BCC .bb7
+; CHECK:     BNE .bb6
+; CHECK:     LDA $14
+; CHECK:     CMP $1B
+; CHECK:     BCC .bb7
+; CHECK: .bb6:
+; CHECK:     CLC
+; CHECK:     LDA $17
+; CHECK:     ADC #$01
+; CHECK:     STA $17
+; CHECK:     LDA $16
+; CHECK:     ADC #$00
+; CHECK:     STA $16
+; CHECK:     JMP .bb1
+; CHECK: .bb7:
+; CHECK:     LDA $17
+; CHECK:     LDX $16
+; CHECK:     LDY $14
+; CHECK:     STY $02
+; CHECK:     LDY $15
+; CHECK:     STY $03
+; CHECK:     JSR __mulhi3
+; CHECK:     STA $03
+; CHECK:     STX $02
+; CHECK:     CLC
+; CHECK:     LDA $18
+; CHECK:     ADC $03
+; CHECK:     STA $18
+; CHECK:     LDA $19
+; CHECK:     ADC $02
+; CHECK:     STA $19
+; CHECK:     CLC
+; CHECK:     LDA $14
+; CHECK:     ADC #$01
+; CHECK:     STA $14
+; CHECK:     LDA $15
+; CHECK:     ADC #$00
+; CHECK:     STA $15
+; CHECK:     JMP .bb5
+; CHECK: .bb8:
+; CHECK:     LDA $18
+; CHECK:     LDX $19
+; CHECK:     JMP .bb3
+
+func @nested_loop : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = arith.constant 0
+    cf.br bb1(%2, %2)
+bb1(%3 : i16, %4 : i16):
+    %5 : i1 = arith.cmpi slt, %3, %0
+    cf.cond_br %5, bb2(%3, %4), bb5(%4)
+bb2(%6 : i16, %7 : i16):
+    %8 : i16 = arith.constant 0
+    cf.br bb3(%6, %7, %8)
+bb3(%9 : i16, %10 : i16, %11 : i16):
+    %12 : i1 = arith.cmpi slt, %11, %1
+    cf.cond_br %12, bb4(%9, %10, %11), bb6(%9, %10)
+bb4(%13 : i16, %14 : i16, %15 : i16):
+    %16 : i16 = arith.muli %13, %15
+    %17 : i16 = arith.addi %14, %16
+    %18 : i16 = arith.constant 1
+    %19 : i16 = arith.addi %15, %18
+    cf.br bb3(%13, %17, %19)
+bb6(%20 : i16, %21 : i16):
+    %22 : i16 = arith.constant 1
+    %23 : i16 = arith.addi %20, %22
+    cf.br bb1(%23, %21)
+bb5(%24 : i16):
+    core.return %24
+}

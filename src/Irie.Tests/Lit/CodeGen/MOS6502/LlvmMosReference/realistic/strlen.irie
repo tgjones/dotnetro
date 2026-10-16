@@ -1,0 +1,58 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/realistic/strlen
+; Incomparable: llvm-mos recognises the loop as strlen and tail-calls the library routine
+; Pointer-walking loop over bytes; length is the pointer difference.
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/realistic/strlen.s; close gaps via irie-report.
+
+; CHECK: strlen_impl:
+; CHECK:     STA $04
+; CHECK:     STX $03
+; CHECK:     STA $02
+; CHECK: .bb1:
+; CHECK:     LDA $02
+; CHECK:     STA $12
+; CHECK:     STX $13
+; CHECK:     LDY #$00
+; CHECK:     LDA ($12),Y
+; CHECK:     BEQ .bb3
+; CHECK: .bb2:
+; CHECK:     CLC
+; CHECK:     LDA $02
+; CHECK:     ADC #$01
+; CHECK:     STA $02
+; CHECK:     TXA
+; CHECK:     ADC #$00
+; CHECK:     TAX
+; CHECK:     JMP .bb1
+; CHECK: .bb3:
+; CHECK:     SEC
+; CHECK:     LDA $02
+; CHECK:     SBC $04
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     SBC $03
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @strlen_impl : (ptr) -> i16 {
+bb0(%0 : ptr):
+    cf.br bb1(%0)
+bb1(%1 : ptr):
+    %2 : i8 = mem.load.i8 %1
+    %3 : i8 = arith.constant 0
+    %4 : i1 = arith.cmpi ne, %2, %3
+    cf.cond_br %4, bb2(%1), bb3(%1)
+bb2(%5 : ptr):
+    %6 : i16 = arith.constant 1
+    %7 : ptr = mem.ptradd %5, %6
+    cf.br bb1(%7)
+bb3(%8 : ptr):
+    %9 : i16 = cast.ptrtoint %8
+    %10 : i16 = cast.ptrtoint %0
+    %11 : i16 = arith.subi %9, %10
+    core.return %11
+}

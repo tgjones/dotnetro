@@ -1,0 +1,73 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Corpus: llvm-mos-reference/realistic/factorial-recursive
+; n <= 1 ? 1 : n * factorial(n - 1).
+;
+; CHECK pins Irie's current --emit=asm output (characterization / golden).
+; Compare against ext/llvm-mos-reference/realistic/factorial-recursive.s; close gaps via irie-report.
+
+; CHECK: factorial:
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
+; CHECK:     TYA
+; CHECK:     STA $15
+; CHECK:     STX $14
+; CHECK:     LDA #$01
+; CHECK:     STA $03
+; CHECK:     LDX #$00
+; CHECK:     TXA
+; CHECK:     EOR #$80
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     EOR #$80
+; CHECK:     STA $02
+; CHECK:     TYA
+; CHECK:     CMP $02
+; CHECK:     BCC .bb2
+; CHECK:     BNE .bb1
+; CHECK:     LDA $03
+; CHECK:     CMP $15
+; CHECK:     BCC .bb2
+; CHECK: .bb1:
+; CHECK:     LDA $03
+; CHECK:     TAY
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
+; CHECK:     RTS
+; CHECK: .bb2:
+; CHECK:     SEC
+; CHECK:     LDA $15
+; CHECK:     SBC #$01
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     SBC #$00
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     JSR factorial
+; CHECK:     STA $02
+; CHECK:     STX $03
+; CHECK:     LDA $15
+; CHECK:     LDX $14
+; CHECK:     JSR __mulhi3
+; CHECK:     STA $03
+; CHECK:     JMP .bb1
+
+func @factorial : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 1
+    %2 : i1 = arith.cmpi sle, %0, %1
+    cf.cond_br %2, bb1(), bb2()
+bb1():
+    core.return %1
+bb2():
+    %3 : i16 = arith.subi %0, %1
+    %4 : i16 = call.func @factorial, %3
+    %5 : i16 = arith.muli %0, %4
+    core.return %5
+}
