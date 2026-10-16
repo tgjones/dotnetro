@@ -64,7 +64,7 @@ CLANG=… ./build.sh         # override toolchain
 
 ### A note on optimization level
 
-We standardized on **`-Os`** (CLAUDE.md's reference opt level for llvm-mos).
+We standardized on **`-Os`** (AGENTS.md's reference opt level for llvm-mos).
 Empirically, `-O2`, `-Os` and `-Oz` produce nearly identical code for these tiny
 functions: by the time codegen reaches the 6502 backend, allocation and lowering
 are dominated by the tiny physical register set and the imaginary zero-page
@@ -138,7 +138,7 @@ scoreboard. To close a gap:
    table is sorted worst-first.
 2. For the worst case, read its `.s` (what llvm-mos emitted) and `.txt` (the
    `-print-changed` dump pinpoints which pass produced the better sequence).
-   Per CLAUDE.md, also read the responsible llvm-mos source pass under
+   Per AGENTS.md, also read the responsible llvm-mos source pass under
    `llvm/lib/Target/MOS/`.
 3. Get the symmetric view of *Irie's* pipeline on the same case by running the
    matching `.irie` test through `iriec --print-changed` — the Irie analogue of

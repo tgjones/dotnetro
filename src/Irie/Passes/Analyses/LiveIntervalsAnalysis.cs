@@ -478,7 +478,7 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
 //   3. Assign a small deterministic ValNo per union-find representative,
 //      allocated in a deterministic walk (ascending block index, then ascending
 //      vreg id for entry values; ascending vreg id, then ascending def slot for
-//      defs) so output is stable, as CLAUDE.md requires.
+//      defs) so output is stable, as AGENTS.md requires.
 //
 // The segment builder threads a "current value node" — node(B-entry, V) for a
 // live-in V, becoming node(V, def-slot) at each def — and tags each emitted
