@@ -647,9 +647,31 @@ internal sealed class IlToMirTranslator : IDisposable
         public void Translate()
         {
             var locals = _method.MethodBody?.LocalVariables ?? [];
-            _localTypes = new IRType[locals.Length];
-            _localClrTypes = new TypeDescription[locals.Length];
-            _localIsFrameSlot = new bool[locals.Length];
+
+            // A parameter that is assigned (`starg`) is no longer a single SSA value,
+            // so it is shadowed by an extra local appended after the declared ones:
+            // seeded from the parameter vreg at entry, then read and written like any
+            // local (so it threads across blocks as a block parameter).
+            _argLocal = new int[_method.Parameters.Length];
+            Array.Fill(_argLocal, -1);
+            var localCount = locals.Length;
+            foreach (var arg in ScanStargParameters().Order())
+            {
+                if (arg >= _argLocal.Length || _method.Parameters[arg].Type is EcmaType { IsValueType: true })
+                    throw new NotSupportedException(
+                        $"IL→MIR: starg {arg} is not supported for this parameter (method {_method.UniqueName}).");
+                _argLocal[arg] = localCount++;
+            }
+
+            _localTypes = new IRType[localCount];
+            _localClrTypes = new TypeDescription[localCount];
+            _localIsFrameSlot = new bool[localCount];
+            for (var i = 0; i < _argLocal.Length; i++)
+            {
+                if (_argLocal[i] < 0) continue;
+                _localClrTypes[_argLocal[i]] = _method.Parameters[i].Type;
+                _localTypes[_argLocal[i]] = ToIRType(_method.Parameters[i].Type);
+            }
 
             // Address-taken locals (those with an `ldloca`) and value-type
             // (struct) locals are FrameSlot-bound; everything else is a pure SSA
@@ -702,7 +724,6 @@ internal sealed class IlToMirTranslator : IDisposable
                 paramVregs[i] = vreg;
             }
             _parameterVregs = paramVregs;
-
             _builder.SetInsertionPointAtEnd(entryBlock);
 
             // C# locals are zero-initialised (`.locals init`). Seed every local
@@ -712,6 +733,13 @@ internal sealed class IlToMirTranslator : IDisposable
             // parameter for every local, and every edge can supply a value.
             for (var i = 0; i < _localTypes.Length; i++)
             {
+                if (i >= locals.Length)
+                {
+                    // Shadow local of an assigned parameter: starts as the argument.
+                    var arg = Array.IndexOf(_argLocal, i);
+                    _locals[i] = new StackValue(paramVregs[arg], _localTypes[i]);
+                    continue;
+                }
                 // FrameSlot locals live in memory (a zero-init .bss global), not
                 // an SSA vreg — they are seeded by the program's own initobj /
                 // stores, so skip the SSA zero-init for them.
@@ -841,6 +869,7 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateInitobj(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
 
+                    case ILOpCode.Starg_s: TranslateStarg(ilReader.ReadByte()); break;
                     case ILOpCode.Ldarg_0: TranslateLdarg(0); break;
                     case ILOpCode.Ldarg_1: TranslateLdarg(1); break;
                     case ILOpCode.Ldarg_2: TranslateLdarg(2); break;
@@ -1144,6 +1173,13 @@ internal sealed class IlToMirTranslator : IDisposable
                         case ILOpCode.Ldloc_s: RecordUse(scan.ReadByte(), ube, def); break;
                         case ILOpCode.Ldloca_s: RecordUse(scan.ReadByte(), ube, def); break;
 
+                        case ILOpCode.Ldarg_0: RecordArgUse(0, ube, def); break;
+                        case ILOpCode.Ldarg_1: RecordArgUse(1, ube, def); break;
+                        case ILOpCode.Ldarg_2: RecordArgUse(2, ube, def); break;
+                        case ILOpCode.Ldarg_3: RecordArgUse(3, ube, def); break;
+                        case ILOpCode.Ldarg_s: RecordArgUse(scan.ReadByte(), ube, def); break;
+                        case ILOpCode.Starg_s: def.Add(_argLocal[scan.ReadByte()]); break;
+
                         case ILOpCode.Stloc_0: def.Add(0); break;
                         case ILOpCode.Stloc_1: def.Add(1); break;
                         case ILOpCode.Stloc_2: def.Add(2); break;
@@ -1228,6 +1264,12 @@ internal sealed class IlToMirTranslator : IDisposable
             } while (changed);
 
             return liveIn;
+        }
+
+        private void RecordArgUse(int arg, HashSet<int> useBeforeDef, HashSet<int> defined)
+        {
+            if (arg < _argLocal.Length && _argLocal[arg] >= 0)
+                RecordUse(_argLocal[arg], useBeforeDef, defined);
         }
 
         private static void RecordUse(int local, HashSet<int> useBeforeDef, HashSet<int> defined)
@@ -1702,8 +1744,24 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(addr, IRType.Pointer));
         }
 
+        // Local that shadows each parameter assigned by `starg` (-1: never assigned).
+        private int[] _argLocal = [];
+
+        private void TranslateStarg(int index)
+        {
+            if (index >= _argLocal.Length || _argLocal[index] < 0)
+                throw new NotSupportedException(
+                    $"IL→MIR: starg {index} out of range (method {_method.UniqueName}).");
+            TranslateStloc(_argLocal[index]);
+        }
+
         private void TranslateLdarg(int index)
         {
+            if (index < _argLocal.Length && _argLocal[index] >= 0)
+            {
+                TranslateLdloc(_argLocal[index]);
+                return;
+            }
             if (index >= _parameterVregs.Length)
                 throw new NotSupportedException(
                     $"IL→MIR: ldarg {index} out of range (method {_method.UniqueName}).");
@@ -2311,6 +2369,22 @@ internal sealed class IlToMirTranslator : IDisposable
                     new VirtualReg(dst, IsDefinition: false),
                     new VirtualReg(b, IsDefinition: false));
             }
+        }
+
+        // Pre-scan the IL for the parameters assigned with `starg`.
+        private HashSet<int> ScanStargParameters()
+        {
+            var result = new HashSet<int>();
+            var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            while (scan.RemainingBytes > 0)
+            {
+                var opCode = ReadOpCode(ref scan);
+                if (opCode == ILOpCode.Starg_s)
+                    result.Add(scan.ReadByte());
+                else
+                    SkipBranchOrOperand(ref scan, opCode);
+            }
+            return result;
         }
 
         // Pre-scan the IL once for the set of locals that are address-taken
