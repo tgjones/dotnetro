@@ -42,6 +42,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                                    when intType.SizeInBits == 8  => LegalityAction.Legal,
                 ArithOp.And or ArithOp.Or or ArithOp.Xor
                                    when intType.SizeInBits > 8   => LegalityAction.NarrowScalar,
+                // A boolean has no register of its own (it lives in a flag until
+                // consumed): and/or/xor of i1s is done on materialized 0/1 bytes
+                // (LowerBooleanLogic), as llvm-mos does for G_AND of s1.
+                ArithOp.And or ArithOp.Or or ArithOp.Xor
+                                   when intType.SizeInBits == 1  => LegalityAction.Custom,
                 // Whole-value shifts by a constant are lowered to byte moves plus a
                 // chain of one-bit shifts through the carry flag (LowerShift). The
                 // one-bit ops are the 6502's ASL/ROL and LSR/ROR.
@@ -114,7 +119,8 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // cast.zext / cast.sext: the legalization query type is the def
                 // (the wide result). Lowered to the source bytes plus a constant
                 // 0 (zext) or a sign-broadcast byte (sext) for each high byte.
-                CastOp.Zext or CastOp.Sext when intType.SizeInBits > 8 => LegalityAction.Custom,
+                // An i8 result can only come from an i1 source (LowerExtend).
+                CastOp.Zext or CastOp.Sext when intType.SizeInBits >= 8 => LegalityAction.Custom,
                 CastOp.PtrToInt when intType.SizeInBits == 16 => LegalityAction.Custom,
                 _ => LegalityAction.Unsupported,
             };
@@ -277,6 +283,9 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             {
                 case ArithOp.CmpI:
                     LegalizeCmpI(instr, builder);
+                    return;
+                case ArithOp.And or ArithOp.Or or ArithOp.Xor:
+                    LowerBooleanLogic(instr, builder);
                     return;
                 case ArithOp.Shl or ArithOp.LShr or ArithOp.AShr:
                     LowerShift(instr, builder);
@@ -717,6 +726,26 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 
         var defType = ((TypedVReg)function.GetVRegAnnotation(defReg.Id)).Type;
         var srcType = ((TypedVReg)function.GetVRegAnnotation(srcReg.Id)).Type;
+
+        // A boolean widens through a select of its 0/1 (zext) or 0/-1 (sext) byte.
+        if (srcType.SizeInBits == 1)
+        {
+            var low = BuildBooleanByte(builder, srcReg.Id, signed);
+            if (defType.SizeInBits == 8)
+            {
+                function.ReplaceAllUsesOfRegister(defReg.Id, low);
+            }
+            else
+            {
+                var widened = new int[defType.SizeInBits / 8];
+                Array.Fill(widened, signed ? low : builder.BuildConstant(IRType.I8, 0));
+                widened[0] = low;
+                builder.BuildMergeInto(defReg.Id, widened);
+            }
+            builder.Remove(instr);
+            return;
+        }
+
         if (defType.SizeInBits <= srcType.SizeInBits
             || srcType.SizeInBits % 8 != 0 || defType.SizeInBits % 8 != 0)
             throw new InvalidOperationException(
@@ -744,6 +773,40 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             parts[i] = i < srcByteCount ? srcBytes[i] : high;
 
         builder.BuildMergeInto(defReg.Id, parts);
+        builder.Remove(instr);
+    }
+
+    // The i8 value of boolean `cond`: 1 (or 0xFF when `allOnes`) if set, else 0.
+    private static int BuildBooleanByte(MirBuilder builder, int cond, bool allOnes)
+    {
+        var set = builder.BuildConstant(IRType.I8, allOnes ? 0xFF : 1);
+        var clear = builder.BuildConstant(IRType.I8, 0);
+        return builder.BuildSelect(IRType.I8, cond, set, clear);
+    }
+
+    // %r : i1 = arith.{and,or,xor} %a : i1, %b : i1  →  the op on the operands'
+    // 0/1 bytes, then `!= 0` to get a boolean back. A consumer that widens the
+    // result (the usual case) re-materializes it with a select.
+    private static void LowerBooleanLogic(MirInstruction instr, MirBuilder builder)
+    {
+        var function = builder.Function;
+        if (instr.Operands is not [VirtualReg { IsDefinition: true } defReg,
+                                   VirtualReg { IsDefinition: false } aReg,
+                                   VirtualReg { IsDefinition: false } bReg])
+            throw new InvalidOperationException(
+                $"MOS6502LegalizerInfo: {instr.Opcode} must have shape `%def = op %a, %b`.");
+
+        var a = BuildBooleanByte(builder, aReg.Id, allOnes: false);
+        var b = BuildBooleanByte(builder, bReg.Id, allOnes: false);
+        var combined = function.CreateVirtualRegister(IRType.I8);
+        builder.BuildInstruction(instr.Opcode,
+            new VirtualReg(combined, IsDefinition: true),
+            new VirtualReg(a, IsDefinition: false),
+            new VirtualReg(b, IsDefinition: false));
+
+        var zero = builder.BuildConstant(IRType.I8, 0);
+        var result = builder.BuildCmpI(ArithCmpPredicate.Ne, combined, zero);
+        function.ReplaceAllUsesOfRegister(defReg.Id, result);
         builder.Remove(instr);
     }
 
