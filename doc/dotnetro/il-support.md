@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 146
-- **Implemented and lit-covered:** 139
+- **Implemented:** 147
+- **Implemented and lit-covered:** 140
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -195,7 +195,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `shr.un` | ✅ | ✅ |
 | `sizeof` | ✅ | ✅ |
 | `starg` | ❌ | — |
-| `starg.s` | ❌ | — |
+| `starg.s` | ✅ | ✅ |
 | `stelem` | ✅ | ❌ |
 | `stelem.i` | ✅ | ❌ |
 | `stelem.i1` | ✅ | ✅ |
