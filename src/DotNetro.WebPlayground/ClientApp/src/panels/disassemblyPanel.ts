@@ -116,8 +116,7 @@ export class DisassemblyPanel {
   private get targetId() { return (this.state.options.targetId as string | undefined) ?? 'bbcmicro'; }
 
   private updateTitle() {
-    const name = this.ctx.client.targets.find(t => t.id === this.targetId)?.displayName ?? this.targetId;
-    this.container.setTitle(disassemblyTitle(name, this.state.id, this.state.upstreamId));
+    this.container.setTitle(disassemblyTitle(this.state.id, this.state.upstreamId));
   }
 
   private async recompile() {

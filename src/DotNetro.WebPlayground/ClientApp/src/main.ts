@@ -3,7 +3,7 @@ import { CompileClient } from './compileClient';
 import { DEFAULT_SOURCE, SourcePanel } from './panels/sourcePanel';
 import { ProblemsPanel } from './panels/problemsPanel';
 import { DisassemblyPanel } from './panels/disassemblyPanel';
-import { BbcMicroEmulatorPanel, C64EmulatorPanel } from './panels/emulatorPanel';
+import { EmulatorPanel } from './panels/emulatorPanel';
 import { OptPipelinePanel } from './panels/optPipelinePanel';
 import { DISASSEMBLY, EMULATOR_BBC, EMULATOR_C64, OPT_PIPELINE, PROBLEMS, SOURCE, problemsTitle, type AppContext, type PanelState } from './panels/context';
 import { Store } from './store';
@@ -54,8 +54,8 @@ const factory = <T>(Panel: new (c: ComponentContainer, s: PanelState, ctx: AppCo
 
 layout.registerComponentFactoryFunction(SOURCE, factory(SourcePanel));
 layout.registerComponentFactoryFunction(DISASSEMBLY, factory(DisassemblyPanel));
-layout.registerComponentFactoryFunction(EMULATOR_BBC, factory(BbcMicroEmulatorPanel));
-layout.registerComponentFactoryFunction(EMULATOR_C64, factory(C64EmulatorPanel));
+layout.registerComponentFactoryFunction(EMULATOR_BBC, factory(EmulatorPanel));
+layout.registerComponentFactoryFunction(EMULATOR_C64, factory(EmulatorPanel));
 layout.registerComponentFactoryFunction(PROBLEMS, factory(ProblemsPanel));
 layout.registerComponentFactoryFunction(OPT_PIPELINE, factory(OptPipelinePanel));
 
@@ -65,7 +65,7 @@ const defaultLayout: LayoutConfig = {
     type: 'row',
     content: [
       { type: 'component', componentType: SOURCE, title: 'C# Editor #1', width: 36, componentState: { id: 's1', options: { source: DEFAULT_SOURCE } } satisfies PanelState },
-      { type: 'component', componentType: DISASSEMBLY, title: 'BBC Micro Compiler #1 (C# Editor #1)', width: 36, componentState: { id: 'd1', upstreamId: 's1', options: { targetId: 'bbcmicro' } } satisfies PanelState },
+      { type: 'component', componentType: DISASSEMBLY, title: 'Compiler #1 (C# Editor #1)', width: 36, componentState: { id: 'd1', upstreamId: 's1', options: { targetId: 'bbcmicro' } } satisfies PanelState },
       { type: 'component', componentType: EMULATOR_BBC, title: 'Emulator #1 (C# Editor #1, Compiler #1)', width: 28, componentState: { id: 'e1', upstreamId: 'd1', options: {} } satisfies PanelState },
     ],
   },

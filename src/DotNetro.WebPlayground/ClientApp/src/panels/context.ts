@@ -40,8 +40,8 @@ export const sourceTitle = (id: string) => `C# Editor #${ordinal(id)}`;
 export const compilerLabel = (id: string) => `Compiler #${ordinal(id)}`;
 
 /** "Compiler #1 (C# Editor #1)" style titles that name the panels a panel is derived from. */
-export function disassemblyTitle(targetName: string, id: string, upstreamId?: string) {
-  return `${targetName} ${compilerLabel(id)}${upstreamId ? ` (${sourceTitle(upstreamId)})` : ''}`;
+export function disassemblyTitle(id: string, upstreamId?: string) {
+  return `${compilerLabel(id)}${upstreamId ? ` (${sourceTitle(upstreamId)})` : ''}`;
 }
 
 export function emulatorTitle(store: Store, id: string, upstreamId?: string) {
