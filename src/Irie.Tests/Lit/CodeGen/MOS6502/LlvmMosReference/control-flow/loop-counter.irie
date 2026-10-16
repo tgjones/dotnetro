@@ -1,6 +1,7 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; Corpus: llvm-mos-reference/control-flow/loop-counter
+; Incomparable: llvm-mos replaces the loop with a closed-form __mulsi3 call
 ; A counted loop with a loop-carried accumulator and induction variable, both
 ; live across the back edge -- the canonical reason RA cares about loop
 ; structure. Faithful to the corpus C (s += i). Note: llvm-mos

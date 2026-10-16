@@ -1,6 +1,7 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; Corpus: llvm-mos-reference/coalescing/redundant-copy
+; Duplicate-of: control-flow/select
 ; Two independent values that are conditionally returned. The phi at the join
 ; wants both incoming values coalesced into the same return register; whether
 ; that succeeds depends on the copy-elimination quality.

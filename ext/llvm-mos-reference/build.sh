@@ -21,7 +21,7 @@
 #   CLANG=/path/to/clang OPT=-O2 ./build.sh
 set -euo pipefail
 
-CLANG=${CLANG:-/Users/timjones/Code/llvm-mos/build/bin/clang}
+CLANG=${CLANG:-${LLVM_MOS_BIN:+$LLVM_MOS_BIN/}clang}
 OPT=${OPT:--Os}
 
 cd "$(dirname "$0")"

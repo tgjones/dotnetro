@@ -33,16 +33,19 @@ static Command BuildGenerateReportCommand()
     var testsOption = new Option<string?>("--tests") { Description = "Path to the LlvmMosReference Irie test directory." };
     var iriecOption = new Option<string?>("--iriec") { Description = "Path to the iriec executable." };
     var outOption = new Option<string?>("--out") { Description = "Output markdown path (default: <repo>/doc/irie/llvm-mos-comparison.md)." };
+    var llvmBinOption = new Option<string?>("--llvm-mos-bin") { Description = "Directory with the llvm-mos clang and llvm-size, used to measure code bytes (default: $LLVM_MOS_BIN). Bytes are omitted if absent." };
 
     var cmd = new Command("generate-report", "Score Irie's MOS6502 codegen against the whole llvm-mos reference corpus.");
     cmd.Options.Add(corpusOption);
     cmd.Options.Add(testsOption);
     cmd.Options.Add(iriecOption);
     cmd.Options.Add(outOption);
+    cmd.Options.Add(llvmBinOption);
 
     cmd.SetAction(parse =>
     {
         var (srcDir, repoRoot) = LocateRepo();
+        var sizer = CodeSizer.Locate(parse.GetValue(llvmBinOption));
 
         var corpus = parse.GetValue(corpusOption) ?? Path.Combine(repoRoot, "ext", "llvm-mos-reference");
         var tests = parse.GetValue(testsOption) ?? DefaultTestsDir(srcDir);
@@ -62,6 +65,9 @@ static Command BuildGenerateReportCommand()
             var (llvmCount, llvmAsm) = File.Exists(sFile)
                 ? CountLlvmInstructions(File.ReadAllLines(sFile))
                 : (0, "(.s missing — run ext/llvm-mos-reference/build.sh)");
+            var llvmBytes = File.Exists(sFile) ? sizer?.MeasureFile(sFile) : null;
+            int? irieBytes = null;
+            string? excluded = null;
 
             // The Irie test tree mirrors the corpus subfolder layout, so pair within
             // the matching category directory (basics/, control-flow/, …).
@@ -83,6 +89,8 @@ static Command BuildGenerateReportCommand()
                     irieCount = c;
                     irieAsm = asm;
                     status = "converted";
+                    irieBytes = sizer?.MeasureText(output);
+                    excluded = ReadExclusion(testFile);
                 }
                 else
                 {
@@ -91,20 +99,33 @@ static Command BuildGenerateReportCommand()
                 }
             }
 
-            cases.Add(new CaseResult(category, name, status, llvmCount, irieCount, llvmAsm, irieAsm));
+            cases.Add(new CaseResult(category, name, status, llvmCount, irieCount, llvmAsm, irieAsm, llvmBytes, irieBytes, excluded));
         }
 
-        var paired = cases.Where(c => c.IrieCount is { } ic && ic > 0 && c.LlvmCount > 0).ToList();
-        var totalLlvm = paired.Sum(c => c.LlvmCount);
-        var totalIrie = paired.Sum(c => c.IrieCount!.Value);
+        // Cases marked duplicate or incomparable are listed but kept out of the
+        // aggregates.
+        var paired = cases.Where(c => c.IrieCount is { } ic && ic > 0 && c.LlvmCount > 0 && c.Excluded is null).ToList();
+        var totals = new Totals(
+            paired.Sum(c => c.LlvmCount), paired.Sum(c => c.IrieCount!.Value),
+            sizer is null ? null : paired.Sum(c => c.LlvmBytes ?? 0),
+            sizer is null ? null : paired.Sum(c => c.IrieBytes ?? 0));
 
         Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-        File.WriteAllText(outPath, RenderMarkdown(cases, paired.Count, cases.Count, totalLlvm, totalIrie));
+        File.WriteAllText(outPath, RenderMarkdown(cases, paired.Count, cases.Count, totals));
 
-        var pct = totalLlvm == 0 ? 0 : (totalIrie - totalLlvm) * 100.0 / totalLlvm;
+        var pct = totals.LlvmInstructions == 0 ? 0 : (totals.IrieInstructions - totals.LlvmInstructions) * 100.0 / totals.LlvmInstructions;
         Console.WriteLine($"Wrote {outPath}");
-        Console.WriteLine($"Coverage: {paired.Count}/{cases.Count} corpus cases paired.");
-        Console.WriteLine($"Aggregate: Irie {totalIrie} vs llvm-mos {totalLlvm} instructions ({pct:+0.0;-0.0;0}% delta).");
+        Console.WriteLine($"Coverage: {paired.Count}/{cases.Count} corpus cases paired ({cases.Count(c => c.Excluded is not null)} excluded from totals).");
+        Console.WriteLine($"Aggregate: Irie {totals.IrieInstructions} vs llvm-mos {totals.LlvmInstructions} instructions ({pct:+0.0;-0.0;0}% delta).");
+        if (totals.LlvmBytes is { } lb && totals.IrieBytes is { } ib)
+        {
+            var bpct = lb == 0 ? 0 : (ib - lb) * 100.0 / lb;
+            Console.WriteLine($"Aggregate: Irie {ib} vs llvm-mos {lb} code bytes ({bpct:+0.0;-0.0;0}% delta).");
+        }
+        else
+        {
+            Console.WriteLine("Code bytes not measured (llvm-mos toolchain not found; see --llvm-mos-bin).");
+        }
         return 0;
     });
 
@@ -191,6 +212,19 @@ static (string srcDir, string repoRoot) LocateRepo()
     return (dir.FullName, dir.Parent!.FullName);
 }
 
+// A test header can exclude its case from the aggregates, either with
+// `; Duplicate-of: <category>/<name>` (same MIR shape as another case) or
+// `; Incomparable: <reason>` (the two outputs do different work).
+static string? ReadExclusion(string testFile)
+{
+    foreach (var line in File.ReadLines(testFile))
+    {
+        var m = Regex.Match(line, @"^;\s*(Duplicate-of|Incomparable):\s*(.+?)\s*$");
+        if (m.Success) return m.Groups[1].Value == "Duplicate-of" ? $"duplicate of {m.Groups[2].Value}" : $"incomparable: {m.Groups[2].Value}";
+    }
+    return null;
+}
+
 static string DefaultTestsDir(string srcDir) =>
     Path.Combine(srcDir, "Irie.Tests", "Lit", "CodeGen", "MOS6502", "LlvmMosReference");
 
@@ -275,8 +309,9 @@ static string StripComment(string line, char marker)
     return idx < 0 ? line : line[..idx];
 }
 
-static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalCount, int totalLlvm, int totalIrie)
+static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalCount, Totals totals)
 {
+    var (totalLlvm, totalIrie) = (totals.LlvmInstructions, totals.IrieInstructions);
     var pct = totalLlvm == 0 ? 0 : (totalIrie - totalLlvm) * 100.0 / totalLlvm;
     var ratio = totalLlvm == 0 ? 0 : (double)totalIrie / totalLlvm;
 
@@ -292,18 +327,30 @@ static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalC
     sb.Append($"Irie emits **{FormatPct(pct)}** instructions vs llvm-mos ");
     sb.Append($"(**{totalIrie}** vs **{totalLlvm}**, ratio **{ratio.ToString("0.00", CultureInfo.InvariantCulture)}**) ");
     sb.Append($"across **{pairedCount}/{totalCount}** corpus cases.\n\n");
+    if (totals.LlvmBytes is { } lb && totals.IrieBytes is { } ib)
+    {
+        var bpct = lb == 0 ? 0 : (ib - lb) * 100.0 / lb;
+        sb.Append($"Code size: Irie **{ib}** vs llvm-mos **{lb}** bytes (**{FormatPct(bpct)}**), ");
+        sb.Append("both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.\n\n");
+    }
+    var excludedCount = cases.Count(c => c.Excluded is not null);
+    if (excludedCount > 0)
+        sb.Append($"{excludedCount} cases (marked 🚫) are excluded from the totals above: duplicates of another case's MIR shape, or not comparable (reason shown in the Status column).\n\n");
     sb.Append("Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. ");
     sb.Append("Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).\n\n");
 
-    sb.Append("| Category | Case | Status | llvm-mos | Irie | Δ | Ratio | |\n");
-    sb.Append("| --- | --- | --- | --: | --: | --: | --: | :-: |\n");
+    sb.Append("| Category | Case | Status | llvm-mos | Irie | Δ | Ratio | | llvm-mos bytes | Irie bytes |\n");
+    sb.Append("| --- | --- | --- | --: | --: | --: | --: | :-: | --: | --: |\n");
     foreach (var c in sorted)
     {
         var ratioCell = c.Ratio is { } r ? r.ToString("0.00", CultureInfo.InvariantCulture) : "—";
         var markerCell = c.Ratio is { } rr ? RatioMarker(rr) : "";
         var deltaCell = c.IrieCount is { } ic ? FormatDelta(ic - c.LlvmCount) : "—";
         var irieCell = c.IrieCount?.ToString() ?? "—";
-        sb.Append($"| {Esc(c.Category)} | {Esc(c.Name)} | {c.Status} | {c.LlvmCount} | {irieCell} | {deltaCell} | {ratioCell} | {markerCell} |\n");
+        var llvmBytesCell = c.LlvmBytes?.ToString() ?? "—";
+        var irieBytesCell = c.IrieBytes?.ToString() ?? "—";
+        var statusCell = c.Excluded is null ? c.Status : $"{c.Status} 🚫 {Esc(c.Excluded)}";
+        sb.Append($"| {Esc(c.Category)} | {Esc(c.Name)} | {statusCell} | {c.LlvmCount} | {irieCell} | {deltaCell} | {ratioCell} | {markerCell} | {llvmBytesCell} | {irieBytesCell} |\n");
     }
 
     sb.Append("\n## Per-case assembly\n\n");
@@ -643,7 +690,8 @@ pre .ln { display: block; padding: 0 0.7rem; }
 pre.none { opacity: 0.5; font-style: italic; padding: 0.5rem 0.7rem; }
 """;
 
-record CaseResult(string Category, string Name, string Status, int LlvmCount, int? IrieCount, string LlvmAsm, string IrieAsm)
+record CaseResult(string Category, string Name, string Status, int LlvmCount, int? IrieCount, string LlvmAsm, string IrieAsm,
+    int? LlvmBytes = null, int? IrieBytes = null, string? Excluded = null)
 {
     public double? Ratio => IrieCount is { } ic && LlvmCount > 0 ? (double)ic / LlvmCount : null;
 }
@@ -655,3 +703,57 @@ record Stage(string Id, string Display, bool Changed, string Body);
 
 // A row in the diff: either side may be null (no counterpart stage).
 record DiffRow(Stage? Llvm, Stage? Irie);
+
+record Totals(int LlvmInstructions, int IrieInstructions, int? LlvmBytes, int? IrieBytes);
+
+// Measures code size by assembling with the llvm-mos toolchain and summing the
+// `.text*` sections. Both sides go through the same assembler, so the comparison
+// does not depend on a hand-written encoding-size table.
+sealed class CodeSizer(string clang, string llvmSize)
+{
+    public static CodeSizer? Locate(string? binDir)
+    {
+        binDir ??= Environment.GetEnvironmentVariable("LLVM_MOS_BIN");
+        if (binDir is null) return null;
+        var clang = Path.Combine(binDir, "clang");
+        var size = Path.Combine(binDir, "llvm-size");
+        return File.Exists(clang) && File.Exists(size) ? new CodeSizer(clang, size) : null;
+    }
+
+    public int? MeasureFile(string asmFile)
+    {
+        var obj = Path.Combine(Path.GetTempPath(), $"irie-report-{Guid.NewGuid():N}.o");
+        try
+        {
+            if (!Run(clang, out _, "--target=mos", "-c", asmFile, "-o", obj)) return null;
+            if (!Run(llvmSize, out var table, "-A", obj)) return null;
+            return table.Split('\n')
+                .Select(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                .Where(f => f.Length >= 2 && f[0].StartsWith(".text") && int.TryParse(f[1], out _))
+                .Sum(f => int.Parse(f[1], CultureInfo.InvariantCulture));
+        }
+        finally { File.Delete(obj); }
+    }
+
+    public int? MeasureText(string asm)
+    {
+        var src = Path.Combine(Path.GetTempPath(), $"irie-report-{Guid.NewGuid():N}.s");
+        try
+        {
+            File.WriteAllText(src, asm);
+            return MeasureFile(src);
+        }
+        finally { File.Delete(src); }
+    }
+
+    static bool Run(string exe, out string stdout, params string[] args)
+    {
+        var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        foreach (var a in args) psi.ArgumentList.Add(a);
+        using var p = Process.Start(psi)!;
+        stdout = p.StandardOutput.ReadToEnd();
+        p.StandardError.ReadToEnd();
+        p.WaitForExit();
+        return p.ExitCode == 0;
+    }
+}

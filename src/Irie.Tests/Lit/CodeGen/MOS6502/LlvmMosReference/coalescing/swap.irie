@@ -1,6 +1,7 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; Corpus: llvm-mos-reference/coalescing/swap
+; Duplicate-of: basics/sub-i16
 ; A value swap creates a copy cycle (a<-b, b<-a). The allocator cannot coalesce
 ; both copies away; it must break the cycle, classically via a temp register.
 ; In SSA form the swap is just a renaming (t=a, a=b, b=t means the final

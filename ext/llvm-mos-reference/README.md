@@ -51,8 +51,7 @@ Both `.s` and `.txt` fall out of a **single** clang invocation
 clang --target=mos -Os -S -mllvm -print-changed foo.c -o foo.s 2>foo.txt
 ```
 
-The toolchain used was the local llvm-mos build at
-`/Users/timjones/Code/llvm-mos/build/bin/clang`
+The toolchain used was a local llvm-mos build (`$LLVM_MOS_BIN/clang`)
 (`clang version 23.0.0git`, target `mos-unknown-unknown`).
 
 ### Regenerating everything

@@ -1,6 +1,7 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; Corpus: llvm-mos-reference/coalescing/copy-passthrough
+; Duplicate-of: basics/identity-i8
 ; A chain of copies (a -> x -> y -> result). A good coalescer collapses the
 ; whole chain so the input register is reused directly as the output register.
 ;
