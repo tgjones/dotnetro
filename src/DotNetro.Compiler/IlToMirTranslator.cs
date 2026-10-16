@@ -187,6 +187,8 @@ internal sealed class IlToMirTranslator : IDisposable
         [
             "__mulhi3", "__mulsi3", "__udivsi3", "__divsi3", "__umodsi3", "__modsi3",
             "__muldi3", "__udivdi3", "__divdi3", "__umoddi3", "__moddi3",
+            "__ashlhi3", "__lshrhi3", "__ashrhi3", "__ashlsi3", "__lshrsi3", "__ashrsi3",
+            "__ashldi3", "__lshrdi3", "__ashrdi3",
         ];
 
     private bool _mathHelpersRegistered;
@@ -1755,9 +1757,23 @@ internal sealed class IlToMirTranslator : IDisposable
             if (_function.GetDefinition(amount.Vreg) is
                 { Opcode: var amountOpcode, Operands: [_, Immediate amountImm] }
                 && amountOpcode == ArithDialect.OpRef(ArithOp.Constant))
+            {
                 amountVreg = _builder.BuildConstant(IRType.I8, amountImm.Value & 0xFF);
+            }
             else
+            {
                 amountVreg = Resize(amount, IRType.I8).Vreg;
+                // A variable count becomes a call to the shift helper (the same name
+                // MOS6502LegalizerInfo.LowerShiftLibcall picks from the op and width).
+                var width = value.Type.SizeInBits;
+                var suffix = width <= 16 ? "hi3" : width <= 32 ? "si3" : "di3";
+                _parent.RequireMathHelper(op switch
+                {
+                    ArithOp.Shl => "__ashl" + suffix,
+                    ArithOp.LShr => "__lshr" + suffix,
+                    _ => "__ashr" + suffix,
+                });
+            }
 
             var result = _function.CreateVirtualRegister(value.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(op),

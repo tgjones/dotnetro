@@ -307,7 +307,7 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
     // carry flag over the live bytes only — ASL/ROL from the low byte up for shl,
     // LSR/ROR from the high byte down for lshr. An arithmetic shift seeds its chain
     // with the sign: `x >=u 0x80` is the carry-in of the top byte's ROR.
-    private static void LowerShift(MirInstruction instr, MirBuilder builder)
+    private void LowerShift(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
         if (instr.Operands.Length != 3
@@ -323,9 +323,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         if (function.GetDefinition(amountReg.Id) is not
             { Operands: [_, Immediate amountImm] } amountDef
             || amountDef.Opcode != ArithDialect.OpRef(ArithOp.Constant))
-            throw new NotSupportedException(
-                $"MOS6502LegalizerInfo: arith.{(op == ArithOp.Shl ? "shl" : op == ArithOp.LShr ? "lshr" : "ashr")} " +
-                "with a non-constant shift amount is not yet supported.");
+        {
+            LowerShiftLibcall(instr, builder, op, defReg, valueReg, amountReg);
+            return;
+        }
 
         // C# masks the count to the operand width before the IL shift.
         var amount = (int)(amountImm.Value & (width - 1));
@@ -388,6 +389,56 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             function.ReplaceAllUsesOfRegister(defReg.Id, result[0]);
         else
             builder.BuildMergeInto(defReg.Id, result);
+        builder.Remove(instr);
+    }
+
+    // %r : iN = arith.{shl,lshr,ashr} %a, %n  (%n not a constant)  →  a call to the
+    // runtime shift helper (compiler-rt / llvm RuntimeLibcalls names, as llvm-mos
+    // does for a variable shift: __ashlhi3, __lshrsi3, __ashrdi3, …) with the value
+    // widened to the helper's width and the count passed as an i8. A count at or
+    // beyond the operand width is undefined, as in LLVM IR; the helpers just shift
+    // that many times. The value is zero-extended for shl and lshr (the low bits of
+    // a left shift do not depend on the extension) and sign-extended for ashr, then
+    // the result truncated back.
+    private void LowerShiftLibcall(MirInstruction instr, MirBuilder builder, ArithOp op,
+        VirtualReg defReg, VirtualReg valueReg, VirtualReg amountReg)
+    {
+        var function = builder.Function;
+        var resultType = ((TypedVReg)function.GetVRegAnnotation(defReg.Id)).Type;
+        var callType = resultType.SizeInBits <= 16 ? IRType.I16
+            : resultType.SizeInBits <= 32 ? IRType.I32
+            : IRType.I64;
+
+        var callee = (op, callType.SizeInBits) switch
+        {
+            (ArithOp.Shl, 16)  => "__ashlhi3",
+            (ArithOp.LShr, 16) => "__lshrhi3",
+            (ArithOp.AShr, 16) => "__ashrhi3",
+            (ArithOp.Shl, 32)  => "__ashlsi3",
+            (ArithOp.LShr, 32) => "__lshrsi3",
+            (ArithOp.AShr, 32) => "__ashrsi3",
+            (ArithOp.Shl, 64)  => "__ashldi3",
+            (ArithOp.LShr, 64) => "__lshrdi3",
+            _                  => "__ashrdi3",
+        };
+
+        var value = valueReg.Id;
+        var widened = resultType.SizeInBits < callType.SizeInBits;
+        if (widened)
+            value = BuildCast(builder, op == ArithOp.AShr ? CastOp.Sext : CastOp.Zext, callType, value);
+
+        var amount = amountReg.Id;
+        if (((TypedVReg)function.GetVRegAnnotation(amount)).Type.SizeInBits > 8)
+            amount = BuildCast(builder, CastOp.Trunc, IRType.I8, amount);
+
+        var result = widened ? function.CreateVirtualRegister(callType) : defReg.Id;
+        _callLowering.LowerCall(callee, [callType, IRType.I8], [value, amount], [callType], [result], builder);
+
+        if (widened)
+            builder.BuildInstruction(CastDialect.OpRef(CastOp.Trunc),
+                new VirtualReg(defReg.Id, IsDefinition: true),
+                new VirtualReg(result, IsDefinition: false));
+
         builder.Remove(instr);
     }
 

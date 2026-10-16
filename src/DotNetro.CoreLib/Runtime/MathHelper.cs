@@ -206,4 +206,117 @@ internal static class MathHelper
         ulong remainder = __umoddi3(x, y);
         return a < 0 ? -(long)remainder : (long)remainder;
     }
+
+    // Variable-count shifts: the 6502 can only shift by one bit, so a shift whose
+    // count is not a compile-time constant calls one of these (compiler-rt names;
+    // see MOS6502LegalizerInfo.LowerShiftLibcall). A count at or beyond the operand
+    // width is not masked: the value just shifts that many times.
+
+    internal static ushort __ashlhi3(ushort a, byte n)
+    {
+        byte step = n;
+        ushort x = a;
+        while (step != 0)
+        {
+            x <<= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static ushort __lshrhi3(ushort a, byte n)
+    {
+        byte step = n;
+        ushort x = a;
+        while (step != 0)
+        {
+            x >>= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static short __ashrhi3(short a, byte n)
+    {
+        byte step = n;
+        short x = a;
+        while (step != 0)
+        {
+            x >>= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static uint __ashlsi3(uint a, byte n)
+    {
+        byte step = n;
+        uint x = a;
+        while (step != 0)
+        {
+            x <<= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static uint __lshrsi3(uint a, byte n)
+    {
+        byte step = n;
+        uint x = a;
+        while (step != 0)
+        {
+            x >>= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static int __ashrsi3(int a, byte n)
+    {
+        byte step = n;
+        int x = a;
+        while (step != 0)
+        {
+            x >>= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static ulong __ashldi3(ulong a, byte n)
+    {
+        byte step = n;
+        ulong x = a;
+        while (step != 0)
+        {
+            x <<= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static ulong __lshrdi3(ulong a, byte n)
+    {
+        byte step = n;
+        ulong x = a;
+        while (step != 0)
+        {
+            x >>= 1;
+            step--;
+        }
+        return x;
+    }
+
+    internal static long __ashrdi3(long a, byte n)
+    {
+        byte step = n;
+        long x = a;
+        while (step != 0)
+        {
+            x >>= 1;
+            step--;
+        }
+        return x;
+    }
 }

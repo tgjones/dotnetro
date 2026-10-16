@@ -1,0 +1,76 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+
+; Shifts by a non-constant count call the runtime helper (__ashl/__lshr/__ashr
+; + hi3/si3/di3 by width), as llvm-mos does; a narrower value is widened first
+; (zero-extended for shl/lshr, sign-extended for ashr) and the result truncated.
+
+; CHECK: ShlVar16:
+; CHECK:     JSR __ashlhi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: LShrVar16:
+; CHECK:     JSR __lshrhi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: AShrVar32:
+; CHECK:     JSR __ashrsi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: ShlVar64:
+; CHECK:     JSR __ashldi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: LShrVar8:
+; CHECK:     STX $02
+; CHECK:     LDX #$00
+; CHECK:     JSR __lshrhi3
+; CHECK:     RTS
+; CHECK:
+; CHECK: AShrVar8:
+; CHECK:     STX $02
+; CHECK:     CMP #$00
+; CHECK:     BMI .bb3
+; CHECK: .bb1:
+; CHECK:     LDX #$00
+; CHECK: .bb2:
+; CHECK:     JSR __ashrhi3
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDX #$FF
+; CHECK:     JMP .bb2
+
+func @ShlVar16 : (i16, i8) -> i16 {
+bb0(%0 : i16, %1 : i8):
+    %2 : i16 = arith.shl %0, %1
+    core.return %2
+}
+
+func @LShrVar16 : (i16, i8) -> i16 {
+bb0(%0 : i16, %1 : i8):
+    %2 : i16 = arith.lshr %0, %1
+    core.return %2
+}
+
+func @AShrVar32 : (i32, i8) -> i32 {
+bb0(%0 : i32, %1 : i8):
+    %2 : i32 = arith.ashr %0, %1
+    core.return %2
+}
+
+func @ShlVar64 : (i64, i8) -> i64 {
+bb0(%0 : i64, %1 : i8):
+    %2 : i64 = arith.shl %0, %1
+    core.return %2
+}
+
+func @LShrVar8 : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.lshr %0, %1
+    core.return %2
+}
+
+func @AShrVar8 : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.ashr %0, %1
+    core.return %2
+}
