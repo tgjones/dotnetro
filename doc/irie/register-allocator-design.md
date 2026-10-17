@@ -499,7 +499,9 @@ one is never built. Stages S1 and S2 do not depend on each other.
 - (e) done: `SinglePredecessorBlockParamsPass`. Four corpus cases shrink (gcd −12
   instructions). `SpillI64Loop` grows by 16: the extra block-exit permutation is
   an allocator weakness at extreme pressure, which S4 replaces.
-- (c) and (d) not started.
+- (c) done: `LoopAnalysis` gives natural loops, depth and a static `8^depth`
+  block frequency. No pass uses it yet; S3/S4 will.
+- (d) not started.
 
 ### Work outside the allocator that still limits quality
 
