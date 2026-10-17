@@ -36,13 +36,14 @@ pass. See the suite README's *Fidelity rule*
 
 ## How the artifacts are produced
 
-Per case there are three files with a shared basename, e.g. `add-i16.{c,s,txt}`:
+Per case there are four files with a shared basename, e.g. `add-i16.{c,s,txt,oscar64.asm}`:
 
 | File   | Stage                                   | Produced by |
 |--------|-----------------------------------------|-------------|
 | `.c`   | Source test case                        | hand-written |
 | `.s`   | **Final** MOS6502 assembly (incl. prologue/epilogue) | `clang -Os -S` |
 | `.txt` | `-print-changed` dump — IR/MIR after each pass that changed it | `clang -Os -S -mllvm -print-changed` (stderr) |
+| `.oscar64.asm` | The same case compiled by [Oscar64](https://github.com/drmortalwombat/oscar64), a second reference: the listing of the case's own functions | `irie-report generate-oscar64` (see the [tool README](../../src/Irie.Tools.Reference/README.md)) |
 
 Both `.s` and `.txt` fall out of a **single** clang invocation
 ([`build.sh`](build.sh)):

@@ -4,14 +4,18 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// irie-report — tools for comparing Irie's MOS6502 codegen against the llvm-mos
-// reference corpus.
+// irie-report — tools for comparing Irie's MOS6502 codegen against the reference
+// corpus, compiled by llvm-mos and by Oscar64.
 //
 //   generate-report   Score every corpus case: pair each committed llvm-mos
 //                      final assembly (.s) with the matching Irie test, run
 //                      `iriec --emit=asm`, count instructions, and write a
 //                      markdown report with per-case deltas and an aggregate
 //                      ratio.
+//
+//   generate-oscar64   Compile every corpus case with Oscar64 (through a generated
+//                      harness) and write the listing of its functions beside it
+//                      as <case>.oscar64.asm, the second reference.
 //
 //   generate-benchmarks  Compile the C# benchmark programs and report Irie's
 //                      instruction count and code bytes per kernel.
@@ -25,6 +29,7 @@ var root = new RootCommand("Compare Irie's MOS6502 codegen against the llvm-mos 
 root.Subcommands.Add(BuildGenerateReportCommand());
 root.Subcommands.Add(BuildGenerateDiffCommand());
 root.Subcommands.Add(BenchmarkReport.Build());
+root.Subcommands.Add(Oscar64Reference.Build());
 return root.Parse(args).Invoke();
 
 // ---------------------------------------------------------------------------
@@ -73,6 +78,12 @@ static Command BuildGenerateReportCommand()
             int? irieBytes = null;
             string? excluded = null;
 
+            // The Oscar64 side is optional: a committed listing written by
+            // generate-oscar64, or a recorded compile failure (no count).
+            var oscarFile = Path.ChangeExtension(cFile, ".oscar64.asm");
+            var oscar = File.Exists(oscarFile) ? Oscar64Reference.Count(File.ReadAllText(oscarFile)) : null;
+            var oscarAsm = oscar?.Display ?? (File.Exists(oscarFile) ? File.ReadAllText(oscarFile).Trim('\n') : "(.oscar64.asm missing — run irie-report generate-oscar64)");
+
             // The Irie test tree mirrors the corpus subfolder layout, so pair within
             // the matching category directory (basics/, control-flow/, …).
             var testFile = Path.Combine(tests, category, name + ".irie");
@@ -103,7 +114,8 @@ static Command BuildGenerateReportCommand()
                 }
             }
 
-            cases.Add(new CaseResult(category, name, status, llvmCount, irieCount, llvmAsm, irieAsm, llvmBytes, irieBytes, excluded));
+            cases.Add(new CaseResult(category, name, status, llvmCount, irieCount, llvmAsm, irieAsm, llvmBytes, irieBytes, excluded,
+                oscar?.Instructions, oscar?.Bytes, oscarAsm));
         }
 
         // Cases marked duplicate or incomparable are listed but kept out of the
@@ -113,9 +125,15 @@ static Command BuildGenerateReportCommand()
             paired.Sum(c => c.LlvmCount), paired.Sum(c => c.IrieCount!.Value),
             sizer is null ? null : paired.Sum(c => c.LlvmBytes ?? 0),
             sizer is null ? null : paired.Sum(c => c.IrieBytes ?? 0));
+        // Irie vs Oscar64 is totalled over the paired cases Oscar64 also compiled.
+        var oscarPaired = paired.Where(c => c.OscarCount is not null).ToList();
+        var oscarTotals = new OscarTotals(oscarPaired.Count,
+            oscarPaired.Sum(c => c.OscarCount!.Value), oscarPaired.Sum(c => c.IrieCount!.Value),
+            oscarPaired.Sum(c => c.OscarBytes!.Value),
+            sizer is null ? null : oscarPaired.Sum(c => c.IrieBytes ?? 0));
 
         Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-        File.WriteAllText(outPath, RenderMarkdown(cases, paired.Count, cases.Count, totals));
+        File.WriteAllText(outPath, RenderMarkdown(cases, paired.Count, cases.Count, totals, oscarTotals));
 
         var pct = totals.LlvmInstructions == 0 ? 0 : (totals.IrieInstructions - totals.LlvmInstructions) * 100.0 / totals.LlvmInstructions;
         Console.WriteLine($"Wrote {outPath}");
@@ -130,6 +148,8 @@ static Command BuildGenerateReportCommand()
         {
             Console.WriteLine("Code bytes not measured (llvm-mos toolchain not found; see --llvm-mos-bin).");
         }
+        if (oscarTotals.Cases > 0)
+            Console.WriteLine($"Aggregate: Irie {oscarTotals.IrieInstructions} vs Oscar64 {oscarTotals.OscarInstructions} instructions over {oscarTotals.Cases} cases.");
         return 0;
     });
 
@@ -313,7 +333,7 @@ static string StripComment(string line, char marker)
     return idx < 0 ? line : line[..idx];
 }
 
-static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalCount, Totals totals)
+static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalCount, Totals totals, OscarTotals oscarTotals)
 {
     var (totalLlvm, totalIrie) = (totals.LlvmInstructions, totals.IrieInstructions);
     var pct = totalLlvm == 0 ? 0 : (totalIrie - totalLlvm) * 100.0 / totalLlvm;
@@ -327,7 +347,7 @@ static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalC
 
     var sb = new StringBuilder();
     sb.Append("<!-- Generated by Irie.Tools.Reference (dotnet run --project src/Irie.Tools.Reference -- generate-report). Do not edit by hand. -->\n\n");
-    sb.Append("# Irie vs llvm-mos — MOS6502 codegen\n\n");
+    sb.Append("# Irie vs llvm-mos and Oscar64 — MOS6502 codegen\n\n");
     sb.Append($"Irie emits **{FormatPct(pct)}** instructions vs llvm-mos ");
     sb.Append($"(**{totalIrie}** vs **{totalLlvm}**, ratio **{ratio.ToString("0.00", CultureInfo.InvariantCulture)}**) ");
     sb.Append($"across **{pairedCount}/{totalCount}** corpus cases.\n\n");
@@ -337,14 +357,27 @@ static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalC
         sb.Append($"Code size: Irie **{ib}** vs llvm-mos **{lb}** bytes (**{FormatPct(bpct)}**), ");
         sb.Append("both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.\n\n");
     }
+    if (oscarTotals.Cases > 0)
+    {
+        var opct = (oscarTotals.IrieInstructions - oscarTotals.OscarInstructions) * 100.0 / oscarTotals.OscarInstructions;
+        sb.Append($"Against Oscar64, over the **{oscarTotals.Cases}** of those cases it compiles: Irie emits **{FormatPct(opct)}** instructions ");
+        sb.Append($"(**{oscarTotals.IrieInstructions}** vs **{oscarTotals.OscarInstructions}**)");
+        if (oscarTotals.IrieBytes is { } oib)
+        {
+            var obpct = (oib - oscarTotals.OscarBytes) * 100.0 / oscarTotals.OscarBytes;
+            sb.Append($" and **{FormatPct(obpct)}** code bytes (**{oib}** vs **{oscarTotals.OscarBytes}**)");
+        }
+        sb.Append(". Oscar64 compiles each case inside a generated whole-program harness, so it chooses its own calling convention per function; ");
+        sb.Append("Oscar64 bytes come from its own listing.\n\n");
+    }
     var excludedCount = cases.Count(c => c.Excluded is not null);
     if (excludedCount > 0)
         sb.Append($"{excludedCount} cases (marked 🚫) are excluded from the totals above: duplicates of another case's MIR shape, or not comparable (reason shown in the Status column).\n\n");
-    sb.Append("Lower ratio is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. ");
+    sb.Append("Ratio is Irie / llvm-mos; lower is better — 🟢 Irie beats llvm-mos, ⚪ parity (1.00), 🔴 worse. Sorted worst-first. ");
     sb.Append("Blocked cases have no Irie test yet (see the [suite README](../../src/Irie.Tests/Lit/CodeGen/MOS6502/LlvmMosReference/README.md)).\n\n");
 
-    sb.Append("| Category | Case | Status | llvm-mos | Irie | Δ | Ratio | | llvm-mos bytes | Irie bytes |\n");
-    sb.Append("| --- | --- | --- | --: | --: | --: | --: | :-: | --: | --: |\n");
+    sb.Append("| Category | Case | Status | llvm-mos | Oscar64 | Irie | Δ | Ratio | | llvm-mos bytes | Oscar64 bytes | Irie bytes |\n");
+    sb.Append("| --- | --- | --- | --: | --: | --: | --: | --: | :-: | --: | --: | --: |\n");
     foreach (var c in sorted)
     {
         var ratioCell = c.Ratio is { } r ? r.ToString("0.00", CultureInfo.InvariantCulture) : "—";
@@ -353,8 +386,10 @@ static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalC
         var irieCell = c.IrieCount?.ToString() ?? "—";
         var llvmBytesCell = c.LlvmBytes?.ToString() ?? "—";
         var irieBytesCell = c.IrieBytes?.ToString() ?? "—";
+        var oscarCell = c.OscarCount?.ToString() ?? "—";
+        var oscarBytesCell = c.OscarBytes?.ToString() ?? "—";
         var statusCell = c.Excluded is null ? c.Status : $"{c.Status} 🚫 {Esc(c.Excluded)}";
-        sb.Append($"| {Esc(c.Category)} | {Esc(c.Name)} | {statusCell} | {c.LlvmCount} | {irieCell} | {deltaCell} | {ratioCell} | {markerCell} | {llvmBytesCell} | {irieBytesCell} |\n");
+        sb.Append($"| {Esc(c.Category)} | {Esc(c.Name)} | {statusCell} | {c.LlvmCount} | {oscarCell} | {irieCell} | {deltaCell} | {ratioCell} | {markerCell} | {llvmBytesCell} | {oscarBytesCell} | {irieBytesCell} |\n");
     }
 
     sb.Append("\n## Per-case assembly\n\n");
@@ -362,8 +397,10 @@ static string RenderMarkdown(List<CaseResult> cases, int pairedCount, int totalC
     {
         var irieCell = c.IrieCount?.ToString() ?? "—";
         var ratioCell = c.Ratio is { } r ? $", ratio {r.ToString("0.00", CultureInfo.InvariantCulture)}" : "";
-        sb.Append($"<details>\n<summary>{Esc(c.Category)}/{Esc(c.Name)} — llvm-mos {c.LlvmCount}, Irie {irieCell}{ratioCell}</summary>\n\n");
+        var oscarCell = c.OscarCount?.ToString() ?? "—";
+        sb.Append($"<details>\n<summary>{Esc(c.Category)}/{Esc(c.Name)} — llvm-mos {c.LlvmCount}, Oscar64 {oscarCell}, Irie {irieCell}{ratioCell}</summary>\n\n");
         sb.Append($"llvm-mos ({c.LlvmCount}):\n\n```asm\n{c.LlvmAsm}\n```\n\n");
+        sb.Append($"Oscar64 ({oscarCell}):\n\n```asm\n{c.OscarAsm}\n```\n\n");
         sb.Append($"Irie ({irieCell}):\n\n```asm\n{c.IrieAsm}\n```\n\n");
         sb.Append("</details>\n\n");
     }
@@ -695,7 +732,8 @@ pre.none { opacity: 0.5; font-style: italic; padding: 0.5rem 0.7rem; }
 """;
 
 record CaseResult(string Category, string Name, string Status, int LlvmCount, int? IrieCount, string LlvmAsm, string IrieAsm,
-    int? LlvmBytes = null, int? IrieBytes = null, string? Excluded = null)
+    int? LlvmBytes = null, int? IrieBytes = null, string? Excluded = null,
+    int? OscarCount = null, int? OscarBytes = null, string OscarAsm = "")
 {
     public double? Ratio => IrieCount is { } ic && LlvmCount > 0 ? (double)ic / LlvmCount : null;
 }
@@ -709,6 +747,8 @@ record Stage(string Id, string Display, bool Changed, string Body);
 record DiffRow(Stage? Llvm, Stage? Irie);
 
 record Totals(int LlvmInstructions, int IrieInstructions, int? LlvmBytes, int? IrieBytes);
+
+record OscarTotals(int Cases, int OscarInstructions, int IrieInstructions, int OscarBytes, int? IrieBytes);
 
 // Measures code size by assembling with the llvm-mos toolchain and summing the
 // `.text*` sections. Both sides go through the same assembler, so the comparison

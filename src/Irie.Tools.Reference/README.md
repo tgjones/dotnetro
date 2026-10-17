@@ -1,7 +1,7 @@
 # irie-report
 
-Compares Irie's MOS6502 codegen against the llvm-mos reference corpus, and scores
-it on a C#-derived benchmark set. Three subcommands:
+Compares Irie's MOS6502 codegen against the reference corpus as compiled by llvm-mos
+and by Oscar64, and scores it on a C#-derived benchmark set. Four subcommands:
 
 ```bash
 # Build iriec + this tool, then:
@@ -60,6 +60,12 @@ stays in the table, marked 🚫):
 - `; Incomparable: <reason>` — the two outputs do different work (`loop-counter`,
   where llvm-mos emits a closed-form `__mulsi3` call).
 
+**Oscar64** is a second reference: when a case has a committed `<case>.oscar64.asm`
+(written by `generate-oscar64`, below), the report adds its instruction count and code
+bytes as extra columns, its listing to the per-case assembly, and a second headline
+line totalling Irie against Oscar64 over the paired cases Oscar64 also compiles.
+Oscar64 bytes are read from the encodings in its own listing.
+
 Instruction count is the headline metric — apples-to-apples without assembling
 llvm-mos. Every `.irie` pairing is a **faithful mirror** of its corpus `.c` —
 adapting the input to dodge an Irie limitation is not allowed (see the suite
@@ -67,6 +73,46 @@ README's *Fidelity rule*). A few deltas are still apples-to-oranges, but only
 because of *output*-level optimizations Irie's pipeline does not perform (e.g.
 loop strength reduction in `loop-counter`) — never because the input was
 simplified; see the suite README's pairing caveat.
+
+## `generate-oscar64`
+
+```bash
+# Needs a local Oscar64 build (github.com/drmortalwombat/oscar64; `make -C make compiler`):
+OSCAR64_HOME=<oscar64 checkout> dotnet run --project src/Irie.Tools.Reference -- generate-oscar64
+# → writes ext/llvm-mos-reference/<category>/<case>.oscar64.asm for every case
+```
+
+Compiles every corpus case with [Oscar64](https://github.com/drmortalwombat/oscar64),
+the 6502 C compiler that measures best on cross-compiler benchmarks, and writes the
+listing of the case's own functions beside it. The listings are checked in, like the
+llvm-mos `.s`; regenerate them when the corpus changes or Oscar64 is updated (the
+header records the Oscar64 commit and flags).
+
+Oscar64 only compiles whole programs, so each case is wrapped in a generated harness:
+
+- every function the case defines is declared `__noinline` (Oscar64 inlines small
+  single-caller functions even at `-Os`);
+- a function the case only declares (`extern int g(int);`) gets an out-of-line body
+  that reads and writes `volatile` globals;
+- `main` calls each function with arguments read from `volatile` globals, stores
+  each result to a `volatile` global, and finally reads the case's own globals, so
+  no work is constant-folded or deleted as dead.
+
+Caveats when reading the Oscar64 column:
+
+- Oscar64 sees the whole harness, so it chooses each function's calling convention
+  (parameters in zero page, a callee's arguments in A/X) and propagates what it can
+  across calls. That is part of what it does well, but it is not a fixed-ABI
+  comparison: `ret-const`, for example, becomes a bare `RTS` because Oscar64 moves the
+  constant return value into the caller.
+- A case Oscar64 cannot compile (`pressure-i64`: no `long long`) records the error in
+  its `.oscar64.asm` and shows `—`.
+
+| Flag | Default |
+|------|---------|
+| `--corpus`  | `ext/llvm-mos-reference` |
+| `--oscar64` | `$OSCAR64_HOME` (needs `bin/oscar64` and `include/`) |
+| `--opt`     | `-Os` (matching the llvm-mos reference) |
 
 ## `generate-benchmarks`
 
