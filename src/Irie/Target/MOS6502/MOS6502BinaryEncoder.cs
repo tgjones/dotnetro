@@ -31,6 +31,9 @@ public sealed class MOS6502BinaryEncoder
     // Determined by iterating layout to a fixpoint (relaxation only grows code).
     private HashSet<MachineCodeInstruction> _relaxedBranches = new();
 
+    // Function name → absolute start address, as laid out by the last Encode.
+    public IReadOnlyDictionary<string, int> FunctionAddresses => _functionAddrs;
+
     public byte[] Encode(MachineCodeModule module, int origin)
     {
         // Iterate layout until the set of out-of-range branches stabilises.

@@ -33,7 +33,7 @@ internal sealed class C64TargetSystem : ITargetSystem
         memory[0xFF02] = 0x08;
     }
 
-    public EmulationResult Run(byte[] memory, TextReader input, TextWriter? trace, int maxTicks)
+    public EmulationResult Run(byte[] memory, TextReader input, TextWriter? trace, int maxTicks, CycleMeter? meter = null)
     {
         var cpu = new Mos6502(Mos6502Options.Default);
         ref var pins = ref cpu.Pins;
@@ -61,6 +61,7 @@ internal sealed class C64TargetSystem : ITargetSystem
 
             if (pins.Sync)
             {
+                meter?.Observe(pins.Address, cpu.SP, ticks);
                 running = true;
 
                 if (HaltDetection.IsHalt(memory, pins.Address))

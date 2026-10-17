@@ -1,7 +1,7 @@
 # A register allocator for the 6502 — design
 
-**Status:** proposal; the steering decisions are recorded in §7. Nothing here is
-implemented yet.
+**Status:** proposal; the steering decisions are recorded in §7. Only S0 is under
+way (progress below the stage table in §5); nothing of S1–S7 is implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -489,6 +489,17 @@ one is never built. Stages S1 and S2 do not depend on each other.
 | **S5** Home slots | Byte-granular colouring, pointer pairs, recolouring after the late passes | zp footprint per program reported and lower |
 | **S6** Per-function conventions | Callee-chosen entry and exit placement | Measured on call-heavy C# benchmarks |
 | **S7** Tuning | Beam width, frequency weights, size/speed weights; the K = ∞ oracle on small functions; tree-decomposition DP only if the oracle shows block joins lose significantly | Documented gap to the oracle |
+
+**S0 progress (2026-10-17):**
+- (a) done for 35 of 43 corpus cases (`irie-exec`). Left: stack arguments in call
+  lowering, and buffer arguments/results or global effects in the driver.
+- (b) done as `irie-exec` output: the cycles of the function under test, summed over
+  its vectors, counted by the emulator (`--measure`; one CPU tick is one cycle).
+  Not yet a column in `irie-report`, which has no reference cycles to compare with.
+- (e) done: `SinglePredecessorBlockParamsPass`. Four corpus cases shrink (gcd −12
+  instructions). `SpillI64Loop` grows by 16: the extra block-exit permutation is
+  an allocator weakness at extreme pressure, which S4 replaces.
+- (c) and (d) not started.
 
 ### Work outside the allocator that still limits quality
 

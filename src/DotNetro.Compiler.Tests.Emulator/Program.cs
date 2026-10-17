@@ -4,6 +4,7 @@ var programFileArgument = new Argument<string?>("program-file") { Description = 
 var targetSystemOption = new Option<string>("--target-system") { Description = "Target system. One of: bbcmicro (default), c64.", DefaultValueFactory = _ => "bbcmicro" };
 var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
 var maxTicksOption = new Option<int>("--max-ticks") { Description = "Tick budget before the run is aborted as a runaway. Default: 1,000,000.", DefaultValueFactory = _ => 1_000_000 };
+var measureOption = new Option<string?>("--measure") { Description = "Address (hex) of a function to count the cycles of; the total and the number of calls are written to stderr as 'cycles <n> calls <m>'." };
 var traceOption = new Option<FileInfo?>("--trace") { Description = "Write a per-instruction PC/A/X/Y/P/SP trace to file." };
 
 var rootCommand = new RootCommand("DotNetro 6502 emulator");
@@ -11,6 +12,7 @@ rootCommand.Arguments.Add(programFileArgument);
 rootCommand.Options.Add(targetSystemOption);
 rootCommand.Options.Add(inputOption);
 rootCommand.Options.Add(maxTicksOption);
+rootCommand.Options.Add(measureOption);
 rootCommand.Options.Add(traceOption);
 
 rootCommand.SetAction(parseResult =>
@@ -20,6 +22,8 @@ rootCommand.SetAction(parseResult =>
     var inputString = parseResult.GetValue(inputOption);
     var maxTicks = parseResult.GetValue(maxTicksOption);
     var traceFile = parseResult.GetValue(traceOption);
+    var measureAddress = parseResult.GetValue(measureOption);
+    var meter = measureAddress is null ? null : new CycleMeter(Convert.ToUInt16(measureAddress.TrimStart('$'), 16));
 
     byte[] programBytes;
     try
@@ -77,10 +81,12 @@ rootCommand.SetAction(parseResult =>
 
     try
     {
-        var result = target.Run(memory, inputReader, traceWriter, maxTicks);
+        var result = target.Run(memory, inputReader, traceWriter, maxTicks, meter);
         Console.Write(result.Output);
         if (result.Message is not null)
             Console.Error.WriteLine(result.Message);
+        if (meter is not null)
+            Console.Error.WriteLine($"cycles {meter.Cycles} calls {meter.Calls}");
 
         return result.Status switch
         {

@@ -1,6 +1,7 @@
 using System.CommandLine;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Irie.Mir;
 using Irie.Passes;
 using Irie.Tools.Exec;
@@ -83,10 +84,11 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
     }
 
     ulong[]? actual;
+    long cycles = 0;
     string error;
     try
     {
-        actual = RunCompiled(text, directive.Function, vectors, resultBytes, execTarget, emulator, maxTicks, out error);
+        actual = RunCompiled(text, directive.Function, vectors, resultBytes, execTarget, emulator, maxTicks, out cycles, out error);
     }
     catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
     {
@@ -116,13 +118,16 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
         return false;
     }
 
-    Console.WriteLine($"@{directive.Function}: {vectors.Count} vectors match");
+    // Cycles of the function alone (the driver's loop and printing are excluded),
+    // summed over the vectors: a figure to compare between compiler versions,
+    // not an average case.
+    Console.WriteLine($"@{directive.Function}: {vectors.Count} vectors match, {cycles} cycles");
     return true;
 }
 
 // Compiles the module plus a driver for the function and runs it in the
 // emulator; returns one result per vector, or null with an explanation.
-static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vectors, int resultBytes, ExecTarget execTarget, FileInfo emulator, int maxTicks, out string error)
+static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vectors, int resultBytes, ExecTarget execTarget, FileInfo emulator, int maxTicks, out long cycles, out string error)
 {
     var target = execTarget.Create();
     var module = MirModule.Parse(new StringReader(text));
@@ -135,7 +140,8 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
-    var program = target.BuildProgram(module, origin);
+    var (program, functionAddresses) = target.BuildProgramWithFunctionAddresses(module, origin);
+    cycles = 0;
 
     var directory = Directory.CreateTempSubdirectory("irie-exec-");
     try
@@ -153,6 +159,8 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
         startInfo.ArgumentList.Add(execTarget.EmulatorSystem);
         startInfo.ArgumentList.Add("--max-ticks");
         startInfo.ArgumentList.Add(maxTicks.ToString(CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add("--measure");
+        startInfo.ArgumentList.Add(functionAddresses[functionName].ToString("X4", CultureInfo.InvariantCulture));
 
         using var process = Process.Start(startInfo)!;
         var stderr = process.StandardError.ReadToEndAsync();
@@ -171,6 +179,14 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
             error = $"expected {vectors.Count * resultBytes * 2} hex digits of output, got {digits.Length}: {digits}";
             return null;
         }
+
+        var measurement = Regex.Match(stderr.Result, @"cycles (\d+) calls (\d+)");
+        if (!measurement.Success)
+        {
+            error = $"the emulator did not report a cycle count: {stderr.Result.Trim()}";
+            return null;
+        }
+        cycles = long.Parse(measurement.Groups[1].Value, CultureInfo.InvariantCulture);
 
         error = string.Empty;
         return Enumerable.Range(0, vectors.Count)

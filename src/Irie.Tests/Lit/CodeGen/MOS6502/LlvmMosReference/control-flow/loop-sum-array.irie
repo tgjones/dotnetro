@@ -7,74 +7,72 @@
 ; Compare against ext/llvm-mos-reference/control-flow/loop-sum-array.s; close gaps via irie-report.
 
 ; CHECK: loop_sum_array:
+; CHECK:     STA $07
+; CHECK:     LDA $02
 ; CHECK:     STA $04
 ; CHECK:     LDA #$00
-; CHECK:     STA $0A
-; CHECK:     LDA #$00
-; CHECK:     STA $09
-; CHECK:     LDA $0A
 ; CHECK:     STA $08
-; CHECK:     LDA $09
-; CHECK:     STA $07
+; CHECK:     LDA #$00
+; CHECK:     STA $06
+; CHECK:     LDA $08
+; CHECK:     STA $05
+; CHECK:     LDA $06
+; CHECK:     STA $02
 ; CHECK: .bb1:
-; CHECK:     LDA $07
+; CHECK:     LDA $02
 ; CHECK:     EOR #$80
 ; CHECK:     TAY
 ; CHECK:     LDA $03
 ; CHECK:     EOR #$80
-; CHECK:     STA $05
+; CHECK:     STA $09
 ; CHECK:     TYA
-; CHECK:     CMP $05
-; CHECK:     BCC .bb4
-; CHECK:     BNE .bb5
-; CHECK:     LDA $08
-; CHECK:     CMP $02
-; CHECK:     BCC .bb4
+; CHECK:     CMP $09
+; CHECK:     BCC .bb3
+; CHECK:     BNE .bb2
+; CHECK:     LDA $05
+; CHECK:     CMP $04
+; CHECK:     BCC .bb3
 ; CHECK: .bb2:
-; CHECK:     LDA $0A
-; CHECK:     LDX $09
-; CHECK: .bb3:
-; CHECK:     RTS
-; CHECK: .bb4:
 ; CHECK:     LDA $08
+; CHECK:     LDX $06
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDA $05
 ; CHECK:     ASL
-; CHECK:     STA $06
-; CHECK:     LDA $07
+; CHECK:     STA $0A
+; CHECK:     LDA $02
 ; CHECK:     ROL
-; CHECK:     STA $05
+; CHECK:     STA $09
 ; CHECK:     CLC
-; CHECK:     LDA $04
-; CHECK:     ADC $06
+; CHECK:     LDA $07
+; CHECK:     ADC $0A
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $05
+; CHECK:     ADC $09
 ; CHECK:     STY $12
 ; CHECK:     STA $13
 ; CHECK:     LDY #$00
 ; CHECK:     LDA ($12),Y
-; CHECK:     STA $06
+; CHECK:     STA $0A
 ; CHECK:     LDY #$01
 ; CHECK:     LDA ($12),Y
-; CHECK:     STA $05
-; CHECK:     CLC
-; CHECK:     LDA $0A
-; CHECK:     ADC $06
-; CHECK:     STA $0A
-; CHECK:     LDA $09
-; CHECK:     ADC $05
 ; CHECK:     STA $09
 ; CHECK:     CLC
 ; CHECK:     LDA $08
+; CHECK:     ADC $0A
+; CHECK:     TAY
+; CHECK:     LDA $06
+; CHECK:     ADC $09
+; CHECK:     STA $06
+; CHECK:     CLC
+; CHECK:     LDA $05
 ; CHECK:     ADC #$01
-; CHECK:     STA $08
-; CHECK:     LDA $07
+; CHECK:     STA $05
+; CHECK:     LDA $02
 ; CHECK:     ADC #$00
-; CHECK:     STA $07
+; CHECK:     STA $02
+; CHECK:     STY $08
 ; CHECK:     JMP .bb1
-; CHECK: .bb5:
-; CHECK:     LDA $0A
-; CHECK:     LDX $09
-; CHECK:     RTS
 
 func @loop_sum_array : (ptr, i16) -> i16 {
 bb0(%0 : ptr, %1 : i16):

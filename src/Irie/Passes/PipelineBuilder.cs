@@ -10,6 +10,7 @@ public static class PipelineBuilder
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());
+        passMgr.AddPass(new SinglePredecessorBlockParamsPass());
         passMgr.AddPass(new HoistCommonCodePass());
         passMgr.AddPass(new ReturnMergePass());
         passMgr.AddPass(new FrameLoweringPass());

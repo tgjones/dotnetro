@@ -21,7 +21,7 @@ internal sealed class BbcMicroTargetSystem : ITargetSystem
         memory[0xFF02] = 0x20;
     }
 
-    public EmulationResult Run(byte[] memory, TextReader input, TextWriter? trace, int maxTicks)
+    public EmulationResult Run(byte[] memory, TextReader input, TextWriter? trace, int maxTicks, CycleMeter? meter = null)
     {
         var cpu = new Mos6502(Mos6502Options.Default);
         ref var pins = ref cpu.Pins;
@@ -41,6 +41,7 @@ internal sealed class BbcMicroTargetSystem : ITargetSystem
 
             if (pins.Sync)
             {
+                meter?.Observe(pins.Address, cpu.SP, ticks);
                 if (HaltDetection.IsHalt(memory, pins.Address))
                     return new EmulationResult(output.ToString(), EmulationStatus.Completed);
 

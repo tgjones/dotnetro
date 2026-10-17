@@ -14,19 +14,20 @@
 ; CHECK:     LDA $15
 ; CHECK:     PHA
 ; CHECK:     TYA
-; CHECK:     STA $04
-; CHECK:     TXA
-; CHECK:     TAY
-; CHECK: .bb1:
-; CHECK:     LDA $03
-; CHECK:     BNE .bb11
+; CHECK:     STA $05
+; CHECK:     STX $04
 ; CHECK:     LDA $02
-; CHECK:     BNE .bb12
+; CHECK:     STA $15
+; CHECK:     LDA $03
+; CHECK:     STA $14
+; CHECK: .bb1:
+; CHECK:     LDA $14
+; CHECK:     BNE .bb3
+; CHECK:     LDA $15
+; CHECK:     BNE .bb3
 ; CHECK: .bb2:
-; CHECK:     LDA $04
-; CHECK:     STY $02
-; CHECK:     LDX $02
-; CHECK: .bb3:
+; CHECK:     LDA $05
+; CHECK:     LDX $04
 ; CHECK:     TAY
 ; CHECK:     PLA
 ; CHECK:     STA $15
@@ -34,22 +35,21 @@
 ; CHECK:     STA $14
 ; CHECK:     TYA
 ; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDA $04
+; CHECK:     BMI .bb8
 ; CHECK: .bb4:
-; CHECK:     TYA
-; CHECK:     BMI .bb9
-; CHECK: .bb5:
 ; CHECK:     LDA #$00
 ; CHECK:     STA $03
-; CHECK: .bb6:
+; CHECK: .bb5:
 ; CHECK:     LDA $14
-; CHECK:     BMI .bb10
-; CHECK: .bb7:
+; CHECK:     BMI .bb9
+; CHECK: .bb6:
 ; CHECK:     LDA #$00
 ; CHECK:     STA $07
-; CHECK: .bb8:
-; CHECK:     LDA $04
-; CHECK:     STY $02
-; CHECK:     LDX $02
+; CHECK: .bb7:
+; CHECK:     LDA $05
+; CHECK:     LDX $04
 ; CHECK:     LDY $03
 ; CHECK:     STY $02
 ; CHECK:     LDY $15
@@ -60,31 +60,19 @@
 ; CHECK:     STY $06
 ; CHECK:     JSR __modsi3
 ; CHECK:     LDY $15
-; CHECK:     STY $04
+; CHECK:     STY $05
 ; CHECK:     LDY $14
-; CHECK:     STA $02
-; CHECK:     STX $03
+; CHECK:     STY $04
+; CHECK:     STA $15
+; CHECK:     STX $14
 ; CHECK:     JMP .bb1
-; CHECK: .bb9:
+; CHECK: .bb8:
 ; CHECK:     LDA #$FF
 ; CHECK:     STA $03
-; CHECK:     JMP .bb6
-; CHECK: .bb10:
+; CHECK:     JMP .bb5
+; CHECK: .bb9:
 ; CHECK:     LDA #$FF
 ; CHECK:     STA $07
-; CHECK:     JMP .bb8
-; CHECK: .bb11:
-; CHECK:     LDA $02
-; CHECK:     STA $15
-; CHECK:     LDA $03
-; CHECK:     STA $14
-; CHECK:     JMP .bb4
-; CHECK: .bb12:
-; CHECK:     LDA $02
-; CHECK:     STA $15
-; CHECK:     LDA $03
-; CHECK:     STA $14
-; CHECK:     JMP .bb4
 
 func @gcd : (i16, i16) -> i16 {
 bb0(%0 : i16, %1 : i16):
