@@ -27,6 +27,22 @@ Each test:
 > vregs in the input MIR must be **numeric** (`%0`, `%1`, …) — the MIR lexer
 > rejects named vregs.
 
+### Execution check
+
+A test can also be *run*, not just pinned. One extra line:
+
+```
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "add_i16(*, *)"
+```
+
+`irie-exec` (with the same `--target` as `iriec`; only `mos6502-bbcmicro` so far) runs the named function over generated inputs twice: in the MIR
+interpreter (`Irie.Tools.Interpreter`, which reads the un-compiled MIR and shares
+no code with the passes) and compiled, in the 6502 emulator via a generated
+driver. Any difference fails the test. Each argument of `--exec` (repeatable) is `*` (edge
+values for its width), `lo..hi` (every value), or `a|b|c`; up to 256 vectors run
+(a seeded sample when the cross product is larger). Use a range where the
+function loops on its argument (`fibonacci(0..24)`).
+
 ### Fidelity rule
 
 Every test's input MIR **must be a faithful mirror of its corpus `.c`** — the

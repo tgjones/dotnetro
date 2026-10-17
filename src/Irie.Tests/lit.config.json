@@ -1,8 +1,10 @@
 {
   "substitutions": {
-    "irie-as":  "bin/${config}/net10.0/irie-as",
-    "irie-dis": "bin/${config}/net10.0/irie-dis",
-    "iriec":    "bin/${config}/net10.0/iriec",
-    "irie-mc":  "bin/${config}/net10.0/irie-mc"
+    "irie-as":   "bin/${config}/net10.0/irie-as",
+    "irie-dis":  "bin/${config}/net10.0/irie-dis",
+    "iriec":     "bin/${config}/net10.0/iriec",
+    "irie-mc":   "bin/${config}/net10.0/irie-mc",
+    "irie-exec": "bin/${config}/net10.0/irie-exec",
+    "emulator":  "../DotNetro.Compiler.Tests.Emulator/bin/${config}/net10.0/DotNetro.Compiler.Tests.Emulator"
   }
 }
