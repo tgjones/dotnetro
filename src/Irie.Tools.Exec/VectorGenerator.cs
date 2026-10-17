@@ -54,6 +54,8 @@ internal static class VectorGenerator
             ArgumentDomain.EdgeValues => EdgeValues(bits),
             ArgumentDomain.Range range => RangeValues(range),
             ArgumentDomain.Listed listed => listed.Values.Select(v => (ulong)v),
+            // The vector holds the offset into the buffer; the base address is added later.
+            ArgumentDomain.Buffer buffer => buffer.Offsets.Select(v => (ulong)v),
             _ => throw new ArgumentException($"Unknown domain {domain}."),
         };
         return raw.Select(v => v & mask).Distinct().ToArray();

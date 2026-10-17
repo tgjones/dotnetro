@@ -43,13 +43,19 @@ values for its width), `lo..hi` (every value), or `a|b|c`; up to 256 vectors run
 (a seeded sample when the cross product is larger). Use a range where the
 function loops on its argument (`fibonacci(0..24)`).
 
+A pointer parameter takes `buf(N)`: a global of N seeded bytes (zeros are
+frequent and the last byte is always zero), passed as a pointer to its start, or
+`buf(N)@a|b|c` for pointers at those byte offsets into it. After the run every
+global of the file, the buffers included, is compared between the two runs, so a
+function whose effect is on memory (`two-pointer-copy`, `common-subexpr`) is
+checked too. The cycles of the function alone, summed over the vectors, are
+printed beside the match count.
+
 Cases without a `RUN-exec:` line cannot be executed yet:
 
 | Reason | Cases |
 |--------|-------|
-| Stack arguments not supported by `MOS6502CallLowering` | stack-args, pressure-i64 |
-| Pointer arguments / memory results: the driver has no buffers to pass or compare | loop-sum-array, array-index, two-pointer-copy, crc8, strlen |
-| `void` function whose effect is on globals | common-subexpr |
+| Stack arguments: `MOS6502CallLowering` only reads them in the callee, a caller cannot pass them | stack-args, pressure-i64 |
 
 ### Fidelity rule
 

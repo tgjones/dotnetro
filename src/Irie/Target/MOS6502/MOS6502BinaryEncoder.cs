@@ -34,6 +34,9 @@ public sealed class MOS6502BinaryEncoder
     // Function name → absolute start address, as laid out by the last Encode.
     public IReadOnlyDictionary<string, int> FunctionAddresses => _functionAddrs;
 
+    // Global name → absolute start address, as laid out by the last Encode.
+    public IReadOnlyDictionary<string, int> GlobalAddresses => _globalAddrs;
+
     public byte[] Encode(MachineCodeModule module, int origin)
     {
         // Iterate layout until the set of out-of-range branches stabilises.

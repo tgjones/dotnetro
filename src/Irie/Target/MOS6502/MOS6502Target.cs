@@ -100,11 +100,11 @@ public class MOS6502Target : Irie.Target.Target
     public override byte[] Encode(Irie.MachineCode.MachineCodeModule module, int origin) =>
         new MOS6502BinaryEncoder().Encode(module, origin);
 
-    public override (byte[] Bytes, IReadOnlyDictionary<string, int> FunctionAddresses) EncodeWithFunctionAddresses(Irie.MachineCode.MachineCodeModule module, int origin)
+    public override EncodedProgram EncodeWithSymbols(Irie.MachineCode.MachineCodeModule module, int origin)
     {
         var encoder = new MOS6502BinaryEncoder();
         var bytes = encoder.Encode(module, origin);
-        return (bytes, encoder.FunctionAddresses);
+        return new EncodedProgram(bytes, encoder.FunctionAddresses, encoder.GlobalAddresses);
     }
 
     // The libcall routines, in MOS6502 assembly (libcalls.s), assembled for this

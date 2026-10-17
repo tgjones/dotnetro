@@ -88,8 +88,8 @@ public abstract class Target
     // Encodes machine code into raw bytes loaded at `origin`.
     public abstract byte[] Encode(Irie.MachineCode.MachineCodeModule module, int origin);
 
-    // As Encode, also returning the absolute address each function was laid out at.
-    public abstract (byte[] Bytes, IReadOnlyDictionary<string, int> FunctionAddresses) EncodeWithFunctionAddresses(Irie.MachineCode.MachineCodeModule module, int origin);
+    // As Encode, also returning the absolute address each function and global was laid out at.
+    public abstract EncodedProgram EncodeWithSymbols(Irie.MachineCode.MachineCodeModule module, int origin);
 
     // The whole program as machine code: the post-pipeline module emitted, plus
     // the library routines it references and does not define. Use this rather
@@ -107,10 +107,10 @@ public abstract class Target
     // for the target's image format).
     public byte[] BuildProgram(MirModule module, int origin) => Encode(EmitProgram(module), origin);
 
-    // As BuildProgram, also returning the address of each function (for a tool
-    // that measures one of them).
-    public (byte[] Bytes, IReadOnlyDictionary<string, int> FunctionAddresses) BuildProgramWithFunctionAddresses(MirModule module, int origin) =>
-        EncodeWithFunctionAddresses(EmitProgram(module), origin);
+    // As BuildProgram, also returning the address of each function and global
+    // (for a tool that measures a function or reads a global back).
+    public EncodedProgram BuildProgramWithSymbols(MirModule module, int origin) =>
+        EncodeWithSymbols(EmitProgram(module), origin);
 
     // Address of the first imaginary zero-page register (RC0). 0 on a bare chip;
     // a system whose low zero-page bytes are hardware (the C64's 6510 port at
@@ -123,3 +123,9 @@ public abstract class Target
     // Packages a flat 6502 byte buffer into a target-system image format; default is identity.
     public virtual byte[] PackageImage(byte[] code, int origin) => code;
 }
+
+// Raw program bytes plus where each function and global ended up.
+public sealed record EncodedProgram(
+    byte[] Bytes,
+    IReadOnlyDictionary<string, int> FunctionAddresses,
+    IReadOnlyDictionary<string, int> GlobalAddresses);

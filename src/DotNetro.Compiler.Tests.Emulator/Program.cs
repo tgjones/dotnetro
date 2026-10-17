@@ -5,6 +5,7 @@ var targetSystemOption = new Option<string>("--target-system") { Description = "
 var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
 var maxTicksOption = new Option<int>("--max-ticks") { Description = "Tick budget before the run is aborted as a runaway. Default: 1,000,000.", DefaultValueFactory = _ => 1_000_000 };
 var measureOption = new Option<string?>("--measure") { Description = "Address (hex) of a function to count the cycles of; the total and the number of calls are written to stderr as 'cycles <n> calls <m>'." };
+var dumpOption = new Option<string[]>("--dump") { Description = "A memory range, ADDR:LENGTH in hex; once the program completes its contents are written to stderr as 'dump <addr> <hex bytes>'. May be repeated.", AllowMultipleArgumentsPerToken = false };
 var traceOption = new Option<FileInfo?>("--trace") { Description = "Write a per-instruction PC/A/X/Y/P/SP trace to file." };
 
 var rootCommand = new RootCommand("DotNetro 6502 emulator");
@@ -13,6 +14,7 @@ rootCommand.Options.Add(targetSystemOption);
 rootCommand.Options.Add(inputOption);
 rootCommand.Options.Add(maxTicksOption);
 rootCommand.Options.Add(measureOption);
+rootCommand.Options.Add(dumpOption);
 rootCommand.Options.Add(traceOption);
 
 rootCommand.SetAction(parseResult =>
@@ -22,6 +24,7 @@ rootCommand.SetAction(parseResult =>
     var inputString = parseResult.GetValue(inputOption);
     var maxTicks = parseResult.GetValue(maxTicksOption);
     var traceFile = parseResult.GetValue(traceOption);
+    var dumps = parseResult.GetValue(dumpOption) ?? [];
     var measureAddress = parseResult.GetValue(measureOption);
     var meter = measureAddress is null ? null : new CycleMeter(Convert.ToUInt16(measureAddress.TrimStart('$'), 16));
 
@@ -85,6 +88,14 @@ rootCommand.SetAction(parseResult =>
         Console.Write(result.Output);
         if (result.Message is not null)
             Console.Error.WriteLine(result.Message);
+        if (result.Status == EmulationStatus.Completed)
+            foreach (var dump in dumps)
+            {
+                var parts = dump.Split(':');
+                var address = Convert.ToInt32(parts[0].TrimStart('$'), 16);
+                var length = Convert.ToInt32(parts[1], 16);
+                Console.Error.WriteLine($"dump {address:X4} {Convert.ToHexString(memory, address, length)}");
+            }
         if (meter is not null)
             Console.Error.WriteLine($"cycles {meter.Cycles} calls {meter.Calls}");
 

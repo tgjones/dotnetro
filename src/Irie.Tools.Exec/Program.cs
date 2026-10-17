@@ -64,6 +64,7 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
         return false;
     }
 
+    var bufferSymbols = AddBuffers(reference, directive);
     var widths = function.ParameterTypes.Select(t => DriverBuilder.ByteWidth(t) * 8).ToArray();
     var resultBytes = DriverBuilder.ByteWidth(function.ReturnType);
     var vectors = VectorGenerator.Generate(directive.Arguments, widths);
@@ -74,7 +75,9 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
     {
         try
         {
-            expected.Add(interpreter.Call(directive.Function, vector)!.Value);
+            // A buffer argument's vector entry is an offset; the interpreter takes the address.
+            var arguments = vector.Select((v, i) => bufferSymbols[i] is { } symbol ? v + (ulong)interpreter.GetGlobalAddress(symbol) : v).ToArray();
+            expected.Add(interpreter.Call(directive.Function, arguments) ?? 0);
         }
         catch (InterpreterException ex)
         {
@@ -83,12 +86,18 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
         }
     }
 
+    // Globals of the module are compared after the run, except those holding addresses (which differ between the two).
+    var compared = reference.Globals
+        .Where(g => g.Initializer is null || !g.Initializer.Items.Any(item => item is DataSymbolRef))
+        .ToList();
+
     ulong[]? actual;
     long cycles = 0;
+    byte[][]? globals = null;
     string error;
     try
     {
-        actual = RunCompiled(text, directive.Function, vectors, resultBytes, execTarget, emulator, maxTicks, out cycles, out error);
+        actual = RunCompiled(text, directive, vectors, resultBytes, execTarget, emulator, maxTicks, compared, out cycles, out globals, out error);
     }
     catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
     {
@@ -118,6 +127,17 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
         return false;
     }
 
+    for (var i = 0; i < compared.Count; i++)
+    {
+        var address = interpreter.GetGlobalAddress(compared[i].SymbolName);
+        var want = interpreter.Memory.AsSpan(address, compared[i].SizeInBytes);
+        if (!want.SequenceEqual(globals![i]))
+        {
+            Console.Error.WriteLine($"@{directive.Function}: global @{compared[i].SymbolName} differs after the run: compiled {Convert.ToHexString(globals[i])}, interpreter {Convert.ToHexString(want)}");
+            return false;
+        }
+    }
+
     // Cycles of the function alone (the driver's loop and printing are excluded),
     // summed over the vectors: a figure to compare between compiler versions,
     // not an average case.
@@ -127,21 +147,26 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
 
 // Compiles the module plus a driver for the function and runs it in the
 // emulator; returns one result per vector, or null with an explanation.
-static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vectors, int resultBytes, ExecTarget execTarget, FileInfo emulator, int maxTicks, out long cycles, out string error)
+static ulong[]? RunCompiled(string text, ExecDirective directive, List<ulong[]> vectors, int resultBytes, ExecTarget execTarget, FileInfo emulator, int maxTicks, List<MirGlobal> compared, out long cycles, out byte[][]? globals, out string error)
 {
     var target = execTarget.Create();
     var module = MirModule.Parse(new StringReader(text));
+    var functionName = directive.Function;
     var function = module.Functions.First(f => f.Name == functionName);
     KeepReachable(module, function);
-    DriverBuilder.AddDriver(module, function, vectors, execTarget);
+    var bufferSymbols = AddBuffers(module, directive);
+    DriverBuilder.AddDriver(module, function, vectors, execTarget, bufferSymbols);
 
     var passManager = new PassManager(null, null);
     PipelineBuilder.AddStandardPipeline(passManager, target);
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
-    var (program, functionAddresses) = target.BuildProgramWithFunctionAddresses(module, origin);
+    var encoded = target.BuildProgramWithSymbols(module, origin);
+    var program = encoded.Bytes;
+    var functionAddresses = encoded.FunctionAddresses;
     cycles = 0;
+    globals = null;
 
     var directory = Directory.CreateTempSubdirectory("irie-exec-");
     try
@@ -159,6 +184,12 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
         startInfo.ArgumentList.Add(execTarget.EmulatorSystem);
         startInfo.ArgumentList.Add("--max-ticks");
         startInfo.ArgumentList.Add(maxTicks.ToString(CultureInfo.InvariantCulture));
+        foreach (var global in compared)
+        {
+            var address = global.FixedAddress ?? encoded.GlobalAddresses[global.SymbolName];
+            startInfo.ArgumentList.Add("--dump");
+            startInfo.ArgumentList.Add($"{address:X}:{global.SizeInBytes:X}");
+        }
         startInfo.ArgumentList.Add("--measure");
         startInfo.ArgumentList.Add(functionAddresses[functionName].ToString("X4", CultureInfo.InvariantCulture));
 
@@ -188,7 +219,17 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
         }
         cycles = long.Parse(measurement.Groups[1].Value, CultureInfo.InvariantCulture);
 
+        var dumps = Regex.Matches(stderr.Result, @"^dump [0-9A-F]{4} ([0-9A-F]*)$", RegexOptions.Multiline);
+        if (dumps.Count != compared.Count)
+        {
+            error = $"the emulator dumped {dumps.Count} of {compared.Count} globals: {stderr.Result.Trim()}";
+            return null;
+        }
+        globals = dumps.Select(m => Convert.FromHexString(m.Groups[1].Value)).ToArray();
+
         error = string.Empty;
+        if (resultBytes == 0)
+            return new ulong[vectors.Count];
         return Enumerable.Range(0, vectors.Count)
             .Select(i => ulong.Parse(digits.AsSpan(i * resultBytes * 2, resultBytes * 2), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture))
             .ToArray();
@@ -197,6 +238,35 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
     {
         directory.Delete(recursive: true);
     }
+}
+
+// Adds a global of seeded bytes for each buf(N) argument of the directive (the same
+// bytes on every call, so the interpreter's module and the compiled one agree);
+// returns the global each parameter points into, null for the others. Zeros are
+// frequent, and the last byte is always zero so a walk to the first zero stops.
+static List<string?> AddBuffers(MirModule module, ExecDirective directive)
+{
+    var symbols = new List<string?>();
+    for (var i = 0; i < directive.Arguments.Count; i++)
+    {
+        if (directive.Arguments[i] is not ArgumentDomain.Buffer buffer)
+        {
+            symbols.Add(null);
+            continue;
+        }
+
+        var bytes = new byte[buffer.Size];
+        var random = new Random(0xB0F + i);
+        for (var b = 0; b < bytes.Length; b++)
+            bytes[b] = random.Next(4) == 0 ? (byte)0 : (byte)random.Next(1, 256);
+        bytes[^1] = 0;
+
+        var symbol = $"__exec_buf{i}";
+        module.Globals.Add(new MirGlobal(symbol, IRType.I8, bytes.Length, new MirInitializer([new DataBytes(bytes)])));
+        symbols.Add(symbol);
+    }
+
+    return symbols;
 }
 
 static string Format(ulong[] vector, int[] widths) =>

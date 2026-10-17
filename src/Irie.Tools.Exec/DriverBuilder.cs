@@ -19,7 +19,9 @@ internal static class DriverBuilder
 {
     public const string MainName = "__exec_main";
 
-    public static void AddDriver(MirModule module, MirFunction target, IReadOnlyList<ulong[]> vectors, ExecTarget execTarget)
+    // `bufferSymbols` has one entry per parameter: the global a pointer parameter points
+    // into (its table entry is the byte offset), or null for a plain value.
+    public static void AddDriver(MirModule module, MirFunction target, IReadOnlyList<ulong[]> vectors, ExecTarget execTarget, IReadOnlyList<string?> bufferSymbols)
     {
         var argumentBytes = target.ParameterTypes.Select(ByteWidth).ToArray();
         var resultBytes = ByteWidth(target.ReturnType);
@@ -37,7 +39,7 @@ internal static class DriverBuilder
             new MirInitializer([new DataBytes(table.ToArray())])));
 
         var text = new StringBuilder();
-        AppendMain(text, target, argumentBytes, resultBytes, stride, vectors.Count);
+        AppendMain(text, target, argumentBytes, bufferSymbols, resultBytes, stride, vectors.Count);
         AppendPutHex(text, execTarget);
         var driver = MirModule.Parse(new StringReader(text.ToString()));
 
@@ -48,11 +50,13 @@ internal static class DriverBuilder
 
     public static int ByteWidth(IRType type) => type switch
     {
+        VoidType => 0,
+        PointerType => type.SizeInBits / 8,
         IntegerType { SizeInBits: 8 or 16 or 32 or 64 } => type.SizeInBits / 8,
-        _ => throw new NotSupportedException($"Only i8/i16/i32/i64 arguments and results can be driven, got {type.DisplayName}."),
+        _ => throw new NotSupportedException($"Only i8/i16/i32/i64 and pointer arguments and i8/i16/i32/i64 and void results can be driven, got {type.DisplayName}."),
     };
 
-    private static void AppendMain(StringBuilder text, MirFunction target, int[] argumentBytes, int resultBytes, int stride, int count)
+    private static void AppendMain(StringBuilder text, MirFunction target, int[] argumentBytes, IReadOnlyList<string?> bufferSymbols, int resultBytes, int stride, int count)
     {
         var v = 0;
         string Next() => $"%{v++}";
@@ -77,20 +81,41 @@ internal static class DriverBuilder
         text.AppendLine("bb2():");
         var arguments = new List<string>();
         var offset = 0;
-        foreach (var bytes in argumentBytes)
+        for (var a = 0; a < argumentBytes.Length; a++)
         {
+            var bytes = argumentBytes[a];
+            var isPointer = target.ParameterTypes[a] is PointerType;
+            if (isPointer && bufferSymbols[a] is null)
+                throw new NotSupportedException($"Parameter {a} of @{target.Name} is a pointer: give it a buf(N) argument.");
+
             var offsetValue = Next();
             var address = Next();
             var argument = Next();
             text.AppendLine($"    {offsetValue} : i16 = arith.constant {offset}");
             text.AppendLine($"    {address} : ptr = mem.ptradd {pointer}, {offsetValue}");
-            text.AppendLine($"    {argument} : i{bytes * 8} = mem.load.i{bytes * 8} {address}");
-            arguments.Add(argument);
+            if (isPointer)
+            {
+                // The table holds the offset into the buffer.
+                var bufferOffset = Next();
+                var bufferBase = Next();
+                text.AppendLine($"    {bufferOffset} : i16 = mem.load.i16 {address}");
+                text.AppendLine($"    {bufferBase} : ptr = mem.symbol @{bufferSymbols[a]}");
+                text.AppendLine($"    {argument} : ptr = mem.ptradd {bufferBase}, {bufferOffset}");
+                arguments.Add(argument);
+            }
+            else
+            {
+                text.AppendLine($"    {argument} : i{bytes * 8} = mem.load.i{bytes * 8} {address}");
+                arguments.Add(argument);
+            }
             offset += bytes;
         }
 
-        var result = Next();
-        text.AppendLine($"    {result} : i{resultBytes * 8} = call.func @{target.Name}{string.Concat(arguments.Select(a => ", " + a))}");
+        var result = resultBytes == 0 ? "" : Next();
+        var callArguments = string.Concat(arguments.Select(a => ", " + a));
+        text.AppendLine(resultBytes == 0
+            ? $"    call.func @{target.Name}{callArguments}"
+            : $"    {result} : i{resultBytes * 8} = call.func @{target.Name}{callArguments}");
 
         for (var b = resultBytes - 1; b >= 0; b--)
         {
