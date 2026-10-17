@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Globalization;
 using Irie.Mir;
 using Irie.Passes;
-using Irie.Target.MOS6502;
 using Irie.Tools.Exec;
 using Irie.Tools.Interpreter;
 
@@ -127,16 +126,16 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
 {
     var target = execTarget.Create();
     var module = MirModule.Parse(new StringReader(text));
-    DriverBuilder.AddDriver(module, module.Functions.First(f => f.Name == functionName), vectors, execTarget);
+    var function = module.Functions.First(f => f.Name == functionName);
+    KeepReachable(module, function);
+    DriverBuilder.AddDriver(module, function, vectors, execTarget);
 
     var passManager = new PassManager(null, null);
     PipelineBuilder.AddStandardPipeline(passManager, target);
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
-    var machineCode = target.MachineCodeEmitter.Emit(module);
-    target.LinkLibrary(machineCode);
-    var program = new MOS6502BinaryEncoder().Encode(machineCode, origin);
+    var program = target.BuildProgram(module, origin);
 
     var directory = Directory.CreateTempSubdirectory("irie-exec-");
     try
@@ -188,3 +187,21 @@ static string Format(ulong[] vector, int[] widths) =>
     string.Join(", ", vector.Select((v, i) => Hex(v, widths[i] / 8)));
 
 static string Hex(ulong value, int bytes) => "0x" + value.ToString("X" + bytes * 2, CultureInfo.InvariantCulture);
+
+// Drops every function the one under test cannot reach, so a file of several
+// functions (each with its own --exec) compiles only the one being run.
+static void KeepReachable(MirModule module, MirFunction root)
+{
+    var byName = module.Functions.ToDictionary(f => f.Name);
+    var reachable = new HashSet<MirFunction> { root };
+    var pending = new Stack<MirFunction>([root]);
+    while (pending.Count > 0)
+    {
+        foreach (var block in pending.Pop().Blocks)
+            foreach (var instruction in block.Instructions)
+                foreach (var operand in instruction.Operands)
+                    if (operand is Irie.Mir.Symbol symbol && byName.TryGetValue(symbol.Name, out var callee) && reachable.Add(callee))
+                        pending.Push(callee);
+    }
+    module.Functions.RemoveAll(f => !reachable.Contains(f));
+}

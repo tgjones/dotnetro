@@ -86,9 +86,8 @@ public static class CompilerDriver
         passMgr.Run(context);
 
         var origin = target.DefaultOrigin!.Value;
-        var machineCode = target.MachineCodeEmitter.Emit(module);
-        target.LinkLibrary(machineCode);
-        var program = descriptor.Encode(machineCode, origin);
+        var machineCode = target.EmitProgram(module);
+        var program = target.Encode(machineCode, origin);
         var image = target.PackageImage(program, origin);
 
         var machineCodeWriter = new StringWriter();

@@ -13,7 +13,6 @@ namespace DotNetro.Compiler;
 /// <param name="ImageFileName">File name offered when the image is downloaded (e.g. <c>MAIN.ssd</c>).</param>
 /// <param name="EmulatorKind">Which emulator runs the produced image (e.g. <c>jsbeeb</c>).</param>
 /// <param name="CreateTarget">Creates the Irie target (fresh per compile).</param>
-/// <param name="Encode">Encodes machine code to raw bytes loaded at the given origin.</param>
 /// <param name="WriteAssembly">Writes machine code as assembly text.</param>
 public sealed record TargetDescriptor(
     string Id,
@@ -22,7 +21,6 @@ public sealed record TargetDescriptor(
     string ImageFileName,
     string EmulatorKind,
     Func<Target> CreateTarget,
-    Func<MachineCodeModule, int, byte[]> Encode,
     Action<MachineCodeModule, TextWriter> WriteAssembly);
 
 public static class TargetRegistry
@@ -39,7 +37,6 @@ public static class TargetRegistry
             ImageFileName: "MAIN.ssd",
             EmulatorKind: "jsbeeb",
             CreateTarget: () => new MOS6502BbcMicroTarget(),
-            Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),
             WriteAssembly: MOS6502AssemblyWriter.Write),
         new TargetDescriptor(
             C64Id,
@@ -48,7 +45,6 @@ public static class TargetRegistry
             ImageFileName: "program.prg",
             EmulatorKind: "vice-c64",
             CreateTarget: () => new MOS6502C64Target(),
-            Encode: (module, origin) => new MOS6502BinaryEncoder().Encode(module, origin),
             WriteAssembly: MOS6502AssemblyWriter.Write),
     ];
 

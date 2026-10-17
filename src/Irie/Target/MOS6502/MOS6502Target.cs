@@ -97,6 +97,9 @@ public class MOS6502Target : Irie.Target.Target
             : runtime;
     }
 
+    public override byte[] Encode(Irie.MachineCode.MachineCodeModule module, int origin) =>
+        new MOS6502BinaryEncoder().Encode(module, origin);
+
     // The libcall routines, in MOS6502 assembly (libcalls.s), assembled for this
     // target's zero-page base.
     public override Irie.MachineCode.MachineCodeModule? GetLibrary()

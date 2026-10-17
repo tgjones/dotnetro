@@ -82,16 +82,27 @@ public abstract class Target
 
     // The target's library of hand-written machine-code routines (the libcalls
     // its legalizer emits calls to), or null if it has none. A fresh module on
-    // every call. LinkLibrary adds the routines a program needs.
+    // every call.
     public virtual Irie.MachineCode.MachineCodeModule? GetLibrary() => null;
 
-    // Adds to `program` the library routines it references and does not define.
-    // Call on the emitted module before encoding it into an image.
-    public void LinkLibrary(Irie.MachineCode.MachineCodeModule program)
+    // Encodes machine code into raw bytes loaded at `origin`.
+    public abstract byte[] Encode(Irie.MachineCode.MachineCodeModule module, int origin);
+
+    // The whole program as machine code: the post-pipeline module emitted, plus
+    // the library routines it references and does not define. Use this rather
+    // than MachineCodeEmitter.Emit whenever the result is to be run (listing the
+    // functions of the module alone is what Emit is for).
+    public Irie.MachineCode.MachineCodeModule EmitProgram(MirModule module)
     {
+        var program = MachineCodeEmitter.Emit(module);
         if (GetLibrary() is { } library)
             Irie.MachineCode.MachineCodeLinker.Link(program, library);
+        return program;
     }
+
+    // The raw bytes of the whole program, loaded at `origin` (see PackageImage
+    // for the target's image format).
+    public byte[] BuildProgram(MirModule module, int origin) => Encode(EmitProgram(module), origin);
 
     // Address of the first imaginary zero-page register (RC0). 0 on a bare chip;
     // a system whose low zero-page bytes are hardware (the C64's 6510 port at
