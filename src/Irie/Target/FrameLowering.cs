@@ -58,4 +58,19 @@ public abstract class FrameLowering
     // builds the replacement and removes `instr`.
     public abstract void LowerFrameAccess(
         MirFunction function, MirInstruction instr, MirBuilder builder);
+
+    // The number of bytes of soft stack this function reserves in its prologue
+    // (for the arguments of its calls), 0 if it needs none. Known once the
+    // function's calls have been lowered.
+    public virtual int GetSoftStackFrameBytes(MirFunction function) => 0;
+
+    // Emit the soft-stack reservation of `bytes` at the TOP of `entryBlock`,
+    // preserving every value live-in to it.
+    public virtual void EmitSoftStackReserve(MirBlock entryBlock, int bytes, MirBuilder builder) =>
+        throw new NotSupportedException("This target has no soft stack.");
+
+    // Emit the matching release immediately BEFORE `returnInstr`, preserving
+    // every value the return uses.
+    public virtual void EmitSoftStackRelease(MirInstruction returnInstr, int bytes, MirBuilder builder) =>
+        throw new NotSupportedException("This target has no soft stack.");
 }

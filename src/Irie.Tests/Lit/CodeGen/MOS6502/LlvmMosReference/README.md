@@ -51,11 +51,7 @@ function whose effect is on memory (`two-pointer-copy`, `common-subexpr`) is
 checked too. The cycles of the function alone, summed over the vectors, are
 printed beside the match count.
 
-Cases without a `RUN-exec:` line cannot be executed yet:
-
-| Reason | Cases |
-|--------|-------|
-| Stack arguments: `MOS6502CallLowering` only reads them in the callee, a caller cannot pass them | stack-args, pressure-i64 |
+Every converted case has a `RUN-exec:` line.
 
 ### Fidelity rule
 

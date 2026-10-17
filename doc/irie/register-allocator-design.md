@@ -491,9 +491,10 @@ one is never built. Stages S1 and S2 do not depend on each other.
 | **S7** Tuning | Beam width, frequency weights, size/speed weights; the K = ∞ oracle on small functions; tree-decomposition DP only if the oracle shows block joins lose significantly | Documented gap to the oracle |
 
 **S0 progress (2026-10-17):**
-- (a) done for 41 of 43 corpus cases (`irie-exec`, with `buf(N)` pointer arguments
-  and a comparison of all globals after the run). Left: `stack-args` and
-  `pressure-i64`, which need caller-side stack arguments in call lowering.
+- (a) done: every corpus case executes (`irie-exec`, with `buf(N)` pointer arguments
+  and a comparison of all globals after the run). Passing stack arguments needed
+  caller-side support in call lowering: the function reserves the largest outgoing
+  area in its prologue and the soft stack pointer (RC0/RC1) is set up at startup.
 - (b) done as `irie-exec` output: the cycles of the function under test, summed over
   its vectors, counted by the emulator (`--measure`; one CPU tick is one cycle).
   Not yet a column in `irie-report`, which has no reference cycles to compare with.
@@ -507,7 +508,7 @@ one is never built. Stages S1 and S2 do not depend on each other.
   the allocator's intervals. It runs at the end of `RegisterAllocatorPass` and
   found no violations in the suite, the executed corpus or the `.cs` tests.
 
-S0 is complete apart from the two corpus cases listed under (a).
+S0 is complete.
 
 ### Work outside the allocator that still limits quality
 

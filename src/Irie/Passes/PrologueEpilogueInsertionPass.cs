@@ -36,14 +36,21 @@ public sealed class PrologueEpilogueInsertionPass(
         if (function.Blocks.Count == 0)
             return;
 
+        var builder = new MirBuilder(function);
+
+        // Snapshot the returns first: the emitters below mutate the blocks'
+        // instruction lists.
+        var returns = new List<MirInstruction>();
+        foreach (var block in function.Blocks)
+            foreach (var instr in block.Instructions)
+                if (frameLowering.IsReturnInstruction(instr))
+                    returns.Add(instr);
+
         // The callee-saved registers this function actually clobbers: the target's
         // callee-saved list ∩ the physregs that appear as a definition anywhere in
         // the function (including inside surviving pseudo.copy defs). Ascending,
         // deduplicated.
         var calleeSaved = registerInfo.GetCalleeSavedRegisters();
-        if (calleeSaved.Length == 0)
-            return;
-
         var definedCalleeSaved = new SortedSet<int>();
         foreach (var block in function.Blocks)
             foreach (var instr in block.Instructions)
@@ -51,25 +58,22 @@ public sealed class PrologueEpilogueInsertionPass(
                     if (op is PhysicalReg { IsDefinition: true } p && ContainsReg(calleeSaved, p.Id))
                         definedCalleeSaved.Add(p.Id);
 
-        if (definedCalleeSaved.Count == 0)
-            return;
-
         var saved = definedCalleeSaved.ToList();
-        var builder = new MirBuilder(function);
+        var softStackBytes = frameLowering.GetSoftStackFrameBytes(function);
 
-        // Prologue: save in the entry block.
-        frameLowering.EmitCalleeSavedSpills(function.Blocks[0], saved, builder);
+        if (saved.Count > 0)
+        {
+            frameLowering.EmitCalleeSavedSpills(function.Blocks[0], saved, builder);
+            foreach (var returnInstr in returns)
+                frameLowering.EmitCalleeSavedRestores(returnInstr, saved, builder);
+        }
 
-        // Epilogue: restore before every return. Snapshot the return list first —
-        // EmitCalleeSavedRestores mutates the blocks' instruction lists.
-        var returns = new List<MirInstruction>();
-        foreach (var block in function.Blocks)
-            foreach (var instr in block.Instructions)
-                if (frameLowering.IsReturnInstruction(instr))
-                    returns.Add(instr);
-
-        foreach (var returnInstr in returns)
-            frameLowering.EmitCalleeSavedRestores(returnInstr, saved, builder);
+        if (softStackBytes > 0)
+        {
+            frameLowering.EmitSoftStackReserve(function.Blocks[0], softStackBytes, builder);
+            foreach (var returnInstr in returns)
+                frameLowering.EmitSoftStackRelease(returnInstr, softStackBytes, builder);
+        }
     }
 
     private static bool ContainsReg(ReadOnlySpan<int> regs, int reg)

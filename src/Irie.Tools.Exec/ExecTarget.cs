@@ -10,13 +10,15 @@ internal sealed record ExecTarget(
     Func<Irie.Target.Target> Create,
     string EmulatorSystem,
     int PutCharAddress,
-    int PutCharConvention)
+    int PutCharConvention,
+    int SoftStackPointerAddress,
+    int SoftStackTop)
 {
     // Only the BBC Micro has an emulator system and a driver output routine so
     // far (OSASCI, which the emulator's stub treats as "print A").
     private static readonly Dictionary<string, ExecTarget> Targets = new()
     {
-        ["mos6502-bbcmicro"] = new(() => new MOS6502BbcMicroTarget(), "bbcmicro", 0xFFE3, CallConvention.BbcMicroOS),
+        ["mos6502-bbcmicro"] = new(() => new MOS6502BbcMicroTarget(), "bbcmicro", 0xFFE3, CallConvention.BbcMicroOS, 0x00, 0x7C00),
     };
 
     public static ExecTarget Get(string name) =>

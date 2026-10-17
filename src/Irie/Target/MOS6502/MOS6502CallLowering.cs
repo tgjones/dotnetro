@@ -299,9 +299,12 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         var argByteVregs = MaterializeArgumentBytes(argTypes, argVregs, builder, out var argPhysRegs);
         var ptrBytes = builder.BuildUnmerge(IRType.I8, targetPtrVreg, 2);
 
+        EmitStackArgumentStores(argByteVregs, argPhysRegs, builder);
         var implicitUses = new List<int>();
         for (var k = 0; k < argByteVregs.Count; k++)
         {
+            if (argPhysRegs[k] == StackByte)
+                continue;
             builder.BuildCopyToPhysicalRegister(argPhysRegs[k], argByteVregs[k]);
             implicitUses.Add(argPhysRegs[k]);
         }
@@ -371,9 +374,12 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
     private List<int> EmitArgumentSetup(IRType[] argTypes, int[] argVregs, MirBuilder builder)
     {
         var byteVregs = MaterializeArgumentBytes(argTypes, argVregs, builder, out var physRegs);
+        EmitStackArgumentStores(byteVregs, physRegs, builder);
         var implicitUses = new List<int>();
         for (var k = 0; k < byteVregs.Count; k++)
         {
+            if (physRegs[k] == StackByte)
+                continue;
             builder.BuildCopyToPhysicalRegister(physRegs[k], byteVregs[k]);
             implicitUses.Add(physRegs[k]);
         }
@@ -382,7 +388,11 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 
     // Phase 1 of argument setup: unmerge each argument into its bytes (LSB-first
     // for multi-byte values), returning the flat byte-vreg list and, via
-    // `physRegs`, the CC physreg each byte will be pinned to.
+    // `physRegs`, the CC physreg each byte will be pinned to, or StackByte for a
+    // byte past the register budget. Bytes take registers in order until they
+    // run out, then the stack in order, mirroring LowerFormalArguments.
+    private const int StackByte = -1;
+
     private List<int> MaterializeArgumentBytes(IRType[] argTypes, int[] argVregs, MirBuilder builder, out List<int> physRegs)
     {
         var byteVregs = new List<int>();
@@ -391,7 +401,6 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         for (var i = 0; i < argVregs.Length; i++)
         {
             var byteCount = ByteCount(argTypes[i]);
-            EnsureRegBudget(regIdx + byteCount);
 
             int[] bytes = byteCount == 1
                 ? [argVregs[i]]
@@ -400,10 +409,51 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             for (var b = 0; b < byteCount; b++)
             {
                 byteVregs.Add(bytes[b]);
-                physRegs.Add(_argRegs[regIdx++]);
+                physRegs.Add(regIdx < _argRegs.Length ? _argRegs[regIdx++] : StackByte);
             }
         }
         return byteVregs;
+    }
+
+    // Store the bytes bound for the stack at their offsets from the soft stack
+    // pointer (the callee reads them there; the function reserved the room in its
+    // prologue, see MOS6502FrameLowering.GetSoftStackFrameBytes). Done before any
+    // argument register is pinned: each store goes through $a and $y.
+    private static void EmitStackArgumentStores(List<int> byteVregs, List<int> physRegs, MirBuilder builder)
+    {
+        var function = builder.Function;
+        var stackIdx = 0;
+        for (var k = 0; k < byteVregs.Count; k++)
+        {
+            if (physRegs[k] != StackByte)
+                continue;
+
+            var name = $"{function.Name}_outarg{stackIdx}";
+            var slot = function.FrameSlots.FirstOrDefault(s => s.SymbolName == name);
+            if (slot is null)
+            {
+                slot = new FrameSlot(function.FrameSlots.Count, IRType.I8, name)
+                {
+                    StackId = MOS6502FrameStackIds.OutgoingStackArg,
+                    Offset = stackIdx,
+                };
+                function.FrameSlots.Add(slot);
+            }
+            stackIdx++;
+
+            var valueVreg = function.CreateVirtualRegisterInClass(
+                MOS6502RegisterClass.Ac, MOS6502RegisterClass.GetName(MOS6502RegisterClass.Ac)!);
+            builder.BuildInstruction(
+                PseudoDialect.OpRef(PseudoOp.Copy),
+                new VirtualReg(valueVreg, IsDefinition: true),
+                new VirtualReg(byteVregs[k], IsDefinition: false));
+            builder.BuildInstruction(
+                MOS6502Dialect.OpRef(MOS6502Op.FrameStoreByte),
+                new Symbol(slot.SymbolName),
+                new Immediate(0),
+                new VirtualReg(valueVreg, IsDefinition: false),
+                new PhysicalReg(MOS6502Registers.Y, IsDefinition: true, IsImplicit: true));
+        }
     }
 
     // Reserved zero-page slots that the indirect-call trampoline reads its

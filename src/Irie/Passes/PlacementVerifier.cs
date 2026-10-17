@@ -157,10 +157,9 @@ public static class PlacementVerifier
         }
 
         // Definitions: forget everything clobbered, then record what was defined.
-        var info = DialectRegistry.ById(instruction.Opcode.Dialect).GetInstructionInfo(instruction.Opcode.Code);
-        if (info.ImplicitDefs is { } implicitDefs)
-            foreach (var register in implicitDefs)
-                state.Remove(register);
+        // Clobbers are the instruction's explicit physical-register defs (implicit
+        // ones included): a dialect's per-opcode default list can be wider than a
+        // particular instance, which declares what its expansion really clobbers.
         foreach (var operand in operands)
             if (operand is PhysicalReg { IsDefinition: true } def)
                 state.Remove(def.Id);

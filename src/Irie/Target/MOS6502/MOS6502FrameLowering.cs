@@ -117,6 +117,87 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
     private static readonly int PointerZpLo = MOS6502Registers.RC(18); // physreg 30 → $12
     private static readonly int PointerZpHi = MOS6502Registers.RC(19); // physreg 31 → $13
 
+    // The soft stack the function reserves in its prologue: room for the stack
+    // arguments of its largest call, i.e. one past the highest outgoing slot.
+    public override int GetSoftStackFrameBytes(MirFunction function)
+    {
+        var bytes = 0;
+        foreach (var slot in function.FrameSlots)
+            if (slot.StackId == MOS6502FrameStackIds.OutgoingStackArg)
+                bytes = Math.Max(bytes, slot.Offset + slot.Type.SizeInBits / 8);
+        return bytes;
+    }
+
+    // SP -= bytes, through $a and the carry. A live-in $a (the first argument
+    // byte) is parked in $y meanwhile; $y is never an argument register.
+    public override void EmitSoftStackReserve(MirBlock entryBlock, int bytes, MirBuilder builder)
+    {
+        if (entryBlock.LiveIns.Contains(MOS6502Registers.Y))
+            throw new InvalidOperationException(
+                "MOS6502FrameLowering: $y must not be live-in to the entry block " +
+                "(it is borrowed to preserve $a across the stack pointer update).");
+
+        if (entryBlock.Instructions.Count > 0)
+            builder.SetInsertionPointBefore(entryBlock.Instructions[0]);
+        else
+            builder.SetInsertionPointAtEnd(entryBlock);
+
+        var preserveA = entryBlock.LiveIns.Contains(MOS6502Registers.A);
+        if (preserveA)
+            EmitCopy(builder, MOS6502Registers.Y, MOS6502Registers.A);
+        EmitAdjustSoftStack(builder, -bytes);
+        if (preserveA)
+            EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
+    }
+
+    // SP += bytes, before the return, which may use $a (the first return byte).
+    public override void EmitSoftStackRelease(MirInstruction returnInstr, int bytes, MirBuilder builder)
+    {
+        if (ReturnUses(returnInstr, MOS6502Registers.Y))
+            throw new InvalidOperationException(
+                "MOS6502FrameLowering: $y must not be a use on the return instruction " +
+                "(it is borrowed to preserve $a across the stack pointer update).");
+
+        builder.SetInsertionPointBefore(returnInstr);
+        var preserveA = ReturnUses(returnInstr, MOS6502Registers.A);
+        if (preserveA)
+            EmitCopy(builder, MOS6502Registers.Y, MOS6502Registers.A);
+        EmitAdjustSoftStack(builder, bytes);
+        if (preserveA)
+            EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
+    }
+
+    // RC0/RC1 += delta (16-bit), clobbering $a and the carry:
+    //   sec/clc ; lda rc0 ; sbc/adc #lo ; sta rc0 ; lda rc1 ; sbc/adc #hi ; sta rc1
+    private static void EmitAdjustSoftStack(MirBuilder builder, int delta)
+    {
+        var subtract = delta < 0;
+        var magnitude = (ushort)Math.Abs(delta);
+        var a = MOS6502Registers.A;
+        var c = MOS6502Registers.C;
+
+        builder.BuildInstruction(
+            MOS6502Dialect.OpRef(subtract ? MOS6502Op.Sec : MOS6502Op.Clc),
+            new PhysicalReg(c, IsDefinition: true));
+        for (var half = 0; half < 2; half++)
+        {
+            var register = MOS6502Registers.RC(half);
+            builder.BuildInstruction(MOS6502Dialect.OpRef(MOS6502Op.LdaZp),
+                new PhysicalReg(a, IsDefinition: true),
+                new PhysicalReg(register, IsDefinition: false));
+            builder.BuildInstruction(
+                MOS6502Dialect.OpRef(subtract ? MOS6502Op.SbcImm : MOS6502Op.AdcImm),
+                new PhysicalReg(a, IsDefinition: true),
+                new PhysicalReg(c, IsDefinition: true),
+                new PhysicalReg(a, IsDefinition: false),
+                new Immediate(half == 0 ? magnitude & 0xFF : magnitude >> 8),
+                new PhysicalReg(c, IsDefinition: false));
+            builder.BuildInstruction(MOS6502Dialect.OpRef(MOS6502Op.StaZp),
+                new PhysicalReg(register, IsDefinition: true),
+                new PhysicalReg(a, IsDefinition: false));
+        }
+    }
+
     public override bool IsFrameAccess(MirInstruction instr)
         => instr.Opcode.Dialect == MOS6502Dialect.Id
            && (MOS6502Op)instr.Opcode.Code is MOS6502Op.FrameLoadByte or MOS6502Op.FrameStoreByte;
@@ -145,7 +226,10 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         if (slot.StackId == MOS6502FrameStackIds.ZeroPage)
             LowerZeroPageAccess(builder, op, slot, offset, valueReg);
         else if (slot.StackId == MOS6502FrameStackIds.CallerStackArg)
-            LowerCallerStackArgAccess(builder, op, slot, offset, valueReg);
+            // Our own incoming arguments sit above the area this function reserved.
+            LowerCallerStackArgAccess(builder, op, slot.Offset + offset + GetSoftStackFrameBytes(function), valueReg);
+        else if (slot.StackId == MOS6502FrameStackIds.OutgoingStackArg)
+            LowerCallerStackArgAccess(builder, op, slot.Offset + offset, valueReg);
         else
             LowerAbsoluteAccess(builder, op, symbol, offset, valueReg);
 
@@ -222,9 +306,12 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
     // directly. Reads RC0/RC1 as USES, never as defs: this access must not
     // disturb the live SP.
     private static void LowerCallerStackArgAccess(
-        MirBuilder builder, MOS6502Op op, FrameSlot slot, long offset, int valueReg)
+        MirBuilder builder, MOS6502Op op, long spOffset, int valueReg)
     {
-        EmitLoadY(builder, slot.Offset + offset);
+        if (spOffset > 0xFF)
+            throw new NotSupportedException(
+                $"MOS6502FrameLowering: soft stack offset {spOffset} is out of the 255-byte reach of (zp),y.");
+        EmitLoadY(builder, spOffset);
         if (op == MOS6502Op.FrameLoadByte)
         {
             builder.BuildInstruction(

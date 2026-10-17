@@ -39,7 +39,7 @@ internal static class DriverBuilder
             new MirInitializer([new DataBytes(table.ToArray())])));
 
         var text = new StringBuilder();
-        AppendMain(text, target, argumentBytes, bufferSymbols, resultBytes, stride, vectors.Count);
+        AppendMain(text, target, execTarget, argumentBytes, bufferSymbols, resultBytes, stride, vectors.Count);
         AppendPutHex(text, execTarget);
         var driver = MirModule.Parse(new StringReader(text.ToString()));
 
@@ -56,15 +56,24 @@ internal static class DriverBuilder
         _ => throw new NotSupportedException($"Only i8/i16/i32/i64 and pointer arguments and i8/i16/i32/i64 and void results can be driven, got {type.DisplayName}."),
     };
 
-    private static void AppendMain(StringBuilder text, MirFunction target, int[] argumentBytes, IReadOnlyList<string?> bufferSymbols, int resultBytes, int stride, int count)
+    private static void AppendMain(StringBuilder text, MirFunction target, ExecTarget execTarget, int[] argumentBytes, IReadOnlyList<string?> bufferSymbols, int resultBytes, int stride, int count)
     {
         var v = 0;
         string Next() => $"%{v++}";
 
         var table = Next();
         var zero = Next();
+        var stackTop = Next();
+        var stackPointer = Next();
+        var stackAddress = Next();
         text.AppendLine($"func @{MainName} : () -> void {{");
         text.AppendLine("bb0():");
+        // The program starts here, so it sets up the soft stack the way a real
+        // program's startup does: the pointer lives in the first two zero-page registers.
+        text.AppendLine($"    {stackTop} : i16 = arith.constant {execTarget.SoftStackTop}");
+        text.AppendLine($"    {stackAddress} : i16 = arith.constant {execTarget.SoftStackPointerAddress}");
+        text.AppendLine($"    {stackPointer} : ptr = cast.inttoptr {stackAddress}");
+        text.AppendLine($"    mem.store.i16 {stackPointer}, {stackTop}");
         text.AppendLine($"    {table} : ptr = mem.symbol @__exec_vectors");
         text.AppendLine($"    {zero} : i16 = arith.constant 0");
         text.AppendLine($"    cf.br bb1({table}, {zero})");

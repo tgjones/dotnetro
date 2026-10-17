@@ -1,0 +1,58 @@
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "pass_through(*, *, *, *, *, *, *, *, *, *)"
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "two_calls(*, *, *, *, *, *, *, *, *, *)"
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "countdown(0..12, 1|2|0x1234, 3, 4, 5, 6, 7, 8, 9)"
+
+; Calls that pass arguments on the soft stack, executed against the MIR interpreter.
+;
+; pass_through receives stack arguments and passes its own to a callee: it reserves
+; an outgoing area, so its incoming arguments sit above that area.
+; two_calls makes calls with different amounts of stack arguments: the reserved
+; area is the largest. countdown recurses with stack arguments, each activation
+; reserving its own area.
+
+func @inner : (i16, i16, i16, i16, i16, i16, i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16, %4 : i16, %5 : i16, %6 : i16, %7 : i16, %8 : i16, %9 : i16):
+    %10 : i16 = arith.subi %0, %9
+    %11 : i16 = arith.addi %10, %8
+    %12 : i16 = arith.xor %11, %1
+    %13 : i16 = arith.addi %12, %7
+    core.return %13
+}
+
+func @pass_through : (i16, i16, i16, i16, i16, i16, i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16, %4 : i16, %5 : i16, %6 : i16, %7 : i16, %8 : i16, %9 : i16):
+    %10 : i16 = call.func @inner, %9, %8, %7, %6, %5, %4, %3, %2, %1, %0
+    %11 : i16 = arith.addi %10, %9
+    core.return %11
+}
+
+func @few : (i16, i16, i16, i16, i16, i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16, %4 : i16, %5 : i16, %6 : i16, %7 : i16, %8 : i16):
+    %9 : i16 = arith.addi %0, %8
+    %10 : i16 = arith.addi %9, %7
+    core.return %10
+}
+
+func @two_calls : (i16, i16, i16, i16, i16, i16, i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16, %4 : i16, %5 : i16, %6 : i16, %7 : i16, %8 : i16, %9 : i16):
+    %10 : i16 = call.func @few, %0, %1, %2, %3, %4, %5, %6, %7, %9
+    %11 : i16 = call.func @inner, %0, %1, %2, %3, %4, %5, %6, %7, %8, %10
+    %12 : i16 = call.func @few, %11, %1, %2, %3, %4, %5, %6, %7, %8
+    core.return %12
+}
+
+func @countdown : (i16, i16, i16, i16, i16, i16, i16, i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16, %2 : i16, %3 : i16, %4 : i16, %5 : i16, %6 : i16, %7 : i16, %8 : i16):
+    %9 : i16 = arith.constant 0
+    %10 : i1 = arith.cmpi eq, %0, %9
+    cf.cond_br %10, bb1(), bb2()
+bb1():
+    core.return %8
+bb2():
+    %11 : i16 = arith.constant 1
+    %12 : i16 = arith.subi %0, %11
+    %13 : i16 = arith.addi %1, %8
+    %14 : i16 = call.func @countdown, %12, %13, %2, %3, %4, %5, %6, %7, %8
+    %15 : i16 = arith.addi %14, %2
+    core.return %15
+}
