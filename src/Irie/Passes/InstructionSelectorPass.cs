@@ -20,6 +20,7 @@ public sealed class InstructionSelectorPass(Irie.Target.InstructionSelector sele
 
         foreach (var block in function.Blocks)
         {
+            selector.BeginBlock(block);
             // Snapshot the list so we can safely modify it during iteration.
             foreach (var instr in block.Instructions.ToList())
             {

@@ -45,7 +45,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // "@name" for a mem.symbol address and "%<vreg>" for a runtime i16 pointer
     // (an address vreg defined by a pseudo.merge of two byte vregs). Isel
     // visits instructions in program order, so tracking the last-loaded pointer
-    // is sufficient. Cleared per function and invalidated at each call (jsr) —
+    // is sufficient. Cleared per function and per block, and invalidated at each call (jsr) —
     // a call clobbers the shared pointer pair, so a cached setup cannot be
     // reused across it (see the JsrAbs case in Select).
     private string? _currentPointerKey;
@@ -61,6 +61,13 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     }
 
     public override void BeginFunction(MirFunction function)
+    {
+        _currentPointerKey = null;
+    }
+
+    // Blocks are visited in list order, not CFG order, so the pair may hold
+    // anything on entry (a join block is reached from several predecessors).
+    public override void BeginBlock(MirBlock block)
     {
         _currentPointerKey = null;
     }
@@ -1274,10 +1281,11 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
         // ($y, $rc0, $rc1) is declared as an implicit clobber so RA reserves it.
         // FrameAccessLoweringPass expands it post-RA per the slot's placement.
         // Non-frame globals (strings, statics — genuine absolute addresses) fall
-        // through to the indirect-Y path below. The pointer cache is left
-        // untouched: a frame access does not park anything in the shared pair.
+        // through to the indirect-Y path below. The access clobbers the shared
+        // pair (implicit-def $rc0/$rc1 above), so the pointer cache is dropped.
         if (ResolveFrameSlotSymbol(function, addrReg.Id) is string loadSym)
         {
+            _currentPointerKey = null;
             // %v : ac = mos6502.frame.load.byte @sym, #off,
             //          implicit-def $y, implicit-def $rc0, implicit-def $rc1
             var valueVreg = function.CreateVirtualRegisterInClass(
@@ -1413,6 +1421,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
                 new VirtualReg(valueVreg,  IsDefinition: true),
                 new VirtualReg(valReg.Id,  IsDefinition: false));
 
+            _currentPointerKey = null;
             // frame.store.byte @sym, #off, $a,
             //   implicit-def $x, implicit-def $y, implicit-def $rc0, implicit-def $rc1
             builder.BuildInstruction(
