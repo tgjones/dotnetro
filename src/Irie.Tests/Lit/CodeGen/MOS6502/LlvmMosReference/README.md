@@ -47,7 +47,6 @@ Cases without a `RUN-exec:` line cannot be executed yet:
 
 | Reason | Cases |
 |--------|-------|
-| No runtime helpers linked into `iriec`-style modules (`__mulhi3`, `__mulsi3`, `__ashlhi3`, `__modsi3` are undefined symbols) | chain-arith, shift-var, nested-loop, struct-pass, pressure-high, factorial-recursive, gcd |
 | Stack arguments not supported by `MOS6502CallLowering` | stack-args, pressure-i64 |
 | Pointer arguments / memory results: the driver has no buffers to pass or compare | loop-sum-array, array-index, two-pointer-copy, crc8, strlen |
 | `void` function whose effect is on globals | common-subexpr |

@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Target/MOS6502/runtime.irie" />
+    <EmbeddedResource Include="Target/MOS6502/libcalls.s" />
   </ItemGroup>
 
   <ItemGroup>

@@ -130,6 +130,7 @@ rootCommand.SetAction(parseResult =>
         case "bin":
         {
             var mc = target.MachineCodeEmitter.Emit(module);
+            target.LinkLibrary(mc);
             var originValue = ResolveOrigin(parseResult.GetValue(originOption), target.DefaultOrigin);
             var bytes  = new MOS6502BinaryEncoder().Encode(mc, originValue);
             var image  = target.PackageImage(bytes, originValue);

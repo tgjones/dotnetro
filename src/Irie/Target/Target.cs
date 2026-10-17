@@ -80,6 +80,19 @@ public abstract class Target
     // and merges its functions into the module it produces.
     public abstract string GetRuntime();
 
+    // The target's library of hand-written machine-code routines (the libcalls
+    // its legalizer emits calls to), or null if it has none. A fresh module on
+    // every call. LinkLibrary adds the routines a program needs.
+    public virtual Irie.MachineCode.MachineCodeModule? GetLibrary() => null;
+
+    // Adds to `program` the library routines it references and does not define.
+    // Call on the emitted module before encoding it into an image.
+    public void LinkLibrary(Irie.MachineCode.MachineCodeModule program)
+    {
+        if (GetLibrary() is { } library)
+            Irie.MachineCode.MachineCodeLinker.Link(program, library);
+    }
+
     // Address of the first imaginary zero-page register (RC0). 0 on a bare chip;
     // a system whose low zero-page bytes are hardware (the C64's 6510 port at
     // $00/$01) moves the register file up.

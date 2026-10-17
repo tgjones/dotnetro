@@ -1,0 +1,129 @@
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "mul_i16(*, *)" --exec "shl_i16(*, 0..15)" --exec "lshr_i16(*, 0..15)" --exec "ashr_i16(*, 0..15)" --exec "mul_i32(*, *)" --exec "shl_i32(*, 0..31)" --exec "lshr_i32(*, 0..31)" --exec "ashr_i32(*, 0..31)" --exec "mul_i64(*, *)" --exec "shl_i64(*, 0..63)" --exec "lshr_i64(*, 0..63)" --exec "ashr_i64(*, 0..63)" --exec "udiv_i32(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe|0xffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe|0xffffffff)" --exec "urem_i32(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe|0xffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe|0xffffffff)" --exec "sdiv_i32(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe|0xffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe)" --exec "srem_i32(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe|0xffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x9abcdef0|0xfffffffe)" --exec "udiv_i64(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe|0xffffffffffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe|0xffffffffffffffff)" --exec "urem_i64(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe|0xffffffffffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe|0xffffffffffffffff)" --exec "sdiv_i64(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe|0xffffffffffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe)" --exec "srem_i64(0x0|0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe|0xffffffffffffffff, 0x1|0x2|0x7|0x64|0x7f|0x80|0xff|0x100|0x7fff|0x8000|0xffff|0x12345678|0xdeadbeef|0x123456789abcdef0|0x8000000000000000|0xfffffffffffffffe)"
+
+; The libcalls (libcalls.s): multiply, divide, remainder and variable-count shifts,
+; which the legalizer lowers to calls. Each wrapper is one operation; irie-exec
+; links the library into the program, runs the wrapper in the emulator and
+; compares every result with the interpreter's.
+;
+; Division by zero and INT_MIN / -1 are undefined, so the divisor lists leave out
+; zero (and -1 for the signed forms).
+
+func @mul_i16 : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = arith.muli %0, %1
+    core.return %2
+}
+
+func @shl_i16 : (i16, i8) -> i16 {
+bb0(%0 : i16, %1 : i8):
+    %2 : i16 = arith.shl %0, %1
+    core.return %2
+}
+
+func @lshr_i16 : (i16, i8) -> i16 {
+bb0(%0 : i16, %1 : i8):
+    %2 : i16 = arith.lshr %0, %1
+    core.return %2
+}
+
+func @ashr_i16 : (i16, i8) -> i16 {
+bb0(%0 : i16, %1 : i8):
+    %2 : i16 = arith.ashr %0, %1
+    core.return %2
+}
+
+func @mul_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.muli %0, %1
+    core.return %2
+}
+
+func @shl_i32 : (i32, i8) -> i32 {
+bb0(%0 : i32, %1 : i8):
+    %2 : i32 = arith.shl %0, %1
+    core.return %2
+}
+
+func @lshr_i32 : (i32, i8) -> i32 {
+bb0(%0 : i32, %1 : i8):
+    %2 : i32 = arith.lshr %0, %1
+    core.return %2
+}
+
+func @ashr_i32 : (i32, i8) -> i32 {
+bb0(%0 : i32, %1 : i8):
+    %2 : i32 = arith.ashr %0, %1
+    core.return %2
+}
+
+func @mul_i64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.muli %0, %1
+    core.return %2
+}
+
+func @shl_i64 : (i64, i8) -> i64 {
+bb0(%0 : i64, %1 : i8):
+    %2 : i64 = arith.shl %0, %1
+    core.return %2
+}
+
+func @lshr_i64 : (i64, i8) -> i64 {
+bb0(%0 : i64, %1 : i8):
+    %2 : i64 = arith.lshr %0, %1
+    core.return %2
+}
+
+func @ashr_i64 : (i64, i8) -> i64 {
+bb0(%0 : i64, %1 : i8):
+    %2 : i64 = arith.ashr %0, %1
+    core.return %2
+}
+
+func @udiv_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.udivi %0, %1
+    core.return %2
+}
+
+func @urem_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.uremi %0, %1
+    core.return %2
+}
+
+func @sdiv_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.sdivi %0, %1
+    core.return %2
+}
+
+func @srem_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.sremi %0, %1
+    core.return %2
+}
+
+func @udiv_i64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.udivi %0, %1
+    core.return %2
+}
+
+func @urem_i64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.uremi %0, %1
+    core.return %2
+}
+
+func @sdiv_i64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.sdivi %0, %1
+    core.return %2
+}
+
+func @srem_i64 : (i64, i64) -> i64 {
+bb0(%0 : i64, %1 : i64):
+    %2 : i64 = arith.sremi %0, %1
+    core.return %2
+}

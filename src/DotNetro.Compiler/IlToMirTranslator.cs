@@ -63,10 +63,6 @@ internal sealed class IlToMirTranslator : IDisposable
     private EcmaMethod? _allocMethod;
     private EcmaMethod? _allocArrayMethod;
 
-    // Methods that must be emitted under a fixed MIR function name rather than
-    // their UniqueName (the math helpers the legalizer's libcalls link against).
-    private readonly Dictionary<EcmaMethod, string> _emitNameOverrides = [];
-
     // Pointer size is 16-bit on the 6502.
     private const int PointerSize = 2;
 
@@ -179,39 +175,6 @@ internal sealed class IlToMirTranslator : IDisposable
         var type = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "TypeCheck");
         return type.GetMethod(name);
     }
-
-    // The software multiply / divide / remainder helpers in DotNetro.Runtime.MathHelper,
-    // which Irie's legalizer calls by these stable names (compiler-rt naming). Each
-    // is emitted under its own name so the call the legalizer builds links.
-    private static readonly string[] MathHelperNames =
-        [
-            "__mulhi3", "__mulsi3", "__udivsi3", "__divsi3", "__umodsi3", "__modsi3",
-            "__muldi3", "__udivdi3", "__divdi3", "__umoddi3", "__moddi3",
-            "__ashlhi3", "__lshrhi3", "__ashrhi3", "__ashlsi3", "__lshrsi3", "__ashrsi3",
-            "__ashldi3", "__lshrdi3", "__ashrdi3",
-        ];
-
-    private bool _mathHelpersRegistered;
-
-    // Link in math helper `name`: pin every helper's emitted name (the helpers call
-    // each other, and calls resolve names through GetEmitNameOverride), then
-    // enqueue the one the program needs. Demand-driven so a program with no
-    // general multiply or divide carries none of this code.
-    internal void RequireMathHelper(string name)
-    {
-        var mathHelperType = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "MathHelper");
-        if (!_mathHelpersRegistered)
-        {
-            _mathHelpersRegistered = true;
-            foreach (var helperName in MathHelperNames)
-                _emitNameOverrides[mathHelperType.GetMethod(helperName)] = helperName;
-        }
-        EnqueueMethod(mathHelperType.GetMethod(name));
-    }
-
-    // The pinned MIR name for `method`, or null when it is emitted under its UniqueName.
-    internal string? GetEmitNameOverride(EcmaMethod method) =>
-        _emitNameOverrides.TryGetValue(method, out var pinned) ? pinned : null;
 
     // True if `name` matches a function supplied by the hand-written runtime
     // (the indirect-call trampoline, …). Used to validate InternalCall routing.
@@ -497,8 +460,7 @@ internal sealed class IlToMirTranslator : IDisposable
             .ToArray();
         var returnType = ToIRType(method.MethodSignature.ReturnType);
 
-        var name = _emitNameOverrides.TryGetValue(method, out var pinned) ? pinned : method.UniqueName;
-        var function = new MirFunction(name, paramTypes, returnType);
+        var function = new MirFunction(method.UniqueName, paramTypes, returnType);
         var methodTranslator = new MethodTranslator(this, method, function);
         methodTranslator.Translate();
         return function;
@@ -1495,8 +1457,8 @@ internal sealed class IlToMirTranslator : IDisposable
         // add / sub / mul / div / rem: the integer binary ops whose result depends on
         // the bits above the operands' width (see the byte promotion below). Irie
         // strength-reduces a multiply (and unsigned divide / remainder) by a
-        // constant power of two and legalizes the rest as a call to a math helper,
-        // which RequireLibcallHelper links in.
+        // constant power of two and legalizes the rest as a call to a libcall, which
+        // Irie's own library supplies.
         private void TranslateIntegerBinary(ArithOp op)
         {
             // ECMA-335 keeps bytes and 16-bit integers on the stack as int32, so
@@ -1515,9 +1477,6 @@ internal sealed class IlToMirTranslator : IDisposable
             var left = PromoteNarrow(rawLeft);
             if (!left.Type.Equals(right.Type))
                 UnifyWidths(ref left, ref right);
-
-            if (op is ArithOp.MulI or ArithOp.UDivI or ArithOp.SDivI or ArithOp.URemI or ArithOp.SRemI)
-                RequireLibcallHelper(op, left, right);
 
             var result = _function.CreateVirtualRegister(left.Type);
             _builder.BuildInstruction(ArithDialect.OpRef(op),
@@ -1606,53 +1565,6 @@ internal sealed class IlToMirTranslator : IDisposable
                 throw new NotSupportedException(
                     $"IL→MIR: {operation} on a pointer is not supported (method {_method.UniqueName}).");
             return value;
-        }
-
-        // Link in the math helper Irie's legalizer will call for this multiply /
-        // divide / remainder (MOS6502LegalizerInfo.LowerLibcall picks the same
-        // name from the same op and width). A multiply or unsigned divide /
-        // remainder by a constant power of two is strength-reduced by Irie's
-        // ArithSimplifyPass and needs no helper, so it is skipped here — keep the
-        // two rules in step, or the symbol will be missing at link time.
-        private void RequireLibcallHelper(ArithOp op, StackValue left, StackValue right)
-        {
-            var isSigned = op is ArithOp.SDivI or ArithOp.SRemI;
-            if (!isSigned
-                && (IsPowerOfTwoConstant(right) || (op == ArithOp.MulI && IsPowerOfTwoConstant(left))))
-                return;
-
-            var name = op switch
-            {
-                ArithOp.MulI => left.Type.SizeInBits switch
-                {
-                    <= 16 => "__mulhi3",
-                    <= 32 => "__mulsi3",
-                    _ => "__muldi3",
-                },
-                ArithOp.UDivI => left.Type.SizeInBits == 64 ? "__udivdi3" : "__udivsi3",
-                ArithOp.SDivI => left.Type.SizeInBits == 64 ? "__divdi3" : "__divsi3",
-                ArithOp.URemI => left.Type.SizeInBits == 64 ? "__umoddi3" : "__umodsi3",
-                _ => left.Type.SizeInBits == 64 ? "__moddi3" : "__modsi3",
-            };
-            _parent.RequireMathHelper(name);
-        }
-
-        // Whether `value` is an arith.constant (possibly narrowed by a cast.trunc,
-        // as a narrowing Resize leaves it) that is a positive power of two at its width.
-        private bool IsPowerOfTwoConstant(StackValue value)
-        {
-            var def = _function.GetDefinition(value.Vreg);
-            if (def is { Operands: [_, VirtualReg source] }
-                && def.Opcode == CastDialect.OpRef(CastOp.Trunc))
-                def = _function.GetDefinition(source.Id);
-
-            if (def is not { Operands: [_, Immediate imm] }
-                || def.Opcode != ArithDialect.OpRef(ArithOp.Constant))
-                return false;
-
-            var bits = value.Type.SizeInBits;
-            var factor = bits >= 64 ? imm.Value : imm.Value & ((1L << bits) - 1);
-            return factor > 0 && (factor & (factor - 1)) == 0;
         }
 
         // Whether local `index` is a block parameter of any block, i.e. its value
@@ -1803,8 +1715,8 @@ internal sealed class IlToMirTranslator : IDisposable
         // shl / shr / shr.un: shift the value by an int32 amount. A byte operand is
         // first widened to int32, as ECMA-335's stack promotion would. The amount
         // becomes an i8 vreg: a constant is re-emitted as an i8 constant so the
-        // legalizer can read it; anything else is truncated (and, for now, rejected
-        // by the legalizer).
+        // legalizer can read it; anything else is truncated, and the legalizer turns
+        // the shift into a libcall.
         private void TranslateShift(ArithOp op)
         {
             var amount = PopInteger("shift");
@@ -1821,16 +1733,6 @@ internal sealed class IlToMirTranslator : IDisposable
             else
             {
                 amountVreg = Resize(amount, IRType.I8).Vreg;
-                // A variable count becomes a call to the shift helper (the same name
-                // MOS6502LegalizerInfo.LowerShiftLibcall picks from the op and width).
-                var width = value.Type.SizeInBits;
-                var suffix = width <= 16 ? "hi3" : width <= 32 ? "si3" : "di3";
-                _parent.RequireMathHelper(op switch
-                {
-                    ArithOp.Shl => "__ashl" + suffix,
-                    ArithOp.LShr => "__lshr" + suffix,
-                    _ => "__ashr" + suffix,
-                });
             }
 
             var result = _function.CreateVirtualRegister(value.Type);
@@ -2450,9 +2352,9 @@ internal sealed class IlToMirTranslator : IDisposable
                 return;
             }
 
-            // An ordinary method: translate it, under its pinned MIR name if it has one.
+            // An ordinary method: translate it.
             _parent.EnqueueMethod(callee);
-            EmitDirectCall(callee, _parent.GetEmitNameOverride(callee) ?? callee.UniqueName);
+            EmitDirectCall(callee, callee.UniqueName);
         }
 
         // Pop one vreg per callee parameter, emit `call.func <symbolName>`, and
@@ -2509,7 +2411,7 @@ internal sealed class IlToMirTranslator : IDisposable
             else
             {
                 _parent.EnqueueMethod(method);
-                symbol = _parent.GetEmitNameOverride(method) ?? method.UniqueName;
+                symbol = method.UniqueName;
             }
             _stack.Push(new StackValue(_builder.BuildMemSymbol(symbol), IRType.Pointer));
         }

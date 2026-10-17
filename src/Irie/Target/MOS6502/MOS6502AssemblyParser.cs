@@ -6,9 +6,14 @@ public static class MOS6502AssemblyParser
 {
     private static readonly Dictionary<(string Mnemonic, AddressingMode Mode), int> _reverseTable = BuildReverseTable();
 
-    public static MachineCodeModule Parse(TextReader reader)
+    // `zeroPageBase` is the address of RC0 on the target (Target.ZeroPageBase):
+    // an operand written `__rcN` (the llvm-mos name for imaginary register N) is
+    // the zero-page address zeroPageBase + N, so one source assembles for every
+    // target whatever its register file's address. Allowed wherever a zero-page
+    // operand is: `LDA __rc2`, `STA __rc4,X`.
+    public static MachineCodeModule Parse(TextReader reader, int zeroPageBase = 0)
     {
-        var lines = ReadLines(reader);
+        var lines = ReadLines(reader, zeroPageBase);
         var module = new MachineCodeModule();
 
         var functionChunks = SplitIntoFunctions(lines);
@@ -224,7 +229,9 @@ public static class MOS6502AssemblyParser
         return result;
     }
 
-    private static List<(int LineNumber, string Text)> ReadLines(TextReader reader)
+    private static readonly System.Text.RegularExpressions.Regex ImaginaryRegister = new(@"\b__rc(\d+)\b");
+
+    private static List<(int LineNumber, string Text)> ReadLines(TextReader reader, int zeroPageBase)
     {
         var result = new List<(int, string)>();
         var lineNumber = 0;
@@ -240,6 +247,14 @@ public static class MOS6502AssemblyParser
             var trimmed = line.Trim();
             if (trimmed.Length == 0)
                 continue;
+
+            trimmed = ImaginaryRegister.Replace(trimmed, m =>
+            {
+                var address = zeroPageBase + int.Parse(m.Groups[1].Value);
+                return address <= 0xFF
+                    ? $"${address:X2}"
+                    : throw new FormatException($"Line {lineNumber}: {m.Value} is outside zero page (base ${zeroPageBase:X2}).");
+            });
 
             result.Add((lineNumber, trimmed));
         }

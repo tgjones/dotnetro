@@ -87,6 +87,7 @@ public static class CompilerDriver
 
         var origin = target.DefaultOrigin!.Value;
         var machineCode = target.MachineCodeEmitter.Emit(module);
+        target.LinkLibrary(machineCode);
         var program = descriptor.Encode(machineCode, origin);
         var image = target.PackageImage(program, origin);
 

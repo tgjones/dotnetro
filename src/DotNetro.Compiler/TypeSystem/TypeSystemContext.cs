@@ -47,7 +47,7 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
 
     public EcmaAssembly CoreAssembly => ResolveAssembly(new AssemblyName(CoreLibraryName));
 
-    // The runtime helpers (ManagedHeap, ConsoleHelper, MathHelper) live in the core library.
+    // The runtime helpers (ManagedHeap, ConsoleHelper) live in the core library.
     public EcmaAssembly RuntimeAssembly => CoreAssembly;
 
     public int PointerSize { get; } = pointerSize;

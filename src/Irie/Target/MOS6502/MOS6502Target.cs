@@ -97,6 +97,14 @@ public class MOS6502Target : Irie.Target.Target
             : runtime;
     }
 
+    // The libcall routines, in MOS6502 assembly (libcalls.s), assembled for this
+    // target's zero-page base.
+    public override Irie.MachineCode.MachineCodeModule? GetLibrary()
+    {
+        using var reader = new StringReader(ReadResource("libcalls.s"));
+        return MOS6502AssemblyParser.Parse(reader, ZeroPageBase);
+    }
+
     // Embedded-resource file name of the subtarget's runtime half; null = none.
     protected virtual string? SystemRuntimeResource => null;
 

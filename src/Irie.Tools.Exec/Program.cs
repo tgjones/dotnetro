@@ -134,7 +134,9 @@ static ulong[]? RunCompiled(string text, string functionName, List<ulong[]> vect
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
-    var program = new MOS6502BinaryEncoder().Encode(target.MachineCodeEmitter.Emit(module), origin);
+    var machineCode = target.MachineCodeEmitter.Emit(module);
+    target.LinkLibrary(machineCode);
+    var program = new MOS6502BinaryEncoder().Encode(machineCode, origin);
 
     var directory = Directory.CreateTempSubdirectory("irie-exec-");
     try
