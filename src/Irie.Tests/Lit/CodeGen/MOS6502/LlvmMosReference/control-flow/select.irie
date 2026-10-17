@@ -1,4 +1,5 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "select_val(*, *, *)"
 
 ; Corpus: llvm-mos-reference/control-flow/select
 ; cond ? a : b as a diamond with a merge-block phi (same MIR shape as

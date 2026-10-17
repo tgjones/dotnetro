@@ -23,7 +23,16 @@ rootCommand.Options.Add(maxTicksOption);
 rootCommand.SetAction(parseResult =>
 {
     var input = parseResult.GetValue(inputArgument)!;
-    var execTarget = ExecTarget.Get(parseResult.GetValue(targetOption)!);
+    ExecTarget execTarget;
+    try
+    {
+        execTarget = ExecTarget.Get(parseResult.GetValue(targetOption)!);
+    }
+    catch (ArgumentException ex)
+    {
+        Console.Error.WriteLine(ex.Message);
+        return 1;
+    }
     var emulator = parseResult.GetValue(emulatorOption)!;
     var maxTicks = parseResult.GetValue(maxTicksOption);
 
@@ -74,7 +83,19 @@ static bool Check(string text, ExecDirective directive, ExecTarget execTarget, F
         }
     }
 
-    var actual = RunCompiled(text, directive.Function, vectors, resultBytes, execTarget, emulator, maxTicks, out var error);
+    ulong[]? actual;
+    string error;
+    try
+    {
+        actual = RunCompiled(text, directive.Function, vectors, resultBytes, execTarget, emulator, maxTicks, out error);
+    }
+    catch (Exception ex) when (ex is NotSupportedException or InvalidOperationException)
+    {
+        // The pipeline rejected the program (an unsupported construct, an
+        // unresolved libcall): the compiler under test failed, not the harness.
+        actual = null;
+        error = $"compilation failed: {ex.Message}";
+    }
     if (actual is null)
     {
         Console.Error.WriteLine($"@{directive.Function}: {error}");

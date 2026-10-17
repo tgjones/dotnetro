@@ -1,4 +1,5 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "live_across_call(*)"
 
 ; Corpus: llvm-mos-reference/pressure/live-across-call
 ; The arg must survive the call to @g (which clobbers caller-saved registers)

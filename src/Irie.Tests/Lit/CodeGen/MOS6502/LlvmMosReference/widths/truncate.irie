@@ -1,4 +1,5 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "truncate(*, *)"
 
 ; Corpus: llvm-mos-reference/widths/truncate
 ;   char truncate(int a, int b) { return (char)(a + b); }
