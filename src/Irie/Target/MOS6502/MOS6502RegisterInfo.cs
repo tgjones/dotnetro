@@ -155,6 +155,6 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
 
     // No register is callee-saved: values that must survive a call sit in homes,
     // which program layout keeps disjoint from every callee's zero-page use.
-    // (Hand-written libcalls still save and restore the RC20..RC31 they use; that
-    // only costs them a few bytes and keeps them correct for any layout.)
+    // (The hand-written libcalls declare the zero page they scratch above RC19 and
+    // layout keeps their callers clear of it, so they save nothing either.)
 }

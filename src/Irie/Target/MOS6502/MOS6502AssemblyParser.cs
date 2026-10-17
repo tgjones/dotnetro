@@ -40,6 +40,14 @@ public static class MOS6502AssemblyParser
         // Pass 2: emit entries.
         foreach (var (lineNumber, text) in lines)
         {
+            if (text.StartsWith(".zeropage ", StringComparison.Ordinal))
+            {
+                if (!int.TryParse(text.AsSpan(".zeropage ".Length), out var bytes) || bytes < 0)
+                    throw new FormatException($"Line {lineNumber}: malformed directive '{text}'");
+                function.ZeroPageFootprint = bytes;
+                continue;
+            }
+
             if (TryParseLocalLabel(text, out var label))
             {
                 function.EmitLabel(label!);

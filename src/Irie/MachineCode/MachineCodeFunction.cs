@@ -5,6 +5,12 @@ public sealed class MachineCodeFunction(string name)
     public string Name => name;
     public List<MachineCodeEntry> Body { get; } = [];
 
+    // Bytes of zero page the routine uses above the ABI registers, starting at
+    // the first byte past them (declared by `.zeropage N` in assembly). Program
+    // layout keeps every caller's zero-page bytes clear of this range, so the
+    // routine need not save what it overwrites.
+    public int ZeroPageFootprint { get; set; }
+
     public MachineCodeLabel EmitLabel(string labelName)
     {
         var label = new MachineCodeLabel(labelName);

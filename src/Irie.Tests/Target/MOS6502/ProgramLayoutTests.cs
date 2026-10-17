@@ -17,13 +17,15 @@ public sealed class ProgramLayoutTests
 
     static ProgramLayoutTests() => Target = new MOS6502Target();
 
-    private static string Run(string mir, params Pass[] extra)
+    private static string Run(string mir, params Pass[] extra) => Run(mir, null, extra);
+
+    private static string Run(string mir, Irie.MachineCode.MachineCodeModule? library, params Pass[] extra)
     {
         var module = MirModule.Parse(new StringReader(mir));
         var passMgr = new PassManager(null, null);
         foreach (var pass in extra)
             passMgr.AddPass(pass);
-        passMgr.AddPass(new MOS6502ProgramLayoutPass(0, WindowStart, WindowEnd, promoteFrameSlots: false));
+        passMgr.AddPass(new MOS6502ProgramLayoutPass(0, WindowStart, WindowEnd, promoteFrameSlots: false, library));
         passMgr.Run(new CompilationContext(module));
         var writer = new StringWriter();
         module.Write(writer, Target.GetRegisterName);
@@ -51,6 +53,37 @@ public sealed class ProgramLayoutTests
         // starts at $17 and its $301 is $18.
         await Assert.That(text).Contains("$zp22 = mos6502.sta.zp $a");
         await Assert.That(text).Contains("$zp24 = mos6502.sta.zp $a");
+    }
+
+    [Test]
+    public async Task CallerOfALibraryRoutineSitsAboveItsDeclaredFootprint()
+    {
+        var library = MOS6502AssemblyParser.Parse(new StringReader("""
+            __helper:
+            .zeropage 4
+                RTS
+            __entry:
+                JMP __helper
+            """));
+        var text = Run("""
+            func @caller : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                mos6502.jsr.abs @__entry
+                mos6502.rts
+            }
+            func @other : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                mos6502.rts
+            }
+            """, library);
+
+        // The routine scratches the four bytes at the window start ($14..$17),
+        // reached through __entry's jump; @caller is placed above them, while
+        // @other, which does not call it, still starts at the window start.
+        await Assert.That(text).Contains("$zp24 = mos6502.sta.zp $a");
+        await Assert.That(text).Contains("$zp20 = mos6502.sta.zp $a");
     }
 
     [Test]

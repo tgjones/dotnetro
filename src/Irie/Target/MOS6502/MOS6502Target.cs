@@ -53,7 +53,7 @@ public class MOS6502Target : Irie.Target.Target
         // passes), which then expands each frame access per the placement.
         pm.AddPass(new MOS6502RecursionSavePass());
         pm.AddPass(new MOS6502ProgramLayoutPass(
-            ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots));
+            ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots, GetLibrary()));
     }
 
     // The zero-page window holding the functions' homes: everything above the

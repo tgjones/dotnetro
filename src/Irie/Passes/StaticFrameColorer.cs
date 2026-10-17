@@ -36,12 +36,18 @@ public sealed class StaticFrameColorer
     private readonly CallGraph _graph;
     private readonly Func<MirFunction, int> _size;
     private readonly int _budgetSize;
+    private readonly Func<MirFunction, int>? _floor;
 
-    public StaticFrameColorer(CallGraph graph, Func<MirFunction, int> size, int budgetSize)
+    // `floor`, when given, is the lowest offset a function's block may start at:
+    // the extent of callees outside the module's call graph (hand-written library
+    // routines) that are placed at offset 0, so every caller must sit above them.
+    public StaticFrameColorer(
+        CallGraph graph, Func<MirFunction, int> size, int budgetSize, Func<MirFunction, int>? floor = null)
     {
         _graph = graph;
         _size = size;
         _budgetSize = budgetSize;
+        _floor = floor;
     }
 
     // Returns, for every function of non-zero size, its block base within the
@@ -72,6 +78,8 @@ public sealed class StaticFrameColorer
             foreach (var m in scc)
             {
                 maxSize = Math.Max(maxSize, size[m]);
+                if (_floor is not null)
+                    maxBelow = Math.Max(maxBelow, _floor(functions[m]));
                 foreach (var c in callees[m])
                     if (_graph.SccId[c] != _graph.SccId[m])
                         maxBelow = Math.Max(maxBelow, baseOf[c] + extent[c]);

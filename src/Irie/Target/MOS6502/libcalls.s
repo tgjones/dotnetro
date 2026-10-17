@@ -10,9 +10,12 @@
 ;   arguments   bytes in A, X, __rc2, __rc3, ... (LSB first, arguments in order)
 ;   results     the same registers
 ;   clobbers    A, X, Y, flags, __rc2..__rc19
-;   preserves   __rc0, __rc1 (soft stack pointer) and __rc20..__rc31
-; A routine that needs more than __rc2..__rc19 saves the callee-saved bytes it
-; uses on the hardware stack and restores them before returning.
+;   preserves   __rc0, __rc1 (soft stack pointer)
+; A routine that needs more than __rc2..__rc19 declares the extra bytes it
+; scratches, from __rc20 up, with `.zeropage N`. MOS6502ProgramLayoutPass keeps
+; every caller's zero-page bytes clear of that range, so the routine overwrites
+; them freely and saves nothing. The declaration belongs to the entry point; the
+; routines it reaches (a `JSR`/`JMP` away) share its bytes.
 ;
 ; Division by zero is undefined (the quotient is garbage, but the routine
 ; terminates), as are shifts by the operand width or more.
@@ -103,17 +106,11 @@ __mulsi3:
 
 ; i64 __muldi3(i64 a, i64 b): as __mulhi3, shifting the multiplier a right and
 ; the multiplicand b = __rc8..15 left.
-; multiplier = __rc16/17 and __rc2..7, product = __rc18..25. __rc20..25 are
-; callee-saved, so they are kept on the stack.
+; multiplier = __rc16/17 and __rc2..7, product = __rc18..25.
 __muldi3:
+.zeropage 6
     STA __rc16
     STX __rc17
-    LDX #$05
-.save:
-    LDA __rc20,X
-    PHA
-    DEX
-    BPL .save
     LDA #$00
     LDX #$07
 .clear:
@@ -182,13 +179,6 @@ __muldi3:
     INX
     CPX #$06
     BNE .copy
-    LDX #$00
-.restore:
-    PLA
-    STA __rc20,X
-    INX
-    CPX #$06
-    BNE .restore
     LDA __rc18
     LDX __rc19
     RTS
@@ -640,17 +630,12 @@ __moddi3:
 
 ; __divmod64: as __divmod32 on 64 bits. The dividend/quotient n is __rc16/17 and
 ; __rc2..7, the divisor d __rc8..15, the remainder R __rc18..25. That uses all of
-; __rc2..19, so the callee-saved __rc20..27 are kept on the stack: R's upper six
-; bytes, __rc26 = the operation and __rc27 = the signs to restore.
+; __rc2..19, so it takes __rc20..27 as well: R's upper six bytes, __rc26 = the
+; operation and __rc27 = the signs to restore.
 __divmod64:
+.zeropage 8
     STA __rc16
     STX __rc17
-    LDX #$07
-.save:
-    LDA __rc20,X
-    PHA
-    DEX
-    BPL .save
     STY __rc26
     LDA #$00
     STA __rc27
@@ -769,13 +754,6 @@ __divmod64:
     CPX #$06
     BNE .copy
 .exit:
-    LDX #$00
-.restore:
-    PLA
-    STA __rc20,X
-    INX
-    CPX #$08
-    BNE .restore
     LDA __rc18
     LDX __rc19
     RTS
