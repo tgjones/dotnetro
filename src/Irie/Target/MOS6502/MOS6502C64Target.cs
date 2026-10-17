@@ -14,8 +14,6 @@ public sealed class MOS6502C64Target : MOS6502Target
 
     public override int ZeroPageBase => 2;
 
-    protected override string? SystemRuntimeResource => "runtime.c64.irie";
-
     public override Irie.Target.CallLowering GetCallLowering(int convention) =>
         convention == Irie.Dialects.Call.CallConvention.C64Kernal
             ? MOS6502RomCallLowering.Instance

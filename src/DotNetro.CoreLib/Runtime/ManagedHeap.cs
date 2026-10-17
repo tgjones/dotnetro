@@ -1,11 +1,14 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace DotNetro.Runtime;
 
 internal static partial class ManagedHeap
 {
-    // Where the heap starts: free memory above the program, per target (ManagedHeap.<Target>.cs).
-    private static unsafe partial byte* HeapStart();
+    // Where the heap starts: right after the program image (the encoder's @__image_end,
+    // via @HeapStart in runtime.irie), the same on every target.
+    [MethodImpl(MethodImplOptions.InternalCall)]
+    private static unsafe extern byte* HeapStart();
 
     // The first address past the heap, per target.
     private static unsafe partial byte* HeapEnd();

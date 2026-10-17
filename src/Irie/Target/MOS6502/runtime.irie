@@ -11,3 +11,12 @@ bb0():
     [liveins: $42]    ; $42 = RC30 (physreg 12 + 30)
     mos6502.jmp.ind $42
 }
+
+; @HeapStart : () -> ptr — where the managed heap begins: the first byte after the
+; program image (code, data and zero-initialised globals), which the binary encoder
+; defines as @__image_end. Backs ManagedHeap.HeapStart (ManagedHeap.cs).
+func @HeapStart : () -> ptr {
+bb0():
+    %0 : ptr = mem.symbol @__image_end
+    core.return %0
+}

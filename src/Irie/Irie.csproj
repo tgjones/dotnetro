@@ -6,7 +6,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Target/MOS6502/runtime.irie" />
-    <EmbeddedResource Include="Target/MOS6502/runtime.c64.irie" />
   </ItemGroup>
 
   <ItemGroup>

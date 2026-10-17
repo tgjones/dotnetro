@@ -2,9 +2,6 @@ namespace DotNetro.Runtime;
 
 internal static partial class ManagedHeap
 {
-    // Page $10 up: clear of the program (loaded at $2000) and the OS workspace below it.
-    private static unsafe partial byte* HeapStart() => (byte*)0x1000;
-
     // Below the MODE 7 screen at $7C00.
     private static unsafe partial byte* HeapEnd() => (byte*)0x7C00;
 }
