@@ -1,0 +1,46 @@
+; RUN: @iriec --target mos6502 --emit=asm @file
+; The join block (bb2) is reached both from bb0 and from bb1, which loads
+; through a different pointer. It must reload the zero-page pointer pair
+; instead of reusing the one left by the preceding block in the list.
+func @f : (ptr, ptr, i8) -> i8 {
+bb0(%0 : ptr, %1 : ptr, %2 : i8):
+    %3 : i8 = mem.load.i8 %0
+    %4 : i8 = arith.constant 0
+    %5 : i1 = arith.cmpi eq, %2, %4
+    cf.cond_br %5, bb1(), bb2()
+bb1():
+    %6 : i8 = mem.load.i8 %1
+    cf.br bb2()
+bb2():
+    %8 : i8 = mem.load.i8 %1
+    %9 : i8 = arith.addi %3, %8
+    core.return %9
+}
+; CHECK: f:
+; CHECK:     STA $12
+; CHECK:     STX $13
+; CHECK:     LDY #$00
+; CHECK:     LDA ($12),Y
+; CHECK:     TAX
+; CHECK:     LDA $04
+; CHECK:     BEQ .bb2
+; CHECK: .bb1:
+; CHECK:     LDA $02
+; CHECK:     STA $12
+; CHECK:     LDA $03
+; CHECK:     STA $13
+; CHECK:     LDY #$00
+; CHECK:     LDA ($12),Y
+; CHECK:     STA $02
+; CHECK:     CLC
+; CHECK:     TXA
+; CHECK:     ADC $02
+; CHECK:     RTS
+; CHECK: .bb2:
+; CHECK:     LDA $02
+; CHECK:     STA $12
+; CHECK:     LDA $03
+; CHECK:     STA $13
+; CHECK:     LDY #$00
+; CHECK:     LDA ($12),Y
+; CHECK:     JMP .bb1

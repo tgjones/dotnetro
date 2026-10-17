@@ -12,6 +12,11 @@ public abstract class InstructionSelector
     // state (e.g. merge maps) before processing begins.
     public virtual void BeginFunction(MirFunction function) { }
 
+    // Called before the first instruction of each block, in block-list order
+    // (not CFG order), so per-block assumptions about machine state carried
+    // over from the previous block in the list must be dropped here.
+    public virtual void BeginBlock(MirBlock block) { }
+
     // Select a single instruction. The implementation may emit replacement
     // instructions via the builder and call builder.Remove(instruction)
     // for the original. Returns true if the instruction was handled
