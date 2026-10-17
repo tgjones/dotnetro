@@ -97,6 +97,8 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
         // spillable long ranges strictly shrinks each round.
         // ---------------------------------------------------------------------
         var unspillable = new HashSet<int>();
+        // Each reload temporary mapped to the spilled value it reads back.
+        var reloadSources = new Dictionary<int, int>();
         // Reconciliation temps minted by the split-to-register spill strategy
         // (TrySplitToRegister). Tracked so they are never themselves re-split —
         // a temp's only use is the constraining one, so splitting it again would
@@ -135,13 +137,17 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
             // Relieve each actual spill. Preferred order: rematerialize cheap
             // defs, else split the live range into the zp register file
             // (TrySplitToRegister), else fall back to memory.
-            SpillVregs(function, spilledVregs, unspillable, reconciliationTemps);
+            SpillVregs(function, spilledVregs, unspillable, reconciliationTemps, reloadSources);
         }
 
         // assignment is non-null here: the loop only `break`s when colouring
         // succeeded (Run returned a non-null map).
         RegisterAssignmentVerifier.Verify(function, registerInfo, intervals, assignment!);
+        var placement = PlacementAnnotation.FromVirtualRegisters(function);
+        foreach (var (reload, spilled) in reloadSources)
+            placement.ReloadSources[reload] = spilled;
         ApplyAssignment(function, assignment!);
+        PlacementVerifier.Verify(function, registerInfo, placement);
         function.ClearVRegAnnotations();
         RecomputeBlockLiveIns(function, intervals, assignment!);
     }
@@ -164,7 +170,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
     // pathological program cannot spill them again forever (Appel §11.4).
     private void SpillVregs(
         MirFunction function, IReadOnlyList<int> spills,
-        HashSet<int> unspillable, HashSet<int> reconciliationTemps)
+        HashSet<int> unspillable, HashSet<int> reconciliationTemps, Dictionary<int, int> reloadSources)
     {
         foreach (var spilled in spills)
         {
@@ -180,7 +186,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
             else if (TrySplitToRegister(function, spilled, reconciliationTemps))
                 continue;
             else
-                StoreReloadSpill(function, spilled, defs, unspillable);
+                StoreReloadSpill(function, spilled, defs, unspillable, reloadSources);
         }
     }
 
@@ -357,7 +363,8 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
     // because every value reaching RA is a post-legalization byte.
     // -------------------------------------------------------------------------
     private static void StoreReloadSpill(
-        MirFunction function, int spilled, List<MirInstruction> defs, HashSet<int> unspillable)
+        MirFunction function, int spilled, List<MirInstruction> defs, HashSet<int> unspillable,
+        Dictionary<int, int> reloadSources)
     {
         var (classId, className) = ClassOf(function, spilled);
         var slot = PickSpillSlot(function, spilled);
@@ -393,6 +400,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
 
                 var fresh = function.CreateVirtualRegisterInClass(classId, className);
                 unspillable.Add(fresh);
+                reloadSources[fresh] = spilled;
 
                 builder.SetInsertionPointBefore(instr);
                 builder.BuildInstruction(

@@ -501,7 +501,12 @@ one is never built. Stages S1 and S2 do not depend on each other.
   an allocator weakness at extreme pressure, which S4 replaces.
 - (c) done: `LoopAnalysis` gives natural loops, depth and a static `8^depth`
   block frequency. No pass uses it yet; S3/S4 will.
-- (d) not started.
+- (d) done: `PlacementVerifier` replays the allocator's output and checks every
+  register and spill-slot read against the value it should hold, independent of
+  the allocator's intervals. It runs at the end of `RegisterAllocatorPass` and
+  found no violations in the suite, the executed corpus or the `.cs` tests.
+
+S0 is complete apart from the unexecuted corpus cases listed under (a).
 
 ### Work outside the allocator that still limits quality
 
