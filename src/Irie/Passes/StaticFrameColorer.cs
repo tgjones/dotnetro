@@ -1,5 +1,5 @@
-using Irie.Dialects.Call;
 using Irie.Mir;
+using Irie.Passes.Analyses;
 
 namespace Irie.Passes;
 
@@ -30,18 +30,20 @@ namespace Irie.Passes;
 // policy come from the caller, so no zero-page or budget literal lives here.
 public sealed class StaticFrameColorer
 {
-    private readonly List<MirFunction> _functions;
+    private readonly CallGraph _graph;
+    private readonly IReadOnlyList<MirFunction> _functions;
     private readonly Func<MirFunction, bool> _eligibility;
     private readonly Func<MirFunction, int> _perFunctionFootprint;
     private readonly int _budgetSize;
 
     public StaticFrameColorer(
-        IReadOnlyList<MirFunction> functions,
+        CallGraph graph,
         Func<MirFunction, bool> eligibility,
         Func<MirFunction, int> perFunctionFootprint,
         int budgetSize)
     {
-        _functions = [.. functions];
+        _graph = graph;
+        _functions = graph.Functions;
         _eligibility = eligibility;
         _perFunctionFootprint = perFunctionFootprint;
         _budgetSize = budgetSize;
@@ -53,11 +55,7 @@ public sealed class StaticFrameColorer
     // or they are ineligible / empty).
     public Dictionary<MirFunction, int> Colour()
     {
-        var indexByName = new Dictionary<string, int>(_functions.Count);
-        for (var i = 0; i < _functions.Count; i++)
-            indexByName[_functions[i].Name] = i;
-
-        var callees = BuildCallGraph(_functions, indexByName);
+        var callees = _graph.Callees;
 
         var eligible = new bool[_functions.Count];
         var size = new int[_functions.Count];
@@ -69,93 +67,34 @@ public sealed class StaticFrameColorer
 
         var footprint = new int[_functions.Count];
         var baseOf = new int[_functions.Count];
-        var resolved = new bool[_functions.Count];
-        var onStack = new bool[_functions.Count];
+
+        // Bottom-up over the SCCs of the call graph (ascending id = callees first).
+        // Every member of an SCC shares one base: above everything that any member
+        // can call outside the SCC. Only a singleton SCC can be eligible, so a
+        // cycle never claims budget itself but still pushes its callers above the
+        // frames its members' callees use.
+        var members = new List<int>[_graph.SccSize.Length];
         for (var i = 0; i < _functions.Count; i++)
-            Resolve(i, callees, size, eligible, footprint, baseOf, resolved, onStack);
+            (members[_graph.SccId[i]] ??= []).Add(i);
+
+        foreach (var scc in members)
+        {
+            var maxBelow = 0;
+            foreach (var m in scc)
+                foreach (var c in callees[m])
+                    if (_graph.SccId[c] != _graph.SccId[m])
+                        maxBelow = Math.Max(maxBelow, baseOf[c] + footprint[c]);
+            foreach (var m in scc)
+            {
+                baseOf[m] = maxBelow;
+                footprint[m] = scc.Count == 1 && eligible[m] && maxBelow + size[m] <= _budgetSize ? size[m] : 0;
+            }
+        }
 
         var result = new Dictionary<MirFunction, int>();
         for (var i = 0; i < _functions.Count; i++)
             if (footprint[i] > 0)
                 result[_functions[i]] = baseOf[i];
         return result;
-    }
-
-    // Bottom-up resolution of base + footprint with a cycle guard. A reentrant or
-    // ineligible function (footprint 0) reserves no budget. footprint(f) = size(f)
-    // if f is eligible AND base(f)+size(f) fits the budget, else 0.
-    private void Resolve(
-        int i, HashSet<int>[] callees, int[] size, bool[] eligible,
-        int[] footprint, int[] baseOf, bool[] resolved, bool[] onStack)
-    {
-        if (resolved[i]) return;
-        if (onStack[i]) return; // cycle guard: treat as base 0 (over-reserves only)
-        onStack[i] = true;
-
-        var maxBelow = 0;
-        foreach (var c in callees[i])
-        {
-            if (c == i) continue;
-            Resolve(c, callees, size, eligible, footprint, baseOf, resolved, onStack);
-            maxBelow = Math.Max(maxBelow, baseOf[c] + footprint[c]);
-        }
-
-        baseOf[i] = maxBelow;
-        footprint[i] = eligible[i] && maxBelow + size[i] <= _budgetSize ? size[i] : 0;
-        resolved[i] = true;
-        onStack[i] = false;
-    }
-
-    // Precise direct-call adjacency: an edge i → j iff function i contains a call
-    // instruction whose Symbol operand names function j. This covers both the
-    // pre-isel `call.func @j` form and the lowered target form (`mos6502.jsr.abs
-    // @j`) — the colorer may run at either point, and a target placement pass
-    // runs it post-RA, after calls have been lowered. Indirect dispatch (a call
-    // with no resolvable Symbol) is ignored: its caller is already reentrant ⇒
-    // ineligible, so it never claims budget anyway.
-    //
-    // We build a precise direct-call graph here rather than reusing
-    // ReentrancyAnalysis's graph, which deliberately over-approximates indirect
-    // dispatch with a conservative edge from each indirect caller to EVERY
-    // function — correct for the reentrancy fixpoint but it would wildly
-    // over-reserve the budget here.
-    private static HashSet<int>[] BuildCallGraph(
-        List<MirFunction> functions, Dictionary<string, int> indexByName)
-    {
-        var callees = new HashSet<int>[functions.Count];
-        for (var i = 0; i < functions.Count; i++)
-        {
-            callees[i] = [];
-            foreach (var block in functions[i].Blocks)
-                foreach (var instr in block.Instructions)
-                {
-                    if (!IsDirectCall(instr))
-                        continue;
-                    foreach (var op in instr.Operands)
-                        if (op is Symbol s && indexByName.TryGetValue(s.Name, out var c))
-                            callees[i].Add(c);
-                }
-        }
-        return callees;
-    }
-
-    // A direct call is either the generic `call.func` or a lowered target call
-    // (e.g. `mos6502.jsr.abs @name`). We detect the latter structurally — the
-    // same rule ReentrancyAnalysis uses: a non-side-effect-free instruction that
-    // carries a Symbol operand. mem.symbol is side-effect-free, so it is excluded.
-    private static bool IsDirectCall(MirInstruction instr)
-    {
-        var dialect = DialectRegistry.ById(instr.Opcode.Dialect);
-        if (dialect.Prefix == "call")
-            return (CallOp)instr.Opcode.Code == CallOp.Func;
-        return !dialect.IsSideEffectFree(instr.Opcode.Code) && HasSymbolOperand(instr);
-    }
-
-    private static bool HasSymbolOperand(MirInstruction instr)
-    {
-        foreach (var op in instr.Operands)
-            if (op is Symbol)
-                return true;
-        return false;
     }
 }

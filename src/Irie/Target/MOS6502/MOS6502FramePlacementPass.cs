@@ -51,7 +51,7 @@ public sealed class MOS6502FramePlacementPass(int windowStart = 0x70, int window
         ReentrancyAnalysis.Run(module);
 
         var colorer = new StaticFrameColorer(
-            module.Functions,
+            CallGraph.Build(module),
             eligibility: f => f.FrameSlots.Count > 0 && f.IsNonReentrant,
             perFunctionFootprint: FrameSize,
             budgetSize: windowSize);
