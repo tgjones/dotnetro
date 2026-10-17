@@ -31,6 +31,18 @@ public abstract class TargetRegisterInfo
     // Return 0 (no class) on targets where no widening is desired.
     public virtual int FlexibleI8ClassId => 0;
 
+    // Whether `physReg` may appear as an operand constrained to `classId` in the
+    // final, post-layout code. Defaults to membership in the allocatable set; a
+    // target whose late passes rename registers (MOS6502 program layout turns
+    // function-local homes into fixed zero-page registers) widens it.
+    public virtual bool IsRegisterInClass(int physReg, int classId)
+    {
+        foreach (var r in GetAllocatableRegisters(classId))
+            if (r == physReg)
+                return true;
+        return false;
+    }
+
     // The class whose allocatable set is the intersection of two classes, or null
     // if the two are disjoint. The llvm `getCommonSubClass` analogue, used by
     // RegisterClassConstraining to narrow an operand's vreg toward the operand's

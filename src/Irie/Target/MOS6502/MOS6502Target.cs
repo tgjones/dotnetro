@@ -46,12 +46,25 @@ public class MOS6502Target : Irie.Target.Target
         pm.AddPass(new MOS6502AddressingModeSelectorPass());
         pm.AddPass(new MOS6502IncrementStrengthReductionPass());
         pm.AddPass(new MOS6502ParallelCopyPass());
-        // No frame-placement pass yet: Stage 2 places every slot in absolute
-        // memory (StackId == default) and the generic FrameAccessLoweringPass
-        // (added by the driver right after these passes) expands each abstract
-        // frame access to the indirect-Y sequence. Stage 3 adds a target-private
-        // post-RA placement pass here that promotes eligible slots to zero page.
+        // Zero-page layout of the functions' homes (and, where the subtarget
+        // allows it, frame slots), after the recursion saves that make stacked
+        // homes safe inside call cycles. It runs before the generic
+        // FrameAccessLoweringPass (added by the driver right after these
+        // passes), which then expands each frame access per the placement.
+        pm.AddPass(new MOS6502RecursionSavePass());
+        pm.AddPass(new MOS6502ProgramLayoutPass(
+            ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots));
     }
+
+    // The zero-page window holding the functions' homes: everything above the
+    // fixed ABI registers RC0..RC19 up to $8F. A DotNetro program never returns
+    // to BASIC, so it owns the language workspace; the OS uses $90 and up.
+    protected virtual int HomeWindowStart => ZeroPageBase + 20;
+    protected virtual int HomeWindowEnd => 0x90;
+
+    // Whether frame slots of non-reentrant functions are promoted into the same
+    // window (the base chip keeps them in absolute memory).
+    protected virtual bool PromoteFrameSlots => false;
 
     public override void AddPostPseudoExpansionPasses(Irie.Passes.PassManager pm)
     {

@@ -8,44 +8,26 @@
 ; Compare against ext/llvm-mos-reference/basics/chain-arith.s; close gaps via irie-report.
 
 ; CHECK: chain_arith:
-; CHECK:     TAY
-; CHECK:     LDA $14
-; CHECK:     PHA
-; CHECK:     LDA $15
-; CHECK:     PHA
-; CHECK:     LDA $16
-; CHECK:     PHA
-; CHECK:     LDA $17
-; CHECK:     PHA
-; CHECK:     TYA
-; CHECK:     STA $14
-; CHECK:     STX $15
+; CHECK:     STA $15
+; CHECK:     STX $14
 ; CHECK:     LDY $04
-; CHECK:     STY $16
-; CHECK:     LDY $05
 ; CHECK:     STY $17
+; CHECK:     LDY $05
+; CHECK:     STY $16
 ; CHECK:     JSR __mulhi3
 ; CHECK:     CLC
-; CHECK:     ADC $16
+; CHECK:     ADC $17
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $17
+; CHECK:     ADC $16
 ; CHECK:     TAX
 ; CHECK:     SEC
 ; CHECK:     TYA
-; CHECK:     SBC $14
+; CHECK:     SBC $15
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     SBC $15
+; CHECK:     SBC $14
 ; CHECK:     TAX
-; CHECK:     PLA
-; CHECK:     STA $17
-; CHECK:     PLA
-; CHECK:     STA $16
-; CHECK:     PLA
-; CHECK:     STA $15
-; CHECK:     PLA
-; CHECK:     STA $14
 ; CHECK:     TYA
 ; CHECK:     RTS
 

@@ -349,7 +349,7 @@ public sealed class RegisterAllocatorPass(TargetRegisterInfo registerInfo) : Mir
     // The store/reload are emitted as the post-RA pseudo ops `pseudo.spill
     // <slot>, $reg` and `$reg = pseudo.reload <slot>`, which carry only the
     // abstract slot INDEX. A future MOS6502 static-stack pass lowers each to a
-    // concrete `sta.zp`/`lda.zp` (zero-page frame, RC20..RC29 budget) or a `.bss`
+    // concrete `sta.zp`/`lda.zp` (zero-page frame) or a `.bss`
     // store/load once it has coloured the call graph — exactly Layer 3 of the
     // static-stack plan ("Rewrite slot accesses to lda.zp/sta.zp at the assigned
     // address"). This decoupling — RA mints abstract slots, static-stack places

@@ -66,7 +66,7 @@ public sealed class PostRegisterAllocationVerifierPass(
                     break;
                 case PhysicalReg p:
                     if (info.OperandClasses is { } classes && i < classes.Length && classes[i] != 0
-                        && !RegisterAllocationSupport.Contains(registerInfo.GetAllocatableRegisters(classes[i]), p.Id))
+                        && !registerInfo.IsRegisterInClass(p.Id, classes[i]))
                         Fail(function, $"{Describe(instr)}: operand {i} is {registerInfo.GetRegisterName(p.Id)}, " +
                                        $"not in required class {registerInfo.GetRegisterClassName(classes[i])}");
                     break;

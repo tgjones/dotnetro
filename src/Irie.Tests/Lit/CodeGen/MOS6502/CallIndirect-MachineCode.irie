@@ -2,32 +2,19 @@
 
 ; Step 18: call.indirect through an i16 function pointer. The MOS6502
 ; AbiLowering parks the pointer's two bytes into the reserved zero-page
-; pair $1E / $1F (RC30 / RC31, the trampoline's target slots) and jumps
+; pair $10 / $11 (RC16 / RC17, the trampoline's target slots) and jumps
 ; to the @__call_indirect_trampoline runtime helper.
 ;
-; The trampoline (a future runtime.mir entry) reads $1E / $1F as a 16-bit
+; The trampoline (runtime.irie) reads $10 / $11 as a 16-bit
 ; pointer and does `JMP (zp)` to dispatch into the actual function. The
 ; emitted code below only depends on the trampoline existing under the
 ; expected symbol name; the runtime helper itself is hand-written and
 ; linked separately.
 
 ; CHECK: TestCallIndirect:
-; CHECK:     TAY
-; CHECK:     LDA $1E
-; CHECK:     PHA
-; CHECK:     LDA $1F
-; CHECK:     PHA
-; CHECK:     TYA
-; CHECK:     STA $1E
-; CHECK:     STX $1F
-; CHECK:     JSR __call_indirect_trampoline
-; CHECK:     TAY
-; CHECK:     PLA
-; CHECK:     STA $1F
-; CHECK:     PLA
-; CHECK:     STA $1E
-; CHECK:     TYA
-; CHECK:     RTS
+; CHECK:     STA $10
+; CHECK:     STX $11
+; CHECK:     JMP __call_indirect_trampoline
 
 func @TestCallIndirect : (ptr) -> i8 {
 bb0(%0 : ptr):

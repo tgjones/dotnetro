@@ -8,9 +8,9 @@
 ; Compare against ext/llvm-mos-reference/constraints/compare-flags.s; close gaps via irie-report.
 
 ; CHECK: compare_flags:
-; CHECK:     STA $07
-; CHECK:     LDA $02
 ; CHECK:     STA $08
+; CHECK:     LDA $02
+; CHECK:     STA $07
 ; CHECK:     LDA $04
 ; CHECK:     STA $06
 ; CHECK:     TXA
@@ -23,8 +23,8 @@
 ; CHECK:     CMP $02
 ; CHECK:     BCC .bb11
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $07
-; CHECK:     CMP $08
+; CHECK:     LDA $08
+; CHECK:     CMP $07
 ; CHECK:     BCC .bb11
 ; CHECK: .bb1:
 ; CHECK:     LDA #$00
@@ -40,7 +40,7 @@
 ; CHECK:     CMP $02
 ; CHECK:     BCC .bb12
 ; CHECK:     BNE .bb3
-; CHECK:     LDA $08
+; CHECK:     LDA $07
 ; CHECK:     CMP $06
 ; CHECK:     BCC .bb12
 ; CHECK: .bb3:
@@ -56,7 +56,7 @@
 ; CHECK:     TXA
 ; CHECK:     CMP $05
 ; CHECK:     BNE .bb14
-; CHECK:     LDA $07
+; CHECK:     LDA $08
 ; CHECK:     CMP $06
 ; CHECK:     BNE .bb14
 ; CHECK: .bb7:

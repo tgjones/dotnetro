@@ -1,8 +1,8 @@
-; RUN: @iriec --target mos6502-bbcmicro --stop-after MOS6502FramePlacement @file
+; RUN: @iriec --target mos6502-bbcmicro --stop-after MOS6502ProgramLayout @file
 
 ; Proves frame placement happens LATE — post-register-allocation — exactly like
 ; llvm-mos's MOSZeroPageAlloc (which runs in addPrePEI, after RA, and only sets a
-; stack-id attribute). The target-private MOS6502FramePlacementPass is added via
+; stack-id attribute). The target-private MOS6502ProgramLayoutPass is added via
 ; AddPostRegisterAllocationPasses, so it runs after the call has already been
 ; lowered to mos6502.jsr.abs and after RA; this dump (stopped right after that
 ; pass, before the generic FrameAccessLoweringPass) shows:
@@ -18,13 +18,13 @@
 ;   * the store value carried in $a (no $x pin).
 
 ; CHECK: func @leaf : () -> void {
-; CHECK:   frame_slot 0 : i16 @leaf_local0 stackid 1 offset 112
+; CHECK:   frame_slot 0 : i16 @leaf_local0 stackid 1 offset 20
 ; CHECK: bb0():
 ; CHECK:     $a = pseudo.copy 7
 ; CHECK:     mos6502.frame.store.byte @leaf_local0, 0, $a, implicit-def $x, implicit-def $y, implicit-def $zp18, implicit-def $zp19
 
 ; CHECK: func @caller : () -> void {
-; CHECK:   frame_slot 0 : i16 @caller_local0 stackid 1 offset 114
+; CHECK:   frame_slot 0 : i16 @caller_local0 stackid 1 offset 22
 ; CHECK: bb0():
 ; CHECK:     $a = pseudo.copy 3
 ; CHECK:     mos6502.frame.store.byte @caller_local0, 0, $a, implicit-def $x, implicit-def $y, implicit-def $zp18, implicit-def $zp19

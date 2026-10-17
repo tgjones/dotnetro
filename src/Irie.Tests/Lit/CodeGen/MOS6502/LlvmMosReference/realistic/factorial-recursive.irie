@@ -8,12 +8,6 @@
 ; Compare against ext/llvm-mos-reference/realistic/factorial-recursive.s; close gaps via irie-report.
 
 ; CHECK: factorial:
-; CHECK:     TAY
-; CHECK:     LDA $14
-; CHECK:     PHA
-; CHECK:     LDA $15
-; CHECK:     PHA
-; CHECK:     TYA
 ; CHECK:     STA $15
 ; CHECK:     STX $14
 ; CHECK:     LDA #$01
@@ -34,12 +28,6 @@
 ; CHECK:     BCC .bb2
 ; CHECK: .bb1:
 ; CHECK:     LDA $03
-; CHECK:     TAY
-; CHECK:     PLA
-; CHECK:     STA $15
-; CHECK:     PLA
-; CHECK:     STA $14
-; CHECK:     TYA
 ; CHECK:     RTS
 ; CHECK: .bb2:
 ; CHECK:     SEC
@@ -49,8 +37,18 @@
 ; CHECK:     LDA $14
 ; CHECK:     SBC #$00
 ; CHECK:     TAX
+; CHECK:     LDA $14
+; CHECK:     PHA
+; CHECK:     LDA $15
+; CHECK:     PHA
 ; CHECK:     TYA
 ; CHECK:     JSR factorial
+; CHECK:     TAY
+; CHECK:     PLA
+; CHECK:     STA $15
+; CHECK:     PLA
+; CHECK:     STA $14
+; CHECK:     TYA
 ; CHECK:     STA $02
 ; CHECK:     STX $03
 ; CHECK:     LDA $15

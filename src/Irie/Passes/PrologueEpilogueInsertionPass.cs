@@ -22,10 +22,9 @@ namespace Irie.Passes;
 // are already final machine ops, so the later pseudo-expansion / scavenging
 // passes (which only touch pseudo.*) leave them alone.
 //
-// Currently a no-op for the corpus: no function yet keeps a value in the
-// callee-saved pool (RC20..RC31) across a call, because the IL→MIR translator
-// still spills cross-call values to .bss. Once that interim is removed, cross-
-// call values land in RC20.. and this pass starts emitting prologue/epilogue.
+// A no-op for MOS6502 apart from the soft-stack reserve: no register is
+// callee-saved there (values that survive calls live in homes that program layout
+// keeps disjoint from every callee's).
 public sealed class PrologueEpilogueInsertionPass(
     TargetRegisterInfo registerInfo, FrameLowering frameLowering) : MirFunctionPass
 {

@@ -88,14 +88,28 @@ public sealed class CallGraph
 
     public static CallGraph Build(MirModule module) => new(module);
 
-    private void Scan(int caller, MirInstruction instr)
+    // True when `instr` is a call. `callee` is the named function, or null for an
+    // indirect dispatch (including a call of the indirect-call trampoline) and for
+    // a call to a fixed ROM address.
+    public static bool IsCall(MirInstruction instr, out string? callee)
     {
+        callee = null;
         var dialect = DialectRegistry.ById(instr.Opcode.Dialect);
         var isCall = dialect.Prefix == "call"
             ? (CallOp)instr.Opcode.Code is CallOp.Func or CallOp.Indirect
             : !dialect.IsSideEffectFree(instr.Opcode.Code) && HasSymbolOperand(instr);
+        if (!isCall) return false;
 
-        if (!isCall)
+        foreach (var op in instr.Operands)
+            if (op is Symbol s) { callee = s.Name; break; }
+        if (callee == IndirectCallTrampoline)
+            callee = null;
+        return true;
+    }
+
+    private void Scan(int caller, MirInstruction instr)
+    {
+        if (!IsCall(instr, out var callee))
         {
             // Not a call: a function symbol here is an address-taking use.
             foreach (var op in instr.Operands)
@@ -104,11 +118,7 @@ public sealed class CallGraph
             return;
         }
 
-        string? callee = null;
-        foreach (var op in instr.Operands)
-            if (op is Symbol s) { callee = s.Name; break; }
-
-        if (callee is null || callee == IndirectCallTrampoline)
+        if (callee is null)
         {
             // An indirect dispatch, or a call to a ROM address (no symbol): treat
             // both as indirect; a ROM routine never calls back, so over-approximating

@@ -8,134 +8,90 @@
 ; Compare against ext/llvm-mos-reference/control-flow/nested-loop.s; close gaps via irie-report.
 
 ; CHECK: nested_loop:
-; CHECK:     TAY
-; CHECK:     LDA $14
-; CHECK:     PHA
-; CHECK:     LDA $15
-; CHECK:     PHA
-; CHECK:     LDA $16
-; CHECK:     PHA
-; CHECK:     LDA $17
-; CHECK:     PHA
-; CHECK:     LDA $18
-; CHECK:     PHA
-; CHECK:     LDA $19
-; CHECK:     PHA
-; CHECK:     LDA $1A
-; CHECK:     PHA
-; CHECK:     LDA $1B
-; CHECK:     PHA
-; CHECK:     LDA $1C
-; CHECK:     PHA
-; CHECK:     LDA $1D
-; CHECK:     PHA
-; CHECK:     TYA
 ; CHECK:     STA $1D
-; CHECK:     STX $1C
+; CHECK:     STX $1B
 ; CHECK:     LDA $02
-; CHECK:     STA $1B
+; CHECK:     STA $1C
 ; CHECK:     LDA $03
 ; CHECK:     STA $1A
 ; CHECK:     LDA #$00
-; CHECK:     STA $18
-; CHECK:     LDA #$00
-; CHECK:     STA $19
-; CHECK:     LDA $18
-; CHECK:     STA $16
-; CHECK:     LDA $19
 ; CHECK:     STA $17
-; CHECK: .bb1:
+; CHECK:     LDA #$00
+; CHECK:     STA $16
 ; CHECK:     LDA $17
+; CHECK:     STA $19
+; CHECK:     LDA $16
+; CHECK:     STA $18
+; CHECK: .bb1:
+; CHECK:     LDA $18
 ; CHECK:     EOR #$80
 ; CHECK:     TAY
-; CHECK:     LDA $1C
+; CHECK:     LDA $1B
 ; CHECK:     EOR #$80
 ; CHECK:     STA $02
 ; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb2
-; CHECK:     LDA $16
+; CHECK:     LDA $19
 ; CHECK:     CMP $1D
 ; CHECK:     BCC .bb3
 ; CHECK: .bb2:
-; CHECK:     LDA $18
-; CHECK:     LDX $19
-; CHECK:     TAY
-; CHECK:     PLA
-; CHECK:     STA $1D
-; CHECK:     PLA
-; CHECK:     STA $1C
-; CHECK:     PLA
-; CHECK:     STA $1B
-; CHECK:     PLA
-; CHECK:     STA $1A
-; CHECK:     PLA
-; CHECK:     STA $19
-; CHECK:     PLA
-; CHECK:     STA $18
-; CHECK:     PLA
-; CHECK:     STA $17
-; CHECK:     PLA
-; CHECK:     STA $16
-; CHECK:     PLA
-; CHECK:     STA $15
-; CHECK:     PLA
-; CHECK:     STA $14
-; CHECK:     TYA
+; CHECK:     LDA $17
+; CHECK:     LDX $16
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     LDA #$00
-; CHECK:     STA $14
-; CHECK:     LDA #$00
 ; CHECK:     STA $15
+; CHECK:     LDA #$00
+; CHECK:     STA $14
 ; CHECK: .bb4:
-; CHECK:     LDA $15
+; CHECK:     LDA $14
 ; CHECK:     EOR #$80
-; CHECK:     TAX
+; CHECK:     TAY
 ; CHECK:     LDA $1A
 ; CHECK:     EOR #$80
 ; CHECK:     STA $02
-; CHECK:     TXA
+; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BCC .bb6
 ; CHECK:     BNE .bb5
-; CHECK:     LDA $14
-; CHECK:     CMP $1B
+; CHECK:     LDA $15
+; CHECK:     CMP $1C
 ; CHECK:     BCC .bb6
 ; CHECK: .bb5:
 ; CHECK:     CLC
-; CHECK:     LDA $16
+; CHECK:     LDA $19
 ; CHECK:     ADC #$01
-; CHECK:     STA $16
-; CHECK:     LDA $17
+; CHECK:     STA $19
+; CHECK:     LDA $18
 ; CHECK:     ADC #$00
-; CHECK:     STA $17
+; CHECK:     STA $18
 ; CHECK:     JMP .bb1
 ; CHECK: .bb6:
-; CHECK:     LDA $16
-; CHECK:     LDX $17
-; CHECK:     LDY $14
-; CHECK:     STY $02
+; CHECK:     LDA $19
+; CHECK:     LDX $18
 ; CHECK:     LDY $15
+; CHECK:     STY $02
+; CHECK:     LDY $14
 ; CHECK:     STY $03
 ; CHECK:     JSR __mulhi3
 ; CHECK:     STA $03
 ; CHECK:     STX $02
 ; CHECK:     CLC
-; CHECK:     LDA $18
+; CHECK:     LDA $17
 ; CHECK:     ADC $03
-; CHECK:     STA $18
-; CHECK:     LDA $19
+; CHECK:     STA $17
+; CHECK:     LDA $16
 ; CHECK:     ADC $02
-; CHECK:     STA $19
+; CHECK:     STA $16
 ; CHECK:     CLC
-; CHECK:     LDA $14
-; CHECK:     ADC #$01
-; CHECK:     STA $14
 ; CHECK:     LDA $15
-; CHECK:     ADC #$00
+; CHECK:     ADC #$01
 ; CHECK:     STA $15
+; CHECK:     LDA $14
+; CHECK:     ADC #$00
+; CHECK:     STA $14
 
 func @nested_loop : (i16, i16) -> i16 {
 bb0(%0 : i16, %1 : i16):

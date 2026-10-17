@@ -6,7 +6,7 @@
 ; ZeroPageBase that moves the RC registers.
 ;
 ; All three functions are non-reentrant (ReentrancyAnalysis), so the
-; target-private MOS6502FramePlacementPass — running post-RA, before the generic
+; target-private MOS6502ProgramLayoutPass — running post-RA, before the generic
 ; FrameAccessLoweringPass — colours their frame slots into the
 ; subtarget's zero-page window ($70..$8F) with a bottom-up static-stack layout:
 ;
@@ -26,22 +26,22 @@
 ; --- leaf_a: slot at $70 (base 0) ---------------------------------------
 ; CHECK: leaf_a:
 ; CHECK:     LDA #$07
-; CHECK:     STA $70
+; CHECK:     STA $16
 ; CHECK:     RTS
 
 ; --- leaf_b: independent leaf — REUSES $70 (base 0) ----------------------
 ; CHECK: leaf_b:
 ; CHECK:     LDA #$09
-; CHECK:     STA $70
+; CHECK:     STA $16
 ; CHECK:     RTS
 
 ; --- mid: calls leaf_a — frame DISJOINT from callee, slot at $72 ---------
 ; CHECK: mid:
 ; CHECK:     LDA #$03
-; CHECK:     STA $72
+; CHECK:     STA $18
 ; CHECK:     JSR leaf_a
-; CHECK:     LDA $72
-; CHECK:     STA $72
+; CHECK:     LDA $18
+; CHECK:     STA $18
 ; CHECK:     RTS
 
 func @leaf_a : () -> void {

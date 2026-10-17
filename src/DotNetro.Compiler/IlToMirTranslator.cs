@@ -639,9 +639,9 @@ internal sealed class IlToMirTranslator : IDisposable
             // (struct) locals are FrameSlot-bound; everything else is a pure SSA
             // vreg. Decide upfront so ldloc/stloc/ldarg know which path to take.
             // Cross-call values flow as ordinary SSA vregs and reach the RA as
-            // live-across-call values: the RA places them in callee-saved
-            // RC20..RC31 (excluded from the JSR clobber set) and the
-            // PrologueEpilogueInsertionPass saves/restores them.
+            // live-across-call values: the RA places them in function-local
+            // zero-page homes (not clobbered by a call: program layout keeps
+            // them disjoint from every callee's homes).
             var addressTaken = ScanAddressTakenLocals();
             for (var i = 0; i < locals.Length; i++)
             {

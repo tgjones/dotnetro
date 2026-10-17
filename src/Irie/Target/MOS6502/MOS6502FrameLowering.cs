@@ -3,8 +3,9 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// MOS6502 frame lowering: saves/restores callee-saved zero-page registers
-// (RC20..RC31) via the 6502 hardware stack (pha/pla). Mirrors llvm-mos's
+// MOS6502 frame lowering: saves/restores callee-saved zero-page registers via the
+// 6502 hardware stack (pha/pla). MOS6502 currently has none (homes are protected
+// by program layout instead), so the hooks are unused here. Mirrors llvm-mos's
 // MOSFrameLowering::spillCalleeSavedRegisters / restoreCalleeSavedRegisters,
 // which emit `copy $a <- RCn ; PH $a` (= `LDA $nn ; PHA`) because the base 6502
 // stack register class is the accumulator.
@@ -109,11 +110,8 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
     // Pinned to RC18/RC19 (not RC0/RC1): RC0/RC1 are the CC_MOS soft stack
     // pointer and must stay live across ordinary code so LowerCallerStackArgAccess
     // can address caller-placed stack arguments through them. RC18/RC19 sit at
-    // the top of the caller-saved range and are excluded from both
-    // MOS6502RegisterInfo's allocatable Imag8 pool and its callee-saved set — see
-    // that file for why the callee-saved end (RC20..RC31, which would otherwise
-    // look like a natural home next to the indirect-call trampoline's RC30/RC31
-    // CallTargetLo/Hi) was rejected: it regressed the many-calls corpus case.
+    // the top of the caller-saved range and are excluded from
+    // MOS6502RegisterInfo's allocatable Imag8 pool.
     private static readonly int PointerZpLo = MOS6502Registers.RC(18); // physreg 30 → $12
     private static readonly int PointerZpHi = MOS6502Registers.RC(19); // physreg 31 → $13
 
@@ -237,7 +235,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
     }
 
     // Direct zero-page access. The slot's Offset is its absolute zp base address
-    // (stamped by MOS6502FramePlacementPass); the byte offset is added literally.
+    // (stamped by MOS6502ProgramLayoutPass); the byte offset is added literally.
     //   load:  $a = lda.zp #addr
     //   store: sta.zp #addr        (value already in $a — the op's preserved use)
     private static void LowerZeroPageAccess(

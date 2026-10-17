@@ -4,97 +4,94 @@ using Irie.Passes.Analyses;
 namespace Irie.Passes;
 
 // Pure, target-agnostic helper that performs the bottom-up "static stack"
-// colouring used to lay out non-reentrant functions' frames in a fixed budget
-// (e.g. a zero-page window). It is NOT a wired pass — a target's placement pass
-// constructs it, supplies the policy (eligibility, per-function footprint,
-// budget size), and reads back each promoted function's frame base.
+// colouring used to lay out the functions' zero-page blocks (homes and frame
+// slots) in a fixed budget. It is NOT a wired pass — a target's layout pass
+// constructs it, supplies the per-function size and the budget, and reads back
+// each function's block base.
 //
 // === Static-stack colouring (the model) ===
 //
-// For a value held in a frame slot to survive a call, a function's frame must be
-// DISJOINT from every transitive callee's frame. We lay frames out like a static
+// For a value held in a function's block to survive a call, the block must be
+// DISJOINT from every transitive callee's block. We lay blocks out like a static
 // stack, bottom-up:
 //
-//     base(f)      = max over direct callees c of (base(c) + footprint(c))   (leaf → 0)
-//     footprint(f) = perFunctionFootprint(f)  if f is eligible(f) AND
-//                                                 base(f)+footprint(f) ≤ budget
-//                    else 0
+//     base(f) = max over callees c of (base(c) + extent(c))      (leaf → 0)
 //
-// so f's frame sits ABOVE all its callees' frames. Independent subtrees of the
+// so f's block sits ABOVE all its callees' blocks. Independent subtrees of the
 // call graph compute their bases independently and therefore reuse the same
-// budget, so total budget use = the largest frame footprint along any single
-// call path, not the sum over all functions. A function whose footprint is 0
-// (not promoted) reserves no budget, so it doesn't push its callers' frames up.
+// budget, so total budget use = the largest extent along any single call path,
+// not the sum over all functions.
 //
-// The maths is entirely generic; the budget value and the eligibility/footprint
-// policy come from the caller, so no zero-page or budget literal lives here.
+// Functions in one strongly connected component of the call graph (mutual or
+// self recursion, or calls through a vtable that lead back) share one base and
+// one extent (the largest member's size): they may overlap each other fully
+// because every call inside the component saves the live bytes around itself
+// (the target's recursion-save pass). From outside, the component is one node.
+//
+// The maths is entirely generic; the budget and the sizes come from the caller.
 public sealed class StaticFrameColorer
 {
+    public sealed record Result(Dictionary<MirFunction, int> Base, List<MirFunction> Overflow);
+
     private readonly CallGraph _graph;
-    private readonly IReadOnlyList<MirFunction> _functions;
-    private readonly Func<MirFunction, bool> _eligibility;
-    private readonly Func<MirFunction, int> _perFunctionFootprint;
+    private readonly Func<MirFunction, int> _size;
     private readonly int _budgetSize;
 
-    public StaticFrameColorer(
-        CallGraph graph,
-        Func<MirFunction, bool> eligibility,
-        Func<MirFunction, int> perFunctionFootprint,
-        int budgetSize)
+    public StaticFrameColorer(CallGraph graph, Func<MirFunction, int> size, int budgetSize)
     {
         _graph = graph;
-        _functions = graph.Functions;
-        _eligibility = eligibility;
-        _perFunctionFootprint = perFunctionFootprint;
+        _size = size;
         _budgetSize = budgetSize;
     }
 
-    // Runs the colouring and returns, for each promoted function (footprint > 0),
-    // a map from the function to its frame base within the budget. Functions not
-    // present in the result stay in their default placement (the budget overflows,
-    // or they are ineligible / empty).
-    public Dictionary<MirFunction, int> Colour()
+    // Returns, for every function of non-zero size, its block base within the
+    // budget, plus the functions whose block does not fit (base + extent beyond
+    // the budget). An overflowing function still has a base; it is up to the
+    // caller to place its bytes elsewhere.
+    public Result Colour()
     {
+        var functions = _graph.Functions;
         var callees = _graph.Callees;
+        var size = new int[functions.Count];
+        for (var i = 0; i < functions.Count; i++)
+            size[i] = _size(functions[i]);
 
-        var eligible = new bool[_functions.Count];
-        var size = new int[_functions.Count];
-        for (var i = 0; i < _functions.Count; i++)
-        {
-            eligible[i] = _eligibility(_functions[i]);
-            size[i] = _perFunctionFootprint(_functions[i]);
-        }
-
-        var footprint = new int[_functions.Count];
-        var baseOf = new int[_functions.Count];
-
-        // Bottom-up over the SCCs of the call graph (ascending id = callees first).
-        // Every member of an SCC shares one base: above everything that any member
-        // can call outside the SCC. Only a singleton SCC can be eligible, so a
-        // cycle never claims budget itself but still pushes its callers above the
-        // frames its members' callees use.
+        // Bottom-up over the SCCs (ascending id = callees first). Every member of
+        // an SCC shares one base: above everything that any member can call outside
+        // the SCC.
         var members = new List<int>[_graph.SccSize.Length];
-        for (var i = 0; i < _functions.Count; i++)
+        for (var i = 0; i < functions.Count; i++)
             (members[_graph.SccId[i]] ??= []).Add(i);
 
+        var baseOf = new int[functions.Count];
+        var extent = new int[functions.Count];
         foreach (var scc in members)
         {
             var maxBelow = 0;
+            var maxSize = 0;
             foreach (var m in scc)
+            {
+                maxSize = Math.Max(maxSize, size[m]);
                 foreach (var c in callees[m])
                     if (_graph.SccId[c] != _graph.SccId[m])
-                        maxBelow = Math.Max(maxBelow, baseOf[c] + footprint[c]);
+                        maxBelow = Math.Max(maxBelow, baseOf[c] + extent[c]);
+            }
             foreach (var m in scc)
             {
                 baseOf[m] = maxBelow;
-                footprint[m] = scc.Count == 1 && eligible[m] && maxBelow + size[m] <= _budgetSize ? size[m] : 0;
+                extent[m] = maxSize;
             }
         }
 
-        var result = new Dictionary<MirFunction, int>();
-        for (var i = 0; i < _functions.Count; i++)
-            if (footprint[i] > 0)
-                result[_functions[i]] = baseOf[i];
-        return result;
+        var bases = new Dictionary<MirFunction, int>();
+        var overflow = new List<MirFunction>();
+        for (var i = 0; i < functions.Count; i++)
+        {
+            if (size[i] == 0) continue;
+            bases[functions[i]] = baseOf[i];
+            if (baseOf[i] + size[i] > _budgetSize)
+                overflow.Add(functions[i]);
+        }
+        return new Result(bases, overflow);
     }
 }

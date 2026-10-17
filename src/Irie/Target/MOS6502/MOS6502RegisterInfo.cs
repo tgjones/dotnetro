@@ -8,27 +8,28 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     private static readonly int[] XcRegs    = [MOS6502Registers.X];
     private static readonly int[] YcRegs    = [MOS6502Registers.Y];
     private static readonly int[] CcRegs    = [MOS6502Registers.C];
-    // RC0/RC1 reserved as the soft stack pointer per CC_MOS; RC18/RC19 reserved as
+    // RC0/RC1 are reserved as the soft stack pointer per CC_MOS; RC18/RC19 as
     // momentary pointer scratch (MOS6502FrameLowering/MOS6502InstructionSelector's
-    // PointerZpLo/Hi). Both pairs are excluded from the allocatable range, not
-    // just from RA's normal preference order: unlike an ordinary Imag8 register,
-    // these are written and read back within a single, tightly-sequenced
-    // expansion with no vreg standing in for the value in between, so RA must
-    // never be free to plant an unrelated live value there in the gap.
+    // PointerZpLo/Hi). Both pairs are excluded from the allocatable range: unlike an
+    // ordinary Imag8 register, these are written and read back within a single,
+    // tightly-sequenced expansion with no vreg standing in for the value in
+    // between, so RA must never be free to plant an unrelated live value there in
+    // the gap.
     //
-    // RC18/RC19 — the top of the CALLER-saved range (RC2..RC19), not RC20..RC31
-    // — is a deliberate choice, not an arbitrary one: excluding a register from
-    // Imag8Regs also excludes it from CalleeSavedRegs below (CalleeSavedRegs is
-    // Imag8Regs' RC20.. tail), and a register excluded from CalleeSavedRegs no
-    // longer gets PEI's save/restore treatment. Reserving out of RC20..RC31
-    // instead would shrink the callee-saved pool from 12 to 10 registers,
-    // starving cross-call register pressure — this regressed the pressure/many-
-    // calls corpus case into an unimplemented pseudo.spill crash when tried.
-    // Reserving out of the caller-saved end costs only caller-saved capacity,
-    // which no current corpus case is anywhere near exhausting.
+    // The allocatable zero-page pool has two parts:
+    //   * RC2..RC17 — the fixed, caller-saved ABI registers (arguments, results,
+    //     scratch). Free to use (they cost no zero-page budget) for any value that
+    //     is not live across a call, since a call clobbers them.
+    //   * $h0.. — the function's HOMES: an effectively unbounded pool of
+    //     function-local zero-page bytes. A call does not clobber a home: program
+    //     layout stacks every function's block of homes above the blocks of all its
+    //     callees (MOS6502ProgramLayoutPass), so nothing is saved or restored
+    //     around a call. The colouring picks the lowest free home, so a function's
+    //     footprint is the number of homes it actually needs.
+    private static readonly int[] CallerSavedPool = [.. Enumerable.Range(2, 16).Select(MOS6502Registers.RC)];
     private static readonly int[] Imag8Regs =
-        [.. Enumerable.Range(2, 16).Select(MOS6502Registers.RC),
-         .. Enumerable.Range(20, 12).Select(MOS6502Registers.RC)];
+        [.. CallerSavedPool,
+         .. Enumerable.Range(0, MOS6502Registers.HomeCount).Select(MOS6502Registers.Home)];
     // Anyi8: any 8-bit register (A, X, Y, or Imag8). Used for values that can be
     // stored in any 8-bit location but aren't constrained to a specific
     // architectural register.
@@ -88,6 +89,12 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
 
     public override int FlexibleI8ClassId => MOS6502RegisterClass.Anyi8;
 
+    // After program layout a home is an ordinary zero-page register at its final
+    // address, which may be any RC, not only the allocator's pool.
+    public override bool IsRegisterInClass(int physReg, int classId)
+        => classId is MOS6502RegisterClass.Imag8 or MOS6502RegisterClass.Anyi8 && physReg >= MOS6502Registers.RC(0)
+           || base.IsRegisterInClass(physReg, classId);
+
     // The general-purpose registers the post-RA RegisterScavengingPass may use
     // as copy scratch, in preference order ($a, then $x, then $y). The scavenger
     // picks the first that is DEAD at the copy's point, so an immediate-into-zp
@@ -105,7 +112,7 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     // (cheap T-transfers, no memory traffic) then the zp pool — a free zp slot
     // essentially always exists, so $x↔$y never needs to spill.
     private static readonly int[] XyScratch =
-        [MOS6502Registers.A, .. Imag8Regs];
+        [MOS6502Registers.A, .. CallerSavedPool];
 
     // Per-shape scratch candidates: $x↔$y admits a zp bounce; every other
     // scratch-needing copy (zp→zp, immediate→zp) needs a GPR.
@@ -121,7 +128,7 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     // Saving a GPR to zero page (`ST? $zp`) and restoring it (`LD? $zp`) needs no
     // further scratch, so whichever zp slot is dead at the copy's point lets the
     // scavenger free up a GPR even when all three are live.
-    public override ReadOnlySpan<int> GetEmergencyScratchSaveSlots() => Imag8Regs;
+    public override ReadOnlySpan<int> GetEmergencyScratchSaveSlots() => CallerSavedPool;
 
     private static bool IsXyPair(int a, int b) =>
         (a == MOS6502Registers.X && b == MOS6502Registers.Y) ||
@@ -146,14 +153,8 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     private static readonly int[] ShortRangeGprs =
         [MOS6502Registers.X, MOS6502Registers.Y, MOS6502Registers.A];
 
-    // The CC_MOS callee-saved registers: RC20..RC31 (zero page $14..$1F), the
-    // cross-call register pool — the complement of the caller-saved RC2..RC19
-    // scratch range (RC18/RC19 excepted — reserved pointer scratch, see
-    // Imag8Regs above). Matches MOS_CSR in llvm-mos. A clobbering callee saves
-    // and restores these in its prologue/epilogue.
-    public override ReadOnlySpan<int> GetCalleeSavedRegisters() => CalleeSavedRegs;
-
-    private static readonly int[] CalleeSavedRegs = Enumerable.Range(20, 12)
-        .Select(MOS6502Registers.RC)
-        .ToArray();
+    // No register is callee-saved: values that must survive a call sit in homes,
+    // which program layout keeps disjoint from every callee's zero-page use.
+    // (Hand-written libcalls still save and restore the RC20..RC31 they use; that
+    // only costs them a few bytes and keeps them correct for any layout.)
 }

@@ -10,16 +10,16 @@
 ; Compare against ext/llvm-mos-reference/realistic/fibonacci.s; close gaps via irie-report.
 
 ; CHECK: fibonacci:
-; CHECK:     STA $05
-; CHECK:     STX $0A
-; CHECK:     LDA #$00
-; CHECK:     STA $09
-; CHECK:     LDA #$00
 ; CHECK:     STA $08
-; CHECK:     LDA #$01
-; CHECK:     STA $07
+; CHECK:     STX $07
 ; CHECK:     LDA #$00
 ; CHECK:     STA $06
+; CHECK:     LDA #$00
+; CHECK:     STA $05
+; CHECK:     LDA #$01
+; CHECK:     STA $0A
+; CHECK:     LDA #$00
+; CHECK:     STA $09
 ; CHECK:     LDA #$00
 ; CHECK:     STA $04
 ; CHECK:     LDA #$00
@@ -28,7 +28,7 @@
 ; CHECK:     LDA $03
 ; CHECK:     EOR #$80
 ; CHECK:     TAX
-; CHECK:     LDA $0A
+; CHECK:     LDA $07
 ; CHECK:     EOR #$80
 ; CHECK:     STA $02
 ; CHECK:     TXA
@@ -36,19 +36,19 @@
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb2
 ; CHECK:     LDA $04
-; CHECK:     CMP $05
+; CHECK:     CMP $08
 ; CHECK:     BCC .bb3
 ; CHECK: .bb2:
-; CHECK:     LDA $09
-; CHECK:     LDX $08
+; CHECK:     LDA $06
+; CHECK:     LDX $05
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     CLC
-; CHECK:     LDA $09
-; CHECK:     ADC $07
+; CHECK:     LDA $06
+; CHECK:     ADC $0A
 ; CHECK:     TAX
-; CHECK:     LDA $08
-; CHECK:     ADC $06
+; CHECK:     LDA $05
+; CHECK:     ADC $09
 ; CHECK:     TAY
 ; CHECK:     CLC
 ; CHECK:     LDA $04
@@ -57,12 +57,12 @@
 ; CHECK:     LDA $03
 ; CHECK:     ADC #$00
 ; CHECK:     STA $03
-; CHECK:     LDA $07
-; CHECK:     STA $09
-; CHECK:     LDA $06
-; CHECK:     STA $08
-; CHECK:     STX $07
-; CHECK:     STY $06
+; CHECK:     LDA $0A
+; CHECK:     STA $06
+; CHECK:     LDA $09
+; CHECK:     STA $05
+; CHECK:     STX $0A
+; CHECK:     STY $09
 ; CHECK:     JMP .bb1
 
 func @fibonacci : (i16) -> i16 {

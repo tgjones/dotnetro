@@ -12,9 +12,9 @@
 ; CHECK: pressure_i16:
 ; CHECK:     STA $0D
 ; CHECK:     LDY $02
-; CHECK:     STY $0A
+; CHECK:     STY $0B
 ; CHECK:     LDY $03
-; CHECK:     STY $08
+; CHECK:     STY $0A
 ; CHECK:     LDY $04
 ; CHECK:     STY $03
 ; CHECK:     LDY $05
@@ -24,18 +24,18 @@
 ; CHECK:     LDY $07
 ; CHECK:     STY $06
 ; CHECK:     CLC
-; CHECK:     ADC $0A
+; CHECK:     ADC $0B
 ; CHECK:     STA $05
 ; CHECK:     TXA
-; CHECK:     ADC $08
+; CHECK:     ADC $0A
 ; CHECK:     STA $04
 ; CHECK:     CLC
 ; CHECK:     LDA $03
 ; CHECK:     ADC $0C
-; CHECK:     STA $0B
+; CHECK:     STA $09
 ; CHECK:     LDA $02
 ; CHECK:     ADC $06
-; CHECK:     STA $09
+; CHECK:     STA $08
 ; CHECK:     CLC
 ; CHECK:     LDA $0D
 ; CHECK:     ADC $03
@@ -44,17 +44,17 @@
 ; CHECK:     ADC $02
 ; CHECK:     STA $02
 ; CHECK:     CLC
-; CHECK:     LDA $0A
+; CHECK:     LDA $0B
 ; CHECK:     ADC $0C
 ; CHECK:     STA $07
-; CHECK:     LDA $08
+; CHECK:     LDA $0A
 ; CHECK:     ADC $06
 ; CHECK:     STA $06
 ; CHECK:     LDA $05
-; CHECK:     EOR $0B
+; CHECK:     EOR $09
 ; CHECK:     TAY
 ; CHECK:     LDA $04
-; CHECK:     EOR $09
+; CHECK:     EOR $08
 ; CHECK:     TAX
 ; CHECK:     LDA $03
 ; CHECK:     EOR $07

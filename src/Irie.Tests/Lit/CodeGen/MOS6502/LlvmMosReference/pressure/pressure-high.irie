@@ -8,104 +8,50 @@
 ; Compare against ext/llvm-mos-reference/pressure/pressure-high.s; close gaps via irie-report.
 
 ; CHECK: pressure_high:
-; CHECK:     TAY
-; CHECK:     LDA $14
-; CHECK:     PHA
-; CHECK:     LDA $15
-; CHECK:     PHA
-; CHECK:     LDA $16
-; CHECK:     PHA
-; CHECK:     LDA $17
-; CHECK:     PHA
-; CHECK:     LDA $18
-; CHECK:     PHA
-; CHECK:     LDA $19
-; CHECK:     PHA
-; CHECK:     LDA $1A
-; CHECK:     PHA
-; CHECK:     LDA $1B
-; CHECK:     PHA
-; CHECK:     LDA $1C
-; CHECK:     PHA
-; CHECK:     LDA $1D
-; CHECK:     PHA
-; CHECK:     LDA $1E
-; CHECK:     PHA
-; CHECK:     LDA $1F
-; CHECK:     PHA
-; CHECK:     TYA
-; CHECK:     STA pressure_high_spill15
-; CHECK:     STX pressure_high_spill16
-; CHECK:     LDA $02
-; CHECK:     STA pressure_high_spill17
-; CHECK:     LDA $03
-; CHECK:     STA pressure_high_spill18
-; CHECK:     LDA $04
-; CHECK:     STA $1F
-; CHECK:     LDA $05
-; CHECK:     STA $1E
-; CHECK:     LDA $06
 ; CHECK:     STA $1D
-; CHECK:     LDA $07
-; CHECK:     STA $1C
-; CHECK:     LDA $08
-; CHECK:     STA $1B
-; CHECK:     LDA $09
-; CHECK:     STA $1A
-; CHECK:     LDA $0A
-; CHECK:     STA $19
-; CHECK:     LDA $0B
-; CHECK:     STA $18
-; CHECK:     LDA $0C
-; CHECK:     STA $17
-; CHECK:     LDA $0D
-; CHECK:     STA $16
-; CHECK:     LDA $0E
-; CHECK:     STA $15
-; CHECK:     LDA $0F
-; CHECK:     STA $14
-; CHECK:     LDA pressure_high_spill15
-; CHECK:     LDX pressure_high_spill16
-; CHECK:     LDY pressure_high_spill17
-; CHECK:     STY $02
-; CHECK:     LDY pressure_high_spill18
-; CHECK:     STY $03
+; CHECK:     STX $1B
+; CHECK:     LDY $02
+; CHECK:     STY $19
+; CHECK:     LDY $03
+; CHECK:     STY $17
+; CHECK:     LDY $04
+; CHECK:     STY $27
+; CHECK:     LDY $05
+; CHECK:     STY $26
+; CHECK:     LDY $06
+; CHECK:     STY $25
+; CHECK:     LDY $07
+; CHECK:     STY $24
+; CHECK:     LDY $08
+; CHECK:     STY $18
+; CHECK:     LDY $09
+; CHECK:     STY $16
+; CHECK:     LDY $0A
+; CHECK:     STY $15
+; CHECK:     LDY $0B
+; CHECK:     STY $14
+; CHECK:     LDY $0C
+; CHECK:     STY $23
+; CHECK:     LDY $0D
+; CHECK:     STY $22
+; CHECK:     LDY $0E
+; CHECK:     STY $21
+; CHECK:     LDY $0F
+; CHECK:     STY $20
 ; CHECK:     JSR __mulsi3
-; CHECK:     STA pressure_high_spill193
-; CHECK:     TXA
-; CHECK:     STA pressure_high_spill194
-; CHECK:     LDA $02
-; CHECK:     STA pressure_high_spill195
-; CHECK:     LDA $03
-; CHECK:     STA pressure_high_spill196
-; CHECK:     LDA $1F
-; CHECK:     LDX $1E
-; CHECK:     LDY $1D
-; CHECK:     STY $02
-; CHECK:     LDY $1C
-; CHECK:     STY $03
-; CHECK:     LDY $1B
-; CHECK:     STY $04
-; CHECK:     LDY $1A
-; CHECK:     STY $05
-; CHECK:     LDY $19
-; CHECK:     STY $06
-; CHECK:     LDY $18
-; CHECK:     STY $07
-; CHECK:     JSR __mulsi3
-; CHECK:     STA $1C
-; CHECK:     STX $1D
-; CHECK:     LDA $02
-; CHECK:     STA $1E
-; CHECK:     LDA $03
 ; CHECK:     STA $1F
-; CHECK:     LDA $1B
-; CHECK:     LDX $1A
-; CHECK:     LDY $19
+; CHECK:     STX $1E
+; CHECK:     LDA $02
+; CHECK:     STA $1C
+; CHECK:     LDA $03
+; CHECK:     STA $1A
+; CHECK:     LDA $27
+; CHECK:     LDX $26
+; CHECK:     LDY $25
 ; CHECK:     STY $02
-; CHECK:     LDY $18
+; CHECK:     LDY $24
 ; CHECK:     STY $03
-; CHECK:     LDY $17
+; CHECK:     LDY $18
 ; CHECK:     STY $04
 ; CHECK:     LDY $16
 ; CHECK:     STY $05
@@ -114,159 +60,133 @@
 ; CHECK:     LDY $14
 ; CHECK:     STY $07
 ; CHECK:     JSR __mulsi3
-; CHECK:     STA $18
-; CHECK:     STX $19
+; CHECK:     STA $27
+; CHECK:     STX $26
 ; CHECK:     LDA $02
-; CHECK:     STA $1A
+; CHECK:     STA $25
 ; CHECK:     LDA $03
-; CHECK:     STA $1B
-; CHECK:     LDA $17
+; CHECK:     STA $24
+; CHECK:     LDA $18
 ; CHECK:     LDX $16
 ; CHECK:     LDY $15
 ; CHECK:     STY $02
 ; CHECK:     LDY $14
 ; CHECK:     STY $03
-; CHECK:     LDY pressure_high_spill15
+; CHECK:     LDY $23
 ; CHECK:     STY $04
-; CHECK:     LDY pressure_high_spill16
+; CHECK:     LDY $22
 ; CHECK:     STY $05
-; CHECK:     LDY pressure_high_spill17
+; CHECK:     LDY $21
 ; CHECK:     STY $06
-; CHECK:     LDY pressure_high_spill18
+; CHECK:     LDY $20
 ; CHECK:     STY $07
 ; CHECK:     JSR __mulsi3
-; CHECK:     STA $14
-; CHECK:     STX $15
+; CHECK:     STA $18
+; CHECK:     STX $16
 ; CHECK:     LDA $02
-; CHECK:     STA $16
+; CHECK:     STA $15
+; CHECK:     LDA $03
+; CHECK:     STA $14
+; CHECK:     LDA $23
+; CHECK:     LDX $22
+; CHECK:     LDY $21
+; CHECK:     STY $02
+; CHECK:     LDY $20
+; CHECK:     STY $03
+; CHECK:     LDY $1D
+; CHECK:     STY $04
+; CHECK:     LDY $1B
+; CHECK:     STY $05
+; CHECK:     LDY $19
+; CHECK:     STY $06
+; CHECK:     LDY $17
+; CHECK:     STY $07
+; CHECK:     JSR __mulsi3
+; CHECK:     STA $1D
+; CHECK:     STX $1B
+; CHECK:     LDA $02
+; CHECK:     STA $19
 ; CHECK:     LDA $03
 ; CHECK:     STA $17
 ; CHECK:     CLC
-; CHECK:     LDA pressure_high_spill193
-; CHECK:     ADC $1C
-; CHECK:     STA $02
-; CHECK:     LDA pressure_high_spill194
-; CHECK:     ADC $1D
+; CHECK:     LDA $1F
+; CHECK:     ADC $27
+; CHECK:     STA $08
+; CHECK:     LDA $1E
+; CHECK:     ADC $26
 ; CHECK:     TAX
-; CHECK:     LDA pressure_high_spill195
-; CHECK:     ADC $1E
+; CHECK:     LDA $1C
+; CHECK:     ADC $25
+; CHECK:     STA $02
+; CHECK:     LDA $1A
+; CHECK:     ADC $24
 ; CHECK:     STA $03
-; CHECK:     LDA pressure_high_spill196
-; CHECK:     ADC $1F
-; CHECK:     STA $04
 ; CHECK:     CLC
 ; CHECK:     LDA $18
-; CHECK:     ADC $14
-; CHECK:     TAY
-; CHECK:     LDA $19
-; CHECK:     ADC $15
+; CHECK:     ADC $1D
+; CHECK:     STA $04
+; CHECK:     LDA $16
+; CHECK:     ADC $1B
 ; CHECK:     STA $05
-; CHECK:     LDA $1A
-; CHECK:     ADC $16
+; CHECK:     LDA $15
+; CHECK:     ADC $19
 ; CHECK:     STA $06
-; CHECK:     LDA $1B
+; CHECK:     LDA $14
 ; CHECK:     ADC $17
 ; CHECK:     STA $07
-; CHECK:     LDA $02
-; CHECK:     STA $08
-; CHECK:     LDA $03
-; CHECK:     STA $02
 ; CHECK:     LDA $08
-; CHECK:     STA $08
-; CHECK:     LDA $04
-; CHECK:     STA $03
-; CHECK:     LDA $08
-; CHECK:     STY $04
 ; CHECK:     JSR __mulsi3
-; CHECK:     TAY
-; CHECK:     LDA $02
-; CHECK:     STA $05
-; CHECK:     LDA $03
-; CHECK:     STA $04
 ; CHECK:     CLC
-; CHECK:     LDA pressure_high_spill193
-; CHECK:     STA $02
-; CHECK:     TYA
-; CHECK:     ADC $02
-; CHECK:     TAY
-; CHECK:     LDA pressure_high_spill194
-; CHECK:     STA $02
-; CHECK:     TXA
-; CHECK:     ADC $02
-; CHECK:     TAX
-; CHECK:     LDA pressure_high_spill195
-; CHECK:     STA $02
-; CHECK:     LDA $05
-; CHECK:     ADC $02
-; CHECK:     STA $02
-; CHECK:     LDA pressure_high_spill196
-; CHECK:     STA $03
-; CHECK:     LDA $04
-; CHECK:     ADC $03
-; CHECK:     STA $03
-; CHECK:     CLC
-; CHECK:     TYA
-; CHECK:     ADC $1C
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     ADC $1D
-; CHECK:     TAX
-; CHECK:     LDA $02
-; CHECK:     ADC $1E
-; CHECK:     STA $02
-; CHECK:     LDA $03
 ; CHECK:     ADC $1F
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $1E
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ADC $1C
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC $1A
+; CHECK:     STA $03
+; CHECK:     CLC
+; CHECK:     TYA
+; CHECK:     ADC $27
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $26
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ADC $25
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC $24
 ; CHECK:     STA $03
 ; CHECK:     CLC
 ; CHECK:     TYA
 ; CHECK:     ADC $18
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $19
+; CHECK:     ADC $16
 ; CHECK:     TAX
 ; CHECK:     LDA $02
-; CHECK:     ADC $1A
+; CHECK:     ADC $15
 ; CHECK:     STA $02
 ; CHECK:     LDA $03
-; CHECK:     ADC $1B
+; CHECK:     ADC $14
 ; CHECK:     STA $03
 ; CHECK:     CLC
 ; CHECK:     TYA
-; CHECK:     ADC $14
+; CHECK:     ADC $1D
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $15
+; CHECK:     ADC $1B
 ; CHECK:     TAX
 ; CHECK:     LDA $02
-; CHECK:     ADC $16
+; CHECK:     ADC $19
 ; CHECK:     STA $02
 ; CHECK:     LDA $03
 ; CHECK:     ADC $17
 ; CHECK:     STA $03
-; CHECK:     PLA
-; CHECK:     STA $1F
-; CHECK:     PLA
-; CHECK:     STA $1E
-; CHECK:     PLA
-; CHECK:     STA $1D
-; CHECK:     PLA
-; CHECK:     STA $1C
-; CHECK:     PLA
-; CHECK:     STA $1B
-; CHECK:     PLA
-; CHECK:     STA $1A
-; CHECK:     PLA
-; CHECK:     STA $19
-; CHECK:     PLA
-; CHECK:     STA $18
-; CHECK:     PLA
-; CHECK:     STA $17
-; CHECK:     PLA
-; CHECK:     STA $16
-; CHECK:     PLA
-; CHECK:     STA $15
-; CHECK:     PLA
-; CHECK:     STA $14
 ; CHECK:     TYA
 ; CHECK:     RTS
 

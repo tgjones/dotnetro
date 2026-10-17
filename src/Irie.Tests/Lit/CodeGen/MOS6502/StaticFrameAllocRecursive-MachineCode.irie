@@ -4,7 +4,7 @@
 ;
 ; @recur calls itself, so it is reentrant — a second activation would alias the
 ; first's locals if they lived at a fixed zero-page address. ReentrancyAnalysis
-; therefore leaves MirFunction.IsNonReentrant false, and MOS6502FramePlacementPass
+; therefore leaves MirFunction.IsNonReentrant false, and MOS6502ProgramLayoutPass
 ; keeps @recur's frame slot in absolute memory (the indirect-Y path through the
 ; $00/$01 pointer pair) — DESPITE the BBC Micro subtarget owning a zero-page
 ; window ($70..$8F). Reentrancy gates eligibility, so the window is irrelevant

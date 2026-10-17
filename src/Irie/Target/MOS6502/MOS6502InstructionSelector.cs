@@ -1251,10 +1251,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // now the live CC_MOS soft stack pointer: MOS6502CallLowering addresses
     // caller-placed stack arguments through them (LowerCallerStackArgAccess),
     // so they must survive across ordinary mem accesses. RC18/RC19 — the top of
-    // the caller-saved range, not RC20..RC31 — is deliberate: reserving out of
-    // the callee-saved end instead would have shrunk that pool from 12 to 10
-    // registers, which regressed the pressure/many-calls corpus case into an
-    // unimplemented spill crash (see MOS6502RegisterInfo.Imag8Regs).
+    // the caller-saved range — keeps the homes (the cross-call pool) untouched.
     private const int PointerZpLo = 30; // MOS6502Registers.RC(18)
     private const int PointerZpHi = 31; // MOS6502Registers.RC(19)
 

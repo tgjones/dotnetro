@@ -1,7 +1,7 @@
 # A register allocator for the 6502 — design
 
-**Status:** proposal; the steering decisions are recorded in §7. Only S0 is under
-way (progress below the stage table in §5); nothing of S1–S7 is implemented.
+**Status:** proposal; the steering decisions are recorded in §7. S0 and S1 are done
+(progress below the stage table in §5); nothing of S2–S7 is implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -482,7 +482,7 @@ one is never built. Stages S1 and S2 do not depend on each other.
 | Stage | What | Exit criterion |
 |---|---|---|
 | **S0** Foundations | (a) Execute the corpus `.irie` cases on the emulator. (b) A cycle metric, if Aemula exposes one, next to bytes in `irie-report`. (c) Loop and frequency analysis. (d) The placement verifier from §3.10, run first on *today's* allocator output. (e) The cheap measured win: drop block parameters of single-predecessor blocks before isel (−32 instructions on C# `Sum`). | Verifier passes the whole suite; C# benchmarks reported in bytes and cycles |
-| **S1** Program layout with today's allocator | Unbounded per-function zp registers, then call-graph stacking and a per-target budget; zp vs abs by benefit; callee-saved PHA/PLA removed for non-recursive functions; convention classes for indirect calls | `many-calls`, `stack-args`, `pressure-*` and the C# set fewer bytes; no case worse |
+| **S1** Program layout with today's allocator (done, see below) | Unbounded per-function zp registers, then call-graph stacking and a per-target budget; zp vs abs by benefit; callee-saved PHA/PLA removed for non-recursive functions; convention classes for indirect calls | `many-calls`, `stack-args`, `pressure-*` and the C# set fewer bytes; no case worse |
 | **S2** Variant tables | Operation + variant table for every byte op; isel emits operations; a trivial placement (K = 1, everything homed) emits correct naïve code end to end | All `.cs` and executed `.irie` tests pass on the naïve path |
 | **S3** Placement within blocks | The beam DP of §3.4, with "everything homed" at block boundaries | Better than today's allocator on the 12 studied cases |
 | **S4** Placement across blocks | Loop-first boundary negotiation, phi via reconciliation, home classes. **Delete** the colourer and the passes in §4 | Scoreboard total and C# set better than today; no case worse by more than 2 instructions without a written reason |
@@ -509,6 +509,57 @@ one is never built. Stages S1 and S2 do not depend on each other.
   found no violations in the suite, the executed corpus or the `.cs` tests.
 
 S0 is complete.
+
+**S1 progress (2026-10-17):** done, with today's graph-colouring allocator.
+- **Homes.** The allocator's cross-call pool is now an unbounded-in-spirit set of
+  function-local zero-page *homes* (`$h0…`, 96 per function) instead of the fixed
+  callee-saved `RC20–RC31`. RC2–RC17 remain the free, caller-saved registers; RC0–RC19
+  stay the fixed ABI window. No register is callee-saved any more, and no function
+  saves or restores anything in its prologue/epilogue.
+- **Layout.** `MOS6502ProgramLayoutPass` (replacing `MOS6502FramePlacementPass`)
+  places each function's block of homes, plus its zero-page frame slots, in
+  `$14–$8F` (C64 `$16–$8F`) above the blocks of all its callees (`StaticFrameColorer`
+  over the new `CallGraph`), then rewrites each home to its final `RC(n)`. Independent
+  call subtrees overlap, so the budget used is the deepest call path. The highest
+  program in the test suite (`Int64Memory.cs`) reaches `$41`.
+- **Recursion.** Functions of one strongly connected component of the call graph
+  share one block; `MOS6502RecursionSavePass` saves the live homes with `PHA`/`PLA`
+  around calls that stay inside the component (`RecursionLiveAcrossCalls.cs` covers
+  self, mutual and virtual-call recursion).
+- **Indirect calls.** An indirect call (the trampoline, whose target pair moved to
+  RC16/RC17) reaches only *address-taken* functions (vtable and other initializer
+  references, `mem.symbol`), not every function. A call of the trampoline is also now
+  seen as an indirect call by `ReentrancyAnalysis`; after lowering it looked like a
+  direct call of the trampoline, so a cycle through a vtable could be missed.
+  Convention classes by signature were not needed and are not built.
+- **Overflow.** Frame slots that do not fit are demoted to absolute memory and the
+  layout redone (as before). Homes have no absolute twin yet (that needs the variant
+  tables of S2), so a program whose deepest call path needs more than the window gets
+  a `NotSupportedException` (a `Diagnostic` from `CompilerDriver`) naming the
+  function. Nothing in the suite comes near it. Choosing zero page versus absolute
+  memory *by benefit*, and splitting homes into "live across a call" and "not", were
+  left out because the measured budget is not binding.
+- **Result** (bytes of `irie` corpus code with `iriec --target mos6502 --emit=bin`,
+  and of the whole C# lit programs with `dnrc`, which include the reachable corelib):
+
+  | Set | Before | After |
+  |---|--:|--:|
+  | `LlvmMosReference` corpus (`.irie` cases) | 4119 | 3660 (−11%) |
+  | C# lit programs (`.cs`) | 203682 | 179750 (−11.8%) |
+  | C# benchmark kernels (`benchmarks.md`) | 5870 | 4619 (−21%) |
+
+  `many-calls` loses its 12-register save/restore, `factorial-recursive` and the
+  C# call-heavy code its prologue/epilogue pushes, and the `jsr; rts` pairs they hid
+  fold into tail calls.
+- **Exit criterion not met in four places.** Three corpus cases (`array-index` +2
+  bytes, `two-pointer-copy` +9, `crc8` +8) and one benchmark kernel
+  (`ObjectFields.Dist1_Point` +9) are slightly larger. No C# lit program is. The
+  difference is register *choice*, not extra work: the larger pool changes the `K`
+  that the coalescing tests and the select order use, and an argument byte that used
+  to stay in `X` is now stored to a home. It is sensitive to the pool size rather than
+  to anything systematic (a pool of 12 homes has no regression on either set, but the
+  C# set then gains 6.1% instead of 11.8%); S4 replaces the colouring that makes the
+  difference, so it was left alone.
 
 ### Work outside the allocator that still limits quality
 

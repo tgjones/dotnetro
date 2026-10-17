@@ -1,49 +1,18 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
-; Verifies the callee-saved cross-call model. %0 is live across the first call
-; (it is the arg to the second call), so the RA must NOT keep it in a
-; caller-saved physreg. MOS6502CallLowering marks $a, $x, $y, the flag regs
-; (except the callee-saved D/I), and RC2..RC19 as clobbered on every jsr.abs.
-; RC20..RC31 are callee-saved: a cross-call vreg lands there (the RC class
-; orders RC20..RC31 after the caller-saved RC2..RC19), and the function that
-; clobbers them saves/restores them in its prologue/epilogue via the hardware
-; stack (PrologueEpilogueInsertionPass + MOS6502FrameLowering).
-;
-; For the test: %0 starts in $a (entry-block livein) and needs to survive the
-; first JSR. The RA picks RC20 (first callee-saved RC, address $14). Because
-; RC20 is now clobbered by this function, its prologue saves it and its
-; epilogue restores it. The save/restore loop uses $a, so the live $a (arg0 at
-; entry / return byte0 at exit) is preserved through $y via tay/tya.
-;
-;   prologue:                  ; save callee-saved RC20 the function clobbers
-;     TAY                      ; park live $a (arg0) in $y
-;     LDA $14 ; PHA            ; push old RC20 onto the hardware stack
-;     TYA                      ; restore $a
-;   body:
-;     STA $14                  ; preserve %0 to RC20 ($14) before consumption
-;     JSR Callee               ; call 1 (arg already in $a; clobbers $a, %0 safe)
-;     LDA $14                  ; reload %0 into $a as the arg for call 2
-;     JSR Callee               ; call 2
-;   epilogue:                  ; restore callee-saved RC20
-;     TAY                      ; park live $a (return byte0) in $y
-;     PLA ; STA $14            ; pop old RC20 back off the hardware stack
-;     TYA                      ; restore $a
-;     RTS
+; Verifies the cross-call model. %0 is live across the first call (it is the arg to
+; the second call), so the RA must NOT keep it in a caller-saved physreg.
+; MOS6502CallLowering marks $a, $x, $y, the flag regs (except D/I) and RC2..RC19 as
+; clobbered on every jsr.abs, so %0 lands in a home: a function-local zero-page
+; byte that no call clobbers, because program layout keeps a function's homes
+; above those of all its callees. Nothing is saved or restored, and the final call
+; becomes a tail call.
 
 ; CHECK: TestCrossCall:
-; CHECK:     TAY
-; CHECK:     LDA $14
-; CHECK:     PHA
-; CHECK:     TYA
 ; CHECK:     STA $14
 ; CHECK:     JSR Callee
 ; CHECK:     LDA $14
-; CHECK:     JSR Callee
-; CHECK:     TAY
-; CHECK:     PLA
-; CHECK:     STA $14
-; CHECK:     TYA
-; CHECK:     RTS
+; CHECK:     JMP Callee
 
 func @TestCrossCall : (i8) -> i8 {
 bb0(%0 : i8):

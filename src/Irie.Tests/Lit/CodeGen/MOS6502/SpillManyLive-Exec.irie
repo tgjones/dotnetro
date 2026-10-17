@@ -1,0 +1,74 @@
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "spill_many(buf(112))"
+
+; More live bytes than zero page can hold for one function: fourteen i64 values
+; (112 bytes) are all live across a call, more than the 96 homes the allocator may
+; use, so the surplus is spilled to frame slots. Homes are unbounded in principle
+; (the layout only fails when the whole call path exceeds the zero-page window), but
+; the allocator's pool is finite, so this keeps the spill and reload path exercised
+; and executed.
+
+func @g : () -> void {
+bb0():
+    core.return
+}
+
+func @spill_many : (ptr) -> i64 {
+bb0(%0 : ptr):
+    %1 : i16 = arith.constant 0
+    %2 : ptr = mem.ptradd %0, %1
+    %3 : i64 = mem.load.i64 %2
+    %4 : i16 = arith.constant 8
+    %5 : ptr = mem.ptradd %0, %4
+    %6 : i64 = mem.load.i64 %5
+    %7 : i16 = arith.constant 16
+    %8 : ptr = mem.ptradd %0, %7
+    %9 : i64 = mem.load.i64 %8
+    %10 : i16 = arith.constant 24
+    %11 : ptr = mem.ptradd %0, %10
+    %12 : i64 = mem.load.i64 %11
+    %13 : i16 = arith.constant 32
+    %14 : ptr = mem.ptradd %0, %13
+    %15 : i64 = mem.load.i64 %14
+    %16 : i16 = arith.constant 40
+    %17 : ptr = mem.ptradd %0, %16
+    %18 : i64 = mem.load.i64 %17
+    %19 : i16 = arith.constant 48
+    %20 : ptr = mem.ptradd %0, %19
+    %21 : i64 = mem.load.i64 %20
+    %22 : i16 = arith.constant 56
+    %23 : ptr = mem.ptradd %0, %22
+    %24 : i64 = mem.load.i64 %23
+    %25 : i16 = arith.constant 64
+    %26 : ptr = mem.ptradd %0, %25
+    %27 : i64 = mem.load.i64 %26
+    %28 : i16 = arith.constant 72
+    %29 : ptr = mem.ptradd %0, %28
+    %30 : i64 = mem.load.i64 %29
+    %31 : i16 = arith.constant 80
+    %32 : ptr = mem.ptradd %0, %31
+    %33 : i64 = mem.load.i64 %32
+    %34 : i16 = arith.constant 88
+    %35 : ptr = mem.ptradd %0, %34
+    %36 : i64 = mem.load.i64 %35
+    %37 : i16 = arith.constant 96
+    %38 : ptr = mem.ptradd %0, %37
+    %39 : i64 = mem.load.i64 %38
+    %40 : i16 = arith.constant 104
+    %41 : ptr = mem.ptradd %0, %40
+    %42 : i64 = mem.load.i64 %41
+    call.func @g
+    %43 : i64 = arith.addi %3, %6
+    %44 : i64 = arith.addi %43, %9
+    %45 : i64 = arith.addi %44, %12
+    %46 : i64 = arith.addi %45, %15
+    %47 : i64 = arith.addi %46, %18
+    %48 : i64 = arith.addi %47, %21
+    %49 : i64 = arith.addi %48, %24
+    %50 : i64 = arith.addi %49, %27
+    %51 : i64 = arith.addi %50, %30
+    %52 : i64 = arith.addi %51, %33
+    %53 : i64 = arith.addi %52, %36
+    %54 : i64 = arith.addi %53, %39
+    %55 : i64 = arith.addi %54, %42
+    core.return %55
+}

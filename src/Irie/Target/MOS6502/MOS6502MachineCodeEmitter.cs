@@ -87,6 +87,10 @@ public sealed class MOS6502MachineCodeEmitter(int zeroPageBase = 0) : Irie.Targe
         // selection). Both encode into the same one-byte ZeroPage operand.
         switch (instr.Operands[index])
         {
+            case PhysicalReg { IsImplicit: false } home when MOS6502Registers.IsHome(home.Id):
+                throw new InvalidOperationException(
+                    $"MOS6502MachineCodeEmitter: home ${MOS6502Registers.NameOf(home.Id)} has no address; " +
+                    "MOS6502ProgramLayoutPass must run before emission.");
             case PhysicalReg phys when !phys.IsImplicit && phys.Id >= MOS6502Registers.RC(0):
                 return new MachineCodeOperand.Immediate(zeroPageBase + phys.Id - MOS6502Registers.RC(0));
 
@@ -136,8 +140,8 @@ public sealed class MOS6502MachineCodeEmitter(int zeroPageBase = 0) : Irie.Targe
             // Immediate carries a literal 16-bit address (e.g. `JSR $FFEE` for an
             // OS call). The assembly writer formats this as `$XXXX`.
             Mir.Immediate imm  => new MachineCodeOperand.Immediate(imm.Value),
-            // An RC register (`jmp.ind $zp30`): the pointer lives at the register's zp address.
-            PhysicalReg { IsImplicit: false } phys when phys.Id >= MOS6502Registers.RC(0)
+            // An RC register (`jmp.ind $zp16`): the pointer lives at the register's zp address.
+            PhysicalReg { IsImplicit: false } phys when phys.Id >= MOS6502Registers.RC(0) && !MOS6502Registers.IsHome(phys.Id)
                                => new MachineCodeOperand.Immediate(zeroPageBase + phys.Id - MOS6502Registers.RC(0)),
             _ => throw new InvalidOperationException(
                 $"MOS6502MachineCodeEmitter: expected a Symbol, BlockTarget or Immediate at operand[{index}] of {(MOS6502Op)instr.Opcode.Code}, got {operand}."),

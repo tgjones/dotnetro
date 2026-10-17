@@ -15,18 +15,17 @@ namespace Irie.Target.MOS6502;
 //   must preserve any it still needs across a call):
 //       A, X, Y, C, N, V, Z, RC2..RC19   (RC2..RC19 = zp $02..$13)
 //
-//   Callee-saved (a callee that clobbers these must save+restore them, so the
-//   caller can rely on them surviving a call):
-//       PC, S, D, I, RC0, RC1, RC20..RC31   (RC20..RC31 = zp $14..$1F)
+//   Preserved by a call: PC, S, D, I, RC0, RC1, and every function-local home
+//   ($h0, $h1, …). Homes are not saved by anyone: program layout
+//   (MOS6502ProgramLayoutPass) stacks each function's homes above those of all its
+//   callees, so a callee can never overwrite a home its caller still needs.
 //
 // `CallerSavedScratch` below encodes the caller-saved view of this convention:
 // it lists A, X, Y, C, N, V, Z and RC2..RC19, which are attached as implicit
-// defs (a clobber barrier) on every `jsr.abs`. The callee-saved RC20..RC31 are
-// deliberately omitted, so a vreg that is live across a call is placed there by
-// the RA; each function then saves/restores the callee-saved registers it
-// actually clobbers in its prologue/epilogue (PrologueEpilogueInsertionPass +
-// MOS6502FrameLowering), via the hardware stack (pha/pla). This makes cross-call
-// preservation recursion-safe and frame-slot-free.
+// defs (a clobber barrier) on every `jsr.abs`. Homes are deliberately omitted, so
+// a vreg that is live across a call is placed in one by the RA. Calls inside a
+// recursive cycle are the exception: a function that can re-enter itself
+// saves the homes live across such a call around it (MOS6502RecursionSavePass).
 public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 {
     // CC_MOS, the default convention.
@@ -236,7 +235,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         // Implicit-defs on return physregs + all caller-saved scratch
         // (clobber barrier). Track the set so we don't add a register twice.
         // CC_MOS treats $a, $x, $y, $c, $n, $v, $z, $b and RC2..RC19 as
-        // caller-saved; RC20..RC31 and the D/I flags are callee-saved.
+        // caller-saved; homes and the D/I flags are preserved.
         var clobberedDefs = new HashSet<int>(_callerSaved);
         var returnRegIdx = 0;
         var returnPhysRegs = new List<int>();
@@ -285,8 +284,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         MirBuilder builder)
     {
         // Indirect call shim: park the function pointer's two bytes in the
-        // reserved zero-page slots @__call_target_lo / @__call_target_hi (RC30
-        // / RC31 by convention), then jsr.abs into the @__call_indirect_trampoline
+        // reserved zero-page slots (RC16 / RC17 by convention), then jsr.abs into the @__call_indirect_trampoline
         // runtime helper which performs `JMP (zp)` to actually dispatch. The
         // trampoline lives in runtime.mir (hand-written; written in a later
         // step). From the caller's perspective the lowering is otherwise
@@ -458,12 +456,12 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 
     // Reserved zero-page slots that the indirect-call trampoline reads its
     // target address from. The runtime trampoline (`@__call_indirect_trampoline`)
-    // does `JMP ($1E)` — i.e. reads address $1E / $1F as a 16-bit pointer and
-    // jumps there. The slots are out of the CC arg range and out of the Imag8
-    // allocatable pool's first 16 entries (RC2..RC15 are reserved as callee-
-    // saved scratch in MOS6502CallLowering's comment).
-    private static readonly int CallTargetLo = MOS6502Registers.RC(30);
-    private static readonly int CallTargetHi = MOS6502Registers.RC(31);
+    // does `JMP (RC16)` — i.e. reads RC16 / RC17 as a 16-bit pointer and jumps
+    // there. They are in the caller-saved range (clobbered by every call, so
+    // never holding a value across one) and outside the CC argument range
+    // (RC2..RC15).
+    private static readonly int CallTargetLo = MOS6502Registers.RC(16);
+    private static readonly int CallTargetHi = MOS6502Registers.RC(17);
 
     // Caller-saved scratch physregs that any arbitrary callee may clobber,
     // independent of the call's arg/return registers. Attached as implicit defs
@@ -472,10 +470,9 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
     //
     // TARGET convention (encoded here): caller-saved = A, X, Y, C, N, V, Z,
     // RC2..RC19. The callee-saved flags D and I are NOT clobbered by a call, so
-    // they are excluded. The callee-saved RC20..RC31 are likewise excluded: a
-    // cross-call vreg lands there (the RC class orders RC20..RC31 after the
-    // caller-saved RC2..RC19) and is preserved by each function's
-    // prologue/epilogue (PrologueEpilogueInsertionPass + MOS6502FrameLowering).
+    // they are excluded. Homes are likewise excluded: a cross-call vreg lands in
+    // one (the RC class orders the homes after the caller-saved RC2..RC17) and
+    // stays intact because layout keeps it disjoint from every callee's homes.
     private static readonly int[] CcMosCallerSaved =
     [
         MOS6502Registers.A,

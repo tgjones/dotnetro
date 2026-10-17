@@ -240,13 +240,14 @@ public sealed class MOS6502ParallelCopyPass : MirFunctionPass
     // Hands out distinct scratch zero-page slots, avoiding: every register that
     // appears in the run, every register live out of the run (still needed by a
     // later instruction or a successor block), and the reserved slots (RC0/RC1
-    // soft-stack, RC18/RC19 indirect-Y pointer scratch, RC30/RC31 indirect-call
-    // target pointer). Each slot is handed out at most once per run so
+    // soft-stack, RC18/RC19 indirect-Y pointer scratch). Slots are caller-saved
+    // RC2..RC17 first (free to clobber, no zero-page cost), then homes. Each slot is handed out at most once per run so
     // concurrently-live saved values never collide.
     private sealed class ScratchAllocator
     {
         private readonly HashSet<int> _used = [];
         private int _next = 2;
+        private int _nextHome;
 
         public ScratchAllocator(IEnumerable<(int dst, int src)> run, HashSet<int> liveOut)
         {
@@ -256,16 +257,19 @@ public sealed class MOS6502ParallelCopyPass : MirFunctionPass
             _used.Add(MOS6502Registers.RC(1));
             _used.Add(MOS6502Registers.RC(18));
             _used.Add(MOS6502Registers.RC(19));
-            _used.Add(MOS6502Registers.RC(30));
-            _used.Add(MOS6502Registers.RC(31));
         }
 
         public int Next()
         {
-            while (_next <= 29)
+            while (_next <= 17)
             {
                 var rc = MOS6502Registers.RC(_next++);
                 if (_used.Add(rc)) return rc;
+            }
+            while (_nextHome < MOS6502Registers.HomeCount)
+            {
+                var home = MOS6502Registers.Home(_nextHome++);
+                if (_used.Add(home)) return home;
             }
             throw new InvalidOperationException(
                 "MOS6502ParallelCopyPass: no free scratch zero-page slot to break a copy cycle.");
