@@ -15,14 +15,14 @@
 ; CHECK:     LDY $03
 ; CHECK:     STY $07
 ; CHECK:     JMP __mulsi3
+; CHECK:
 ; CHECK: chain:
 ; CHECK:     STA $14
 ; CHECK:     STX $15
 ; CHECK:     LDY $04
 ; CHECK:     STY $16
-; CHECK:     LDA $05
-; CHECK:     STA $17
-; CHECK:     LDA $14
+; CHECK:     LDY $05
+; CHECK:     STY $17
 ; CHECK:     JSR __mulhi3
 ; CHECK:     CLC
 ; CHECK:     ADC $16

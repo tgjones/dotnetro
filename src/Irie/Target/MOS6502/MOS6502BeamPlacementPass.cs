@@ -199,8 +199,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 {
                     if (wanted.TryGetValue(def.Id, out var register)
                         && !live.Any(v => v != def.Id
-                            && (TryFixedHome(v, out var other) && other == register
-                                || arrived.TryGetValue(v, out var from) && from == register)))
+                            && TryFixedHome(v, out var other) && other == register))
                         _destinationRegister[def.Id] = register;
                     live.Remove(def.Id);
                 }
@@ -771,10 +770,14 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         void Add(Work? work)
         {
-            if (work is not null) results.Add(work.Freeze(state, normalise: true));
+            if (work is not null && !work.Failed) results.Add(work.Freeze(state, normalise: true));
         }
-        Work Start(int exitMode = 0) =>
-            new(this, info, state, pos, itemEnd - 1) { PreferMove = preferMove, ExitMode = exitMode };
+        Work Start(int exitMode = 0)
+        {
+            var work = new Work(this, info, state, pos, itemEnd - 1) { PreferMove = preferMove, ExitMode = exitMode };
+            work.EvictDestinations(instr);
+            return work;
+        }
 
         // A branch to a block that starts from a snapshot is placed several ways (see
         // Work.ExitMode): leaving the values where they are, storing them first, and,
@@ -1214,7 +1217,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         {
             var best = -1;
             var bestCost = long.MaxValue;
-            for (var k = 0; k < 3; k++)
+            // Ties go to Y, then X: A is the register most operations need.
+            foreach (var k in new[] { Y, X, A })
             {
                 if ((pinned & (1 << k)) != 0 || (onlyAx && k == Y)) continue;
                 var cost = 0L;
@@ -1224,6 +1228,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     cost = 100;
                 else if (content == Empty)
                     cost = -1;
+                else if (IsImm(content))
+                    cost = 1;   // a constant is worth keeping: reloading it costs an instruction
                 if (cost < bestCost) (best, bestCost) = (k, cost);
             }
             return best;
@@ -1441,6 +1447,26 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             Do(V(MOS6502Operation.Spill, RegisterPlace(register), Place.Home), MemRef.Phys(pointerReg));
             held = want;
             return true;
+        }
+
+        // Set when the work could not be completed; the plan is dropped.
+        public bool Failed { get; private set; }
+
+        // A result that is built in a fixed zero-page register may find a value still
+        // waiting there that arrived in that register: it goes to its own home first,
+        // as it would have to anyway before the register is written.
+        public void EvictDestinations(MirInstruction instr)
+        {
+            foreach (var def in _placer.Defs(instr))
+            {
+                if (!_placer._destinationRegister.TryGetValue(def.Id, out var register)) continue;
+                for (var i = 0; i < _info.Count; i++)
+                {
+                    if (_info.FixedReg[i] != register || !InF(i) || InH(i) || _info.Vreg[i] == def.Id) continue;
+                    if (_info.End(i) > _pos && !EnsureHome(i, 0)) { Failed = true; return; }
+                    _f[i >> 6] &= ~(1UL << (i & 63));
+                }
+            }
         }
 
         // Stores every value the rest of the block, or a successor, still needs;
