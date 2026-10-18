@@ -1747,7 +1747,53 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             var moves = _placer.EdgeMoves(target);
             var hazard = _placer.HasMoveHazard(moves);
 
+            // Moves that overwrite each other's sources can often be ordered instead of
+            // going through temporaries. The values the join expects in registers are
+            // loaded last, so they must not come from a home a move writes.
+            List<(int Parameter, MirOperand Source)>? ordered = null;
             if (hazard)
+            {
+                var homed = moves.Where(m => contract.Homed.Contains(m.Parameter)).ToList();
+                var written = homed.Select(m => _placer.HomeKey(m.Parameter)).ToHashSet();
+                var loadsSafe = true;
+                foreach (var register in new[] { Y, X, A })
+                {
+                    var name = contract.R[register];
+                    if (name == Empty) continue;
+                    var content = Source(name);
+                    if (content >= 0 && content < ImmBase && FindRegister(content) < 0 && !IsRemat(content)
+                        && written.Contains(_placer.HomeKey(VregOf(content))))
+                        loadsSafe = false;
+                }
+                if (loadsSafe) ordered = OrderEdgeMoves(homed);
+            }
+
+            if (ordered is not null)
+            {
+                foreach (var name in contract.Homed.Order())
+                {
+                    if (parameters.Contains(name))
+                    {
+                        if (moves.Any(m => m.Parameter == name)) continue;
+                        var shared = Source(name);
+                        if (shared >= 0 && shared < ImmBase && !InH(shared) && !IsRemat(shared) && !EnsureHome(shared, 0)) return false;
+                        continue;
+                    }
+                    var value = Source(name);
+                    if (value >= 0 && value < ImmBase && !InH(value) && !IsRemat(value) && !EnsureHome(value, 0)) return false;
+                }
+                for (var step = 0; step < ordered.Count; step++)
+                {
+                    var held = 0;
+                    for (var later = step + 1; later < ordered.Count; later++)
+                    {
+                        var other = FindRegister(ContentOf(ordered[later].Source));
+                        if (other >= 0) held |= 1 << other;
+                    }
+                    if (!MoveToParameter(ordered[step].Parameter, ordered[step].Source, held)) return false;
+                }
+            }
+            else if (hazard)
             {
                 // Everything is read back from its home, so everything has to be in one.
                 foreach (var i in LiveInto(target))
@@ -1791,7 +1837,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         }
 
         // The home of a parameter <- its argument, from wherever the argument is.
-        private bool MoveToParameter(int parameter, MirOperand source)
+        private bool MoveToParameter(int parameter, MirOperand source, int held = 0)
         {
             var content = ContentOf(source);
             if (!IsImm(content) && !InH(content) && !InF(content) && FindRegister(content) < 0
@@ -1800,8 +1846,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             var register = FindRegister(content);
             if (register < 0)
             {
-                register = PickScratch(0);
-                if (!PutIn(register, content)) return false;
+                register = PickScratch(held);
+                if (register < 0 || !PutIn(register, content, held)) return false;
             }
             Do(V(MOS6502Operation.Spill, RegisterPlace(register), Place.Home), MemRef.HomeOf(parameter));
             return true;
@@ -1825,13 +1871,15 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
             var moves = _placer.EdgeMoves(target);
             var hazard = _placer.HasMoveHazard(moves);
-            if (hazard)
+            var ordered = hazard ? OrderEdgeMoves(moves) : null;
+            if (hazard && ordered is null)
             {
                 if (!StoreForExits(instr)) return null;
                 Do(placer => placer.EmitEdgeMoves(target));
             }
             else
             {
+                if (ordered is not null) moves = ordered;
                 if (!StoreForExits(instr, includeArguments: false)) return null;
 
                 // An argument that shares its parameter's home needs no move, only to
@@ -1846,8 +1894,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     if (!InH(content) && !IsRemat(content) && !EnsureHome(content, 0)) return null;
                 }
 
-                foreach (var (parameter, source) in moves.OrderBy(m => FindRegister(ContentOf(m.Source)) >= 0 ? 0 : 1).ToList())
+                var sequence = ordered ?? moves.OrderBy(m => FindRegister(ContentOf(m.Source)) >= 0 ? 0 : 1).ToList();
+                for (var step = 0; step < sequence.Count; step++)
                 {
+                    var (parameter, source) = sequence[step];
                     var content = ContentOf(source);
                     if (!IsImm(content) && !InH(content) && !InF(content) && FindRegister(content) < 0
                         && !IsRemat(content) && !EnsureHome(content, 0))
@@ -1855,8 +1905,15 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     var register = FindRegister(content);
                     if (register < 0)
                     {
-                        register = PickScratch(0);
-                        if (!PutIn(register, content)) return null;
+                        // The registers that hold the sources of the moves still to come stay.
+                        var held = 0;
+                        for (var later = step + 1; later < sequence.Count; later++)
+                        {
+                            var other = FindRegister(ContentOf(sequence[later].Source));
+                            if (other >= 0) held |= 1 << other;
+                        }
+                        register = PickScratch(held);
+                        if (register < 0 || !PutIn(register, content, held)) return null;
                     }
                     Do(V(MOS6502Operation.Spill, RegisterPlace(register), Place.Home), MemRef.HomeOf(parameter));
                     _consumed.Add(content);
@@ -1866,6 +1923,43 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             AddJumpCost();
             Do(placer => placer.Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, [])));
             return this;
+        }
+
+        // The moves of a branch in an order where no move reads a home an earlier
+        // one wrote, or null if the moves form a cycle or a move that has to read a
+        // home would find every register holding the source of a later move.
+        private List<(int Parameter, MirOperand Source)>? OrderEdgeMoves(List<(int Parameter, MirOperand Source)> moves)
+        {
+            // The home a move reads, if it reads one (-1: it reads a register or an immediate).
+            int ReadKey((int Parameter, MirOperand Source) move)
+            {
+                if (move.Source is not VirtualReg { IsDefinition: false } v || _placer._constants.ContainsKey(v.Id)) return -1;
+                var content = ContentOf(v);
+                if (FindRegister(content) >= 0 || IsRemat(content)) return -1;
+                if (!InH(content)) return -1;
+                return _placer.HomeKey(v.Id);
+            }
+
+            var pending = moves.ToList();
+            var result = new List<(int Parameter, MirOperand Source)>();
+            while (pending.Count > 0)
+            {
+                var ready = pending.Where(m => !pending.Any(o => !o.Equals(m) && ReadKey(o) == _placer.HomeKey(m.Parameter))).ToList();
+                if (ready.Count == 0) return null;
+
+                // A move from a register first; one that loads needs a register that no
+                // later move's source is in.
+                var next = ready.FirstOrDefault(m => FindRegister(ContentOf(m.Source)) >= 0);
+                if (next.Source is null)
+                {
+                    next = ready[0];
+                    var held = pending.Where(o => !o.Equals(next)).Select(o => FindRegister(ContentOf(o.Source))).Count(r => r >= 0);
+                    if (held >= 3) return null;
+                }
+                result.Add(next);
+                pending.Remove(next);
+            }
+            return result;
         }
 
         // A run of consecutive copies, as a parallel move between values and the

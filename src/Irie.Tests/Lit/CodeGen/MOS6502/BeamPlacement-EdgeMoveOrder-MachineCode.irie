@@ -1,0 +1,76 @@
+; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "fibonacci(0..12)"
+
+; The beam placement: the back edge of a loop shifts values between the loop's
+; parameters (a, b, i) <- (b, a + b, i + 1). Each move reads a home that another move
+; writes, so the moves run in an order that reads before it writes, with the sum held in
+; registers meanwhile, instead of copying everything through temporary homes.
+
+; CHECK: fibonacci:
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDY #$00
+; CHECK:     STY $16
+; CHECK:     STY $17
+; CHECK:     LDA #$01
+; CHECK:     STA $18
+; CHECK:     STY $19
+; CHECK:     STY $1A
+; CHECK:     STY $1B
+; CHECK: .bb1:
+; CHECK:     LDA $1B
+; CHECK:     EOR #$80
+; CHECK:     TAX
+; CHECK:     LDA $15
+; CHECK:     EOR #$80
+; CHECK:     STA $1C
+; CHECK:     CPX $1C
+; CHECK:     BCC .bb3
+; CHECK:     BNE .bb2
+; CHECK:     LDA $1A
+; CHECK:     CMP $14
+; CHECK:     BCC .bb3
+; CHECK: .bb2:
+; CHECK:     LDX $17
+; CHECK:     LDA $16
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     CLC
+; CHECK:     LDA $16
+; CHECK:     ADC $18
+; CHECK:     TAX
+; CHECK:     LDA $17
+; CHECK:     ADC $19
+; CHECK:     CLC
+; CHECK:     TAY
+; CHECK:     LDA $1A
+; CHECK:     ADC #$01
+; CHECK:     STA $1A
+; CHECK:     LDA $1B
+; CHECK:     ADC #$00
+; CHECK:     STA $1B
+; CHECK:     LDA $18
+; CHECK:     STA $16
+; CHECK:     STX $18
+; CHECK:     LDA $19
+; CHECK:     STA $17
+; CHECK:     STY $19
+; CHECK:     JMP .bb1
+
+func @fibonacci : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 0
+    %2 : i16 = arith.constant 1
+    %3 : i16 = arith.constant 0
+    cf.br bb1(%1, %2, %3)
+bb1(%4 : i16, %5 : i16, %6 : i16):
+    %7 : i1 = arith.cmpi slt, %6, %0
+    cf.cond_br %7, bb2(), bb3()
+bb2():
+    %8 : i16 = arith.addi %4, %5
+    %9 : i16 = arith.constant 1
+    %10 : i16 = arith.addi %6, %9
+    cf.br bb1(%5, %8, %10)
+bb3():
+    core.return %4
+}
