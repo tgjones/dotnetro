@@ -1,0 +1,410 @@
+__entry:
+    JSR DotNetro_Runtime_Startup_Initialize
+    LDX #$00
+    TXA
+    JSR Program__Main___String_SZArray
+.bb1:
+    JMP .bb1
+
+Program__Main___String_SZArray:
+    LDY #$00
+    STY $02
+    STY $03
+    LDX #$02
+    STX $04
+    STY $05
+    STY $06
+    STY $07
+    LDX #$00
+    LDA #$01
+    JSR Program___Main___g__MethodWithParametersAndReturnValue_0_0_Int32_Int32
+    JMP System_Console_WriteLine_Int32
+
+DotNetro_Runtime_Startup_Initialize:
+    LDX #$00
+    STX $12
+    STX $13
+    LDY #$00
+    TXA
+    STA ($12),Y
+    LDY #$01
+    LDA #$7C
+    STA ($12),Y
+    LDA #$16
+    JSR $FFEE
+    LDA #$07
+    JMP $FFEE
+
+Program___Main___g__MethodWithParametersAndReturnValue_0_0_Int32_Int32:
+    CLC
+    ADC $04
+    STA $14
+    TXA
+    ADC $05
+    TAX
+    LDA $02
+    ADC $06
+    TAY
+    LDA $03
+    ADC $07
+.bb1:
+    STY $02
+    STA $03
+    LDA $14
+    RTS
+
+System_Console_WriteLine_Int32:
+    STA $20
+    LDA $03
+    STA $21
+    LDY $02
+    STY $22
+    CMP #$00
+    BMI .bb2
+.bb1:
+    STY $02
+    STA $03
+    LDA $20
+    JSR System_Console_WriteDigits_UInt32
+    LDA #$0D
+    JMP System_Console_PutChar_Byte
+.bb2:
+    STX $23
+    LDA #$2D
+    JSR System_Console_PutChar_Byte
+    SEC
+    LDA #$00
+    SBC $20
+    STA $20
+    LDA #$00
+    SBC $23
+    TAX
+    LDA #$00
+    SBC $22
+    TAY
+    LDA #$00
+    SBC $21
+    JMP .bb1
+
+System_Console_PutChar_Byte:
+    JMP $FFE3
+
+System_Console_WriteDigits_UInt32:
+    STA $1B
+    LDA $03
+    LSR
+    STA $15
+    LDA $02
+    ROR
+    STA $1A
+    TXA
+    ROR
+    STA $17
+    LDA $1B
+    ROR
+    STA $16
+    LDA $03
+    LSR
+    TAY
+    LDA $02
+    ROR
+    STA $14
+    TXA
+    ROR
+    STA $18
+    LDA $1B
+    ROR
+    STA $19
+    TYA
+    LSR
+    STA $1C
+    LDA $14
+    ROR
+    STA $14
+    LDA $18
+    ROR
+    TAY
+    LDA $19
+    ROR
+    CLC
+    ADC $16
+    STA $16
+    TYA
+    ADC $17
+    STA $17
+    LDA $1A
+    ADC $14
+    STA $1A
+    LDA $15
+    ADC $1C
+    STA $15
+    LSR
+    TAY
+    LDA $1A
+    ROR
+    STA $14
+    LDA $17
+    ROR
+    STA $18
+    LDA $16
+    ROR
+    STA $19
+    TYA
+    LSR
+    TAY
+    LDA $14
+    ROR
+    STA $14
+    LDA $18
+    ROR
+    STA $18
+    LDA $19
+    ROR
+    STA $19
+    TYA
+    LSR
+    TAY
+    LDA $14
+    ROR
+    STA $14
+    LDA $18
+    ROR
+    STA $18
+    LDA $19
+    ROR
+    STA $19
+    TYA
+    LSR
+    STA $1C
+    LDA $14
+    ROR
+    STA $14
+    LDA $18
+    ROR
+    TAY
+    LDA $19
+    ROR
+    CLC
+    ADC $16
+    STA $16
+    TYA
+    ADC $17
+    TAY
+    LDA $1A
+    ADC $14
+    STA $1A
+    LDA $15
+    ADC $1C
+    CLC
+    STA $15
+    TYA
+    ADC $16
+    STA $16
+    TYA
+    ADC $1A
+    STA $17
+    LDA $1A
+    ADC $15
+    TAY
+    LDA $15
+    ADC #$00
+    CLC
+    STA $15
+    TYA
+    ADC $16
+    STA $16
+    LDA $17
+    ADC $15
+    STA $17
+    TYA
+    ADC #$00
+    TAY
+    LDA $15
+    ADC #$00
+    LSR
+    STA $15
+    TYA
+    ROR
+    TAY
+    LDA $17
+    ROR
+    STA $17
+    LDA $16
+    ROR
+    STA $16
+    LDA $15
+    LSR
+    STA $15
+    TYA
+    ROR
+    TAY
+    LDA $17
+    ROR
+    STA $17
+    LDA $16
+    ROR
+    STA $16
+    LDA $15
+    LSR
+    STA $15
+    TYA
+    ROR
+    STA $1A
+    LDA $17
+    ROR
+    STA $17
+    LDA $16
+    ROR
+    STA $16
+    ASL
+    TAY
+    LDA $17
+    ROL
+    STA $14
+    LDA $1A
+    ROL
+    STA $18
+    LDA $15
+    ROL
+    STA $19
+    TYA
+    ASL
+    TAY
+    LDA $14
+    ROL
+    STA $14
+    LDA $18
+    ROL
+    STA $18
+    LDA $19
+    ROL
+    STA $19
+    TYA
+    ASL
+    TAY
+    LDA $14
+    ROL
+    STA $14
+    LDA $18
+    ROL
+    STA $18
+    LDA $19
+    ROL
+    STA $19
+    LDA $16
+    ASL
+    STA $1C
+    LDA $17
+    ROL
+    STA $1D
+    LDA $1A
+    ROL
+    STA $1E
+    LDA $15
+    ROL
+    CLC
+    STA $1F
+    TYA
+    ADC $1C
+    STA $1C
+    LDA $14
+    ADC $1D
+    STA $14
+    LDA $18
+    ADC $1E
+    STA $18
+    LDA $19
+    ADC $1F
+    SEC
+    STA $19
+    LDA $1B
+    SBC $1C
+    STA $1B
+    TXA
+    SBC $14
+    STA $1D
+    LDA $02
+    SBC $18
+    STA $1C
+    LDA $03
+    SBC $19
+    STA $14
+    LDX #$00
+    CPX $14
+    BCC .bb1
+    BNE .bb2
+    CPX $1C
+    BCC .bb1
+    BNE .bb2
+    CPX $1D
+    BCC .bb1
+    BNE .bb2
+    LDA #$09
+    CMP $1B
+    BCS .bb2
+.bb1:
+    CLC
+    LDA $16
+    ADC #$01
+    TAX
+    LDA $17
+    ADC #$00
+    TAY
+    LDA $1A
+    ADC #$00
+    STA $1A
+    LDA $15
+    ADC #$00
+    SEC
+    STA $15
+    LDA $1B
+    SBC #$0A
+    STA $1B
+    LDA $1D
+    SBC #$00
+    STA $1D
+    LDA $1C
+    SBC #$00
+    STA $1C
+    LDA $14
+    SBC #$00
+    STX $16
+    STY $17
+    STA $14
+.bb2:
+    LDA $15
+    BNE .bb4
+    LDA $1A
+    BNE .bb4
+    LDA $17
+    BNE .bb4
+    LDA $16
+    BNE .bb4
+.bb3:
+    CLC
+    LDA #$30
+    ADC $1B
+    JMP System_Console_PutChar_Byte
+.bb4:
+    LDY $1A
+    STY $02
+    LDX $15
+    STX $03
+    LDX $17
+    LDA $16
+    TAY
+    LDA $1B
+    PHA
+    TYA
+    JSR System_Console_WriteDigits_UInt32
+    PLA
+    STA $1B
+    JMP .bb3
+
+__call_indirect_trampoline:
+    JMP ($0010)
+
+HeapStart:
+    LDX #>__image_end
+    LDA #<__image_end
+    RTS

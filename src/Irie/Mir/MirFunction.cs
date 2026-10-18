@@ -12,6 +12,11 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
 
     public List<MirBlock> Blocks { get; } = [];
 
+    // Where the arguments arrive and the results leave, once something has chosen it
+    // for this function; null while the function uses the target's default convention
+    // for its signature. The ABI copies of the function and of every call to it follow it.
+    public Irie.Target.FunctionConvention? Convention { get; set; }
+
     // Interprocedural property set by ReentrancyAnalysis: true iff this function
     // can never be active on the call stack more than once at a time (its call-
     // graph SCC is a singleton, it doesn't self-recurse, and it isn't reachable

@@ -64,6 +64,19 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         MOS6502Registers.RC(15),
     ];
 
+    // The convention a function with `argBytes` argument bytes and `returnBytes`
+    // result bytes gets from this lowering: bytes take the argument registers in
+    // order, and the arguments past them go on the stack. Results take the same
+    // registers from the start.
+    public FunctionConvention DefaultConvention(int argBytes, int returnBytes)
+    {
+        var args = new int[argBytes];
+        for (var k = 0; k < argBytes; k++)
+            args[k] = k < _argRegs.Length ? _argRegs[k] : FunctionConvention.Stack;
+        EnsureRegBudget(returnBytes);
+        return new FunctionConvention(args, _argRegs.Take(returnBytes).ToArray());
+    }
+
     public override void LowerFormalArguments(
         MirFunction function,
         MirBlock entryBlock,
