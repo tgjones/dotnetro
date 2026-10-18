@@ -824,6 +824,50 @@ tables).
   (`stack-args` +61 bytes, `pressure-high` +50, `chain-arith` +18, `struct-pass` +16);
   their gap is inside one block, which cross-block placement cannot close.
 
+- **S4 burn-down (within-block gap, done).** Cross-block placement could not close the
+  cases that are larger than colouring in a single block, so each cause was fixed in turn
+  and measured against a freshly regenerated colouring baseline (same numbers as above):
+  1. *Arguments stay in their zero-page registers per register, not per function.* An
+     argument is its own home unless a call or a write to its register happens while it is
+     still live (`FindArgumentsInPlace`); a run of copies counts as one parallel move. A
+     copy into a fixed register from the argument that is already there emits nothing, and
+     a run only moves arguments home that are needed after it or that it reads after
+     overwriting their register.
+  2. *A copy between values of one home is a rename*: no load and store.
+  3. *A byte loaded from a global is read in place* when nothing writes memory before its
+     last use (`ADC counter`, no `LDA`/park); it is the same state slot (`F`) as an argument
+     that stays in its zero-page register.
+  4. *A value whose only use is a copy into a fixed register lives there*
+     (`FindDestinationHomes`): return values and call arguments are built in place. A value
+     the copy run has already passed on is no longer "needed" while the rest of the run is
+     placed.
+  5. *Edge moves that overwrite each other's sources are ordered* (`OrderEdgeMoves`: read
+     every home before it is written, sources in registers pinned meanwhile) instead of
+     all going through temporary homes; only a cycle still does.
+  6. *A loop parameter may take the registers of its argument even if the argument stays
+     live* (the argument is then stored for the join).
+  7. *Home classes share unrelated values in large functions.* Past 32 homes, classes that
+     never interfere are merged first-fit (`ShareUnrelated`); below that sharing only
+     creates edge-move hazards (corpus +22 bytes when it was always on). `Int64Memory`'s
+     `Main` had 32 absolute homes without it (3607 -> 3176 bytes).
+
+  | Set | Colouring | after S4.3b | after the burn-down |
+  |---|--:|--:|--:|
+  | `LlvmMosReference` corpus code, bytes | 3660 | 3719 (+1.6%) | 3365 (−8.1%) |
+  | C# lit programs and benchmark kernels, bytes | 182 912 | 169 374 | 161 431 (−11.7%) |
+  | Corpus cycles of the functions under test | 5 903 825 | 5 962 929 | 5 807 205 (−1.6%) |
+
+  No C# program is larger than colouring. Seven corpus cases are still larger (bytes /
+  instructions), none by more than 2 instructions except `pressure-high`:
+  `pressure-high` +9 / +5 (2%: wide add chains and call setup around five `__mulsi3`
+  calls; the listing differs in many places by a store or a reload and no single cause was
+  found), `early-return` +3 / +1 (the return block's join
+  state is taken from its first edge, hi byte in A and lo in Y, so the other arms pay a
+  `TAY`/`TXA` swap; choosing a join state by transfers is not searched), `swap` +2 / 0,
+  `chain-arith` +2 / +1 (the low byte reloaded into A after the second operand is parked),
+  and `zero-extend`, `sign-extend`, `if-else` +1 byte each (`if-else` has fewer
+  instructions).
+
 ### Work outside the allocator that still limits quality
 
 These were measured in §2.1. No allocator closes them, and on C# some are larger
