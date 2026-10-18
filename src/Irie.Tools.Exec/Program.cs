@@ -13,10 +13,9 @@ var targetOption = new Option<string>("--target") { Description = "Target to com
 var emulatorOption = new Option<FileInfo>("--emulator") { Description = "Path to the DotNetro 6502 emulator executable", Required = true };
 var maxTicksOption = new Option<int>("--max-ticks") { Description = "Emulator tick budget per function. Default: 50,000,000.", DefaultValueFactory = _ => 50_000_000 };
 
-var placementOption = new Option<string>("--placement")
+var beamWidthOption = new Option<int?>("--beam-width")
 {
-    Description = "How the compiled code places values: 'beam' (default; a beam search keeps values in registers) or 'naive' (every value in a home)",
-    DefaultValueFactory = _ => "beam",
+    Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
 };
 
 var rootCommand = new RootCommand("Irie execution checker -- runs a MIR function over generated inputs in the interpreter and, compiled, in the emulator, and compares the results");
@@ -25,7 +24,7 @@ rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(execOption);
 rootCommand.Options.Add(emulatorOption);
 rootCommand.Options.Add(maxTicksOption);
-rootCommand.Options.Add(placementOption);
+rootCommand.Options.Add(beamWidthOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -42,12 +41,7 @@ rootCommand.SetAction(parseResult =>
     }
     var emulator = parseResult.GetValue(emulatorOption)!;
     var maxTicks = parseResult.GetValue(maxTicksOption);
-    ExecSettings.Placement = parseResult.GetValue(placementOption) switch
-    {
-        "naive"     => PlacementStrategy.Naive,
-        "beam"      => PlacementStrategy.Beam,
-        var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
-    };
+    ExecSettings.BeamWidth = parseResult.GetValue(beamWidthOption);
 
     var text = File.ReadAllText(input.FullName);
     var directives = parseResult.GetValue(execOption)!.Select(ExecDirective.Parse).ToList();
@@ -171,7 +165,7 @@ static ulong[]? RunCompiled(string text, ExecDirective directive, List<ulong[]> 
     DriverBuilder.AddDriver(module, function, vectors, execTarget, bufferSymbols);
 
     var passManager = new PassManager(null, null);
-    PipelineBuilder.AddStandardPipeline(passManager, target, ExecSettings.Placement);
+    PipelineBuilder.AddStandardPipeline(passManager, target, ExecSettings.BeamWidth);
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
@@ -308,5 +302,5 @@ static void KeepReachable(MirModule module, MirFunction root)
 // The command-line choices the local functions above read.
 static class ExecSettings
 {
-    public static PlacementStrategy Placement;
+    public static int? BeamWidth;
 }

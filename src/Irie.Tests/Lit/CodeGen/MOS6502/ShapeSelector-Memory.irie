@@ -1,4 +1,4 @@
-; RUN: @iriec --target mos6502 --placement naive --stop-after InstructionSelector @file
+; RUN: @iriec --target mos6502 --stop-after InstructionSelector @file
 
 ; Memory accesses are `mos6502.load` / `mos6502.store`, on a symbol (`@buf+1`
 ; names the second byte) or on the two bytes of a pointer and an offset. The

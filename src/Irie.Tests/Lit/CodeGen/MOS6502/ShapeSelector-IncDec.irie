@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement naive --stop-after InstructionSelector @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "step(*, *)"
+; RUN: @iriec --target mos6502 --stop-after InstructionSelector @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "step(*, *)"
 
 ; A byte add or subtract of one (also written as a subtract or add of 0xFF) is
 ; `mos6502.inc` / `mos6502.dec`, not an `adc` / `sbc` with a constant carry: the 6502

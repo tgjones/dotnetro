@@ -25,11 +25,9 @@ var printAfterAll = new Option<bool>("--print-after-all") { Description = "Print
 
 var printChanged = new Option<bool>("--print-changed") { Description = "Like --print-after-all, but print to stderr only after a pass that changed the MIR" };
 
-var placementOption = new Option<string>("--placement")
+var beamWidthOption = new Option<int?>("--beam-width")
 {
-    Description = "How values are placed: 'beam' (default; shape selection and a beam search over what the registers hold) " +
-                  "or 'naive' (shape selection and a placement that gives every value a home)",
-    DefaultValueFactory = _ => "beam",
+    Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
 };
 
 var originOption = new Option<string?>("--origin")
@@ -46,7 +44,7 @@ rootCommand.Options.Add(startAt);
 rootCommand.Options.Add(runPass);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(originOption);
-rootCommand.Options.Add(placementOption);
+rootCommand.Options.Add(beamWidthOption);
 rootCommand.Options.Add(printAfterAll);
 rootCommand.Options.Add(printChanged);
 
@@ -77,13 +75,7 @@ rootCommand.SetAction(parseResult =>
     var context = new CompilationContext(module);
 
     var passMgr = new PassManager(stopAfterPass, startAtPass);
-    var placement = parseResult.GetValue(placementOption) switch
-    {
-        "naive"     => PlacementStrategy.Naive,
-        "beam"      => PlacementStrategy.Beam,
-        var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
-    };
-    PipelineBuilder.AddStandardPipeline(passMgr, target, placement);
+    PipelineBuilder.AddStandardPipeline(passMgr, target, parseResult.GetValue(beamWidthOption));
 
     if (printAll || printDiff)
     {

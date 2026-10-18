@@ -12,16 +12,12 @@ public static class CompilerDriver
     // runtime through the host runtime. Failures, including an unknown target id,
     // surface as exceptions.
     public static CompilationResult Compile(
-        string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId,
-        PlacementStrategy placement = PlacementStrategy.Beam)
+        string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
             HostAssemblyResolver.ForTarget(targetId),
             targetId,
-            entryPointMethodName)
-        {
-            Placement = placement,
-        });
+            entryPointMethodName));
 
     // Byte-based entry point: nothing here touches the file system. Expected
     // failures (the program uses something the compiler does not support) are
@@ -65,7 +61,7 @@ public static class CompilerDriver
         var context = new CompilationContext(module);
 
         var passMgr = new PassManager(null, null);
-        PipelineBuilder.AddStandardPipeline(passMgr, target, request.Placement);
+        PipelineBuilder.AddStandardPipeline(passMgr, target);
 
         List<PassSnapshot>? snapshots = null;
         if (request.CaptureSnapshots)
@@ -123,11 +119,7 @@ public sealed record CompileRequest(
     IAssemblyResolver Resolver,
     string TargetId,
     string EntryPoint = "Main",
-    bool CaptureSnapshots = false)
-{
-    /// <summary>How the Irie pipeline places values in registers and memory.</summary>
-    public PlacementStrategy Placement { get; init; } = PlacementStrategy.Beam;
-}
+    bool CaptureSnapshots = false);
 
 public enum DiagnosticSeverity { Info, Warning, Error }
 

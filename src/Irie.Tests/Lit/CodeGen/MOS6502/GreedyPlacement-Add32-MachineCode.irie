@@ -1,0 +1,27 @@
+; RUN: @iriec --target mos6502 --beam-width 1 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --beam-width 1 --exec "add_i32(*, *)"
+
+; The greedy placement (a beam of width 1) of a 32-bit add. The carry between the
+; bytes of the add stays in C from one ADC to the next.
+
+; CHECK: add_i32:
+; CHECK:     CLC
+; CHECK:     ADC $04
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $05
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ADC $06
+; CHECK:     STA $02
+; CHECK:     LDA $03
+; CHECK:     ADC $07
+; CHECK:     STA $03
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @add_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.addi %0, %1
+    core.return %2
+}

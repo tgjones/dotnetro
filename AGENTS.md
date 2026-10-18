@@ -33,7 +33,7 @@ parameterized as `LitTest(Lit/CodeGen/.../Foo·irie)`, and the path argument con
 `/` (parsed as tree-node separators) and `()` (parsed as grouping operators), so any
 attempt to narrow by filename either matches every lit test or none. Don't fight it —
 just run the whole project. Both lit suites are fast (Irie.Tests ~3–5s,
-DotNetro.Compiler.Tests ~3 min, since every lit test runs Roslyn three times):
+DotNetro.Compiler.Tests ~2 min, since every lit test runs Roslyn three times):
 
 ```bash
 dotnet test --project src/Irie.Tests              # all Irie tests incl. every .irie/.s lit test
@@ -87,7 +87,7 @@ Two layers:
 
 ### Test Framework
 
-`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each runs with the default (beam) placement and again with `dnrc --placement naive` (`LitTest`, `LitTestNaivePlacement`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
+`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each runs with the default (beam) placement (`LitTest`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
 
 #### Lit `CHECK` blocks: keep them strict (complete listings)
 

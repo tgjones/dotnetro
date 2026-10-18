@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "add_i32(*, *)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "add_i32(*, *)"
 
 ; The beam placement: the arguments of an add arrive in A, X and the zero-page
 ; registers, and the add reads them from where they are. The carry stays in C from one

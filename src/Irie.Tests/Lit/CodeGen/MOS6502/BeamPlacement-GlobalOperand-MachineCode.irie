@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "global_rw(*)" --exec "store_between(*)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "global_rw(*)" --exec "store_between(*)"
 
 ; The beam placement: a byte loaded from a global is read where it is by the ALU
 ; (ADC counter) when nothing writes memory before its last use, instead of being

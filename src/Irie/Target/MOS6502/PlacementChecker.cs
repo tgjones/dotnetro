@@ -27,7 +27,7 @@ namespace Irie.Target.MOS6502;
 // pass produced the code. Terms are hash-consed, so equality is identity; the
 // commutative operations order their operands; `inc`/`dec` are an add / subtract
 // of one, and `asl`/`rol` are the same shift with a known or unknown carry in.
-internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
+internal sealed class PlacementChecker(MOS6502Placer placer)
 {
     private const int A = MOS6502Registers.A;
     private const int X = MOS6502Registers.X;

@@ -2,25 +2,12 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// How the values of a function are placed in registers and memory.
-public enum PlacementStrategy
-{
-    // Shape selection emits unpinned operations and the trivial placement homes
-    // every value: correct, slow, and the baseline the beam search is checked against.
-    Naive,
-
-    // Shape selection as for Naive, then a beam search over what the registers hold
-    // (MOS6502BeamPlacementPass): operands stay in A, X and Y when that is cheaper
-    // than a home.
-    Beam,
-}
-
 // The single definition of the Irie pass pipeline, shared by `iriec` and `dnrc`
 // so lit goldens and emulator-executed programs always exercise the same passes.
 public static class PipelineBuilder
 {
     public static void AddStandardPipeline(
-        PassManager passMgr, Target.Target target, PlacementStrategy placement = PlacementStrategy.Beam)
+        PassManager passMgr, Target.Target target, int? beamWidth = null)
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());
@@ -38,9 +25,7 @@ public static class PipelineBuilder
         // elimination and no allocation: block parameters become writes of the
         // parameters' homes on each edge.
         passMgr.AddPass(new InstructionSelectorPass(target.CreateShapeSelector()));
-        passMgr.AddPass(placement == PlacementStrategy.Beam
-            ? target.CreateBeamPlacementPass()
-            : target.CreateNaivePlacementPass());
+        passMgr.AddPass(target.CreateBeamPlacementPass(beamWidth));
         passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
         // Placement mints frame slots for the values it spills; give them their
         // storage (the earlier FrameLowering ran before placement, so it never saw

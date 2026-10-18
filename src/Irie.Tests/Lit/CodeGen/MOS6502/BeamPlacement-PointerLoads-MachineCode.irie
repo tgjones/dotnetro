@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "array_index(buf(32), 0..14)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "array_index(buf(32), 0..14)"
 
 ; Loads through a pointer pair: the pair $12/$13 is set up from the registers that hold
 ; the pointer bytes, and the offset goes in Y.

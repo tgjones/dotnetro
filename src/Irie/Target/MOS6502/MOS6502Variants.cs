@@ -68,7 +68,7 @@ public sealed record Variant(
 }
 
 // The table of variants. It is the single source of truth for what a placement can
-// emit for an operation and what that costs; the naive placement selects from it
+// emit for an operation and what that costs; the placements select from it
 // with `Find`.
 public static class MOS6502Variants
 {

@@ -869,10 +869,11 @@ tables).
   and `zero-extend`, `sign-extend`, `if-else` +1 byte each (`if-else` has fewer
   instructions).
 
-- **S4.5 (switch-over and deletion, done).** `--placement beam` is the default of
-  `PipelineBuilder`, `iriec`, `dnrc`, `irie-exec` and `CompilerDriver`; `Naive` stays as
-  the correctness baseline (`--placement naive`; `ExecLitTestNaivePlacement` and
-  `LitTestNaivePlacement` re-run the executed corpus and every `.cs` program with it).
+- **S4.5 (switch-over and deletion, done).** The beam placement is the only
+  placement. The naive placement was deleted afterwards (the `--placement` option,
+  `PlacementStrategy` and the `LitTestNaivePlacement` / `ExecLitTestNaivePlacement`
+  re-runs): its shared base lives on as `MOS6502Placer`, and `--beam-width 1` (`iriec`,
+  `irie-exec`) places greedily, which the `GreedyPlacement-*.irie` goldens pin.
   `PlacementStrategy.Colouring` and these are deleted: `GraphColouringAllocator`,
   `RegisterAllocatorPass`, `PhiEliminationPass`, `TwoAddressInstructionPass`,
   `OperandLegalizationPass`, `RematerializableSinkPass`, `RegisterAssignmentVerifier`,

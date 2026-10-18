@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "loop_counter(*)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "loop_counter(*)"
 
 ; A loop: values live across the block boundaries are in their homes, as in the naive
 ; placement, but inside a block the registers carry values between operations, and a

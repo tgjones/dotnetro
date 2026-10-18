@@ -30,7 +30,7 @@ internal sealed class HomeClasses
     // not in the result has a home of its own. `excluded` names values that must
     // keep their own (those that live in a fixed register or are rebuilt).
     public static Dictionary<int, int> Build(
-        MOS6502NaivePlacementPass.Placer placer, LoopInfo loops, Func<int, bool> excluded)
+        MOS6502Placer placer, LoopInfo loops, Func<int, bool> excluded)
     {
         var classes = new HomeClasses();
         classes.BuildInterference(placer);
@@ -72,7 +72,7 @@ internal sealed class HomeClasses
         && instr.Operands[0] is VirtualReg { IsDefinition: true }
         && instr.Operands[1] is VirtualReg { IsDefinition: false };
 
-    private void BuildInterference(MOS6502NaivePlacementPass.Placer placer)
+    private void BuildInterference(MOS6502Placer placer)
     {
         foreach (var block in placer.Function.Blocks)
         {
@@ -99,7 +99,7 @@ internal sealed class HomeClasses
         }
     }
 
-    private void Coalesce(MOS6502NaivePlacementPass.Placer placer, LoopInfo loops, Func<int, bool> excluded)
+    private void Coalesce(MOS6502Placer placer, LoopInfo loops, Func<int, bool> excluded)
     {
         var candidates = new List<(long Weight, int A, int B)>();
 
@@ -141,7 +141,7 @@ internal sealed class HomeClasses
     // can share a home as well: first fit over the classes. Without it every value
     // would keep a home of its own, and a function with many short-lived values
     // would overflow the zero page.
-    private void ShareUnrelated(MOS6502NaivePlacementPass.Placer placer, Func<int, bool> excluded)
+    private void ShareUnrelated(MOS6502Placer placer, Func<int, bool> excluded)
     {
         var classes = new List<int>();
         var seen = new HashSet<int>();

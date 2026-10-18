@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "square(*)" --exec "chain(*, *, *)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "square(*)" --exec "chain(*, *, *)"
 
 ; The beam placement: an argument that arrives in a zero-page register and is passed
 ; on to a call in the same register needs no code, even though the function has a call.

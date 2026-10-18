@@ -17,7 +17,7 @@ namespace Irie.Target.MOS6502;
 //   - constants and address bytes become const.
 // Nothing here names A, X, Y, a zero-page register or an addressing mode: the
 // vregs keep their types, and a placement picks a variant of MOS6502Variants for
-// each operation (see MOS6502NaivePlacementPass).
+// each operation (see MOS6502BeamPlacementPass).
 //
 // Everything the call lowering already selected (jsr.abs, the frame accesses of
 // stack arguments, rts) and the copies to and from fixed registers pass through.

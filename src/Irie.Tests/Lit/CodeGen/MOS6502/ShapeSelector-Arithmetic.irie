@@ -1,4 +1,4 @@
-; RUN: @iriec --target mos6502 --placement naive --stop-after InstructionSelector @file
+; RUN: @iriec --target mos6502 --stop-after InstructionSelector @file
 
 ; Shape selection: the legalized generic MIR becomes the
 ; unpinned byte operations of the mos6502 dialect. A multi-byte add is a chain of

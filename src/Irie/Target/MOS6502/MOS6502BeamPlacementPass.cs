@@ -36,13 +36,13 @@ public sealed record BeamPlacementOptions
 // something is about to overwrite its only copy, so a value that stays in a
 // register until its last use is never stored.
 //
-// Across blocks nothing is carried, as in the naive placement: every value live
+// Across blocks nothing is carried: every value live
 // across a boundary is in its home and the registers are empty. The search runs on
 // the stretches of operations between two barriers (a call, a frame access,
 // hand-written runtime code), including the runs of copies that set up a call or a
 // return and the jump that ends a block; a stretch has to end with every value the
 // rest of the block, or a successor, still needs in its home. Barriers themselves
-// are placed exactly as the naive placement does.
+// are placed by the base class (MOS6502Placer): operands from their homes, the work in A.
 public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = null) : MirFunctionPass
 {
     public override string Name => "MOS6502BeamPlacement";
@@ -52,7 +52,7 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
 }
 
 internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions options)
-    : MOS6502NaivePlacementPass.Placer(function)
+    : MOS6502Placer(function)
 {
     // What a register, the carry, the N/Z flags or a pointer byte holds: nothing
     // known, a value of the block (its dense index), or a known byte.
@@ -1881,7 +1881,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         // cf.br: the arguments go straight from where they are into the parameters'
         // homes. A branch whose moves read a parameter another move writes keeps the
-        // naive parallel move, from the arguments' homes.
+        // plain parallel move, from the arguments' homes.
         public Work? Jump(MirInstruction instr)
         {
             var target = (BlockTarget)instr.Operands[0];

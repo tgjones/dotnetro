@@ -269,7 +269,7 @@ public enum MOS6502Op : ushort
     //
     // Byte-level operations on typed SSA vregs that name no register and no
     // addressing mode. MOS6502ShapeSelector emits them from the legalized generic
-    // MIR and a placement (MOS6502NaivePlacementPass today) chooses, per
+    // MIR and a placement (MOS6502BeamPlacementPass) chooses, per
     // operation, which variant of MOS6502Variants implements it. The bare
     // `And`/`Ora`/`Eor`/`Inc`/`Dec` above are the unpinned forms of those families
     // (`mos6502.and` is `and.zp` / `and.imm` / `and.abs` before a variant is

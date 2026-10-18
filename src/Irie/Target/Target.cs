@@ -42,12 +42,11 @@ public abstract class Target
     // runs after the legalizer and before instruction selection).
     public virtual void AddPreInstructionSelectionPasses(Irie.Passes.PassManager pm) { }
 
-    // Shape selection and the placements (Irie.Passes.PlacementStrategy).
+    // Shape selection and the placements .
     public abstract Irie.Target.InstructionSelector CreateShapeSelector();
 
-    public abstract Irie.Passes.Pass CreateNaivePlacementPass();
 
-    public abstract Irie.Passes.Pass CreateBeamPlacementPass();
+    public abstract Irie.Passes.Pass CreateBeamPlacementPass(int? beamWidth = null);
 
     // Called by the driver after placement, between CopyEliminationPass and the
     // lowering passes: the target's zero-page layout and the like.

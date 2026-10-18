@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "arms(*, *)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "arms(*, *)"
 
 ; A block with a single predecessor starts from the registers that block left: the
 ; sum is still in A when each arm reads it, so neither arm reloads it from a home. The

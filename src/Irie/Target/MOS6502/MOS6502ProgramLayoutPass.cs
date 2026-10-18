@@ -37,7 +37,7 @@ namespace Irie.Target.MOS6502;
 // A CallerStackArg slot is never promoted: it isn't this function's own storage,
 // it reads the caller's dynamically positioned stack-argument space.
 //
-// With `allowAbsoluteHomes` (the naive placement, whose homes are every value of
+// With `allowAbsoluteHomes` (the placement keeps a home for every value of
 // the function) a home that does not fit in zero page lives in a byte of absolute
 // memory instead: every instruction that names a home has an absolute twin
 // (`lda.zp` -> `lda.abs` …), so demoting a home never invalidates the code, it

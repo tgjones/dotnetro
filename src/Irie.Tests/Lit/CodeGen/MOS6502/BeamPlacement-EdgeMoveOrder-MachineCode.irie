@@ -1,5 +1,5 @@
-; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
-; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "fibonacci(0..12)"
+; RUN: @iriec --target mos6502 --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "fibonacci(0..12)"
 
 ; The beam placement: the back edge of a loop shifts values between the loop's
 ; parameters (a, b, i) <- (b, a + b, i + 1). Each move reads a home that another move
