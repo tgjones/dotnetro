@@ -301,6 +301,9 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public required long Frequency;
         // The zero-page register a value arrived in (an argument), or -1.
         public required int[] FixedReg;
+        // The global a value is a load of that can be left in memory and read from
+        // there by its uses (nothing writes memory in between), or null.
+        public required Symbol?[] FoldedLoad;
         public int Count => Vreg.Count;
         // The position from which the value is not needed any more.
         public int End(int i) => Math.Max(LastUse[i], ExitUse[i]);
@@ -356,8 +359,22 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             if (IsCopyFromZeroPage(instr) && instr.Operands[0] is VirtualReg d && index.TryGetValue(d.Id, out var di))
                 fixedReg[di] = ((PhysicalReg)instr.Operands[1]).Id;
 
+        var foldedLoad = new Symbol?[vregs.Count];
+        for (var pos = 0; pos < instrs.Count; pos++)
+        {
+            if (!IsOp(instrs[pos], MOS6502Op.Load) || instrs[pos].Operands[1] is not Symbol global
+                || IsFrameSlot(global.Name) || instrs[pos].Operands[0] is not VirtualReg loaded
+                || !index.TryGetValue(loaded.Id, out var li) || _liveOut[block].Contains(loaded.Id))
+                continue;
+            var readable = true;
+            for (var p = pos + 1; p <= lastUse[li] && readable; p++)
+                readable = IsSearchable(instrs[p]) && !IsOp(instrs[p], MOS6502Op.Store);
+            if (readable && lastUse[li] > pos) foldedLoad[li] = global;
+        }
+
         return new BlockInfo
         {
+            FoldedLoad = foldedLoad,
             Block = block,
             Instrs = instrs,
             Index = index,
@@ -770,6 +787,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             case MOS6502Op.Load:
                 foreach (var reg in new[] { A, X, Y })
                     Add(Start().LoadByte(instr, reg));
+                if (instr.Operands[0] is VirtualReg loaded && info.FoldedLoad[info.Index[loaded.Id]] is not null)
+                    Add(Start().LeaveInMemory(instr));
                 break;
 
             case MOS6502Op.Store:
@@ -1040,8 +1059,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     half == 0 ? "symlo" : "symhi"), MemRef.Sym(symbol));
             }
             if (want >= 0 && !IsImm(want) && InF(want))
-                Consider(MOS6502Variants.Find(MOS6502Operation.Reload, RegisterPlace(register), Place.Home),
-                    MemRef.Phys(_info.FixedReg[want]));
+            {
+                if (_info.FoldedLoad[want] is { } global)
+                    Consider(MOS6502Variants.Find(MOS6502Operation.Load, RegisterPlace(register), Place.Abs), MemRef.Sym(global));
+                else
+                    Consider(MOS6502Variants.Find(MOS6502Operation.Reload, RegisterPlace(register), Place.Home),
+                        MemRef.Phys(_info.FixedReg[want]));
+            }
             if (want >= 0 && !IsImm(want) && InH(want))
                 Consider(MOS6502Variants.Find(MOS6502Operation.Reload, RegisterPlace(register), Place.Home),
                     MemRef.HomeOf(VregOf(want)));
@@ -1139,7 +1163,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             }
             if (!InH(content) && InF(content))
             {
-                (place, mem) = (Place.Home, MemRef.Phys(_info.FixedReg[content]));
+                if (_info.FoldedLoad[content] is { } global) (place, mem) = (Place.Abs, MemRef.Sym(global));
+                else (place, mem) = (Place.Home, MemRef.Phys(_info.FixedReg[content]));
                 return true;
             }
             (place, mem) = (Place.Home, MemRef.HomeOf(VregOf(content)));
@@ -1264,6 +1289,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 if ((CmpBrCondition)((Immediate)instr.Operands[k]).Value is CmpBrCondition.Cs or CmpBrCondition.Cc)
                     return false;
             return true;
+        }
+
+        // %v = load @sym+off, left in memory: its uses read the global itself.
+        public Work? LeaveInMemory(MirInstruction instr)
+        {
+            SetF(ResultIndex(instr.Operands[0]));
+            return this;
         }
 
         // %v = load @sym+off | %lo, %hi, off into the register.
