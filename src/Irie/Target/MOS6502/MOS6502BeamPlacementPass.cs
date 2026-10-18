@@ -1599,7 +1599,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 {
                     if (_placer._uses.GetValueOrDefault(parameters[k]) == 0) continue;
                     if (target.Args[k] is not VirtualReg { IsDefinition: false } arg || _placer._constants.ContainsKey(arg.Id)) continue;
-                    if (_placer._liveIn[target.Block].Contains(arg.Id) || !_info.Index.TryGetValue(arg.Id, out var index)) continue;
+                    if (!_info.Index.TryGetValue(arg.Id, out var index)) continue;
                     if (_placer._remat.ContainsKey(arg.Id)) continue;
                     var register = FindRegister(index);
                     if (register < 0 || named[register] != Empty || claimed.Contains(arg.Id)) continue;
@@ -1618,8 +1618,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 {
                     var k = parameters.IndexOf(parameter);
                     var source = target.Args[k];
-                    if (source is VirtualReg { IsDefinition: false } sv && (_placer._remat.ContainsKey(sv.Id)
-                        || _placer._liveIn[target.Block].Contains(sv.Id))) continue;
+                    if (source is VirtualReg { IsDefinition: false } sv && _placer._remat.ContainsKey(sv.Id)) continue;
                     var pinned = 0;
                     for (var r = 0; r < 3; r++) if (named[r] != Empty) pinned |= 1 << r;
                     var register = new[] { X, Y, A }.FirstOrDefault(r => (pinned & (1 << r)) == 0 && IsFree(r) && !LiveRegister(r, target), -1);
@@ -1635,7 +1634,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             foreach (var i in LiveInto(target))
             {
                 if (_info.DefPos[i] >= _pos || IsRemat(i)) continue;
-                var inRegister = !settle && !homeLive && FindRegister(i) >= 0;
+                // A register kept for a parameter does not hold the live-in value for the join.
+                var inRegister = !settle && !homeLive && FindRegister(i) is var held and >= 0 && named[held] == Empty;
                 if (!inRegister && !InH(i) && !EnsureHome(i, 0)) return false;
             }
 
