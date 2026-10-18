@@ -820,7 +820,7 @@ tables).
   | C# lit programs and benchmark kernels, bytes | 182 912 | 170 679 | 169 374 (−7.4%) |
   | Corpus cycles of the functions under test | 5 903 825 | 5 976 654 | 5 962 929 (+1.0%) |
 
-  The 22 corpus cases that are still larger than colouring are mostly straight-line code
+  The 18 corpus cases that are still larger than colouring (12 by more than 2 bytes) are mostly straight-line code
   (`stack-args` +61 bytes, `pressure-high` +50, `chain-arith` +18, `struct-pass` +16);
   their gap is inside one block, which cross-block placement cannot close.
 
@@ -910,3 +910,4 @@ than anything in this document:
   Scholz & Eckstein, *Register Allocation for Irregular Architectures* (PBQP),
   LCTES 2002. Thorup, *All Structured Programs have Small Tree Width*, 1998.
 - C-Bench-64 (github.com/thred/c-bench-64) for the cross-compiler numbers in §2.3.
+
