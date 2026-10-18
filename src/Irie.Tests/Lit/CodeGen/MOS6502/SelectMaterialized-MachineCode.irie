@@ -53,8 +53,8 @@ bb0(%0 : i8, %1 : i8):
 ; CHECK:     TYA
 ; CHECK:     RTS
 ; CHECK: .bb2:
-; CHECK:     STX $16
-; CHECK:     LDY $16
+; CHECK:     STX $14
+; CHECK:     LDY $14
 ; CHECK:     JMP .bb1
 ; CHECK:
 

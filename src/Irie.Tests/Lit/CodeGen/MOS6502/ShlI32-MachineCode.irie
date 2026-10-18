@@ -17,14 +17,14 @@
 ; CHECK:     STA $15
 ; CHECK:     LDA $14
 ; CHECK:     ROL
-; CHECK:     STA $16
+; CHECK:     STA $14
 ; CHECK:     TYA
 ; CHECK:     ASL
 ; CHECK:     TAX
 ; CHECK:     LDA $15
 ; CHECK:     ROL
 ; CHECK:     STA $02
-; CHECK:     LDA $16
+; CHECK:     LDA $14
 ; CHECK:     ROL
 ; CHECK:     STA $03
 ; CHECK:     LDA #$00

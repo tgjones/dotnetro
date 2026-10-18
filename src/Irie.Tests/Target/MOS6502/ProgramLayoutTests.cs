@@ -52,13 +52,21 @@ public sealed class ProgramLayoutTests
         var text = Run("""
             func @leaf : () -> void {
             bb0():
+                $300 = mos6502.sta.zp $0
+                $301 = mos6502.sta.zp $0
                 $302 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
+                $0 = mos6502.lda.zp $302
                 mos6502.rts
             }
             func @caller : () -> void {
             bb0():
+                $300 = mos6502.sta.zp $0
                 $301 = mos6502.sta.zp $0
                 mos6502.jsr.abs @leaf
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
                 mos6502.rts
             }
             """);
@@ -154,6 +162,8 @@ public sealed class ProgramLayoutTests
             bb0():
                 $300 = mos6502.sta.zp $0
                 $301 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
                 mos6502.rts
             }
             """, windowEnd: WindowEnd);
@@ -174,6 +184,9 @@ public sealed class ProgramLayoutTests
                 $300 = mos6502.sta.zp $0
                 $301 = mos6502.sta.zp $0
                 $302 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
+                $0 = mos6502.lda.zp $302
                 mos6502.rts
             }
             func @caller : () -> void {
@@ -181,6 +194,8 @@ public sealed class ProgramLayoutTests
                 $300 = mos6502.sta.zp $0
                 $301 = mos6502.sta.zp $0
                 mos6502.jsr.abs @leaf
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
                 mos6502.rts
             }
             """, windowEnd: WindowStart + 4);
@@ -189,28 +204,88 @@ public sealed class ProgramLayoutTests
         await Assert.That(text).Contains("global");
     }
 
+    // A function with more homes live at the same time than the window has bytes.
+    private static string TooManyLiveHomes()
+    {
+        const int homes = 130;
+        var stores = string.Join("\n", Enumerable.Range(0, homes).Select(n => $"    ${300 + n} = mos6502.sta.zp $0"));
+        var loads = string.Join("\n", Enumerable.Range(0, homes).Select(n => $"    $0 = mos6502.lda.zp ${300 + n}"));
+        return $"func @big : () -> void {{\nbb0():\n{stores}\n{loads}\n    mos6502.rts\n}}\n";
+    }
+
     [Test]
     public async Task WithoutAbsoluteHomes_ExhaustingZeroPageStillFails()
     {
-        await Assert.That(() => Run("""
-            func @big : () -> void {
-            bb0():
-                $430 = mos6502.sta.zp $0
-                mos6502.rts
-            }
-            """)).Throws<NotSupportedException>();
+        await Assert.That(() => Run(TooManyLiveHomes())).Throws<NotSupportedException>();
     }
 
     [Test]
     public async Task ExhaustingZeroPageIsAnExpectedFailure()
     {
-        await Assert.That(() => Run("""
-            func @big : () -> void {
+        await Assert.That(() => Run(TooManyLiveHomes())).Throws<NotSupportedException>();
+    }
+
+    [Test]
+    public async Task HomesThatAreNeverLiveTogetherShareAByte()
+    {
+        // $300 is dead before $301 is written, so both are the first byte of the block.
+        var text = Run("""
+            func @f : () -> void {
             bb0():
-                $430 = mos6502.sta.zp $0
+                $300 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $300
+                $301 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $301
                 mos6502.rts
             }
-            """)).Throws<NotSupportedException>();
+            """);
+
+        await Assert.That(text).DoesNotContain("$zp21");
+        await Assert.That(text.Split("$zp20 = mos6502.sta.zp $a").Length - 1).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task HomesLiveTogetherKeepSeparateBytes()
+    {
+        var text = Run("""
+            func @f : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                $301 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
+                mos6502.rts
+            }
+            """);
+
+        await Assert.That(text).Contains("$zp20 = mos6502.sta.zp $a");
+        await Assert.That(text).Contains("$zp21 = mos6502.sta.zp $a");
+    }
+
+    [Test]
+    public async Task AHomeLiveAroundALoopKeepsItsByteFromHomesInTheLoop()
+    {
+        // $300 is written before the loop and read after it, so it is live through
+        // the body, where $301 is written and read each time round.
+        var text = Run("""
+            func @f : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                mos6502.jmp.abs bb1
+            bb1():
+                [liveins: $300]
+                $301 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $301
+                mos6502.bne bb1
+                mos6502.jmp.abs bb2
+            bb2():
+                [liveins: $300]
+                $0 = mos6502.lda.zp $300
+                mos6502.rts
+            }
+            """);
+
+        await Assert.That(text).Contains("$zp21 = mos6502.sta.zp $a");
     }
 
     [Test]
@@ -269,6 +344,7 @@ public sealed class ProgramLayoutTests
                 $301 = mos6502.sta.zp $0
                 mos6502.jsr.abs @ping
                 $0 = mos6502.lda.zp $301
+                $0 = mos6502.lda.zp $300
                 mos6502.rts
             }
             """, new MOS6502RecursionSavePass());

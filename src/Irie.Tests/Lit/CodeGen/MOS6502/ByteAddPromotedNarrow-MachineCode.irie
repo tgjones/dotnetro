@@ -21,7 +21,7 @@
 ; CHECK:     CLC
 ; CHECK:     STX $14
 ; CHECK:     ADC $14
-; CHECK:     STA $15
+; CHECK:     STA $14
 ; CHECK:     LDA #$00
 ; CHECK:     ADC #$00
 ; CHECK:     TAX
@@ -31,7 +31,7 @@
 ; CHECK:     LDA #$00
 ; CHECK:     ADC #$00
 ; CHECK:     STA $03
-; CHECK:     LDA $15
+; CHECK:     LDA $14
 ; CHECK:     RTS
 
 func @AddTrunc : (i8, i8) -> i8 {

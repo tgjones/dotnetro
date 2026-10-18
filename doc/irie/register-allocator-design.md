@@ -1,8 +1,8 @@
 # A register allocator for the 6502 — design
 
-**Status:** proposal; the steering decisions are recorded in §7. S0 to S4
-are done (progress below the stage table in §5): the beam placement is the default
-and the colouring allocator is deleted; S5–S7 are not implemented.
+**Status:** proposal; the steering decisions are recorded in §7. S0 to S5
+are done (progress below the stage table in §5): the beam placement is the default,
+the colouring allocator is deleted and homes share bytes; S6–S7 are not implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -889,6 +889,46 @@ tables).
   reviewed (`dotlit --regenerate`; the byte-level `-Binary` goldens by hand). Left over
   and not removed: the addressing-mode-agnostic ops (`st.abs`, the `Axy` class) and
   `pseudo.spill` / `pseudo.reload`, which nothing produces any more.
+
+**S5 progress (2026-10-18):** done, in the layout pass, with the call-aware split and
+pointer pairs left out (below).
+- **Where.** `MOS6502HomeColouring` runs first in `MOS6502ProgramLayoutPass`, on the final
+  code (after placement, branch folding, the recursion saves). The homes of one function
+  are coloured and renamed to `$h0…$h(k-1)`, and everything after it (the zero-page
+  versus absolute choice by weighted access count, the call-graph stacking, the absolute
+  `<function>_h<n>` twins) works on colours instead of homes, unchanged. It does not touch
+  placement, so `PlacementChecker` and the beam search are as they were; and as it works
+  on the code rather than on the placer's intervals, the late passes' changes are in.
+- **Interference.** Liveness of the home registers themselves (the `Step`/fixpoint that
+  `MOS6502RecursionSavePass` already had, moved to `MOS6502PhysicalLiveness`): a home
+  interferes with every home live after an instruction that writes it, and the homes
+  live into the entry block interfere with each other. This relies on every block ending
+  in an explicit jump at that point, as the recursion saves already do.
+- **Colouring.** Greedy, the most accessed home first (so the hot ones get the lowest
+  colours); DSATUR order was tried and saves 0.1% more, which is not worth its cost.
+  A home is one byte, so the colouring is per byte.
+- **Report.** `iriec --stats` and `dnrc --stats` print what the passes recorded
+  (`CompilationContext.Statistics`): `homes.placed` (homes before sharing), `homes.slots`
+  (after), `homes.zero-page-bytes`, `zero-page.deepest-path` (bytes of the window used by
+  the deepest call path).
+
+  | Set | Homes before | Slots after | Deepest call path, summed over programs |
+  |---|--:|--:|--:|
+  | `LlvmMosReference` corpus (43 cases) | 193 | 167 (−13%) | 193 → 167 |
+  | C# lit programs and benchmarks (120 programs) | 4351 | 3647 (−16%) | 3043 → 2602 (−14%) |
+
+  The highest single program needs 67 of the 124 bytes of window. The assembly of all 120
+  C# programs has the same number of lines as before (92 829): nothing that fits in zero
+  page changes its code.
+- **Not done, on purpose.**
+  - *Live across a call versus not* (§3.7, step 2): needs a second size per function in
+    `StaticFrameColorer`. The budget is not binding (67 of 124 bytes), so there is no
+    footprint to win that would change a program's code.
+  - *Pointer pairs*: pointers are not homed as pairs (placement sets up the fixed scratch
+    pair before each `(zp),Y` access), so there is nothing to keep adjacent.
+  - *Sharing inside the placer*: `HomeClasses` still merges unrelated values only past 32
+    homes, because sharing there creates edge-move hazards; the layout pass avoids the
+    hazard by colouring after the moves are placed.
 
 ### Work outside the allocator that still limits quality
 

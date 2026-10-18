@@ -13,8 +13,8 @@
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: many_calls:
-; CHECK:     STA $14
-; CHECK:     STX $15
+; CHECK:     STA $1C
+; CHECK:     STX $1D
 ; CHECK:     LDY $02
 ; CHECK:     STY $16
 ; CHECK:     LDY $03
@@ -28,17 +28,17 @@
 ; CHECK:     LDY $07
 ; CHECK:     STY $1B
 ; CHECK:     JSR g
-; CHECK:     STA $1C
-; CHECK:     STX $1D
+; CHECK:     STA $14
+; CHECK:     STX $15
 ; CHECK:     LDX $17
 ; CHECK:     LDA $16
 ; CHECK:     JSR g
 ; CHECK:     CLC
-; CHECK:     ADC $1C
-; CHECK:     STA $1C
+; CHECK:     ADC $14
+; CHECK:     STA $14
 ; CHECK:     TXA
-; CHECK:     ADC $1D
-; CHECK:     STA $1D
+; CHECK:     ADC $15
+; CHECK:     STA $15
 ; CHECK:     LDX $19
 ; CHECK:     LDA $18
 ; CHECK:     JSR g
@@ -55,17 +55,17 @@
 ; CHECK:     CLC
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ADC $1C
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     ADC $1D
-; CHECK:     CLC
-; CHECK:     TAX
-; CHECK:     TYA
 ; CHECK:     ADC $14
 ; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $15
+; CHECK:     CLC
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     ADC $1C
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $1D
 ; CHECK:     CLC
 ; CHECK:     TAX
 ; CHECK:     TYA

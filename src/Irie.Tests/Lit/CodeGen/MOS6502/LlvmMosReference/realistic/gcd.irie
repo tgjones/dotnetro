@@ -9,15 +9,15 @@
 
 ; CHECK: gcd:
 ; CHECK:     LDY $02
-; CHECK:     STY $14
-; CHECK:     LDY $03
 ; CHECK:     STY $15
+; CHECK:     LDY $03
+; CHECK:     STY $14
 ; CHECK:     STA $16
 ; CHECK:     STX $17
 ; CHECK: .bb1:
-; CHECK:     LDA $15
-; CHECK:     BNE .bb3
 ; CHECK:     LDA $14
+; CHECK:     BNE .bb3
+; CHECK:     LDA $15
 ; CHECK:     BNE .bb3
 ; CHECK: .bb2:
 ; CHECK:     LDX $17
@@ -29,28 +29,28 @@
 ; CHECK: .bb4:
 ; CHECK:     LDX #$00
 ; CHECK: .bb5:
-; CHECK:     LDY $15
+; CHECK:     LDY $14
 ; CHECK:     BMI .bb9
 ; CHECK: .bb6:
 ; CHECK:     LDY #$00
 ; CHECK: .bb7:
 ; CHECK:     STX $02
 ; CHECK:     STX $03
-; CHECK:     LDX $14
-; CHECK:     STX $04
 ; CHECK:     LDX $15
+; CHECK:     STX $04
+; CHECK:     LDX $14
 ; CHECK:     STX $05
 ; CHECK:     STY $06
 ; CHECK:     STY $07
 ; CHECK:     TAX
 ; CHECK:     LDA $16
 ; CHECK:     JSR __modsi3
-; CHECK:     LDY $14
-; CHECK:     STY $16
-; CHECK:     STA $14
 ; CHECK:     LDY $15
+; CHECK:     STY $16
+; CHECK:     STA $15
+; CHECK:     LDY $14
 ; CHECK:     STY $17
-; CHECK:     STX $15
+; CHECK:     STX $14
 ; CHECK:     JMP .bb1
 ; CHECK: .bb8:
 ; CHECK:     LDX #$FF

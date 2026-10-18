@@ -15,35 +15,35 @@
 ; CHECK:     TAY
 ; CHECK:     LDA $14
 ; CHECK:     ROR
+; CHECK:     STA $14
+; CHECK:     TXA
+; CHECK:     ROR
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     LSR
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     ROR
+; CHECK:     STA $14
+; CHECK:     TXA
+; CHECK:     ROR
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     LSR
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     ROR
+; CHECK:     STA $14
+; CHECK:     TXA
+; CHECK:     ROR
 ; CHECK:     STA $15
-; CHECK:     TXA
-; CHECK:     ROR
-; CHECK:     TAX
-; CHECK:     TYA
-; CHECK:     LSR
-; CHECK:     TAY
-; CHECK:     LDA $15
-; CHECK:     ROR
-; CHECK:     STA $16
-; CHECK:     TXA
-; CHECK:     ROR
-; CHECK:     TAX
-; CHECK:     TYA
-; CHECK:     LSR
-; CHECK:     TAY
-; CHECK:     LDA $16
-; CHECK:     ROR
-; CHECK:     STA $17
-; CHECK:     TXA
-; CHECK:     ROR
-; CHECK:     STA $18
 ; CHECK:     TYA
 ; CHECK:     LSR
 ; CHECK:     STA $02
-; CHECK:     LDA $17
+; CHECK:     LDA $14
 ; CHECK:     ROR
 ; CHECK:     TAX
-; CHECK:     LDA $18
+; CHECK:     LDA $15
 ; CHECK:     ROR
 ; CHECK:     LDY #$00
 ; CHECK:     STY $03

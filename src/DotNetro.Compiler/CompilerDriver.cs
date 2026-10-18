@@ -104,6 +104,7 @@ public static class CompilerDriver
         {
             Origin = origin,
             PassSnapshots = snapshots,
+            Statistics = context.Statistics,
         };
     }
 }
@@ -137,6 +138,9 @@ public sealed record CompilationResult(string AssemblyCode, string Listing, Read
     public int Origin { get; init; }
 
     public IReadOnlyList<CompileDiagnostic> Diagnostics { get; init; } = [];
+
+    /// <summary>Numbers the passes reported about the program (zero-page use, …), by name.</summary>
+    public IReadOnlyDictionary<string, long> Statistics { get; init; } = new Dictionary<string, long>();
 
     /// <summary>
     /// Set only when <see cref="CompileRequest.CaptureSnapshots"/> was requested. The first entry is the

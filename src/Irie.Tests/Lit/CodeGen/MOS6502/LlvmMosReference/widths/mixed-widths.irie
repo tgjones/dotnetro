@@ -30,27 +30,27 @@
 ; CHECK:     TAX
 ; CHECK:     LDA $15
 ; CHECK:     ADC $04
-; CHECK:     STA $16
+; CHECK:     STA $15
 ; CHECK:     TYA
 ; CHECK:     ADC $05
-; CHECK:     STA $17
+; CHECK:     STA $16
 ; CHECK:     TYA
 ; CHECK:     ADC $06
 ; CHECK:     CLC
 ; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $14
-; CHECK:     STA $18
-; CHECK:     LDA $16
+; CHECK:     STA $14
+; CHECK:     LDA $15
 ; CHECK:     ADC #$00
 ; CHECK:     TAX
-; CHECK:     LDA $17
+; CHECK:     LDA $16
 ; CHECK:     ADC #$00
 ; CHECK:     STA $02
 ; CHECK:     TYA
 ; CHECK:     ADC #$00
 ; CHECK:     STA $03
-; CHECK:     LDA $18
+; CHECK:     LDA $14
 ; CHECK:     RTS
 
 func @mixed_widths : (i8, i16, i32) -> i32 {

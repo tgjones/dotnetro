@@ -30,9 +30,9 @@
 ; CHECK:     TAY
 ; CHECK:     LDA $05
 ; CHECK:     EOR #$80
-; CHECK:     STA $17
-; CHECK:     STX $18
-; CHECK:     CPY $17
+; CHECK:     STA $15
+; CHECK:     STX $17
+; CHECK:     CPY $15
 ; CHECK:     BCC .bb12
 ; CHECK:     BNE .bb3
 ; CHECK:     LDA $02
@@ -42,13 +42,13 @@
 ; CHECK:     LDX #$00
 ; CHECK: .bb4:
 ; CHECK:     TXA
-; CHECK:     AND $18
+; CHECK:     AND $17
 ; CHECK:     BNE .bb13
 ; CHECK: .bb5:
 ; CHECK:     LDX #$00
 ; CHECK: .bb6:
 ; CHECK:     LDA $16
-; CHECK:     STX $19
+; CHECK:     STX $15
 ; CHECK:     CMP $05
 ; CHECK:     BNE .bb14
 ; CHECK:     LDA $14
@@ -58,7 +58,7 @@
 ; CHECK:     LDX #$00
 ; CHECK: .bb8:
 ; CHECK:     TXA
-; CHECK:     AND $19
+; CHECK:     AND $15
 ; CHECK:     BNE .bb15
 ; CHECK: .bb9:
 ; CHECK:     LDX #$00

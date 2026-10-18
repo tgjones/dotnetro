@@ -17,12 +17,12 @@
 ; CHECK:     STA $14
 ; CHECK:     LDA $02
 ; CHECK:     SBC $14
-; CHECK:     STX $15
-; CHECK:     STA $16
+; CHECK:     STX $14
+; CHECK:     STA $15
 ; CHECK:     LDA $03
-; CHECK:     SBC $15
+; CHECK:     SBC $14
 ; CHECK:     TAX
-; CHECK:     LDA $16
+; CHECK:     LDA $15
 ; CHECK:     RTS
 
 func @swap_diff : (i16, i16) -> i16 {

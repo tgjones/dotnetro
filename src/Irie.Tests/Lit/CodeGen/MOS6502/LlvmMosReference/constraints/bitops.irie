@@ -25,18 +25,18 @@
 ; CHECK:     TAY
 ; CHECK:     LDA $15
 ; CHECK:     ORA $17
-; CHECK:     STA $18
+; CHECK:     STA $15
 ; CHECK:     LDA $14
 ; CHECK:     AND $04
-; CHECK:     STA $19
+; CHECK:     STA $14
 ; CHECK:     TXA
 ; CHECK:     AND $05
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ORA $19
+; CHECK:     ORA $14
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ORA $18
+; CHECK:     ORA $15
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS

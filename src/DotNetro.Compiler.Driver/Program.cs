@@ -7,12 +7,15 @@ var emitOption = new Option<EmitFormat?>("--emit") { Description = "The format t
 
 var targetOption = new Option<string>("--target") { Description = "Target system id (e.g. bbcmicro)", DefaultValueFactory = _ => TargetRegistry.BbcMicroId };
 
+var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
+
 var rootCommand = new RootCommand();
 
 rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(assemblyOption);
 rootCommand.Options.Add(outputOption);
 rootCommand.Options.Add(emitOption);
+rootCommand.Options.Add(statsOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -37,6 +40,10 @@ rootCommand.SetAction(parseResult =>
         "Main",
         parseResult.GetValue(targetOption)!
         );
+
+    if (parseResult.GetValue(statsOption))
+        foreach (var (name, value) in compilationResult.Statistics.OrderBy(s => s.Key))
+            Console.Error.WriteLine($"{name}: {value}");
 
     var outputStream = (output == null || output.FullName == "-")
         ? Console.OpenStandardOutput()

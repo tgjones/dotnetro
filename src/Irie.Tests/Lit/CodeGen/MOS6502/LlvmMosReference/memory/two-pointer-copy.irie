@@ -9,18 +9,18 @@
 
 ; CHECK: two_pointer_copy:
 ; CHECK:     LDY #$00
-; CHECK:     STA $14
-; CHECK:     STX $15
-; CHECK:     STY $16
+; CHECK:     STA $19
+; CHECK:     STX $1A
+; CHECK:     STY $15
 ; CHECK: .bb1:
-; CHECK:     LDA $16
+; CHECK:     LDA $15
 ; CHECK:     EOR #$80
 ; CHECK:     TAX
 ; CHECK:     LDA $05
 ; CHECK:     EOR #$80
-; CHECK:     STA $17
-; CHECK:     STY $18
-; CHECK:     CPX $17
+; CHECK:     STA $16
+; CHECK:     STY $14
+; CHECK:     CPX $16
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb2
 ; CHECK:     CPY $04
@@ -28,51 +28,51 @@
 ; CHECK: .bb2:
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDA $18
+; CHECK:     LDA $14
 ; CHECK:     ASL
 ; CHECK:     TAX
-; CHECK:     LDA $16
+; CHECK:     LDA $15
 ; CHECK:     ROL
 ; CHECK:     CLC
-; CHECK:     STA $19
+; CHECK:     STA $16
 ; CHECK:     TXA
 ; CHECK:     ADC $02
 ; CHECK:     TAY
 ; CHECK:     LDA $03
-; CHECK:     ADC $19
+; CHECK:     ADC $16
 ; CHECK:     STY $12
 ; CHECK:     STA $13
-; CHECK:     STY $1A
+; CHECK:     STY $17
 ; CHECK:     LDY #$00
-; CHECK:     STA $1B
+; CHECK:     STA $17
 ; CHECK:     LDA ($12),Y
 ; CHECK:     LDY #$01
-; CHECK:     STA $1C
+; CHECK:     STA $17
 ; CHECK:     LDA ($12),Y
 ; CHECK:     CLC
-; CHECK:     STA $1D
+; CHECK:     STA $18
 ; CHECK:     TXA
-; CHECK:     ADC $14
-; CHECK:     TAX
-; CHECK:     LDA $15
 ; CHECK:     ADC $19
+; CHECK:     TAX
+; CHECK:     LDA $1A
+; CHECK:     ADC $16
 ; CHECK:     STX $12
 ; CHECK:     STA $13
 ; CHECK:     LDY #$00
-; CHECK:     STA $1E
-; CHECK:     LDA $1C
+; CHECK:     STA $16
+; CHECK:     LDA $17
 ; CHECK:     STA ($12),Y
 ; CHECK:     LDY #$01
-; CHECK:     LDA $1D
+; CHECK:     LDA $18
 ; CHECK:     STA ($12),Y
 ; CHECK:     CLC
 ; CHECK:     TYA
-; CHECK:     ADC $18
-; CHECK:     STA $18
-; CHECK:     LDA $16
+; CHECK:     ADC $14
+; CHECK:     STA $14
+; CHECK:     LDA $15
 ; CHECK:     ADC #$00
-; CHECK:     STA $16
-; CHECK:     LDY $18
+; CHECK:     STA $15
+; CHECK:     LDY $14
 ; CHECK:     JMP .bb1
 
 func @two_pointer_copy : (ptr, ptr, i16) -> void {

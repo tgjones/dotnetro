@@ -67,7 +67,7 @@
 ; CHECK:     STA $20
 ; CHECK:     LDA $21
 ; CHECK:     ADC $19
-; CHECK:     STY $25
+; CHECK:     STY $23
 ; CHECK:     LDY $22
 ; CHECK:     DEY
 ; CHECK:     BNE .bb3
@@ -101,7 +101,7 @@
 ; CHECK:     LDY $07
 ; CHECK:     STY $19
 ; CHECK:     STA $21
-; CHECK:     LDA $25
+; CHECK:     LDA $23
 ; CHECK:     JMP .bb1
 
 func @Loop64 : (i64, i8) -> i64 {

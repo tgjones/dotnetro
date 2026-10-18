@@ -8,36 +8,36 @@
 ; Compare against ext/llvm-mos-reference/pressure/pressure-high.s; close gaps via irie-report.
 
 ; CHECK: pressure_high:
-; CHECK:     STA $14
-; CHECK:     STX $15
+; CHECK:     STA $1A
+; CHECK:     STX $22
 ; CHECK:     LDY $02
-; CHECK:     STY $16
-; CHECK:     LDY $03
-; CHECK:     STY $17
-; CHECK:     LDY $04
-; CHECK:     STY $18
-; CHECK:     LDY $05
-; CHECK:     STY $19
-; CHECK:     LDY $06
-; CHECK:     STY $1A
-; CHECK:     LDY $07
 ; CHECK:     STY $1B
-; CHECK:     LDY $08
-; CHECK:     STY $1C
-; CHECK:     LDY $09
-; CHECK:     STY $1D
-; CHECK:     LDY $0A
-; CHECK:     STY $1E
-; CHECK:     LDY $0B
-; CHECK:     STY $1F
-; CHECK:     LDY $0C
-; CHECK:     STY $20
-; CHECK:     LDY $0D
-; CHECK:     STY $21
-; CHECK:     LDY $0E
-; CHECK:     STY $22
-; CHECK:     LDY $0F
+; CHECK:     LDY $03
 ; CHECK:     STY $23
+; CHECK:     LDY $04
+; CHECK:     STY $1C
+; CHECK:     LDY $05
+; CHECK:     STY $1D
+; CHECK:     LDY $06
+; CHECK:     STY $14
+; CHECK:     LDY $07
+; CHECK:     STY $15
+; CHECK:     LDY $08
+; CHECK:     STY $16
+; CHECK:     LDY $09
+; CHECK:     STY $17
+; CHECK:     LDY $0A
+; CHECK:     STY $18
+; CHECK:     LDY $0B
+; CHECK:     STY $19
+; CHECK:     LDY $0C
+; CHECK:     STY $1E
+; CHECK:     LDY $0D
+; CHECK:     STY $1F
+; CHECK:     LDY $0E
+; CHECK:     STY $20
+; CHECK:     LDY $0F
+; CHECK:     STY $21
 ; CHECK:     JSR __mulsi3
 ; CHECK:     STA $24
 ; CHECK:     STX $25
@@ -45,38 +45,17 @@
 ; CHECK:     STY $26
 ; CHECK:     LDY $03
 ; CHECK:     STY $27
-; CHECK:     LDY $1A
+; CHECK:     LDY $14
 ; CHECK:     STY $02
-; CHECK:     LDY $1B
+; CHECK:     LDY $15
 ; CHECK:     STY $03
-; CHECK:     LDY $1C
+; CHECK:     LDY $16
 ; CHECK:     STY $04
-; CHECK:     LDY $1D
+; CHECK:     LDY $17
 ; CHECK:     STY $05
-; CHECK:     LDY $1E
+; CHECK:     LDY $18
 ; CHECK:     STY $06
-; CHECK:     LDY $1F
-; CHECK:     STY $07
-; CHECK:     LDX $19
-; CHECK:     LDA $18
-; CHECK:     JSR __mulsi3
-; CHECK:     STA $18
-; CHECK:     STX $19
-; CHECK:     LDY $02
-; CHECK:     STY $1A
-; CHECK:     LDY $03
-; CHECK:     STY $1B
-; CHECK:     LDY $1E
-; CHECK:     STY $02
-; CHECK:     LDY $1F
-; CHECK:     STY $03
-; CHECK:     LDY $20
-; CHECK:     STY $04
-; CHECK:     LDY $21
-; CHECK:     STY $05
-; CHECK:     LDY $22
-; CHECK:     STY $06
-; CHECK:     LDY $23
+; CHECK:     LDY $19
 ; CHECK:     STY $07
 ; CHECK:     LDX $1D
 ; CHECK:     LDA $1C
@@ -84,58 +63,79 @@
 ; CHECK:     STA $1C
 ; CHECK:     STX $1D
 ; CHECK:     LDY $02
-; CHECK:     STY $1E
+; CHECK:     STY $14
 ; CHECK:     LDY $03
-; CHECK:     STY $1F
-; CHECK:     LDY $22
+; CHECK:     STY $15
+; CHECK:     LDY $18
 ; CHECK:     STY $02
-; CHECK:     LDY $23
+; CHECK:     LDY $19
 ; CHECK:     STY $03
-; CHECK:     LDY $14
+; CHECK:     LDY $1E
 ; CHECK:     STY $04
-; CHECK:     LDY $15
+; CHECK:     LDY $1F
 ; CHECK:     STY $05
-; CHECK:     LDY $16
+; CHECK:     LDY $20
 ; CHECK:     STY $06
-; CHECK:     LDY $17
+; CHECK:     LDY $21
 ; CHECK:     STY $07
-; CHECK:     LDX $21
-; CHECK:     LDA $20
+; CHECK:     LDX $17
+; CHECK:     LDA $16
+; CHECK:     JSR __mulsi3
+; CHECK:     STA $16
+; CHECK:     STX $17
+; CHECK:     LDY $02
+; CHECK:     STY $18
+; CHECK:     LDY $03
+; CHECK:     STY $19
+; CHECK:     LDY $20
+; CHECK:     STY $02
+; CHECK:     LDY $21
+; CHECK:     STY $03
+; CHECK:     LDY $1A
+; CHECK:     STY $04
+; CHECK:     LDY $22
+; CHECK:     STY $05
+; CHECK:     LDY $1B
+; CHECK:     STY $06
+; CHECK:     LDY $23
+; CHECK:     STY $07
+; CHECK:     LDX $1F
+; CHECK:     LDA $1E
 ; CHECK:     JSR __mulsi3
 ; CHECK:     CLC
-; CHECK:     STA $14
+; CHECK:     STA $1A
 ; CHECK:     LDA $24
-; CHECK:     ADC $18
-; CHECK:     STA $20
+; CHECK:     ADC $1C
+; CHECK:     STA $1E
 ; CHECK:     LDA $25
-; CHECK:     ADC $19
+; CHECK:     ADC $1D
 ; CHECK:     LDY $02
-; CHECK:     STY $16
-; CHECK:     STA $21
+; CHECK:     STY $1B
+; CHECK:     STA $1F
 ; CHECK:     LDA $26
-; CHECK:     ADC $1A
+; CHECK:     ADC $14
 ; CHECK:     LDY $03
-; CHECK:     STY $17
+; CHECK:     STY $23
 ; CHECK:     STA $02
 ; CHECK:     LDA $27
-; CHECK:     ADC $1B
+; CHECK:     ADC $15
 ; CHECK:     CLC
 ; CHECK:     STA $03
-; CHECK:     LDA $1C
-; CHECK:     ADC $14
+; CHECK:     LDA $16
+; CHECK:     ADC $1A
 ; CHECK:     STA $04
 ; CHECK:     TXA
-; CHECK:     ADC $1D
+; CHECK:     ADC $17
 ; CHECK:     STA $05
-; CHECK:     LDA $1E
-; CHECK:     ADC $16
+; CHECK:     LDA $18
+; CHECK:     ADC $1B
 ; CHECK:     STA $06
 ; CHECK:     TYA
-; CHECK:     ADC $1F
-; CHECK:     STX $15
+; CHECK:     ADC $19
+; CHECK:     STX $22
 ; CHECK:     STA $07
-; CHECK:     LDX $21
-; CHECK:     LDA $20
+; CHECK:     LDX $1F
+; CHECK:     LDA $1E
 ; CHECK:     JSR __mulsi3
 ; CHECK:     CLC
 ; CHECK:     ADC $24
@@ -145,48 +145,48 @@
 ; CHECK:     TAX
 ; CHECK:     LDA $02
 ; CHECK:     ADC $26
-; CHECK:     STA $22
+; CHECK:     STA $20
 ; CHECK:     LDA $03
 ; CHECK:     ADC $27
 ; CHECK:     CLC
-; CHECK:     STA $23
-; CHECK:     TYA
-; CHECK:     ADC $18
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     ADC $19
-; CHECK:     TAX
-; CHECK:     LDA $22
-; CHECK:     ADC $1A
-; CHECK:     STA $1A
-; CHECK:     LDA $23
-; CHECK:     ADC $1B
-; CHECK:     CLC
-; CHECK:     STA $1B
+; CHECK:     STA $21
 ; CHECK:     TYA
 ; CHECK:     ADC $1C
 ; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $1D
 ; CHECK:     TAX
-; CHECK:     LDA $1A
-; CHECK:     ADC $1E
-; CHECK:     STA $1A
-; CHECK:     LDA $1B
-; CHECK:     ADC $1F
-; CHECK:     CLC
-; CHECK:     STA $1B
-; CHECK:     TYA
+; CHECK:     LDA $20
 ; CHECK:     ADC $14
+; CHECK:     STA $14
+; CHECK:     LDA $21
+; CHECK:     ADC $15
+; CHECK:     CLC
+; CHECK:     STA $15
+; CHECK:     TYA
+; CHECK:     ADC $16
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $15
-; CHECK:     TAX
-; CHECK:     LDA $1A
-; CHECK:     ADC $16
-; CHECK:     STA $02
-; CHECK:     LDA $1B
 ; CHECK:     ADC $17
+; CHECK:     TAX
+; CHECK:     LDA $14
+; CHECK:     ADC $18
+; CHECK:     STA $14
+; CHECK:     LDA $15
+; CHECK:     ADC $19
+; CHECK:     CLC
+; CHECK:     STA $15
+; CHECK:     TYA
+; CHECK:     ADC $1A
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $22
+; CHECK:     TAX
+; CHECK:     LDA $14
+; CHECK:     ADC $1B
+; CHECK:     STA $02
+; CHECK:     LDA $15
+; CHECK:     ADC $23
 ; CHECK:     STA $03
 ; CHECK:     TYA
 ; CHECK:     RTS

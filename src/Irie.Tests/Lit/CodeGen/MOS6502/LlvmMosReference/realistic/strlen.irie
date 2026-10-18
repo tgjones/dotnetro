@@ -9,28 +9,28 @@
 ; Compare against ext/llvm-mos-reference/realistic/strlen.s; close gaps via irie-report.
 
 ; CHECK: strlen_impl:
-; CHECK:     STA $14
-; CHECK:     STX $15
+; CHECK:     STA $15
+; CHECK:     STX $16
 ; CHECK: .bb1:
 ; CHECK:     STA $12
 ; CHECK:     STX $13
 ; CHECK:     LDY #$00
-; CHECK:     STA $16
+; CHECK:     STA $14
 ; CHECK:     LDA ($12),Y
 ; CHECK:     BNE .bb3
 ; CHECK: .bb2:
 ; CHECK:     SEC
-; CHECK:     LDA $16
-; CHECK:     SBC $14
+; CHECK:     LDA $14
+; CHECK:     SBC $15
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     SBC $15
+; CHECK:     SBC $16
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     CLC
-; CHECK:     LDA $16
+; CHECK:     LDA $14
 ; CHECK:     ADC #$01
 ; CHECK:     TAY
 ; CHECK:     TXA

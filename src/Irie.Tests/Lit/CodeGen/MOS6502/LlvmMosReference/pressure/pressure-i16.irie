@@ -40,10 +40,10 @@
 ; CHECK:     STA $19
 ; CHECK:     LDA $14
 ; CHECK:     EOR $16
-; CHECK:     STA $1A
+; CHECK:     STA $14
 ; CHECK:     LDA $15
 ; CHECK:     EOR $17
-; CHECK:     STA $1B
+; CHECK:     STA $15
 ; CHECK:     TYA
 ; CHECK:     EOR $18
 ; CHECK:     TAY
@@ -52,10 +52,10 @@
 ; CHECK:     CLC
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ADC $1A
+; CHECK:     ADC $14
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $1B
+; CHECK:     ADC $15
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS

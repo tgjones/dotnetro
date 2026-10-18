@@ -35,9 +35,9 @@ bb2():
 ; CHECK: .bb3:
 ; CHECK:     LDA $14
 ; CHECK:     EOR #$00
-; CHECK:     STA $16
+; CHECK:     STA $14
 ; CHECK:     LDA $15
 ; CHECK:     EOR #$00
-; CHECK:     LDY $16
+; CHECK:     LDY $14
 ; CHECK:     TAX
 ; CHECK:     JMP .bb2

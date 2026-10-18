@@ -54,6 +54,11 @@ public sealed class MOS6502ProgramLayoutPass(
         var module = context.Module;
         ReentrancyAnalysis.Run(module);
 
+        // Homes that are never live together share one byte.
+        var homesPlaced = module.Functions.Sum(f => UsedHomes(f).Count);
+        foreach (var function in module.Functions)
+            MOS6502HomeColouring.Colour(function);
+
         // The homes each function uses, and how many of them keep a zero-page byte.
         var usedHomes = new Dictionary<MirFunction, List<int>>();
         var homeCount = new Dictionary<MirFunction, int>();
@@ -109,6 +114,13 @@ public sealed class MOS6502ProgramLayoutPass(
                 throw new NotSupportedException(
                     $"MOS6502ProgramLayout: zero page exhausted: a library routine reached from " +
                     $"{function.Name} needs {floor} bytes, past ${windowEnd:X2}.");
+
+        context.Statistics["homes.placed"] = homesPlaced;
+        context.Statistics["homes.slots"] = module.Functions.Sum(f => usedHomes[f].Count);
+        context.Statistics["homes.zero-page-bytes"] = module.Functions.Sum(f => zeroPageHomes[f]);
+        context.Statistics["zero-page.deepest-path"] = module.Functions
+            .Select(f => result.Base.TryGetValue(f, out var b) ? b + zeroPageHomes[f] + (demoted.Contains(f) ? 0 : SlotBytes(f)) : 0)
+            .DefaultIfEmpty(0).Max();
 
         var globalsByName = new Dictionary<string, MirGlobal>();
         foreach (var global in module.Globals)
@@ -266,7 +278,7 @@ public sealed class MOS6502ProgramLayoutPass(
     {
         if (used.Count == 0) return;
 
-        var weights = HomeWeights(function);
+        var weights = MOS6502HomeColouring.Weights(function);
         var inZeroPage = used
             .OrderByDescending(h => weights.GetValueOrDefault(h))
             .ThenBy(h => h)
@@ -382,22 +394,6 @@ public sealed class MOS6502ProgramLayoutPass(
         throw new NotSupportedException(
             $"MOS6502ProgramLayout: a home of {function.Name} lives in absolute memory but {DescribeOp(instr)} " +
             "has no absolute twin.");
-    }
-
-    // How often each home is accessed, weighted by the loop depth of the access.
-    private static Dictionary<int, long> HomeWeights(MirFunction function)
-    {
-        var loops = new LoopAnalysis().Compute(function);
-        var weights = new Dictionary<int, long>();
-        foreach (var block in function.Blocks)
-        {
-            var frequency = loops.Frequency(block);
-            foreach (var instr in block.Instructions)
-                foreach (var op in instr.Operands)
-                    if (op is PhysicalReg p && MOS6502Registers.IsHome(p.Id))
-                        weights[p.Id] = weights.GetValueOrDefault(p.Id) + frequency;
-        }
-        return weights;
     }
 
     private static void RewriteHomes(MirFunction function, Func<int, int> registerOfAddress, int blockStart)

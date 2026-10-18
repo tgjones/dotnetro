@@ -11,44 +11,44 @@
 
 ; CHECK: loop_counter:
 ; CHECK:     LDY #$00
-; CHECK:     STA $14
-; CHECK:     STX $15
+; CHECK:     STA $19
+; CHECK:     STX $1A
+; CHECK:     STY $14
 ; CHECK:     STY $16
 ; CHECK:     STY $17
-; CHECK:     STY $18
 ; CHECK: .bb1:
-; CHECK:     LDA $16
+; CHECK:     LDA $14
 ; CHECK:     EOR #$80
 ; CHECK:     TAX
-; CHECK:     LDA $15
+; CHECK:     LDA $1A
 ; CHECK:     EOR #$80
-; CHECK:     STA $19
-; CHECK:     STY $1A
-; CHECK:     CPX $19
+; CHECK:     STA $18
+; CHECK:     STY $15
+; CHECK:     CPX $18
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb2
-; CHECK:     CPY $14
+; CHECK:     CPY $19
 ; CHECK:     BCC .bb3
 ; CHECK: .bb2:
-; CHECK:     LDX $18
-; CHECK:     LDA $17
+; CHECK:     LDX $17
+; CHECK:     LDA $16
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     CLC
-; CHECK:     LDA $17
-; CHECK:     ADC $1A
+; CHECK:     LDA $16
+; CHECK:     ADC $15
 ; CHECK:     TAX
-; CHECK:     LDA $18
-; CHECK:     ADC $16
+; CHECK:     LDA $17
+; CHECK:     ADC $14
 ; CHECK:     CLC
-; CHECK:     STA $18
-; CHECK:     LDA $1A
+; CHECK:     STA $17
+; CHECK:     LDA $15
 ; CHECK:     ADC #$01
 ; CHECK:     TAY
-; CHECK:     LDA $16
+; CHECK:     LDA $14
 ; CHECK:     ADC #$00
-; CHECK:     STA $16
-; CHECK:     STX $17
+; CHECK:     STA $14
+; CHECK:     STX $16
 ; CHECK:     JMP .bb1
 
 func @loop_counter : (i16) -> i16 {

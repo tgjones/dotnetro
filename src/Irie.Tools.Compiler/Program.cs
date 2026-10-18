@@ -30,6 +30,8 @@ var beamWidthOption = new Option<int?>("--beam-width")
     Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
 };
 
+var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
+
 var originOption = new Option<string?>("--origin")
 {
     Description = "Origin (load address) for --emit=bin, as hex (0x1900) or decimal. " +
@@ -45,6 +47,7 @@ rootCommand.Options.Add(runPass);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(originOption);
 rootCommand.Options.Add(beamWidthOption);
+rootCommand.Options.Add(statsOption);
 rootCommand.Options.Add(printAfterAll);
 rootCommand.Options.Add(printChanged);
 
@@ -112,6 +115,10 @@ rootCommand.SetAction(parseResult =>
     }
 
     passMgr.Run(context);
+
+    if (parseResult.GetValue(statsOption))
+        foreach (var (name, value) in context.Statistics.OrderBy(s => s.Key))
+            Console.Error.WriteLine($"{name}: {value}");
 
     switch (emit)
     {

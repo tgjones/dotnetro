@@ -19,19 +19,19 @@
 ; CHECK:     CLC
 ; CHECK:     TXA
 ; CHECK:     ADC $14
-; CHECK:     STA $16
+; CHECK:     STA $14
 ; CHECK:     LDA #$00
 ; CHECK:     ROL
-; CHECK:     STA $17
+; CHECK:     STA $16
 ; CHECK:     LDA $15
 ; CHECK:     LSR
 ; CHECK:     TYA
-; CHECK:     ADC $16
+; CHECK:     ADC $14
 ; CHECK:     TAX
-; CHECK:     LDA $17
+; CHECK:     LDA $16
 ; CHECK:     LSR
 ; CHECK:     TXA
-; CHECK:     ADC $16
+; CHECK:     ADC $14
 ; CHECK:     RTS
 
 func @stored_carry : (i8, i8) -> i8 {

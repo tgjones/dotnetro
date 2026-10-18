@@ -38,30 +38,30 @@
 ; CHECK: .bb1:
 ; CHECK:     LDY #$00
 ; CHECK: .bb2:
-; CHECK:     STA $14
+; CHECK:     STA $15
 ; CHECK:     TXA
 ; CHECK:     BMI .bb6
 ; CHECK: .bb3:
 ; CHECK:     LDX #$00
-; CHECK:     STX $15
+; CHECK:     STX $14
 ; CHECK: .bb4:
 ; CHECK:     STY $02
 ; CHECK:     STY $03
 ; CHECK:     STA $04
-; CHECK:     LDX $15
+; CHECK:     LDX $14
 ; CHECK:     STX $05
 ; CHECK:     STX $06
 ; CHECK:     STX $07
-; CHECK:     STY $16
-; CHECK:     LDX $16
-; CHECK:     LDA $14
+; CHECK:     STY $14
+; CHECK:     LDX $14
+; CHECK:     LDA $15
 ; CHECK:     JMP __divsi3
 ; CHECK: .bb5:
 ; CHECK:     LDY #$FF
 ; CHECK:     JMP .bb2
 ; CHECK: .bb6:
 ; CHECK:     LDX #$FF
-; CHECK:     STX $15
+; CHECK:     STX $14
 ; CHECK:     JMP .bb4
 
 func @Mul16 : (i16, i16) -> i16 {

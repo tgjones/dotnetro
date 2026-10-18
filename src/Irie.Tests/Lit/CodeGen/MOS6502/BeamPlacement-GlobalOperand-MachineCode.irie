@@ -26,10 +26,10 @@
 ; CHECK:     STX counter+1
 ; CHECK:     CLC
 ; CHECK:     ADC $14
-; CHECK:     STY $15
+; CHECK:     STY $14
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $15
+; CHECK:     ADC $14
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS
