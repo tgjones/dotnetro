@@ -25,6 +25,13 @@ var printAfterAll = new Option<bool>("--print-after-all") { Description = "Print
 
 var printChanged = new Option<bool>("--print-changed") { Description = "Like --print-after-all, but print to stderr only after a pass that changed the MIR" };
 
+var placementOption = new Option<string>("--placement")
+{
+    Description = "How values are placed: 'colouring' (default; register-class pinning and a graph-colouring allocator) " +
+                  "or 'naive' (shape selection and a placement that gives every value a home)",
+    DefaultValueFactory = _ => "colouring",
+};
+
 var originOption = new Option<string?>("--origin")
 {
     Description = "Origin (load address) for --emit=bin, as hex (0x1900) or decimal. " +
@@ -39,6 +46,7 @@ rootCommand.Options.Add(startAt);
 rootCommand.Options.Add(runPass);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(originOption);
+rootCommand.Options.Add(placementOption);
 rootCommand.Options.Add(printAfterAll);
 rootCommand.Options.Add(printChanged);
 
@@ -69,7 +77,13 @@ rootCommand.SetAction(parseResult =>
     var context = new CompilationContext(module);
 
     var passMgr = new PassManager(stopAfterPass, startAtPass);
-    PipelineBuilder.AddStandardPipeline(passMgr, target);
+    var placement = parseResult.GetValue(placementOption) switch
+    {
+        "colouring" => PlacementStrategy.Colouring,
+        "naive"     => PlacementStrategy.Naive,
+        var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
+    };
+    PipelineBuilder.AddStandardPipeline(passMgr, target, placement);
 
     if (printAll || printDiff)
     {

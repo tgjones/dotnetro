@@ -252,6 +252,16 @@ public sealed class MOS6502Dialect : Dialect
         [MOS6502Op.Brk] = "brk",
         [MOS6502Op.Shle] = "shle",
         [MOS6502Op.Lshre] = "lshre",
+
+        // Unpinned operations (see the comment on MOS6502Op.Adc). The bare
+        // and/ora/eor/inc/dec names above are the other members of the family.
+        [MOS6502Op.Adc]   = "adc",
+        [MOS6502Op.Sbc]   = "sbc",
+        [MOS6502Op.CmpBr] = "cmp_br",
+        [MOS6502Op.Cmp]   = "cmp",
+        [MOS6502Op.Load]  = "load",
+        [MOS6502Op.Store] = "store",
+        [MOS6502Op.Const] = "const",
     };
 
     private static readonly Dictionary<string, MOS6502Op> _byName =
@@ -523,6 +533,10 @@ public sealed class MOS6502Dialect : Dialect
     // side effects for DCE purposes until a finer-grained model is in place.
     public override bool IsSideEffectFree(ushort code) => false;
 
+    // Of the ops that name a symbol, only a jsr (and a tail-call jmp) calls it; the
+    // loads of a symbol's address bytes and the accesses of a global do not.
+    public override bool IsCall(ushort code) => (MOS6502Op)code is MOS6502Op.JsrAbs or MOS6502Op.JmpAbs;
+
     public override bool IsTerminator(ushort code) => _terminators.Contains((MOS6502Op)code);
 
     // RTS / RTI return from the (sub)routine — the function-exit terminators.
@@ -530,6 +544,45 @@ public sealed class MOS6502Dialect : Dialect
         => (MOS6502Op)code is MOS6502Op.Rts or MOS6502Op.Rti;
 
     public override bool IsArtifact(ushort code) => false;
+
+    // cmp_br's conditions are Immediates at use positions 2, 4, … (each followed
+    // by its BlockTarget); render them as `eq`, `cs`, … rather than numbers.
+    public override bool TryFormatImmediateUse(ushort code, int useIndex, long value, out string text)
+    {
+        if ((MOS6502Op)code == MOS6502Op.CmpBr && useIndex >= 2 && useIndex % 2 == 0
+            && Enum.IsDefined((CmpBrCondition)value))
+        {
+            text = CmpBrConditionNames.ToText((CmpBrCondition)value);
+            return true;
+        }
+        text = string.Empty;
+        return false;
+    }
+
+    public override bool TryParseImmediateUse(ushort code, int useIndex, string text, out long value)
+    {
+        if ((MOS6502Op)code == MOS6502Op.CmpBr && useIndex >= 2 && useIndex % 2 == 0
+            && CmpBrConditionNames.TryFromText(text, out var condition))
+        {
+            value = (long)condition;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    // The structural immediates of the unpinned ops: cmp_br's conditions, the
+    // offset of load / store, cmp's right operand, and const's value or address-byte
+    // selector.
+    public override bool IsLegalImmediateOperand(ushort code, int useIndex) =>
+        (MOS6502Op)code switch
+        {
+            MOS6502Op.CmpBr => useIndex == 1 || (useIndex >= 2 && useIndex % 2 == 0),
+            MOS6502Op.Cmp => useIndex == 1,
+            MOS6502Op.Const => true,
+            MOS6502Op.Load or MOS6502Op.Store => true,
+            _ => false,
+        };
 
     internal override void OnRegistered(DialectId id) => Id = id;
 }

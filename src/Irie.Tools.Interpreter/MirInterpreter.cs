@@ -264,6 +264,23 @@ public sealed class MirInterpreter
             case ArithOp.Select:
                 result = Read(values, operands[1]) != 0 ? Read(values, operands[2]) : Read(values, operands[3]);
                 break;
+            // The narrow forms of multi-byte add and subtract: %r, %carry = op %a, %b,
+            // %carry_in. The subtract follows the 6502 polarity (carry 1 = no borrow).
+            case ArithOp.AddICarry:
+            {
+                var sum = Read(values, operands[2]) + Read(values, operands[3]) + Read(values, operands[4]);
+                Write(values, operands[1], bits < 64 ? (sum >> bits) & 1 : 0);
+                Write(values, operands[0], Truncate(sum, bits));
+                return;
+            }
+            case ArithOp.SubIBorrow:
+            {
+                var a = Read(values, operands[2]);
+                var subtrahend = Read(values, operands[3]) + (1 - Read(values, operands[4]));
+                Write(values, operands[1], a >= subtrahend ? 1UL : 0UL);
+                Write(values, operands[0], Truncate(a - subtrahend, bits));
+                return;
+            }
             case ArithOp.UDivI:
             case ArithOp.URemI:
             {

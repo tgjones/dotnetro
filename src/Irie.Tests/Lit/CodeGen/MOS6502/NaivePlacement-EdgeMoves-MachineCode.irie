@@ -1,0 +1,40 @@
+; RUN: @iriec --target mos6502 --placement naive --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "swap_loop(1|2|3, 5|6, 0..4)"
+
+; Block parameters are homes that each branch writes. The back edge passes the two
+; values swapped (each argument is the other's parameter), so the moves go through
+; temporary homes; the exit that passes an argument leaves through a block of its
+; own that does the move.
+
+; CHECK: swap_loop:
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDA $02
+; CHECK:     STA $16
+; CHECK:     LDA $14
+; CHECK:     STA $17
+; CHECK:     LDA $15
+; CHECK:     STA $18
+; CHECK:     LDA $16
+; CHECK:     STA $19
+; CHECK: .bb1:
+; CHECK:     LDA $19
+; CHECK:     BNE .bb3
+; CHECK: .bb2:
+; CHECK:     LDA $17
+; CHECK:     RTS
+
+func @swap_loop : (i8, i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8, %2 : i8):
+    cf.br bb1(%0, %1, %2)
+bb1(%3 : i8, %4 : i8, %5 : i8):
+    %6 : i8 = arith.constant 0
+    %7 : i1 = arith.cmpi eq, %5, %6
+    cf.cond_br %7, bb2(%3), bb3()
+bb3():
+    %8 : i8 = arith.constant 1
+    %9 : i8 = arith.subi %5, %8
+    cf.br bb1(%4, %3, %9)
+bb2(%10 : i8):
+    core.return %10
+}

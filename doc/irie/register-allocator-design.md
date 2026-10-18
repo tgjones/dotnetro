@@ -1,7 +1,7 @@
 # A register allocator for the 6502 — design
 
-**Status:** proposal; the steering decisions are recorded in §7. S0 and S1 are done
-(progress below the stage table in §5); nothing of S2–S7 is implemented.
+**Status:** proposal; the steering decisions are recorded in §7. S0, S1 and S2 are
+done (progress below the stage table in §5); nothing of S3–S7 is implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -560,6 +560,75 @@ S0 is complete.
   to anything systematic (a pool of 12 homes has no regression on either set, but the
   C# set then gains 6.1% instead of 11.8%); S4 replaces the colouring that makes the
   difference, so it was left alone.
+
+**S2 progress (2026-10-18):** done, as the §3.1 shape (selection and placement
+are separate passes), next to the colouring path, selected by `--placement naive`
+(`PlacementStrategy.Naive`; `iriec`, `dnrc`, `irie-exec`).
+- **Shape selection.** `MOS6502ShapeSelector` turns the legalized generic MIR into
+  the unpinned byte operations of the `mos6502` dialect on typed vregs: `adc`, `sbc`,
+  `and`, `ora`, `eor`, `shle`, `lshre` (the shifts were already unpinned), `cmp_br`,
+  `cmp`, `load`, `store`, `const`. Where a name had a pinned family (`adc.zp`,
+  `and.imm`, …) the unpinned op takes its first part; the ones with no single pinned
+  op are new (`cmp_br` is §3.2's fused compare-and-branch: one compare of a byte
+  pair, then the exits taken on its flags, so a wide compare is one `cmp_br` per
+  byte; `cmp` is the carry a CMP leaves, the sign seed of an arithmetic shift
+  right; `load`/`store` take `@sym+off` or `%lo, %hi, off`; `const` is an immediate
+  or the low/high byte of a symbol). The old `MOS6502InstructionSelector` is
+  untouched and stays until S4.
+- **Variant table.** `MOS6502Variants` lists, per operation, the variants — operand
+  places (`A X Y Carry Home Imm Abs Pair`) and the instruction template — and
+  derives bytes from the opcode tables and cycles from a new column,
+  `MOS6502InstructionDescription.Cycles` (NMOS base cycles; a page crossing and a
+  taken branch are not counted). Emission instantiates the template, so a
+  placement's cost and its code cannot disagree; a test pins the table's bytes to
+  the encoder's operand sizes. It holds more rows than the naive placement uses
+  (compares in X and Y, the `Abs` forms, …) so S3 starts from a costed table.
+- **Naive placement.** `MOS6502NaivePlacementPass` is K = 1 with everything homed:
+  every non-constant byte and every block parameter gets a home, an operation loads
+  its operands (immediates for constants) into A, runs its A-based variant and stores
+  the result. A carry the very next operation consumes stays in C (tracked); any
+  other is stored as 0/1 and reloaded with `LDA ; LSR`. Phi elimination is gone on
+  this path: a branch writes the parameters' homes (through temporary homes when an
+  argument is a parameter also being written) and a conditional exit with arguments
+  leaves through a block that does the moves. Argument and result copies for calls
+  and returns are ordered so that no register is clobbered before it is read.
+  Hand-written runtime code, already in physical registers, passes through.
+- **Absolute twins of homes** (the S1 gap). `MOS6502ProgramLayoutPass` takes
+  `allowAbsoluteHomes`: a function's homes that do not fit the zero-page budget live
+  in bytes of absolute memory (`<function>_h<n>` globals) and each instruction naming
+  one is rewritten to its absolute form. Zero page goes to the homes accessed most,
+  weighted by `LoopAnalysis` frequency; when a call path overflows, the callee with
+  the most zero-page homes gives them up first. The colouring path still fails with a
+  `NotSupportedException` there.
+- **Along the way.** `CallGraph` took any instruction with a symbol operand and a side
+  effect for a call, so `lda.imm.symlo @f` (a function pointer being built) was a call
+  of `f`, and `f` was never address-taken: an indirect caller's homes could then
+  overlap `f`'s. (`CalliDispatchTable` caught it; the colouring path only escaped
+  because it keeps almost nothing in homes.) Dialects now say which ops call
+  (`Dialect.IsCall`). The reference interpreter gained `addi_with_carry` /
+  `subi_with_borrow`, so hand-written narrow cases can be executed.
+- **Exit criterion met.** Every `.cs` lit test (BBC Micro and C64 runs) and every
+  executed `.irie` case passes on the naive path: `LitTestNaivePlacement` re-runs the
+  former with `dnrc --placement naive`, `ExecLitTestNaivePlacement` the latter with
+  `irie-exec --placement naive`. `ShapeSelector-*.irie` and `NaivePlacement-*.irie`
+  pin the shapes and the code, including a stored carry, edge moves with a swap, and
+  a function with more byte values than zero page has bytes.
+- **Cost of the baseline** (the number S3 has to beat; same measurements as S1):
+
+  | Set | Colouring | Naive |
+  |---|--:|--:|
+  | `LlvmMosReference` corpus code, bytes (43 cases both compile) | 3660 | 5076 (+39%) |
+  | C# lit programs, bytes (114 programs) | 170208 | 237403 (+39%) |
+  | C# benchmark kernels, bytes (6 programs) | 12704 | 17958 (+41%) |
+  | Corpus cycles of the functions under test, summed (43 functions) | 5 903 825 | 6 395 491 (+8%) |
+
+  The cycle sum is dominated by the multiply/divide libcalls, which are the same on
+  both paths, so it understates the gap for code that does its own arithmetic
+  (`loop-sum-array`: 18 955 against 25 908).
+- **Left for later stages.** One home per value, no sharing (S5); no folding of a
+  symbol load into `ADC abs` and no `INC`/`DEC`/`INX`/`INY` variants (the table has
+  the costs, nothing selects them before S3); no placement-specific verifier — the
+  post-placement verifier and the executed tests are the check until S3.
 
 ### Work outside the allocator that still limits quality
 

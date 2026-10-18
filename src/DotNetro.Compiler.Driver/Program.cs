@@ -8,7 +8,14 @@ var emitOption = new Option<EmitFormat?>("--emit") { Description = "The format t
 var targetOption = new Option<string>("--target") { Description = "Target system id (e.g. bbcmicro)", DefaultValueFactory = _ => TargetRegistry.BbcMicroId };
 
 var rootCommand = new RootCommand();
+var placementOption = new Option<string>("--placement")
+{
+    Description = "How values are placed: 'colouring' (default) or 'naive' (every value in a home: correct, slow code that needs no register allocator)",
+    DefaultValueFactory = _ => "colouring",
+};
+
 rootCommand.Options.Add(targetOption);
+rootCommand.Options.Add(placementOption);
 rootCommand.Options.Add(assemblyOption);
 rootCommand.Options.Add(outputOption);
 rootCommand.Options.Add(emitOption);
@@ -34,7 +41,13 @@ rootCommand.SetAction(parseResult =>
     var compilationResult = CompilerDriver.Compile(
         Path.GetFullPath(assembly),
         "Main",
-        parseResult.GetValue(targetOption)!);
+        parseResult.GetValue(targetOption)!,
+        parseResult.GetValue(placementOption) switch
+        {
+            "colouring" => Irie.Passes.PlacementStrategy.Colouring,
+            "naive"     => Irie.Passes.PlacementStrategy.Naive,
+            var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
+        });
 
     var outputStream = (output == null || output.FullName == "-")
         ? Console.OpenStandardOutput()

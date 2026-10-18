@@ -35,7 +35,7 @@ public sealed class MOS6502MachineCodeEmitTableTests
     [Test]
     public async Task Get_ThrowsForUnmappedOpcode()
     {
-        await Assert.That(() => MOS6502MachineCodeEmitTable.Get(MOS6502Op.CmpAbs))
+        await Assert.That(() => MOS6502MachineCodeEmitTable.Get(MOS6502Op.CmpAbsX))
             .Throws<KeyNotFoundException>();
     }
 }

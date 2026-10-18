@@ -25,6 +25,54 @@ public sealed class MirInterpreterTests
         await Assert.That(interpreter.Call("f", a, b)).IsEqualTo(expected);
     }
 
+    // The carry out of an 8-bit add with carry, and the result.
+    [Test]
+    [Arguments(0xFFUL, 0x01UL, 0UL, 0x00UL, 1UL)]
+    [Arguments(0xFFUL, 0x00UL, 1UL, 0x00UL, 1UL)] // the carry in counts
+    [Arguments(0x7FUL, 0x01UL, 0UL, 0x80UL, 0UL)]
+    public async Task AddWithCarry_ProducesTheSumAndTheCarry(ulong a, ulong b, ulong carryIn, ulong sum, ulong carryOut)
+    {
+        var interpreter = Load("""
+            func @f : (i8, i8, i1) -> i8 {
+            bb0(%0 : i8, %1 : i8, %2 : i1):
+                %3 : i8, %4 : i1 = arith.addi_with_carry %0, %1, %2
+                core.return %3
+            }
+            func @carry : (i8, i8, i1) -> i1 {
+            bb0(%0 : i8, %1 : i8, %2 : i1):
+                %3 : i8, %4 : i1 = arith.addi_with_carry %0, %1, %2
+                core.return %4
+            }
+            """);
+
+        await Assert.That(interpreter.Call("f", a, b, carryIn)).IsEqualTo(sum);
+        await Assert.That(interpreter.Call("carry", a, b, carryIn)).IsEqualTo(carryOut);
+    }
+
+    // The borrow follows the 6502: carry 1 means no borrow.
+    [Test]
+    [Arguments(0x05UL, 0x03UL, 1UL, 0x02UL, 1UL)]
+    [Arguments(0x05UL, 0x03UL, 0UL, 0x01UL, 1UL)] // a borrow in
+    [Arguments(0x03UL, 0x05UL, 1UL, 0xFEUL, 0UL)] // a borrow out
+    public async Task SubWithBorrow_FollowsTheCarryPolarityOfThe6502(ulong a, ulong b, ulong carryIn, ulong difference, ulong carryOut)
+    {
+        var interpreter = Load("""
+            func @f : (i8, i8, i1) -> i8 {
+            bb0(%0 : i8, %1 : i8, %2 : i1):
+                %3 : i8, %4 : i1 = arith.subi_with_borrow %0, %1, %2
+                core.return %3
+            }
+            func @carry : (i8, i8, i1) -> i1 {
+            bb0(%0 : i8, %1 : i8, %2 : i1):
+                %3 : i8, %4 : i1 = arith.subi_with_borrow %0, %1, %2
+                core.return %4
+            }
+            """);
+
+        await Assert.That(interpreter.Call("f", a, b, carryIn)).IsEqualTo(difference);
+        await Assert.That(interpreter.Call("carry", a, b, carryIn)).IsEqualTo(carryOut);
+    }
+
     [Test]
     [Arguments(0xFFFFUL, 0x0001UL, 1UL)] // -1 < 1 signed
     [Arguments(0x0001UL, 0xFFFFUL, 0UL)]

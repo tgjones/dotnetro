@@ -2,11 +2,24 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
+// How the values of a function are placed in registers and memory.
+public enum PlacementStrategy
+{
+    // Instruction selection pins registers, then a graph-colouring allocator
+    // assigns them (the original pipeline).
+    Colouring,
+
+    // Shape selection emits unpinned operations and the trivial placement homes
+    // every value: correct, slow, and independent of any register allocator.
+    Naive,
+}
+
 // The single definition of the Irie pass pipeline, shared by `iriec` and `dnrc`
 // so lit goldens and emulator-executed programs always exercise the same passes.
 public static class PipelineBuilder
 {
-    public static void AddStandardPipeline(PassManager passMgr, Target.Target target)
+    public static void AddStandardPipeline(
+        PassManager passMgr, Target.Target target, PlacementStrategy placement = PlacementStrategy.Colouring)
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());
@@ -19,6 +32,23 @@ public static class PipelineBuilder
         // Target pre-isel passes (e.g. MOS6502 select-lowering) run on legalized,
         // still-SSA MIR — the llvm-mos slot for MOSLowerSelect.
         target.AddPreInstructionSelectionPasses(passMgr);
+        if (placement == PlacementStrategy.Naive)
+        {
+            // Shape selection: unpinned operations on typed vregs, then a
+            // placement that gives every value a home. There are no register
+            // classes, no phi elimination and no allocation: block parameters
+            // become writes of the parameters' homes on each edge.
+            passMgr.AddPass(new InstructionSelectorPass(target.CreateShapeSelector()));
+            passMgr.AddPass(target.CreateNaivePlacementPass());
+            passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
+            passMgr.AddPass(new FrameLoweringPass());
+            target.AddBranchFoldingPasses(passMgr);
+            passMgr.AddPass(new CopyEliminationPass());
+            target.AddPostPlacementPasses(passMgr, placement);
+            AddLoweringAndFinalPasses(passMgr, target);
+            return;
+        }
+
         passMgr.AddPass(new InstructionSelectorPass(target.InstructionSelector));
         // Insert class-crossing legalization copies wherever a use operand's required
         // register class is disjoint from its source vreg's def class (e.g. an `ac`
@@ -50,6 +80,12 @@ public static class PipelineBuilder
         target.AddBranchFoldingPasses(passMgr);
         passMgr.AddPass(new CopyEliminationPass());
         target.AddPostRegisterAllocationPasses(passMgr);
+        AddLoweringAndFinalPasses(passMgr, target);
+    }
+
+    // Everything after the register / home assignment, common to both placements.
+    private static void AddLoweringAndFinalPasses(PassManager passMgr, Target.Target target)
+    {
         // Expand abstract frame accesses (mos6502.frame.*.byte) into concrete
         // addressing sequences per each slot's placement — the eliminateFrameIndex
         // analogue. Post-RA, after the target's post-RA passes, before PEI / pseudo

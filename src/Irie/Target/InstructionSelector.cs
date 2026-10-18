@@ -17,6 +17,10 @@ public abstract class InstructionSelector
     // over from the previous block in the list must be dropped here.
     public virtual void BeginBlock(MirBlock block) { }
 
+    // Called once per function after its last instruction was selected, for
+    // clean-up of what selection left dead.
+    public virtual void EndFunction(MirFunction function, MirBuilder builder) { }
+
     // Select a single instruction. The implementation may emit replacement
     // instructions via the builder and call builder.Remove(instruction)
     // for the original. Returns true if the instruction was handled

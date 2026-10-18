@@ -13,12 +13,19 @@ var targetOption = new Option<string>("--target") { Description = "Target to com
 var emulatorOption = new Option<FileInfo>("--emulator") { Description = "Path to the DotNetro 6502 emulator executable", Required = true };
 var maxTicksOption = new Option<int>("--max-ticks") { Description = "Emulator tick budget per function. Default: 50,000,000.", DefaultValueFactory = _ => 50_000_000 };
 
+var placementOption = new Option<string>("--placement")
+{
+    Description = "How the compiled code places values: 'colouring' (default) or 'naive' (every value in a home)",
+    DefaultValueFactory = _ => "colouring",
+};
+
 var rootCommand = new RootCommand("Irie execution checker -- runs a MIR function over generated inputs in the interpreter and, compiled, in the emulator, and compares the results");
 rootCommand.Arguments.Add(inputArgument);
 rootCommand.Options.Add(targetOption);
 rootCommand.Options.Add(execOption);
 rootCommand.Options.Add(emulatorOption);
 rootCommand.Options.Add(maxTicksOption);
+rootCommand.Options.Add(placementOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -35,6 +42,12 @@ rootCommand.SetAction(parseResult =>
     }
     var emulator = parseResult.GetValue(emulatorOption)!;
     var maxTicks = parseResult.GetValue(maxTicksOption);
+    ExecSettings.Placement = parseResult.GetValue(placementOption) switch
+    {
+        "colouring" => PlacementStrategy.Colouring,
+        "naive"     => PlacementStrategy.Naive,
+        var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
+    };
 
     var text = File.ReadAllText(input.FullName);
     var directives = parseResult.GetValue(execOption)!.Select(ExecDirective.Parse).ToList();
@@ -158,7 +171,7 @@ static ulong[]? RunCompiled(string text, ExecDirective directive, List<ulong[]> 
     DriverBuilder.AddDriver(module, function, vectors, execTarget, bufferSymbols);
 
     var passManager = new PassManager(null, null);
-    PipelineBuilder.AddStandardPipeline(passManager, target);
+    PipelineBuilder.AddStandardPipeline(passManager, target, ExecSettings.Placement);
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
@@ -290,4 +303,10 @@ static void KeepReachable(MirModule module, MirFunction root)
                         pending.Push(callee);
     }
     module.Functions.RemoveAll(f => !reachable.Contains(f));
+}
+
+// The command-line choices the local functions above read.
+static class ExecSettings
+{
+    public static PlacementStrategy Placement;
 }

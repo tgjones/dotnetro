@@ -1,0 +1,48 @@
+; RUN: @iriec --target mos6502 --placement naive --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement naive --exec "stored_carry(*, *)"
+
+; A carry that the next operation does not consume is stored: as 0 / 1 in a home
+; (`LDA #$00 ; ROL ; STA`), and reloaded into C (`LDA ; LSR`) where it is read. Here
+; the carry out of the first add is read after an unrelated add, whose own carry
+; (read at once) never leaves C. The colouring allocator cannot keep a carry in
+; memory, so this case is only executed on the naive path.
+
+; CHECK: stored_carry:
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     CLC
+; CHECK:     LDA $14
+; CHECK:     ADC $15
+; CHECK:     STA $16
+; CHECK:     LDA #$00
+; CHECK:     ROL
+; CHECK:     STA $17
+; CHECK:     CLC
+; CHECK:     LDA $15
+; CHECK:     ADC $14
+; CHECK:     STA $18
+; CHECK:     LDA #$00
+; CHECK:     ROL
+; CHECK:     STA $19
+; CHECK:     LDA $17
+; CHECK:     LSR
+; CHECK:     LDA $16
+; CHECK:     ADC $18
+; CHECK:     STA $1A
+; CHECK:     LDA $19
+; CHECK:     LSR
+; CHECK:     LDA $1A
+; CHECK:     ADC $18
+; CHECK:     STA $1B
+; CHECK:     LDA $1B
+; CHECK:     RTS
+
+func @stored_carry : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i1 = arith.constant 0
+    %3 : i8, %4 : i1 = arith.addi_with_carry %0, %1, %2
+    %5 : i8, %6 : i1 = arith.addi_with_carry %1, %0, %2
+    %7 : i8, %8 : i1 = arith.addi_with_carry %3, %5, %4
+    %9 : i8, %10 : i1 = arith.addi_with_carry %7, %5, %6
+    core.return %9
+}

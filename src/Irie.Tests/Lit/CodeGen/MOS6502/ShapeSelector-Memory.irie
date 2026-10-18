@@ -1,0 +1,37 @@
+; RUN: @iriec --target mos6502 --placement naive --stop-after InstructionSelector @file
+
+; Memory accesses are `mos6502.load` / `mos6502.store`, on a symbol (`@buf+1`
+; names the second byte) or on the two bytes of a pointer and an offset. The
+; address bytes of a symbol passed as a value are `mos6502.const @sym, 0|1`.
+
+; CHECK: func @memory : (ptr) -> void {
+; CHECK: bb0():
+; CHECK:     [liveins: $a, $x]
+; CHECK:     %4 : i8 = pseudo.copy $a
+; CHECK:     %5 : i8 = pseudo.copy $x
+; CHECK:     %11 : i8 = mos6502.load @buf
+; CHECK:     %12 : i8 = mos6502.load @buf+1
+; CHECK:     mos6502.store %11, %4, %5, 0
+; CHECK:     mos6502.store %12, %4, %5, 1
+; CHECK:     %8 : i8 = mos6502.load %4, %5, 0
+; CHECK:     mos6502.store %8, @buf
+; CHECK:     %6 : i8 = mos6502.const @buf, 0
+; CHECK:     %7 : i8 = mos6502.const @buf, 1
+; CHECK:     $a = pseudo.copy %6
+; CHECK:     $x = pseudo.copy %7
+; CHECK:     mos6502.jsr.abs @sink, implicit $a, implicit $x, implicit-def $a, implicit-def $x, implicit-def $y, implicit-def $c, implicit-def $n, implicit-def $v, implicit-def $z, implicit-def $b, implicit-def $zp2, implicit-def $zp3, implicit-def $zp4, implicit-def $zp5, implicit-def $zp6, implicit-def $zp7, implicit-def $zp8, implicit-def $zp9, implicit-def $zp10, implicit-def $zp11, implicit-def $zp12, implicit-def $zp13, implicit-def $zp14, implicit-def $zp15, implicit-def $zp16, implicit-def $zp17, implicit-def $zp18, implicit-def $zp19
+; CHECK:     mos6502.rts
+; CHECK: }
+
+global @buf : i32
+
+func @memory : (ptr) -> void {
+bb0(%0 : ptr):
+    %1 : ptr = mem.symbol @buf
+    %2 : i16 = mem.load.i16 %1
+    mem.store.i16 %0, %2
+    %3 : i8 = mem.load.i8 %0
+    mem.store.i8 %1, %3
+    call.func @sink, %1
+    core.return
+}

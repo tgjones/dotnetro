@@ -25,6 +25,11 @@ public abstract class Dialect
     // True when this opcode produces no observable side effects (drives DCE).
     public abstract bool IsSideEffectFree(ushort code);
 
+    // True when an instruction of this opcode that names a symbol may be a call to
+    // that symbol (as opposed to taking its address or reading it as data). The
+    // call graph treats those that do as calls. Default: any op with side effects.
+    public virtual bool IsCall(ushort code) => !IsSideEffectFree(code);
+
     // True when this opcode terminates a basic block.
     public abstract bool IsTerminator(ushort code);
 

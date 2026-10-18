@@ -288,4 +288,40 @@ public enum MOS6502Op : ushort
     // values.
     Shle,
     Lshre,
+
+    // ===== Unpinned operations (shape selection) =====
+    //
+    // Byte-level operations on typed SSA vregs that name no register and no
+    // addressing mode. MOS6502ShapeSelector emits them from the legalized generic
+    // MIR and a placement (MOS6502NaivePlacementPass today) chooses, per
+    // operation, which variant of MOS6502Variants implements it. The bare
+    // `And`/`Ora`/`Eor`/`Inc`/`Dec` above are the unpinned forms of those families
+    // (`mos6502.and` is `and.zp` / `and.imm` / `and.abs` before a variant is
+    // chosen); `Shle`/`Lshre` are already unpinned.
+    //
+    // %r, %cout = mos6502.adc %a, %b, %cin     %r = %a + %b + %cin, %cout the carry
+    // %r, %cout = mos6502.sbc %a, %b, %cin     %r = %a - %b - !%cin, %cout the no-borrow
+    //                                          (6502 carry polarity: 1 = no borrow)
+    // %r = mos6502.and|ora|eor %a, %b
+    // %c = mos6502.cmp %a, %b                  %c = (%a >=u %b), the carry a CMP leaves: the
+    //                                          sign seed of an arithmetic shift right
+    // mos6502.cmp_br %a, %b, <cc>, T [, <cc>, T2]
+    //        compare %a with %b once, then branch to each target whose condition
+    //        <cc> (a CmpBrCondition) holds on the result of that single compare,
+    //        in order; control falls through when none does. One byte of a wide
+    //        compare ladder, or the whole of an i8 compare + branch.
+    // %r = mos6502.load @sym+off               a byte of static memory (a global, or
+    //                                          a frame slot: the placement decides)
+    // %r = mos6502.load %ptrLo, %ptrHi, off   the byte at (pointer + off)
+    // mos6502.store %v, @sym+off
+    // mos6502.store %v, %ptrLo, %ptrHi, off
+    // %v = mos6502.const <imm>                 an i8 / i1 constant
+    // %v = mos6502.const @sym, <0|1>           the low (0) or high (1) byte of an address
+    Adc,
+    Sbc,
+    CmpBr,
+    Cmp,
+    Load,
+    Store,
+    Const,
 }

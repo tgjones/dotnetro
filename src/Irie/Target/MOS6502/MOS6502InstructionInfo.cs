@@ -208,4 +208,51 @@ public sealed class MOS6502InstructionInfo
 public sealed record MOS6502InstructionDescription(
     int            Opcode,
     string         Mnemonic,
-    AddressingMode Mode);
+    AddressingMode Mode)
+{
+    // Encoded size: the opcode byte plus its operand.
+    public int Bytes => Mode switch
+    {
+        AddressingMode.Implied => 1,
+        AddressingMode.Absolute or AddressingMode.AbsoluteX or AddressingMode.AbsoluteY
+            or AddressingMode.Indirect => 3,
+        _ => 2,
+    };
+
+    // Base cycle count of the NMOS 6502. A page-crossing indexed read costs one
+    // more and a taken branch one more (two when it crosses a page); neither is
+    // counted, so this is the fastest the instruction can run.
+    public int Cycles => Mode switch
+    {
+        _ when Mnemonic is "JSR" or "RTS" or "RTI" => 6,
+        _ when Mnemonic is "BRK" => 7,
+        _ when Mnemonic is "PHA" or "PHP" => 3,
+        _ when Mnemonic is "PLA" or "PLP" => 4,
+        _ when Mnemonic is "JMP" => Mode == AddressingMode.Indirect ? 5 : 3,
+        AddressingMode.Relative => 2,
+        AddressingMode.Implied => 2,
+        _ when Mnemonic is "STA" or "STX" or "STY" => Mode switch
+        {
+            AddressingMode.ZeroPage => 3,
+            AddressingMode.ZeroPageX or AddressingMode.ZeroPageY or AddressingMode.Absolute => 4,
+            AddressingMode.AbsoluteX or AddressingMode.AbsoluteY => 5,
+            _ => 6, // (zp,X) and (zp),Y
+        },
+        _ when Mnemonic is "INC" or "DEC" or "ASL" or "LSR" or "ROL" or "ROR" => Mode switch
+        {
+            AddressingMode.ZeroPage => 5,
+            AddressingMode.ZeroPageX or AddressingMode.Absolute => 6,
+            _ => 7, // abs,X
+        },
+        // Loads and the read-only ALU / compare group.
+        _ => Mode switch
+        {
+            AddressingMode.Immediate => 2,
+            AddressingMode.ZeroPage => 3,
+            AddressingMode.ZeroPageX or AddressingMode.ZeroPageY
+                or AddressingMode.Absolute or AddressingMode.AbsoluteX or AddressingMode.AbsoluteY => 4,
+            AddressingMode.IndirectY => 5,
+            _ => 6, // (zp,X)
+        },
+    };
+}

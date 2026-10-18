@@ -56,6 +56,27 @@ public class MOS6502Target : Irie.Target.Target
             ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots, GetLibrary()));
     }
 
+    public override Irie.Target.InstructionSelector CreateShapeSelector() => new MOS6502ShapeSelector();
+
+    public override Pass CreateNaivePlacementPass() => new MOS6502NaivePlacementPass();
+
+    // The naive placement emits concrete ops on homes already, so none of the
+    // passes that refine or reorder register-allocator output run; only the
+    // recursion saves and the program layout, which may put homes in absolute
+    // memory when zero page runs out.
+    public override void AddPostPlacementPasses(Irie.Passes.PassManager pm, PlacementStrategy placement)
+    {
+        if (placement != PlacementStrategy.Naive)
+        {
+            AddPostRegisterAllocationPasses(pm);
+            return;
+        }
+        pm.AddPass(new MOS6502RecursionSavePass());
+        pm.AddPass(new MOS6502ProgramLayoutPass(
+            ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots, GetLibrary(),
+            allowAbsoluteHomes: true));
+    }
+
     // The zero-page window holding the functions' homes: everything above the
     // fixed ABI registers RC0..RC19 up to $8F. A DotNetro program never returns
     // to BASIC, so it owns the language workspace; the OS uses $90 and up.

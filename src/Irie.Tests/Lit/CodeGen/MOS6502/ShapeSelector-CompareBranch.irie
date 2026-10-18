@@ -1,0 +1,66 @@
+; RUN: @iriec --target mos6502 --placement naive --stop-after InstructionSelector @file
+
+; A compare and the branch it decides fuse into `mos6502.cmp_br`: one compare of
+; a byte pair followed by the exits taken on its flags (`cc`, `cs`, `ne`, `eq`,
+; `mi`). A wide compare is one cmp_br per byte from the top down; the signed
+; forms bias the top byte with an `eor` of 0x80 first. Block arguments ride on the
+; exits like on any branch.
+
+; CHECK: func @branches : (i32, i32, i8) -> i8 {
+; CHECK: bb0():
+; CHECK:     [liveins: $a, $x, $zp2, $zp3, $zp4, $zp5, $zp6, $zp7, $zp8]
+; CHECK:     %10 : i8 = pseudo.copy $a
+; CHECK:     %11 : i8 = pseudo.copy $x
+; CHECK:     %12 : i8 = pseudo.copy $zp2
+; CHECK:     %13 : i8 = pseudo.copy $zp3
+; CHECK:     %14 : i8 = pseudo.copy $zp4
+; CHECK:     %15 : i8 = pseudo.copy $zp5
+; CHECK:     %16 : i8 = pseudo.copy $zp6
+; CHECK:     %17 : i8 = pseudo.copy $zp7
+; CHECK:     %2 : i8 = pseudo.copy $zp8
+; CHECK:     mos6502.cmp_br %13, %17, cc, bb1, ne, bb2
+; CHECK:     mos6502.cmp_br %12, %16, cc, bb1, ne, bb2
+; CHECK:     mos6502.cmp_br %11, %15, cc, bb1, ne, bb2
+; CHECK:     mos6502.cmp_br %10, %14, cs, bb2
+; CHECK:     cf.br bb1
+; CHECK: bb1():
+; CHECK:     %58 : i8 = mos6502.const 128
+; CHECK:     %59 : i8 = mos6502.eor %17, %58
+; CHECK:     %60 : i8 = mos6502.const 128
+; CHECK:     %61 : i8 = mos6502.eor %13, %60
+; CHECK:     mos6502.cmp_br %59, %61, cc, bb3(%2), ne, bb4
+; CHECK:     mos6502.cmp_br %16, %12, cc, bb3(%2), ne, bb4
+; CHECK:     mos6502.cmp_br %15, %11, cc, bb3(%2), ne, bb4
+; CHECK:     mos6502.cmp_br %14, %10, cc, bb3(%2)
+; CHECK:     cf.br bb4
+; CHECK: bb2():
+; CHECK:     %5 : i8 = mos6502.const 7
+; CHECK:     mos6502.cmp_br %2, %5, ne, bb3(%5)
+; CHECK:     cf.br bb4
+; CHECK: bb3(%7 : i8):
+; CHECK:     cf.br bb5(%7)
+; CHECK: bb4():
+; CHECK:     %8 : i8 = mos6502.const 0
+; CHECK:     cf.br bb5(%8)
+; CHECK: bb5(%9 : i8):
+; CHECK:     $a = pseudo.copy %9
+; CHECK:     mos6502.rts implicit $a
+; CHECK: }
+
+func @branches : (i32, i32, i8) -> i8 {
+bb0(%0 : i32, %1 : i32, %2 : i8):
+    %3 : i1 = arith.cmpi ult, %0, %1
+    cf.cond_br %3, bb1(), bb2()
+bb1():
+    %4 : i1 = arith.cmpi slt, %1, %0
+    cf.cond_br %4, bb3(%2), bb4()
+bb2():
+    %5 : i8 = arith.constant 7
+    %6 : i1 = arith.cmpi eq, %2, %5
+    cf.cond_br %6, bb4(), bb3(%5)
+bb3(%7 : i8):
+    core.return %7
+bb4():
+    %8 : i8 = arith.constant 0
+    core.return %8
+}

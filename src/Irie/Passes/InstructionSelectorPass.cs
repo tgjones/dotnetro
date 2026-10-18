@@ -35,5 +35,7 @@ public sealed class InstructionSelectorPass(Irie.Target.InstructionSelector sele
                 }
             }
         }
+
+        selector.EndFunction(function, builder);
     }
 }

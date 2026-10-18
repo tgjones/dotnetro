@@ -11,6 +11,18 @@ public sealed class LitTests
         LitTestRunner.Run(filePath, LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration()));
     }
 
+    // The same programs compiled with the naive placement (every value in a home):
+    // each RUN line that runs @dnrc gets `--placement naive`, and the DIFF against
+    // the .NET run still has to hold.
+    [Test]
+    [MethodDataSource(nameof(LitTestSource))]
+    public void LitTestNaivePlacement(string filePath)
+    {
+        var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
+        var variables = configuration.Variables.SetItem("dnrc", configuration.Variables["dnrc"] + " --placement naive");
+        LitTestRunner.Run(filePath, configuration with { Variables = variables });
+    }
+
     public static IEnumerable<Func<string>> LitTestSource()
     {
         var result = new List<Func<string>>();

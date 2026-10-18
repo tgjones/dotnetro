@@ -19,6 +19,20 @@ public sealed class ProgramLayoutTests
 
     private static string Run(string mir, params Pass[] extra) => Run(mir, null, extra);
 
+    // The layout with absolute homes allowed (the naive placement's), in a window
+    // that ends at `windowEnd`.
+    private static string RunWithAbsoluteHomes(string mir, int windowEnd)
+    {
+        var module = MirModule.Parse(new StringReader(mir));
+        var passMgr = new PassManager(null, null);
+        passMgr.AddPass(new MOS6502ProgramLayoutPass(
+            0, WindowStart, windowEnd, promoteFrameSlots: false, library: null, allowAbsoluteHomes: true));
+        passMgr.Run(new CompilationContext(module));
+        var writer = new StringWriter();
+        module.Write(writer, Target.GetRegisterName);
+        return writer.ToString();
+    }
+
     private static string Run(string mir, Irie.MachineCode.MachineCodeModule? library, params Pass[] extra)
     {
         var module = MirModule.Parse(new StringReader(mir));
@@ -105,6 +119,86 @@ public sealed class ProgramLayoutTests
         var first = text.IndexOf("$zp20 = mos6502.sta.zp $a", StringComparison.Ordinal);
         await Assert.That(first).IsGreaterThanOrEqualTo(0);
         await Assert.That(text.IndexOf("$zp20 = mos6502.sta.zp $a", first + 1, StringComparison.Ordinal)).IsGreaterThan(first);
+    }
+
+    [Test]
+    public async Task WithAbsoluteHomes_TheLeastUsedHomeMovesToAbsoluteMemory()
+    {
+        // One byte of window for two homes: the one used three times keeps it, the
+        // one used once lives in a global, and each instruction naming it takes its
+        // absolute form (a store's value comes first, then the address).
+        var text = RunWithAbsoluteHomes("""
+            func @f : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                $301 = mos6502.sta.zp $0
+                $0 = mos6502.lda.zp $300
+                $0 = mos6502.lda.zp $301
+                $0 = mos6502.lda.zp $300
+                mos6502.rts
+            }
+            """, windowEnd: WindowStart + 1);
+
+        await Assert.That(text).Contains("$zp20 = mos6502.sta.zp $a");
+        await Assert.That(text).Contains("mos6502.sta.abs $a, @f_h1");
+        await Assert.That(text).Contains("$a = mos6502.lda.abs @f_h1");
+        await Assert.That(text).Contains("global @f_h1");
+        await Assert.That(text).DoesNotContain("$h1");
+    }
+
+    [Test]
+    public async Task WithAbsoluteHomes_EveryHomeFitsWhenThereIsRoom()
+    {
+        var text = RunWithAbsoluteHomes("""
+            func @f : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                $301 = mos6502.sta.zp $0
+                mos6502.rts
+            }
+            """, windowEnd: WindowEnd);
+
+        await Assert.That(text).DoesNotContain("global");
+        await Assert.That(text).DoesNotContain(".abs");
+    }
+
+    [Test]
+    public async Task WithAbsoluteHomes_ACalleesHomesAreDemotedBeforeTheCallersWhenTheyDoNotFit()
+    {
+        // @leaf needs 3 bytes and @caller 2, and the window holds 4: the caller's
+        // block sits above the leaf's, so something has to give. Both functions
+        // still end up with every home somewhere.
+        var text = RunWithAbsoluteHomes("""
+            func @leaf : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                $301 = mos6502.sta.zp $0
+                $302 = mos6502.sta.zp $0
+                mos6502.rts
+            }
+            func @caller : () -> void {
+            bb0():
+                $300 = mos6502.sta.zp $0
+                $301 = mos6502.sta.zp $0
+                mos6502.jsr.abs @leaf
+                mos6502.rts
+            }
+            """, windowEnd: WindowStart + 4);
+
+        await Assert.That(text).DoesNotContain("$h");
+        await Assert.That(text).Contains("global");
+    }
+
+    [Test]
+    public async Task WithoutAbsoluteHomes_ExhaustingZeroPageStillFails()
+    {
+        await Assert.That(() => Run("""
+            func @big : () -> void {
+            bb0():
+                $430 = mos6502.sta.zp $0
+                mos6502.rts
+            }
+            """)).Throws<NotSupportedException>();
     }
 
     [Test]

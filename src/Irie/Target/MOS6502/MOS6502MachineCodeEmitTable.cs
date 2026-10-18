@@ -87,6 +87,13 @@ public static class MOS6502MachineCodeEmitTable
         [MOS6502Op.CpyZp]  = new EmitRule(MOS6502Opcode.CPY_ZeroPage, EmitOperandKind.ZeroPageAddress, 1),
         [MOS6502Op.CpyImm] = new EmitRule(MOS6502Opcode.CPY_Immediate, EmitOperandKind.Immediate, 1),
 
+        // The absolute-address forms of the compares: the compare of a value whose
+        // home program layout placed in absolute memory (or a global). Same
+        // operand layout; index 1 is the Symbol.
+        [MOS6502Op.CmpAbs] = new EmitRule(MOS6502Opcode.CMP_Absolute, EmitOperandKind.AbsoluteAddress, 1),
+        [MOS6502Op.CpxAbs] = new EmitRule(MOS6502Opcode.CPX_Absolute, EmitOperandKind.AbsoluteAddress, 1),
+        [MOS6502Op.CpyAbs] = new EmitRule(MOS6502Opcode.CPY_Absolute, EmitOperandKind.AbsoluteAddress, 1),
+
         // $a, $c = mos6502.adc.imm $a, #N, $c — same operand block as AdcZp
         // (AdcInfo): def[0]=$a, def[1]=$c, use[0]=$a (tied), use[1]=imm, use[2]=$c.
         // Index 3 = use[1], the immediate. Used by hand-written runtime helpers

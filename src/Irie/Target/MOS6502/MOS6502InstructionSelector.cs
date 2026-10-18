@@ -694,7 +694,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // contiguous run avoids picking up unrelated physreg-target copies
     // emitted earlier in the block (e.g. the indirect-Y pointer setup that
     // mem.load/store lowering inserts).
-    private static bool SelectReturn(MirInstruction instr, MirBuilder builder)
+    internal static bool SelectReturn(MirInstruction instr, MirBuilder builder)
     {
         var block = instr.Parent!;
         var implicitUses = new List<MirOperand>();
@@ -930,7 +930,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // outermost high-byte compare) and the per-byte operands, so those per-byte
     // predicates and the nots wrapping them are irrelevant here — StripNots looks
     // through them, and the lower-level predicates are discarded.
-    private static (ArithCmpPredicate predicate, List<(int a, int b)> bytes)
+    internal static (ArithCmpPredicate predicate, List<(int a, int b)> bytes)
         RecoverCmpTree(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
     {
         vreg = StripNots(function, vreg, treeInstrs);
@@ -978,7 +978,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
 
     // Follow a chain of `arith.not` definitions, collecting them into
     // `treeInstrs`, and return the underlying (non-not) vreg.
-    private static int StripNots(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
+    internal static int StripNots(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
     {
         while (true)
         {
@@ -1705,7 +1705,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // (FrameAccessLoweringPass → MOS6502FrameLowering.LowerFrameAccess); a
     // non-frame global keeps the indirect-Y lowering at isel because its address
     // is genuinely absolute, not a frame object.
-    private static string? ResolveFrameSlotSymbol(MirFunction function, int addrVreg)
+    internal static string? ResolveFrameSlotSymbol(MirFunction function, int addrVreg)
     {
         var symbolName = TryResolveSymbolAddress(function, addrVreg);
         if (symbolName is null) return null;
@@ -1716,7 +1716,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
         return null;
     }
 
-    private static string? TryResolveSymbolAddress(MirFunction function, int addrVreg)
+    internal static string? TryResolveSymbolAddress(MirFunction function, int addrVreg)
     {
         var def = function.GetDefinition(addrVreg);
         if (def is not null
@@ -1734,7 +1734,7 @@ public sealed class MOS6502InstructionSelector : Irie.Target.InstructionSelector
     // address vreg is not defined by a pseudo.merge of exactly two byte vregs —
     // other pointer shapes (frame slots, scalar i16 vregs that never went
     // through a merge) are not yet supported, so the gap stays visible.
-    private static (int Lo, int Hi) ResolveRuntimePointerBytesOrThrow(MirFunction function, int addrVreg)
+    internal static (int Lo, int Hi) ResolveRuntimePointerBytesOrThrow(MirFunction function, int addrVreg)
     {
         var def = function.GetDefinition(addrVreg);
         if (def is not null

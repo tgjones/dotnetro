@@ -97,7 +97,7 @@ public sealed class CallGraph
         var dialect = DialectRegistry.ById(instr.Opcode.Dialect);
         var isCall = dialect.Prefix == "call"
             ? (CallOp)instr.Opcode.Code is CallOp.Func or CallOp.Indirect
-            : !dialect.IsSideEffectFree(instr.Opcode.Code) && HasSymbolOperand(instr);
+            : dialect.IsCall(instr.Opcode.Code) && HasSymbolOperand(instr);
         if (!isCall) return false;
 
         foreach (var op in instr.Operands)
