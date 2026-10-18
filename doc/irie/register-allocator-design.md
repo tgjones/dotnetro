@@ -701,6 +701,36 @@ stage's own design predicts (see the result).
   fold an index into the address), edge moves from registers for the exits of a
   `cmp_br`, and callee-chosen conventions (S6).
 
+**S4 progress (2026-10-18):** in steps, each committed on its own. Colouring is deleted
+only at the end, and only if the exit criterion is met (decided with the maintainer).
+Per-case colouring baselines (bytes, and cycles for the corpus) were recorded before
+anything changed, since the colourer cannot be rerun once it is gone: corpus 3660 bytes
+and 5 903 825 cycles, C# lit and benchmark programs 182 912 bytes (matching the S1 and S3
+tables).
+- **S4.1, home classes (done).** `HomeClasses` (beam placement only; the naive baseline
+  keeps one home per value) joins every block parameter with the arguments it receives,
+  and every vreg-to-vreg copy with its source, when the two are never live together.
+  Interference is by value (a copy does not make source and result interfere) and is
+  built from a backward scan with the block's live-out set; candidates are tried in
+  decreasing block frequency (`LoopAnalysis`), and merged classes keep an interference
+  set so a class is checked once. Values that live in a zero-page argument register or
+  are rebuilt from a symbol keep their own home. `Placer.HomeKey` maps a vreg to its
+  class; `EdgeMoves` drops a move whose argument already shares the parameter's home
+  (the argument must still be in that home, which `Jump` makes sure of), a branch that
+  needs no moves no longer gets an edge block, and the move hazard test compares homes
+  rather than vregs. `PlacementChecker` accepts a home that has not been touched yet
+  when the value it must hold is the input of a vreg it shares with.
+
+  | Set | Colouring | Beam (S3) | Beam + home classes |
+  |---|--:|--:|--:|
+  | `LlvmMosReference` corpus code, bytes (43 cases) | 3660 | 3985 | 3831 (+4.7%) |
+  | C# lit programs and benchmark kernels, bytes (120 programs) | 182 912 | 201 426 | 172 321 (−5.8%) |
+  | Corpus cycles of the functions under test | 5 903 825 | 6 073 692 | 5 985 762 (+1.4%) |
+
+  Against colouring the corpus is smaller on 9 cases, equal on 11 and larger on 23, and
+  16 of the 120 C# programs are larger. Copy coalescing on top of phi coalescing changes
+  no byte count and saves 6K corpus cycles.
+
 ### Work outside the allocator that still limits quality
 
 These were measured in §2.1. No allocator closes them, and on C# some are larger

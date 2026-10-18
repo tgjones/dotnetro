@@ -351,17 +351,23 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             return false;
         }
 
+        // Which values share a home: the key a value's home is filed under. Every
+        // value has a home of its own here; the beam placement overrides this to
+        // let values that are never live together share one.
+        internal virtual int HomeKey(int vreg) => vreg;
+
         internal virtual PhysicalReg Home(int vreg)
         {
-            if (!_homes.TryGetValue(vreg, out var n))
-                _homes[vreg] = n = _nextHome++;
+            var key = HomeKey(vreg);
+            if (!_homes.TryGetValue(key, out var n))
+                _homes[key] = n = _nextHome++;
             return new PhysicalReg(MOS6502Registers.Home(n), IsDefinition: false);
         }
 
         // The register of the home a value already has, without giving it one.
         internal virtual bool TryGetHome(int vreg, out int register)
         {
-            if (_homes.TryGetValue(vreg, out var n))
+            if (_homes.TryGetValue(HomeKey(vreg), out var n))
             {
                 register = MOS6502Registers.Home(n);
                 return true;
@@ -741,12 +747,12 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // Edges
         // ------------------------------------------------------------------
 
-        // The target a conditional exit branches to: itself when it carries no
-        // arguments, else a new block that moves them into the parameters and jumps.
+        // The target a conditional exit branches to: itself when it needs no moves,
+        // else a new block that moves the arguments into the parameters and jumps.
         internal BlockTarget EdgeTarget(BlockTarget target)
         {
-            if (target.Args.Length == 0)
-                return target;
+            if (target.Args.Length == 0 || EdgeMoves(target).Count == 0)
+                return new BlockTarget(target.Block, []);
 
             var (savedOut, savedCarry) = (_out, _carryHolds);
             _out = [];
@@ -765,8 +771,9 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             return new BlockTarget(edge, []);
         }
 
-        // The parallel move of a branch's arguments into the target's parameters.
-        internal void EmitEdgeMoves(BlockTarget target)
+        // The moves a branch makes: each used parameter that does not already share
+        // its home with the argument it receives.
+        internal List<(int Parameter, MirOperand Source)> EdgeMoves(BlockTarget target)
         {
             var parameters = target.Block.Parameters;
             if (parameters.Count != target.Args.Length)
@@ -777,15 +784,27 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             for (var k = 0; k < parameters.Count; k++)
             {
                 var source = target.Args[k];
-                if (source is VirtualReg v && v.Id == parameters[k]) continue;
+                if (source is VirtualReg v && !_constants.ContainsKey(v.Id) && HomeKey(v.Id) == HomeKey(parameters[k])) continue;
                 if (_uses.GetValueOrDefault(parameters[k]) == 0) continue;
                 moves.Add((parameters[k], source));
             }
+            return moves;
+        }
 
-            // A move that reads a parameter another move writes must not run after
-            // that write: go through temporary homes then.
-            var written = moves.Select(m => m.Parameter).ToHashSet();
-            var hazard = moves.Any(m => m.Source is VirtualReg { IsDefinition: false } v && written.Contains(v.Id));
+        // Whether a move reads a home that another move of the same branch writes,
+        // so the moves cannot simply run one after the other.
+        internal bool HasMoveHazard(List<(int Parameter, MirOperand Source)> moves)
+        {
+            var written = moves.Select(m => HomeKey(m.Parameter)).ToHashSet();
+            return moves.Any(m => m.Source is VirtualReg { IsDefinition: false } v
+                && !_constants.ContainsKey(v.Id) && written.Contains(HomeKey(v.Id)));
+        }
+
+        // The parallel move of a branch's arguments into the target's parameters.
+        internal void EmitEdgeMoves(BlockTarget target)
+        {
+            var moves = EdgeMoves(target);
+            var hazard = HasMoveHazard(moves);
 
             var spill = MOS6502Variants.Require(MOS6502Operation.Spill, Place.A, Place.Home);
             if (!hazard)

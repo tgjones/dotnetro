@@ -83,6 +83,12 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         return base.TryGetHome(vreg, out register);
     }
 
+    // Values that are never live together and are linked by a block parameter or a
+    // copy share a home: the representative of each such class.
+    private Dictionary<int, int> _homeClass = [];
+
+    internal override int HomeKey(int vreg) => _homeClass.GetValueOrDefault(vreg, vreg);
+
     private bool ArgumentsStayInPlace()
     {
         foreach (var block in Function.Blocks)
@@ -112,6 +118,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                         _argRegister[d.Id] = ((PhysicalReg)instr.Operands[1]).Id;
 
         _loops = new LoopAnalysis().Compute(Function);
+        _homeClass = HomeClasses.Build(this, _loops, vreg => _argRegister.ContainsKey(vreg) || _remat.ContainsKey(vreg));
     }
 
     // ------------------------------------------------------------------
@@ -1089,17 +1096,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public Work? Jump(MirInstruction instr)
         {
             var target = (BlockTarget)instr.Operands[0];
-            var parameters = target.Block.Parameters;
-            var moves = new List<(int Parameter, MirOperand Source)>();
-            for (var k = 0; k < parameters.Count; k++)
-            {
-                if (target.Args[k] is VirtualReg v && v.Id == parameters[k]) continue;
-                if (_placer._uses.GetValueOrDefault(parameters[k]) == 0) continue;
-                moves.Add((parameters[k], target.Args[k]));
-            }
-
-            var written = moves.Select(m => m.Parameter).ToHashSet();
-            var hazard = moves.Any(m => m.Source is VirtualReg { IsDefinition: false } v && written.Contains(v.Id));
+            var moves = _placer.EdgeMoves(target);
+            var hazard = _placer.HasMoveHazard(moves);
             if (hazard)
             {
                 if (!StoreLive(branch: instr)) return null;
@@ -1108,6 +1106,19 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             else
             {
                 if (!StoreLive(needFrom: _pos + 1)) return null;
+
+                // An argument that shares its parameter's home needs no move, only to
+                // be in that home.
+                for (var k = 0; k < target.Args.Length; k++)
+                {
+                    if (target.Args[k] is not VirtualReg { IsDefinition: false } shared || _placer._constants.ContainsKey(shared.Id)) continue;
+                    if (moves.Any(m => m.Parameter == target.Block.Parameters[k])) continue;
+                    if (_placer._uses.GetValueOrDefault(target.Block.Parameters[k]) == 0) continue;
+                    if (shared.Id == target.Block.Parameters[k]) continue;
+                    var content = ContentOf(shared);
+                    if (!InH(content) && !IsRemat(content) && !EnsureHome(content, 0)) return null;
+                }
+
                 foreach (var (parameter, source) in moves.OrderBy(m => FindRegister(ContentOf(m.Source)) >= 0 ? 0 : 1).ToList())
                 {
                     var content = ContentOf(source);

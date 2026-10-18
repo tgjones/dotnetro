@@ -4,7 +4,8 @@
 ; A loop: values live across the block boundaries are in their homes, as in the naive
 ; placement, but inside a block the registers carry values between operations, and a
 ; branch passes its arguments to the parameters' homes straight from the register that
-; holds them.
+; holds them. A loop-carried value shares its home with the argument it receives, so
+; the update is written in place and the branch moves nothing.
 
 ; CHECK: loop_counter:
 ; CHECK:     STA $14
@@ -35,21 +36,17 @@
 ; CHECK:     CLC
 ; CHECK:     LDA $18
 ; CHECK:     ADC $16
-; CHECK:     TAX
+; CHECK:     STA $18
 ; CHECK:     LDA $19
 ; CHECK:     ADC $17
 ; CHECK:     CLC
-; CHECK:     TAY
+; CHECK:     STA $19
 ; CHECK:     LDA $16
 ; CHECK:     ADC #$01
-; CHECK:     STA $1B
+; CHECK:     STA $16
 ; CHECK:     LDA $17
 ; CHECK:     ADC #$00
 ; CHECK:     STA $17
-; CHECK:     STX $18
-; CHECK:     STY $19
-; CHECK:     LDA $1B
-; CHECK:     STA $16
 ; CHECK:     JMP .bb1
 
 func @loop_counter : (i16) -> i16 {

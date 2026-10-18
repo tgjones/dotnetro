@@ -671,6 +671,11 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
         }
     }
 
+    // Whether `term` is the input value of a vreg that has the same home as `vreg`.
+    private bool SharesHome(Term term, int vreg) =>
+        term.Kind == "in" && term.Text is { Length: > 1 } text && text[0] == 'v'
+        && int.TryParse(text.AsSpan(1), out var other) && placer.HomeKey(other) == placer.HomeKey(vreg);
+
     // On an exit, the homes hold what the successor expects.
     private void CheckHomes(State s, Event exit)
     {
@@ -678,7 +683,9 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
         {
             if (!placer.TryGetHome(vreg, out var home))
             {
-                if (term != Input($"v{vreg}") && !placer._remat.ContainsKey(vreg))
+                // No code has touched the home yet, so it still holds what the vreg it
+                // shares with came in as (a branch whose argument is such a vreg).
+                if (term != Input($"v{vreg}") && !placer._remat.ContainsKey(vreg) && !SharesHome(term, vreg))
                     Fail($"v{vreg} is needed in {B(exit.Target!)} but was never stored (it is {term}).");
                 continue;
             }
