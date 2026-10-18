@@ -74,6 +74,63 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
             _nextVirtualRegister = id + 1;
     }
 
+    // What a trial transformation of the function (a placement run to measure its cost)
+    // needs to be undone: the blocks with their instructions and operands, the vreg
+    // table and the frame slots.
+    internal sealed class SavedState
+    {
+        internal required List<MirBlock> Blocks;
+        internal required List<(MirBlock Block, List<int> Parameters, List<int> LiveIns,
+            List<(MirInstruction Instruction, MirOperand[] Operands)> Instructions)> BlockStates;
+        internal required Dictionary<int, VRegAnnotation> Annotations;
+        internal required int NextVirtualRegister;
+        internal required List<(FrameSlot Slot, int StackId, int Offset)> Slots;
+        internal required Irie.Target.FunctionConvention? Convention;
+    }
+
+    internal SavedState SaveState() => new()
+    {
+        Blocks = [.. Blocks],
+        BlockStates = [.. Blocks.Select(b => (b, new List<int>(b.Parameters), new List<int>(b.LiveIns),
+            b.Instructions.Select(i => (i, (MirOperand[])i.Operands.Clone())).ToList()))],
+        Annotations = new Dictionary<int, VRegAnnotation>(_annotations),
+        NextVirtualRegister = _nextVirtualRegister,
+        Slots = [.. FrameSlots.Select(s => (s, s.StackId, s.Offset))],
+        Convention = Convention,
+    };
+
+    internal void RestoreState(SavedState state)
+    {
+        Blocks.Clear();
+        Blocks.AddRange(state.Blocks);
+        foreach (var (block, parameters, liveIns, instructions) in state.BlockStates)
+        {
+            block.Parameters.Clear();
+            block.Parameters.AddRange(parameters);
+            block.LiveIns.Clear();
+            block.LiveIns.AddRange(liveIns);
+            block.Instructions.Clear();
+            foreach (var (instruction, operands) in instructions)
+            {
+                instruction.Operands = operands;
+                instruction.Parent = block;
+                block.Instructions.Add(instruction);
+            }
+        }
+        _annotations.Clear();
+        foreach (var (vreg, annotation) in state.Annotations) _annotations[vreg] = annotation;
+        _nextVirtualRegister = state.NextVirtualRegister;
+        FrameSlots.Clear();
+        foreach (var (slot, stackId, offset) in state.Slots)
+        {
+            slot.StackId = stackId;
+            slot.Offset = offset;
+            FrameSlots.Add(slot);
+        }
+        Convention = state.Convention;
+        RebuildCfg();
+    }
+
     // Drop the vreg table after RA has replaced every VirtualReg with PhysicalReg.
     public void ClearVRegAnnotations() => _annotations.Clear();
 

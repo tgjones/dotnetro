@@ -43,30 +43,78 @@ internal static class MOS6502ConventionRewriter
             && convention.ReturnBytes.Distinct().Count() == convention.ReturnBytes.Count;
     }
 
-    // Moves the arguments and results of `callee` to `chosen`, in the callee and in all
-    // its calls in `module`. The callee must not call itself (directly or through a
-    // cycle): a recursive call keeps the old registers.
-    internal static void Apply(MirModule module, MirFunction callee, FunctionConvention chosen)
+    // Whether the ABI copies of `callee` and of every call to it have the shapes the
+    // rewriter renames: the function is hand-written, or something has moved copies
+    // away from the call, when they do not.
+    internal static bool CanRewrite(MirModule module, MirFunction callee)
+    {
+        var current = CurrentOf(callee);
+        if (current.ArgBytes.Any(r => !IsConventionRegister(r)) || current.ReturnBytes.Any(r => !IsConventionRegister(r)))
+            return false;
+        var none = new Dictionary<int, int>();
+        if (RenameEntry(callee, none) != current.ArgBytes.Count) return false;
+        var returns = current.ReturnBytes.ToHashSet();
+        foreach (var block in callee.Blocks)
+            if (RenameReturns(block, none, returns) is { } seen && seen != current.ReturnBytes.Count)
+                return false;
+        var args = current.ArgBytes.ToHashSet();
+        foreach (var caller in module.Functions)
+            foreach (var block in caller.Blocks)
+                for (var i = 0; i < block.Instructions.Count; i++)
+                    if (IsCallTo(block.Instructions[i], callee.Name)
+                        && (RenameArguments(block, i, none, args) != current.ArgBytes.Count
+                            || RenameResults(block, i, none, returns) > current.ReturnBytes.Count))
+                        return false;
+        return true;
+    }
+
+    // Moves the arguments and results of `callee` to `chosen` in the callee alone. A
+    // trial of a convention does this, measures the callee and takes it back; the calls
+    // follow in ApplyToCalls once the convention is final.
+    internal static void ApplyToCallee(MirFunction callee, FunctionConvention chosen)
     {
         if (!IsValidFor(chosen, callee))
             throw new InvalidOperationException($"Convention {chosen} does not fit @{callee.Name}.");
         var current = CurrentOf(callee);
-        if (current.SameAs(chosen)) return;
 
+        RenameEntry(callee, Renaming(current.ArgBytes, chosen.ArgBytes));
+        var returnMap = Renaming(current.ReturnBytes, chosen.ReturnBytes);
+        var returns = current.ReturnBytes.ToHashSet();
+        foreach (var block in callee.Blocks)
+            RenameReturns(block, returnMap, returns);
+        callee.Convention = chosen;
+    }
+
+    // Moves the arguments and results of every call to `callee` from `current` to
+    // `chosen`. The callee must not call itself, directly or through a cycle.
+    internal static void ApplyToCalls(MirModule module, MirFunction callee, FunctionConvention current, FunctionConvention chosen)
+    {
         var argMap = Renaming(current.ArgBytes, chosen.ArgBytes);
         var returnMap = Renaming(current.ReturnBytes, chosen.ReturnBytes);
-        var currentArgs = current.ArgBytes.ToHashSet();
-        var currentReturns = current.ReturnBytes.ToHashSet();
-
-        RenameEntry(callee, argMap, current.ArgBytes.Count);
-        RenameReturns(callee, returnMap, currentReturns, current.ReturnBytes.Count);
+        var args = current.ArgBytes.ToHashSet();
+        var returns = current.ReturnBytes.ToHashSet();
         foreach (var caller in module.Functions)
             foreach (var block in caller.Blocks)
                 for (var i = 0; i < block.Instructions.Count; i++)
                     if (IsCallTo(block.Instructions[i], callee.Name))
-                        RenameCall(block, i, argMap, returnMap, currentArgs, currentReturns, current, caller, callee);
+                    {
+                        RenameArguments(block, i, argMap, args);
+                        var call = block.Instructions[i];
+                        call.Operands = call.Operands
+                            .Select(o => o is PhysicalReg { IsDefinition: false, IsImplicit: true } p && argMap.TryGetValue(p.Id, out var renamed)
+                                ? p with { Id = renamed } : o)
+                            .ToArray();
+                        RenameResults(block, i, returnMap, returns);
+                    }
+    }
 
-        callee.Convention = chosen;
+    // Both at once, for a convention that is not tried first.
+    internal static void Apply(MirModule module, MirFunction callee, FunctionConvention chosen)
+    {
+        var current = CurrentOf(callee);
+        if (current.SameAs(chosen)) return;
+        ApplyToCallee(callee, chosen);
+        ApplyToCalls(module, callee, current, chosen);
     }
 
     private static Dictionary<int, int> Renaming(IReadOnlyList<int> from, IReadOnlyList<int> to)
@@ -115,7 +163,11 @@ internal static class MOS6502ConventionRewriter
     private static void RenameTarget(MirInstruction copy, int register) =>
         copy.Operands = [new PhysicalReg(register, IsDefinition: true), copy.Operands[1]];
 
-    private static void RenameEntry(MirFunction callee, Dictionary<int, int> map, int argBytes)
+    // Each of these renames the ABI copies it finds through `map` and returns how many
+    // there were, so with an empty map it only counts. (A call whose result is unused has
+    // fewer result copies than the callee has result bytes.)
+
+    private static int RenameEntry(MirFunction callee, Dictionary<int, int> map)
     {
         var entry = callee.Blocks[0];
         for (var k = 0; k < entry.LiveIns.Count; k++)
@@ -133,74 +185,58 @@ internal static class MOS6502ConventionRewriter
             }
             else if (!IsReshape(instr)) break;
         }
-        if (seen != argBytes)
-            throw new InvalidOperationException(
-                $"@{callee.Name}: expected {argBytes} argument copies at entry, found {seen}.");
+        return seen;
     }
 
-    private static void RenameReturns(MirFunction callee, Dictionary<int, int> map, HashSet<int> registers, int returnBytes)
-    {
-        foreach (var block in callee.Blocks)
-        {
-            var instrs = block.Instructions;
-            if (instrs.Count == 0 || instrs[^1].Opcode != MOS6502Dialect.OpRef(MOS6502Op.Rts)
-                && instrs[^1].Opcode != PseudoDialect.OpRef(PseudoOp.Return)) continue;
-
-            var seen = 0;
-            for (var i = instrs.Count - 2; i >= 0; i--)
-            {
-                if (CopiesToRegister(instrs[i], out var register) && registers.Contains(register))
-                {
-                    seen++;
-                    if (map.TryGetValue(register, out var renamed)) RenameTarget(instrs[i], renamed);
-                }
-                else if (!IsReshape(instrs[i])) break;
-            }
-            if (seen != returnBytes)
-                throw new InvalidOperationException(
-                    $"@{callee.Name}: expected {returnBytes} result copies before a return, found {seen}.");
-        }
-    }
-
-    private static void RenameCall(
-        MirBlock block, int at, Dictionary<int, int> argMap, Dictionary<int, int> returnMap,
-        HashSet<int> argRegisters, HashSet<int> returnRegisters, FunctionConvention current,
-        MirFunction caller, MirFunction callee)
+    // Null for a block that does not return.
+    private static int? RenameReturns(MirBlock block, Dictionary<int, int> map, HashSet<int> registers)
     {
         var instrs = block.Instructions;
+        if (instrs.Count == 0 || instrs[^1].Opcode != MOS6502Dialect.OpRef(MOS6502Op.Rts)
+            && instrs[^1].Opcode != PseudoDialect.OpRef(PseudoOp.Return)) return null;
 
         var seen = 0;
-        for (var i = at - 1; i >= 0; i--)
+        for (var i = instrs.Count - 2; i >= 0; i--)
         {
-            if (CopiesToRegister(instrs[i], out var register) && argRegisters.Contains(register))
+            if (CopiesToRegister(instrs[i], out var register) && registers.Contains(register))
             {
                 seen++;
-                if (argMap.TryGetValue(register, out var renamed)) RenameTarget(instrs[i], renamed);
+                if (map.TryGetValue(register, out var renamed)) RenameTarget(instrs[i], renamed);
             }
             else if (!IsReshape(instrs[i])) break;
         }
-        if (seen != current.ArgBytes.Count)
-            throw new InvalidOperationException(
-                $"@{caller.Name}: expected {current.ArgBytes.Count} argument copies before a call of @{callee.Name}, found {seen}.");
+        return seen;
+    }
 
-        var call = instrs[at];
-        call.Operands = call.Operands
-            .Select(o => o is PhysicalReg { IsDefinition: false, IsImplicit: true } p && argMap.TryGetValue(p.Id, out var renamed)
-                ? p with { Id = renamed } : o)
-            .ToArray();
-
-        seen = 0;
-        for (var i = at + 1; i < instrs.Count; i++)
+    private static int RenameArguments(MirBlock block, int call, Dictionary<int, int> map, HashSet<int> registers)
+    {
+        var instrs = block.Instructions;
+        var seen = 0;
+        for (var i = call - 1; i >= 0; i--)
         {
-            if (CopiesFromRegister(instrs[i], out var register) && returnRegisters.Contains(register))
+            if (CopiesToRegister(instrs[i], out var register) && registers.Contains(register))
             {
                 seen++;
-                if (returnMap.TryGetValue(register, out var renamed)) RenameSource(instrs[i], renamed);
+                if (map.TryGetValue(register, out var renamed)) RenameTarget(instrs[i], renamed);
             }
             else if (!IsReshape(instrs[i])) break;
         }
-        if (seen != current.ReturnBytes.Count)
-            throw new InvalidOperationException(
-                $"@{caller.Name}: expected {current.ReturnBytes.Count} result copies after a call of @{callee.Name}, found {seen}.");
+        return seen;
+    }
+
+    private static int RenameResults(MirBlock block, int call, Dictionary<int, int> map, HashSet<int> registers)
+    {
+        var instrs = block.Instructions;
+        var seen = 0;
+        for (var i = call + 1; i < instrs.Count; i++)
+        {
+            if (CopiesFromRegister(instrs[i], out var register) && registers.Contains(register))
+            {
+                seen++;
+                if (map.TryGetValue(register, out var renamed)) RenameSource(instrs[i], renamed);
+            }
+            else if (!IsReshape(instrs[i])) break;
+        }
+        return seen;
     }
 }

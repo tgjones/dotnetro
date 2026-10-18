@@ -20,6 +20,10 @@ public sealed record BeamPlacementOptions
     // How many blocks ahead the exit state of a block is judged by the cost of the
     // blocks that inherit it; 0 judges a block by itself.
     public int Lookahead { get; init; } = 3;
+    // Whether a function that is only ever called directly takes the arguments and
+    // leaves the results where its own placement is cheapest (the calls follow), or
+    // keeps the default convention.
+    public bool ChooseConventions { get; init; } = true;
 }
 
 // Placement within blocks: a beam search over what A, X, Y, the
@@ -43,12 +47,119 @@ public sealed record BeamPlacementOptions
 // return and the jump that ends a block; a stretch has to end with every value the
 // rest of the block, or a successor, still needs in its home. Barriers themselves
 // are placed by the base class (MOS6502Placer): operands from their homes, the work in A.
-public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = null) : MirFunctionPass
+public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = null) : Pass
 {
     public override string Name => "MOS6502BeamPlacement";
 
-    public override void Run(MirFunction function) =>
-        new BeamPlacer(function, options ?? new BeamPlacementOptions()).Run();
+    // The functions are placed callee first, so that when a function is placed every
+    // function it calls has its convention.
+    public override void Run(CompilationContext context)
+    {
+        var settings = options ?? new BeamPlacementOptions();
+        var module = context.Module;
+        var graph = CallGraph.Build(module);
+        var callers = new HashSet<int>[graph.Functions.Count];
+        for (var i = 0; i < callers.Length; i++) callers[i] = [];
+        for (var i = 0; i < callers.Length; i++)
+            foreach (var callee in graph.DirectCallees[i])
+                if (callee != i) callers[callee].Add(i);
+
+        var order = Enumerable.Range(0, graph.Functions.Count).OrderBy(i => graph.SccId[i]).ThenBy(i => i);
+        var moved = 0;
+        foreach (var i in order)
+        {
+            var function = graph.Functions[i];
+            // The first function is where the program starts; a function whose address
+            // is taken, or that can call itself, can be reached by code that does not
+            // know its convention.
+            if (settings.ChooseConventions && i > 0 && callers[i].Count > 0
+                && !graph.AddressTaken[i] && !graph.SelfRecursive[i] && graph.SccSize[graph.SccId[i]] == 1
+                && MOS6502ConventionRewriter.CanRewrite(module, function)
+                && ChooseConvention(module, function, settings))
+                moved++;
+            new BeamPlacer(function, settings).Run();
+        }
+        if (moved > 0)
+            context.Statistics["functions with their own convention"] = moved;
+    }
+
+    // Tries the conventions that move the argument and result bytes that arrive in A
+    // or X between the two, places the function under each, and gives it the cheapest
+    // (the default one on a tie). Returns whether it is not the default.
+    private static bool ChooseConvention(MirModule module, MirFunction function, BeamPlacementOptions settings)
+    {
+        var original = MOS6502ConventionRewriter.CurrentOf(function);
+        var saved = function.SaveState();
+
+        long CostOf(FunctionConvention convention)
+        {
+            try
+            {
+                if (!convention.SameAs(original)) MOS6502ConventionRewriter.ApplyToCallee(function, convention);
+                var placer = new BeamPlacer(function, settings);
+                placer.Run();
+                return placer.PlacementCost;
+            }
+            catch (NotSupportedException)
+            {
+                return long.MaxValue;
+            }
+            finally
+            {
+                function.RestoreState(saved);
+            }
+        }
+
+        var best = original;
+        var bestCost = CostOf(original);
+        foreach (var arguments in Reorderings(original.ArgBytes))
+        {
+            var candidate = new FunctionConvention(arguments, original.ReturnBytes);
+            var cost = CostOf(candidate);
+            if (cost < bestCost) (best, bestCost) = (candidate, cost);
+        }
+        foreach (var results in Reorderings(original.ReturnBytes))
+        {
+            var candidate = new FunctionConvention(best.ArgBytes, results);
+            var cost = CostOf(candidate);
+            if (cost < bestCost) (best, bestCost) = (candidate, cost);
+        }
+
+        if (best.SameAs(original)) return false;
+        MOS6502ConventionRewriter.ApplyToCallee(function, best);
+        MOS6502ConventionRewriter.ApplyToCalls(module, function, original, best);
+        return true;
+    }
+
+    // Every way to assign the bytes that sit in A or X to A and X, other than the
+    // given one.
+    private static IEnumerable<int[]> Reorderings(IReadOnlyList<int> registers)
+    {
+        int[] pool = [MOS6502Registers.A, MOS6502Registers.X];
+        var movable = Enumerable.Range(0, registers.Count).Where(k => pool.Contains(registers[k])).ToArray();
+        if (movable.Length == 0) yield break;
+        foreach (var first in pool)
+        {
+            if (movable.Length == 1)
+            {
+                if (first != registers[movable[0]])
+                {
+                    var one = registers.ToArray();
+                    one[movable[0]] = first;
+                    yield return one;
+                }
+                continue;
+            }
+            foreach (var second in pool)
+            {
+                if (second == first) continue;
+                var two = registers.ToArray();
+                two[movable[0]] = first;
+                two[movable[1]] = second;
+                if (!two.SequenceEqual(registers)) yield return two;
+            }
+        }
+    }
 }
 
 internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions options)
@@ -65,6 +176,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     private LoopInfo _loops = null!;
 
     internal BeamPlacementOptions Options => options;
+
+    // What the placement of the function costs: the sum over its stretches of the
+    // cost of the cheapest placement found for each (without the lookahead).
+    internal long PlacementCost { get; private set; }
 
     // ------------------------------------------------------------------
     // Liveness
@@ -633,8 +748,12 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         return state;
     }
 
-    private void RunSegment(BlockInfo info, int start, int end, State? entry = null) =>
-        Replay(FindBest(info, start, end, entry, options.Lookahead));
+    private void RunSegment(BlockInfo info, int start, int end, State? entry = null)
+    {
+        var best = FindBest(info, start, end, entry, options.Lookahead);
+        PlacementCost += best.Cost;
+        Replay(best);
+    }
 
     // The cheapest placement of the stretch [start, end). When the stretch ends in
     // branches to blocks that inherit its registers, each candidate is also charged

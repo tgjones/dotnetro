@@ -18,6 +18,11 @@ var beamWidthOption = new Option<int?>("--beam-width")
     Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
 };
 
+var fixedConventionsOption = new Option<bool>("--fixed-conventions")
+{
+    Description = "Give every function the default calling convention instead of letting its placement choose where its arguments and results go",
+};
+
 var rootCommand = new RootCommand("Irie execution checker -- runs a MIR function over generated inputs in the interpreter and, compiled, in the emulator, and compares the results");
 rootCommand.Arguments.Add(inputArgument);
 rootCommand.Options.Add(targetOption);
@@ -25,6 +30,7 @@ rootCommand.Options.Add(execOption);
 rootCommand.Options.Add(emulatorOption);
 rootCommand.Options.Add(maxTicksOption);
 rootCommand.Options.Add(beamWidthOption);
+rootCommand.Options.Add(fixedConventionsOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -42,6 +48,7 @@ rootCommand.SetAction(parseResult =>
     var emulator = parseResult.GetValue(emulatorOption)!;
     var maxTicks = parseResult.GetValue(maxTicksOption);
     ExecSettings.BeamWidth = parseResult.GetValue(beamWidthOption);
+    ExecSettings.ChooseConventions = !parseResult.GetValue(fixedConventionsOption);
 
     var text = File.ReadAllText(input.FullName);
     var directives = parseResult.GetValue(execOption)!.Select(ExecDirective.Parse).ToList();
@@ -165,7 +172,7 @@ static ulong[]? RunCompiled(string text, ExecDirective directive, List<ulong[]> 
     DriverBuilder.AddDriver(module, function, vectors, execTarget, bufferSymbols);
 
     var passManager = new PassManager(null, null);
-    PipelineBuilder.AddStandardPipeline(passManager, target, ExecSettings.BeamWidth);
+    PipelineBuilder.AddStandardPipeline(passManager, target, ExecSettings.BeamWidth, ExecSettings.ChooseConventions);
     passManager.Run(new CompilationContext(module));
 
     var origin = target.DefaultOrigin!.Value;
@@ -303,4 +310,5 @@ static void KeepReachable(MirModule module, MirFunction root)
 static class ExecSettings
 {
     public static int? BeamWidth;
+    public static bool ChooseConventions = true;
 }
