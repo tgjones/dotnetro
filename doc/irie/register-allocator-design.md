@@ -1,7 +1,8 @@
 # A register allocator for the 6502 — design
 
-**Status:** proposal; the steering decisions are recorded in §7. S0, S1, S2 and S3
-are done (progress below the stage table in §5); nothing of S4–S7 is implemented.
+**Status:** proposal; the steering decisions are recorded in §7. S0 to S4
+are done (progress below the stage table in §5): the beam placement is the default
+and the colouring allocator is deleted; S5–S7 are not implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -454,7 +455,7 @@ call boundary.
 | `OperandLegalizationPass`, isel "funnels" | Gone |
 | `RematerializableSinkPass` | Gone: constants are free to rematerialise |
 | `MOS6502ParallelCopyPass` | Gone: argument setup is placement |
-| `RegisterScavengingPass` | Gone: the search sees free registers |
+| `RegisterScavengingPass` | Kept: pseudo expansion still mints scratch vregs for copies the search does not see (immediate→zp, $x↔$y), and scavenging gives each a dead register |
 | `MOS6502AddressingModeSelectorPass` | Gone: the variant fixes the addressing mode |
 | `MOS6502IncrementStrengthReductionPass` | Gone: `INC`/`INX` are variants |
 | `MOS6502LateOptimizationPass` (`cmp #0` fold) | Mostly subsumed by the NZ state; kept as a safety net at first |
@@ -462,7 +463,7 @@ call boundary.
 | PEI callee-saved PHA/PLA | Gone for non-recursive code (call-graph stacking) |
 | `ReentrancyAnalysis`, `StaticFrameColorer`, `MOS6502FramePlacementPass` | Extended into program layout |
 | RC18/19 pointer scratch, isel pointer cache | Gone: pointers are values with pair homes |
-| `MOS6502InstructionSelector` | Kept for shape selection; stops pinning register classes |
+| `MOS6502InstructionSelector` | Replaced by `MOS6502ShapeSelector`: unpinned byte operations; the pinning selector is deleted |
 
 That is roughly 4–5K lines out, and more coupled passes than that, replaced by four
 components with clear inputs and outputs.
@@ -868,6 +869,26 @@ tables).
   and `zero-extend`, `sign-extend`, `if-else` +1 byte each (`if-else` has fewer
   instructions).
 
+- **S4.5 (switch-over and deletion, done).** `--placement beam` is the default of
+  `PipelineBuilder`, `iriec`, `dnrc`, `irie-exec` and `CompilerDriver`; `Naive` stays as
+  the correctness baseline (`--placement naive`; `ExecLitTestNaivePlacement` and
+  `LitTestNaivePlacement` re-run the executed corpus and every `.cs` program with it).
+  `PlacementStrategy.Colouring` and these are deleted: `GraphColouringAllocator`,
+  `RegisterAllocatorPass`, `PhiEliminationPass`, `TwoAddressInstructionPass`,
+  `OperandLegalizationPass`, `RematerializableSinkPass`, `RegisterAssignmentVerifier`,
+  `PlacementVerifier` and `RegisterAllocationSupport` (only the colouring allocator used
+  them; `PlacementChecker` is the verifier of the placements), `MOS6502ParallelCopyPass`,
+  `MOS6502AddressingModeSelectorPass`, `MOS6502IncrementStrengthReductionPass` and
+  `MOS6502InstructionSelector` (the few helpers the shape selector shared with it moved
+  into it). Kept: `RegisterScavengingPass`, `CopyEliminationPass`,
+  `CopyPropagationPass`, `MOS6502LateOptimizationPass` and `StaticFrameColorer`.
+  Lit tests of the deleted stages (`--stop-after RegisterAllocator`,
+  `TwoAddressInstruction`, `PhiElimination`, `MOS6502AddressingModeSelector`, the pinned
+  `InstructionSelector` output) are removed; the other goldens were regenerated and
+  reviewed (`dotlit --regenerate`; the byte-level `-Binary` goldens by hand). Left over
+  and not removed: the addressing-mode-agnostic ops (`st.abs`, the `Axy` class) and
+  `pseudo.spill` / `pseudo.reload`, which nothing produces any more.
+
 ### Work outside the allocator that still limits quality
 
 These were measured in §2.1. No allocator closes them, and on C# some are larger
@@ -930,8 +951,7 @@ than anything in this document:
 
 ## References
 
-- Irie today: [GraphColouringAllocator.cs](../../src/Irie/Passes/GraphColouringAllocator.cs),
-  [RegisterAllocatorPass.cs](../../src/Irie/Passes/RegisterAllocatorPass.cs),
+- Irie today: [MOS6502BeamPlacementPass.cs](../../src/Irie/Target/MOS6502/MOS6502BeamPlacementPass.cs),
   [StaticFrameColorer.cs](../../src/Irie/Passes/StaticFrameColorer.cs),
   [ReentrancyAnalysis.cs](../../src/Irie/Passes/Analyses/ReentrancyAnalysis.cs),
   [notes/status-2026-10-07.md](../../notes/status-2026-10-07.md) §5–7.

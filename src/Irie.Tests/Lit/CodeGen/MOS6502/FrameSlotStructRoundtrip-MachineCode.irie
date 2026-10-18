@@ -15,12 +15,14 @@
 
 ; CHECK: TestStruct:
 ; CHECK:     LDA #$00
-; CHECK:     STA $02
-; CHECK:     LDA $02
 ; CHECK:     STA $14
+; CHECK:     LDA #$00
 ; CHECK:     STA $15
+; CHECK:     LDA #$00
 ; CHECK:     STA $16
+; CHECK:     LDA #$00
 ; CHECK:     STA $17
+; CHECK:     LDA #$00
 ; CHECK:     STA $14
 ; CHECK:     RTS
 

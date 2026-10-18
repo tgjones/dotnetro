@@ -8,95 +8,81 @@
 ; Compare against ext/llvm-mos-reference/realistic/crc8.s; close gaps via irie-report.
 
 ; CHECK: crc8:
-; CHECK:     STA $0A
-; CHECK:     STX $09
-; CHECK:     LDA $02
-; CHECK:     STA $08
-; CHECK:     LDA $03
-; CHECK:     STA $07
-; CHECK:     LDA #$FF
-; CHECK:     STA $0B
-; CHECK:     LDA #$00
-; CHECK:     STA $06
-; CHECK:     LDA #$00
-; CHECK:     STA $05
+; CHECK:     LDY #$00
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     STY $16
+; CHECK:     LDX #$FF
+; CHECK:     STX $17
 ; CHECK: .bb1:
-; CHECK:     LDA $05
-; CHECK:     CMP $07
+; CHECK:     LDA $16
+; CHECK:     STY $18
+; CHECK:     CMP $03
 ; CHECK:     BCC .bb2
 ; CHECK:     BNE .bb8
-; CHECK:     LDA $06
-; CHECK:     CMP $08
+; CHECK:     CPY $02
 ; CHECK:     BCS .bb8
 ; CHECK: .bb2:
 ; CHECK:     CLC
-; CHECK:     LDA $0A
-; CHECK:     ADC $06
-; CHECK:     TAY
-; CHECK:     LDA $09
-; CHECK:     ADC $05
-; CHECK:     STY $12
+; CHECK:     LDA $14
+; CHECK:     ADC $18
+; CHECK:     TAX
+; CHECK:     LDA $15
+; CHECK:     ADC $16
+; CHECK:     STX $12
 ; CHECK:     STA $13
 ; CHECK:     LDY #$00
 ; CHECK:     LDA ($12),Y
-; CHECK:     STA $02
-; CHECK:     LDA $0B
-; CHECK:     EOR $02
-; CHECK:     LDX #$00
-; CHECK:     STX $04
-; CHECK:     LDX #$00
-; CHECK:     STX $03
-; CHECK:     STA $0B
+; CHECK:     EOR $17
+; CHECK:     STY $19
+; CHECK:     STY $1A
+; CHECK:     STA $17
 ; CHECK: .bb3:
-; CHECK:     LDA #$08
-; CHECK:     STA $0C
-; CHECK:     LDX #$00
-; CHECK:     LDA $03
+; CHECK:     LDA $1A
 ; CHECK:     EOR #$80
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     TAX
+; CHECK:     LDA #$00
 ; CHECK:     EOR #$80
-; CHECK:     STA $02
-; CHECK:     TYA
-; CHECK:     CMP $02
+; CHECK:     STA $1B
+; CHECK:     CPX $1B
 ; CHECK:     BCC .bb5
 ; CHECK:     BNE .bb4
-; CHECK:     LDA $04
-; CHECK:     CMP $0C
+; CHECK:     LDA $19
+; CHECK:     CMP #$08
 ; CHECK:     BCC .bb5
 ; CHECK: .bb4:
 ; CHECK:     CLC
-; CHECK:     LDA $06
+; CHECK:     LDA $18
 ; CHECK:     ADC #$01
-; CHECK:     STA $06
-; CHECK:     LDA $05
+; CHECK:     STA $18
+; CHECK:     LDA $16
 ; CHECK:     ADC #$00
-; CHECK:     STA $05
+; CHECK:     STA $16
+; CHECK:     LDY $18
 ; CHECK:     JMP .bb1
 ; CHECK: .bb5:
-; CHECK:     LDA $0B
+; CHECK:     LDA $17
 ; CHECK:     AND #$80
-; CHECK:     TAY
-; CHECK:     LDA $0B
+; CHECK:     TAX
+; CHECK:     LDA $17
 ; CHECK:     ASL
-; CHECK:     STA $0B
-; CHECK:     TYA
-; CHECK:     BEQ .bb7
+; CHECK:     CPX #$00
+; CHECK:     BNE .bb7
 ; CHECK: .bb6:
-; CHECK:     LDA $0B
-; CHECK:     EOR #$31
-; CHECK:     STA $0B
-; CHECK: .bb7:
 ; CHECK:     CLC
-; CHECK:     LDA $04
+; CHECK:     STA $17
+; CHECK:     LDA $19
 ; CHECK:     ADC #$01
-; CHECK:     STA $04
-; CHECK:     LDA $03
+; CHECK:     STA $19
+; CHECK:     LDA $1A
 ; CHECK:     ADC #$00
-; CHECK:     STA $03
+; CHECK:     STA $1A
 ; CHECK:     JMP .bb3
+; CHECK: .bb7:
+; CHECK:     EOR #$31
+; CHECK:     JMP .bb6
 ; CHECK: .bb8:
-; CHECK:     LDA $0B
+; CHECK:     LDA $17
 ; CHECK:     RTS
 
 func @crc8 : (ptr, i16) -> i8 {

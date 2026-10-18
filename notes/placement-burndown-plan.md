@@ -1,6 +1,6 @@
 # Beam placement: close the gap to the colouring allocator, then finish S4
 
-Status: burn-down done 2026-10-18; `pressure-high` now +1 byte (435 vs 434) after destination-register eviction.
+Status: burn-down done and S4.5 (switch-over and deletion) done 2026-10-18; `pressure-high` now +1 byte (435 vs 434) after destination-register eviction.
 Self-contained: you should not need to read
 [register-allocator-design.md](../doc/irie/register-allocator-design.md) (789+ lines) to
 do this; section references below are for the curious.

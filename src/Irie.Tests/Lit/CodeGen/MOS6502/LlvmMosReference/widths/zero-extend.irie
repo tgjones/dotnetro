@@ -7,14 +7,13 @@
 ; is added.
 
 ; CHECK: zero_extend:
-; CHECK:     LDX #$00
 ; CHECK:     CLC
 ; CHECK:     ADC #$01
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     STA $14
+; CHECK:     LDA #$00
 ; CHECK:     ADC #$00
 ; CHECK:     TAX
-; CHECK:     TYA
+; CHECK:     LDA $14
 ; CHECK:     RTS
 
 func @zero_extend : (i8) -> i16 {

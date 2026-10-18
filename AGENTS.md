@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents (Claude Code, Codex, etc.) when 
 
 ## What This Project Is
 
-DotNetro is a .NET AOT compiler that compiles .NET assemblies (IL bytecode) to 6502 machine code, targeting retro computers like the BBC Micro. It reads ECMA-335 metadata, translates IL to Irie MIR (a compiler IR modelled on LLVM's GlobalISel / llvm-mos), runs the MIR through a pass pipeline (legalize → select → register-allocate → …), encodes the result to raw 6502 bytes, and packages them into a BBC Micro disk image (`.ssd`).
+DotNetro is a .NET AOT compiler that compiles .NET assemblies (IL bytecode) to 6502 machine code, targeting retro computers like the BBC Micro. It reads ECMA-335 metadata, translates IL to Irie MIR (a compiler IR modelled on LLVM's GlobalISel / llvm-mos), runs the MIR through a pass pipeline (legalize → select → place values in registers → …), encodes the result to raw 6502 bytes, and packages them into a BBC Micro disk image (`.ssd`).
 
 ## Build & Test Commands
 
@@ -75,7 +75,7 @@ CI runs `dotnet test --solution src` in both Debug and Release configurations.
 
 - **Irie.Tools.Reference** (`irie-report`) — scores Irie's MOS6502 output against the llvm-mos reference corpus (`ext/llvm-mos-reference/`); see its README and `doc/irie/llvm-mos-comparison.md`
 
-- **Irie** — the compiler backend: unified MIR + MachineCode layers, the pass pipeline and the MOS6502 target (subtargets: BBC Micro, C64). `DotNetro.Compiler` depends on it; it is also usable standalone via the `iriec` / `irie-*` tools. **Detailed layer, dialect, pass-order and target notes live in `src/Irie/CLAUDE.md`** (loaded when working under `src/Irie`). Pass order, in short: ReturnMerge → AbiLowering → Legalizer → InstructionSelector → PhiElimination → TwoAddress → RegisterAllocator → CopyElimination → target post-RA passes → PseudoExpansion.
+- **Irie** — the compiler backend: unified MIR + MachineCode layers, the pass pipeline and the MOS6502 target (subtargets: BBC Micro, C64). `DotNetro.Compiler` depends on it; it is also usable standalone via the `iriec` / `irie-*` tools. **Detailed layer, dialect, pass-order and target notes live in `src/Irie/CLAUDE.md`** (loaded when working under `src/Irie`). Pass order, in short: ReturnMerge → AbiLowering → Legalizer → InstructionSelector (shape selection) → placement (beam search) → CopyElimination → target post-placement passes → PseudoExpansion.
 
 - **DotLit** — LIT-style test infrastructure; parses `RUN:` and `CHECK:` directives from any comment line; used by both `DotNetro.Compiler.Tests` (`.cs` files, `//` comments) and `Irie.Tests` (`.irie` files for MIR tests, `.s` files for MachineCode tests; all use `;` comments). Also an executable (`dotlit`): `dotlit --regenerate <folder|file>` rewrites the `CHECK` directives to match current RUN output — see "Regenerating `CHECK` blocks" below
 
@@ -87,7 +87,7 @@ Two layers:
 
 ### Test Framework
 
-`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each is also run with `dnrc --placement naive` and `--placement beam` (`LitTestNaivePlacement`, `LitTestBeamPlacement`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
+`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each runs with the default (beam) placement and again with `dnrc --placement naive` (`LitTest`, `LitTestNaivePlacement`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
 
 #### Lit `CHECK` blocks: keep them strict (complete listings)
 

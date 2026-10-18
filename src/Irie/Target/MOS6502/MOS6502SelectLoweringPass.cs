@@ -21,8 +21,8 @@ namespace Irie.Target.MOS6502;
 //   sinkBB(%r): <the rest of `block`, with %r now a block parameter>
 //
 // The select's def vreg is reused as the sink block's parameter, so downstream
-// uses are unchanged; PhiEliminationPass later lowers the block argument to
-// per-edge copies.
+// uses are unchanged; placement later writes the block parameter on
+// each incoming edge.
 //
 // Two optimizations match llvm-mos:
 //   * same-test merge — all value selects in a block sharing the same condition

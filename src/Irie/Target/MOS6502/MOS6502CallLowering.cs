@@ -123,9 +123,8 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
     // position `k` (LSB-first across the overflow portion of the parameter
     // list) into a fresh flexible vreg. Mints a CallerStackArg FrameSlot and
     // emits the target's already-abstract, virtual-register-based frame-access
-    // op directly — the same shape MOS6502InstructionSelector.SelectMemLoadByteAt
-    // would otherwise build for an ordinary local — so it needs no changes to
-    // that dispatch logic and flows through LegalizerPass/InstructionSelectorPass
+    // op directly — the same shape the shape selector builds for an ordinary
+    // local — so it flows through LegalizerPass/InstructionSelectorPass
     // untouched, the same way LowerCall's mos6502.jsr.abs already does.
     private static int LowerStackArgByte(MirFunction function, MirBuilder builder, int k)
     {
@@ -146,8 +145,7 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
             new PhysicalReg(MOS6502Registers.Y, IsDefinition: true, IsImplicit: true));
 
         // Funnel out of $a into a fresh, ORDINARY typed vreg — deliberately not
-        // a classed one (unlike MOS6502InstructionSelector.SelectMemLoadByteAt's
-        // otherwise-identical Anyi8 funnel-out): this result feeds
+        // a classed one (unlike an Anyi8 funnel-out): this result feeds
         // BuildMergeInto below, and LegalizationArtifactCombiner.TryCombineUnmerge
         // only folds unmerge(merge(...)) when every merge source is a plain
         // TypedVReg (its type-equality check reads AnnotationType, which returns

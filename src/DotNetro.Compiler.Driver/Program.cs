@@ -10,8 +10,8 @@ var targetOption = new Option<string>("--target") { Description = "Target system
 var rootCommand = new RootCommand();
 var placementOption = new Option<string>("--placement")
 {
-    Description = "How values are placed: 'colouring' (default) 'naive' (every value in a home: correct, slow code that needs no register allocator) or 'beam' (a beam search keeps values in registers within blocks)",
-    DefaultValueFactory = _ => "colouring",
+    Description = "How values are placed: 'beam' (default; a beam search keeps values in registers) or 'naive' (every value in a home: correct, slow code)",
+    DefaultValueFactory = _ => "beam",
 };
 
 rootCommand.Options.Add(targetOption);
@@ -44,7 +44,6 @@ rootCommand.SetAction(parseResult =>
         parseResult.GetValue(targetOption)!,
         parseResult.GetValue(placementOption) switch
         {
-            "colouring" => Irie.Passes.PlacementStrategy.Colouring,
             "naive"     => Irie.Passes.PlacementStrategy.Naive,
             "beam"      => Irie.Passes.PlacementStrategy.Beam,
             var other   => throw new ArgumentException($"Unknown --placement '{other}'."),

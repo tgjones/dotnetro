@@ -8,54 +8,54 @@
 ; Compare against ext/llvm-mos-reference/realistic/factorial-recursive.s; close gaps via irie-report.
 
 ; CHECK: factorial:
-; CHECK:     STA $15
-; CHECK:     STX $14
-; CHECK:     LDA #$01
-; CHECK:     STA $03
-; CHECK:     LDX #$00
+; CHECK:     STA $14
+; CHECK:     LDA #$00
+; CHECK:     EOR #$80
+; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     EOR #$80
-; CHECK:     TAY
-; CHECK:     LDA $14
-; CHECK:     EOR #$80
-; CHECK:     STA $02
-; CHECK:     TYA
-; CHECK:     CMP $02
-; CHECK:     BCC .bb2
+; CHECK:     STA $15
+; CHECK:     STX $16
+; CHECK:     CPY $15
+; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $03
-; CHECK:     CMP $15
-; CHECK:     BCC .bb2
+; CHECK:     LDA #$01
+; CHECK:     CMP $14
+; CHECK:     BCC .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA $03
-; CHECK:     RTS
+; CHECK:     LDX #$00
+; CHECK:     LDY #$01
 ; CHECK: .bb2:
+; CHECK:     TYA
+; CHECK:     RTS
+; CHECK: .bb3:
 ; CHECK:     SEC
-; CHECK:     LDA $15
-; CHECK:     SBC #$01
-; CHECK:     TAY
 ; CHECK:     LDA $14
+; CHECK:     SBC #$01
+; CHECK:     STA $17
+; CHECK:     LDA $16
 ; CHECK:     SBC #$00
 ; CHECK:     TAX
+; CHECK:     LDA $17
+; CHECK:     TAY
 ; CHECK:     LDA $14
 ; CHECK:     PHA
-; CHECK:     LDA $15
+; CHECK:     LDA $16
 ; CHECK:     PHA
 ; CHECK:     TYA
 ; CHECK:     JSR factorial
 ; CHECK:     TAY
 ; CHECK:     PLA
-; CHECK:     STA $15
+; CHECK:     STA $16
 ; CHECK:     PLA
 ; CHECK:     STA $14
 ; CHECK:     TYA
 ; CHECK:     STA $02
 ; CHECK:     STX $03
-; CHECK:     LDA $15
-; CHECK:     LDX $14
+; CHECK:     LDX $16
+; CHECK:     LDA $14
 ; CHECK:     JSR __mulhi3
-; CHECK:     STA $03
-; CHECK:     JMP .bb1
+; CHECK:     TAY
 
 func @factorial : (i16) -> i16 {
 bb0(%0 : i16):

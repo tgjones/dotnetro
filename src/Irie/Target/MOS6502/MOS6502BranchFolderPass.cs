@@ -10,7 +10,7 @@ namespace Irie.Target.MOS6502;
 // the Control Flow Optimizer after the VReg rewriter and before copy-opt /
 // pseudo expansion.
 //
-// An "empty block" in our post-RA / post-PhiElimination model is a block whose
+// An "empty block" in our post-placement model is a block whose
 // only instruction is an unconditional `mos6502.jmp.abs <succ>`. Such a block
 // does nothing but transfer control to a single successor, so we make every
 // predecessor reach that successor directly (rewriting the BlockTarget operand

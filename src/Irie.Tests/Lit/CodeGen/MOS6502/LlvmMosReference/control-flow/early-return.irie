@@ -9,9 +9,8 @@
 ; Each `x < 0` is a sign-bit test of the high byte only, matching llvm-mos's
 ; `cpx #0 ; bmi`. The tested high byte is always in a register whose load/move
 ; sets the N flag, so no explicit CMP is needed and BMI reads that N directly
-; (llvm-mos folds the same way): the entry `a < 0` reuses the N that `TXA` sets
-; while repositioning `a` (see below), and the `b`/`c` tests read the N set by
-; the `LDA $03` / `LDA $05` that bring their high byte in.
+; (llvm-mos folds the same way): the entry `a < 0` is `CPX #0`, and the `b`/`c`
+; tests read the N set by the loads that bring their high byte in.
 ;
 ; The `a + b` sub-expression is computed in BOTH the `c < 0` exit (`return a + b`)
 ; and the fall-through (`return a + b + c`). HoistCommonCodePass — the local
@@ -24,53 +23,50 @@
 ; The `core.return` blocks are then merged into one common return block by
 ; ReturnMergePass (the SimplifyCFG `tailMergeBlocksWithSimilarFunctionTerminators`
 ; analogue), so the i16 return epilogue is emitted once: paths funnel into the
-; shared `.bb4: TYA ; RTS` tail (low in Y/A, high in X), reached by fall-through
-; (.bb3), `BMI .bb4` (the `b < 0` and `c < 0` arms, which return values already
-; staged in Y/X), and `JMP .bb4` (.bb5, the `return 0` arm).
+; shared `.bb4: TAX ; TYA ; RTS` tail (high byte in A, low in Y), reached by fall-through
+; (.bb3), `BMI .bb4`, and `JMP .bb4` (.bb5, the `return 0` arm).
 ;
-; The `return 0` constant is SUNK into its `.bb5` exit block by
-; RematerializableSinkPass (the llvm-mos `machine-sink` analogue) rather than
-; being materialized in the entry block. That keeps `a` in the real A/X registers
-; on entry — no spill to zero page — so the entry block is just `TAY ; TXA ; BMI`
-; (repositioning `a` to Y/A, with `TXA` setting the a<0 flag for free). Irie now
-; emits 26 instructions vs llvm-mos's 28 (see irie-report); llvm-mos reaches the
-; same shape by splitting a critical edge in MachineSink, whereas ReturnMerge
-; already leaves `.bb5` as a dedicated single-successor block to sink into.
+; The `return 0` constant is built in its `.bb5` exit block, where it is needed,
+; rather than in the entry block, so `a` stays in the real A/X registers on entry
+; — no spill to zero page. See irie-report for the instruction count against
+; llvm-mos.
 ;
 ; CHECK pins Irie's current --emit=asm output (characterization / golden).
 ; Compare against ext/llvm-mos-reference/control-flow/early-return.s; close gaps via irie-report.
 
 ; CHECK: early_return:
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     CPX #$00
 ; CHECK:     BMI .bb5
 ; CHECK: .bb1:
-; CHECK:     LDA $03
-; CHECK:     BMI .bb4
+; CHECK:     LDY $03
+; CHECK:     BMI .bb6
 ; CHECK: .bb2:
 ; CHECK:     CLC
-; CHECK:     TYA
 ; CHECK:     ADC $02
 ; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $03
-; CHECK:     TAX
-; CHECK:     LDA $05
+; CHECK:     LDX $05
 ; CHECK:     BMI .bb4
 ; CHECK: .bb3:
 ; CHECK:     CLC
+; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     ADC $04
 ; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $05
-; CHECK:     TAX
 ; CHECK: .bb4:
+; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS
 ; CHECK: .bb5:
 ; CHECK:     LDY #$00
-; CHECK:     LDX #$00
+; CHECK:     TYA
+; CHECK:     JMP .bb4
+; CHECK: .bb6:
+; CHECK:     TAY
+; CHECK:     TXA
 ; CHECK:     JMP .bb4
 
 func @early_return : (i16, i16, i16) -> i16 {

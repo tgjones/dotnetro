@@ -7,18 +7,18 @@
 ; of the source byte (0xFF if negative, else 0), then 1 is subtracted.
 
 ; CHECK: sign_extend:
-; CHECK:     CMP #$00
+; CHECK:     TAX
 ; CHECK:     BMI .bb3
 ; CHECK: .bb1:
-; CHECK:     LDX #$00
+; CHECK:     LDY #$00
 ; CHECK: .bb2:
 ; CHECK:     SEC
 ; CHECK:     SBC #$01
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     STA $14
+; CHECK:     TYA
 ; CHECK:     SBC #$00
 ; CHECK:     TAX
-; CHECK:     TYA
+; CHECK:     LDA $14
 ; CHECK:     RTS
 
 func @sign_extend : (i8) -> i16 {

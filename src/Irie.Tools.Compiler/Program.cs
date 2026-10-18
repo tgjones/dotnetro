@@ -27,9 +27,9 @@ var printChanged = new Option<bool>("--print-changed") { Description = "Like --p
 
 var placementOption = new Option<string>("--placement")
 {
-    Description = "How values are placed: 'colouring' (default; register-class pinning and a graph-colouring allocator), " +
-                  "'naive' (shape selection and a placement that gives every value a home) or 'beam' (shape selection and a beam search within blocks)",
-    DefaultValueFactory = _ => "colouring",
+    Description = "How values are placed: 'beam' (default; shape selection and a beam search over what the registers hold) " +
+                  "or 'naive' (shape selection and a placement that gives every value a home)",
+    DefaultValueFactory = _ => "beam",
 };
 
 var originOption = new Option<string?>("--origin")
@@ -79,7 +79,6 @@ rootCommand.SetAction(parseResult =>
     var passMgr = new PassManager(stopAfterPass, startAtPass);
     var placement = parseResult.GetValue(placementOption) switch
     {
-        "colouring" => PlacementStrategy.Colouring,
         "naive"     => PlacementStrategy.Naive,
         "beam"      => PlacementStrategy.Beam,
         var other   => throw new ArgumentException($"Unknown --placement '{other}'."),

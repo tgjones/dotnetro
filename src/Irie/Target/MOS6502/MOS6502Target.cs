@@ -15,7 +15,6 @@ public class MOS6502Target : Irie.Target.Target
     public override Dialect Dialect => DialectRegistry.ByPrefix("mos6502");
     public override Irie.Target.CallLowering CallLowering { get; } = new MOS6502CallLowering();
     public override Irie.Target.LegalizerInfo LegalizerInfo { get; } = new MOS6502LegalizerInfo();
-    public override Irie.Target.InstructionSelector InstructionSelector { get; } = new MOS6502InstructionSelector(new MOS6502RegisterInfo());
     public override Irie.Target.PseudoExpander PseudoExpander { get; } = new MOS6502PseudoExpander();
     public override Irie.Target.BranchLowering BranchLowering { get; } = new MOS6502BranchLowering();
     public override Irie.Target.FrameLowering FrameLowering { get; } = new MOS6502FrameLowering();
@@ -41,38 +40,19 @@ public class MOS6502Target : Irie.Target.Target
         pm.AddPass(new MOS6502BranchFolderPass());
     }
 
-    public override void AddPostRegisterAllocationPasses(Irie.Passes.PassManager pm)
-    {
-        pm.AddPass(new MOS6502AddressingModeSelectorPass());
-        pm.AddPass(new MOS6502IncrementStrengthReductionPass());
-        pm.AddPass(new MOS6502ParallelCopyPass());
-        // Zero-page layout of the functions' homes (and, where the subtarget
-        // allows it, frame slots), after the recursion saves that make stacked
-        // homes safe inside call cycles. It runs before the generic
-        // FrameAccessLoweringPass (added by the driver right after these
-        // passes), which then expands each frame access per the placement.
-        pm.AddPass(new MOS6502RecursionSavePass());
-        pm.AddPass(new MOS6502ProgramLayoutPass(
-            ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots, GetLibrary()));
-    }
-
     public override Irie.Target.InstructionSelector CreateShapeSelector() => new MOS6502ShapeSelector();
 
     public override Pass CreateNaivePlacementPass() => new MOS6502NaivePlacementPass();
 
     public override Pass CreateBeamPlacementPass() => new MOS6502BeamPlacementPass();
 
-    // The naive placement emits concrete ops on homes already, so none of the
-    // passes that refine or reorder register-allocator output run; only the
-    // recursion saves and the program layout, which may put homes in absolute
-    // memory when zero page runs out.
-    public override void AddPostPlacementPasses(Irie.Passes.PassManager pm, PlacementStrategy placement)
+    // Placement emits concrete ops on homes already, so only the recursion saves
+    // (which make stacked homes safe inside call cycles) and the program layout
+    // run: it lays the homes out in zero page, or in absolute memory when zero
+    // page runs out. Both come before the generic FrameAccessLoweringPass, which
+    // expands each frame access per the layout.
+    public override void AddPostPlacementPasses(Irie.Passes.PassManager pm)
     {
-        if (placement == PlacementStrategy.Colouring)
-        {
-            AddPostRegisterAllocationPasses(pm);
-            return;
-        }
         pm.AddPass(new MOS6502RecursionSavePass());
         pm.AddPass(new MOS6502ProgramLayoutPass(
             ZeroPageBase, HomeWindowStart, HomeWindowEnd, PromoteFrameSlots, GetLibrary(),

@@ -2,19 +2,18 @@ namespace Irie.Target.MOS6502;
 
 // Opcodes in the `mos6502` MIR dialect. Two flavours coexist:
 //
-// - Pre-AMS (addressing-mode-agnostic): emitted by the instruction selector
-//   from arith/cf ops. The MOS6502AddressingModeSelectorPass refines each one
-//   to a post-AMS form based on its concrete post-RA operands. e.g. `StAbs` →
-//   `StaAbs` / `StxAbs` / `StyAbs`. (adc/sbc/cmp are not in this category —
-//   the selector picks their concrete addressing-mode form directly.)
-// - Post-AMS: the mnemonic-plus-addressing-mode forms that have a direct 6502
+// - Addressing-mode-agnostic ops (`Lda`, `Sta`, `StAbs`, ...): no pass selects
+//   them any more (the pass that refined them to a concrete form after register
+//   allocation was removed with the colouring allocator); `StAbs` is only
+//   accepted in hand-written MIR.
+// - Concrete: the mnemonic-plus-addressing-mode forms that have a direct 6502
 //   byte mapping. Mirrors MOS6502Opcode 1:1.
 //
 // Plus a few synthetic ops (e.g. `Bgt`) that PseudoExpansionPass lowers later
 // to combinations of real branches.
 public enum MOS6502Op : ushort
 {
-    // ===== Pre-AMS (addressing-mode-agnostic) =====
+    // ===== Addressing-mode-agnostic =====
     Lda,
     Sta,
     Ldx,
@@ -93,13 +92,11 @@ public enum MOS6502Op : ushort
     StyZpX,
     StyAbs,
 
-    // Generic absolute store (pre-AMS). Register-agnostic "store to absolute":
-    // its value operand is the Axy class (any of $a/$x/$y), and
-    // MOS6502AddressingModeSelector refines it to the concrete StaAbs / StxAbs /
-    // StyAbs once RA has fixed the value's register. Mirrors llvm-mos's `STAbs`
+    // Generic absolute store. Register-agnostic "store to absolute": its value
+    // operand is the Axy class (any of $a/$x/$y). Mirrors llvm-mos's `STAbs`
     // pseudo (a GPR-classed store, "STA abs, STX abs"), as opposed to the
-    // accumulator-specific StaAbs. Never reaches machine-code emission — AMS
-    // always rewrites it to one of the three concrete stores first.
+    // accumulator-specific StaAbs. Nothing rewrites it to one of the three
+    // concrete stores, so it cannot reach machine-code emission.
     StAbs,
 
     // ADC

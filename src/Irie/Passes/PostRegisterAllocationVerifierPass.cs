@@ -4,9 +4,9 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// Post-RA verifier for physreg-only MIR — the llvm `MachineVerifier` slot after
-// the virtual-register rewriter. Independent of how the allocator works: it only
-// reads the IR the allocator left behind, so it holds for any allocator.
+// Post-placement verifier for physreg-only MIR — the llvm `MachineVerifier` slot
+// after the virtual-register rewriter. Independent of how values were placed: it
+// only reads the IR the placement left behind, so it holds for any placement.
 //
 // Checks (throws MirVerificationException on the first violation):
 //   1. No virtual registers, block parameters or block-argument edges remain.
@@ -16,11 +16,11 @@ namespace Irie.Passes;
 //      on entry to the function must be one of the entry block's declared
 //      (calling-convention) live-ins.
 //
-// The allocator's own interference check (RegisterAssignmentVerifier) covers
-// "two simultaneously-live values never share a physreg"; that needs the pre-RA
-// intervals, so it cannot be recovered from this pass's input alone.
+// "Two simultaneously-live values never share a physreg" needs the values the
+// placement started from, so it cannot be recovered from this pass's input
+// alone; PlacementChecker validates it per placed block.
 //
-// Runs right after RegisterAllocatorPass. It does NOT demand an absence of
+// Runs right after placement. It does NOT demand an absence of
 // `pseudo.copy`: copies are expanded later, and scavenger temps minted by that
 // expansion legitimately appear as vregs again until RegisterScavengingPass
 // (see `finalLowering`).

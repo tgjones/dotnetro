@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Per-case code size (and cycles for the corpus) of one placement strategy.
 #
-#   notes/measure-placement.sh <colouring|naive|beam> <output dir>
+#   notes/measure-placement.sh <naive|beam> <output dir>
 #
 # Needs a Release build first (dotnet build src/DotNetro.slnx -c Release). Writes
 #   <dir>/corpus.tsv   case, bytes, cycles, ok      (43 LlvmMosReference cases: bytes of

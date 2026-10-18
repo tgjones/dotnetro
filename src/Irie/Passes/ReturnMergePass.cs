@@ -13,10 +13,10 @@ namespace Irie.Passes;
 // copies of the same return epilogue (unmerge + per-byte copy to the result
 // physregs + pseudo.return). Funnelling all returns through one block turns those
 // into a single epilogue: each original return becomes `cf.br retblock(%v)`, and
-// the returned value rides in as a block parameter (the PHI). PhiElimination then
-// breaks the block-arg into per-edge copies, the coalescing allocator collapses
-// them, and the existing branch-folder / block-placement passes recover the
-// fall-through. The net effect matches llvm-mos's shared `bb.N: ...; rts` tail.
+// the returned value rides in as a block parameter (the PHI). Placement then
+// writes the block parameter on each incoming edge, where it collapses to the
+// register the value is already in, and the existing branch-folder /
+// block-placement passes recover the fall-through. The net effect matches llvm-mos's shared `bb.N: ...; rts` tail.
 //
 // Like the LLVM analogue this carries **no cost model** — the only gate is "at
 // least two return blocks" ("We don't want to change IR just because we can.").

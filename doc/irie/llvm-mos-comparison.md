@@ -2,11 +2,11 @@
 
 # Irie vs llvm-mos and Oscar64 — MOS6502 codegen
 
-Irie emits **+1.7%** instructions vs llvm-mos (**1917** vs **1885**, ratio **1.02**) across **36/47** corpus cases.
+Irie emits **-21.3%** instructions vs llvm-mos (**1484** vs **1885**, ratio **0.79**) across **36/47** corpus cases.
 
-Code size: Irie **3167** vs llvm-mos **3517** bytes (**-10.0%**), both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.
+Code size: Irie **2610** vs llvm-mos **3517** bytes (**-25.8%**), both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.
 
-Against Oscar64, over the **35** of those cases it compiles: Irie emits **+62.5%** instructions (**1584** vs **975**) and **+46.0%** code bytes (**2521** vs **1727**). Oscar64 compiles each case inside a generated whole-program harness, so it chooses its own calling convention per function; Oscar64 bytes come from its own listing.
+Against Oscar64, over the **35** of those cases it compiles: Irie emits **+29.0%** instructions (**1258** vs **975**) and **+26.0%** code bytes (**2176** vs **1727**). Oscar64 compiles each case inside a generated whole-program harness, so it chooses its own calling convention per function; Oscar64 bytes come from its own listing.
 
 7 cases (marked 🚫) are excluded from the totals above: duplicates of another case's MIR shape, or not comparable (reason shown in the Status column).
 
@@ -14,21 +14,17 @@ Ratio is Irie / llvm-mos; lower is better — 🟢 Irie beats llvm-mos, ⚪ pari
 
 | Category | Case | Status | llvm-mos | Oscar64 | Irie | Δ | Ratio | | llvm-mos bytes | Oscar64 bytes | Irie bytes |
 | --- | --- | --- | --: | --: | --: | --: | --: | :-: | --: | --: | --: |
-| realistic | strlen | converted 🚫 incomparable: llvm-mos recognises the loop as strlen and tail-calls the library routine | 1 | 23 | 26 | +25 | 26.00 | 🔴 | 3 | 43 | 44 |
-| realistic | crc8 | converted | 48 | 32 | 80 | +32 | 1.67 | 🔴 | 89 | 56 | 150 |
-| memory | array-index | converted | 37 | 21 | 61 | +24 | 1.65 | 🔴 | 61 | 38 | 104 |
-| realistic | gcd | converted | 40 | 24 | 65 | +25 | 1.63 | 🔴 | 76 | 49 | 124 |
-| constraints | shift-const | converted | 26 | 24 | 41 | +15 | 1.58 | 🔴 | 41 | 38 | 56 |
-| memory | two-pointer-copy | converted | 47 | 31 | 71 | +24 | 1.51 | 🔴 | 86 | 56 | 134 |
-| widths | zero-extend | converted | 6 | 7 | 9 | +3 | 1.50 | 🔴 | 9 | 11 | 12 |
-| control-flow | loop-sum-array | converted | 43 | 31 | 63 | +20 | 1.47 | 🔴 | 78 | 56 | 116 |
-| constraints | compare-flags | converted | 47 | 40 | 65 | +18 | 1.38 | 🔴 | 89 | 75 | 125 |
-| constraints | bitops | converted | 30 | 23 | 37 | +7 | 1.23 | 🔴 | 48 | 45 | 62 |
-| widths | sign-extend | converted | 11 | 13 | 13 | +2 | 1.18 | 🔴 | 19 | 19 | 21 |
-| pressure | pressure-high | converted | 230 | 139 | 261 | +31 | 1.13 | 🔴 | 466 | 261 | 497 |
-| pressure | pressure-i16 | converted | 55 | 40 | 61 | +6 | 1.11 | 🔴 | 99 | 70 | 107 |
-| widths | mixed-widths | converted | 43 | 36 | 46 | +3 | 1.07 | 🔴 | 75 | 60 | 77 |
-| realistic | fibonacci | converted | 50 | 34 | 51 | +1 | 1.02 | 🔴 | 91 | 61 | 96 |
+| realistic | strlen | converted 🚫 incomparable: llvm-mos recognises the loop as strlen and tail-calls the library routine | 1 | 23 | 26 | +25 | 26.00 | 🔴 | 3 | 43 | 42 |
+| memory | array-index | converted | 37 | 21 | 60 | +23 | 1.62 | 🔴 | 61 | 38 | 93 |
+| constraints | shift-const | converted | 26 | 24 | 38 | +12 | 1.46 | 🔴 | 41 | 38 | 50 |
+| realistic | crc8 | converted | 48 | 32 | 68 | +20 | 1.42 | 🔴 | 89 | 56 | 131 |
+| control-flow | loop-sum-array | converted | 43 | 31 | 58 | +15 | 1.35 | 🔴 | 78 | 56 | 100 |
+| memory | two-pointer-copy | converted | 47 | 31 | 63 | +16 | 1.34 | 🔴 | 86 | 56 | 114 |
+| widths | zero-extend | converted | 6 | 7 | 8 | +2 | 1.33 | 🔴 | 9 | 11 | 13 |
+| constraints | compare-flags | converted | 47 | 40 | 57 | +10 | 1.21 | 🔴 | 89 | 75 | 112 |
+| widths | sign-extend | converted | 11 | 13 | 13 | +2 | 1.18 | 🔴 | 19 | 19 | 22 |
+| constraints | bitops | converted | 30 | 23 | 32 | +2 | 1.07 | 🔴 | 48 | 45 | 52 |
+| realistic | gcd | converted | 40 | 24 | 41 | +1 | 1.03 | 🔴 | 76 | 49 | 84 |
 | basics | add-i16 | converted | 8 | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 14 | 10 |
 | basics | add-i32 | converted | 14 | 14 | 14 | 0 | 1.00 | ⚪ | 22 | 26 | 22 |
 | basics | add-i8 | converted | 4 | 4 | 4 | 0 | 1.00 | ⚪ | 6 | 6 | 6 |
@@ -38,24 +34,28 @@ Ratio is Irie / llvm-mos; lower is better — 🟢 Irie beats llvm-mos, ⚪ pari
 | basics | sub-i16 | converted | 8 | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 14 | 10 |
 | coalescing | commutative | converted 🚫 duplicate of basics/add-i16 | 8 | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 14 | 10 |
 | coalescing | copy-passthrough | converted 🚫 duplicate of basics/identity-i8 | 1 | 3 | 1 | 0 | 1.00 | ⚪ | 1 | 5 | 1 |
-| coalescing | redundant-copy | converted 🚫 duplicate of control-flow/select | 12 | 11 | 12 | 0 | 1.00 | ⚪ | 22 | 22 | 20 |
-| coalescing | swap | converted 🚫 duplicate of basics/sub-i16 | 11 | 8 | 11 | 0 | 1.00 | ⚪ | 17 | 14 | 17 |
+| coalescing | swap | converted 🚫 duplicate of basics/sub-i16 | 11 | 8 | 11 | 0 | 1.00 | ⚪ | 17 | 14 | 19 |
 | constraints | inc-dec | converted | 4 | 7 | 4 | 0 | 1.00 | ⚪ | 6 | 10 | 6 |
 | constraints | shift-var | converted | 1 | 14 | 1 | 0 | 1.00 | ⚪ | 3 | 24 | 3 |
-| control-flow | select | converted | 12 | 11 | 12 | 0 | 1.00 | ⚪ | 22 | 22 | 20 |
 | memory | global-rw | converted | 10 | 9 | 10 | 0 | 1.00 | ⚪ | 18 | 19 | 18 |
 | widths | truncate | converted | 3 | 4 | 3 | 0 | 1.00 | ⚪ | 4 | 6 | 4 |
-| pressure | live-across-call | converted | 23 | 11 | 22 | -1 | 0.96 | 🟢 | 37 | 21 | 32 |
-| control-flow | early-return | converted | 28 | 30 | 26 | -2 | 0.93 | 🟢 | 42 | 48 | 39 |
+| control-flow | early-return | converted | 28 | 30 | 27 | -1 | 0.96 | 🟢 | 42 | 48 | 42 |
+| widths | mixed-widths | converted | 43 | 36 | 40 | -3 | 0.93 | 🟢 | 75 | 60 | 67 |
 | control-flow | common-subexpr | converted | 39 | 29 | 36 | -3 | 0.92 | 🟢 | 83 | 62 | 73 |
-| control-flow | nested-loop | converted | 139 | 64 | 126 | -13 | 0.91 | 🟢 | 271 | 127 | — |
-| control-flow | if-else | converted | 36 | 26 | 32 | -4 | 0.89 | 🟢 | 56 | 48 | 54 |
-| pressure | pressure-i64 | converted | 392 | — | 333 | -59 | 0.85 | 🟢 | 808 | — | 646 |
-| realistic | factorial-recursive | converted | 60 | 47 | 48 | -12 | 0.80 | 🟢 | 110 | 87 | 83 |
-| basics | chain-arith | converted | 51 | 24 | 40 | -11 | 0.78 | 🟢 | 85 | 42 | 60 |
-| basics | stack-args | converted | 122 | 64 | 92 | -30 | 0.75 | 🟢 | 219 | 94 | 130 |
-| pressure | many-calls | converted | 178 | 68 | 134 | -44 | 0.75 | 🟢 | 312 | 110 | 218 |
-| control-flow | loop-counter | converted 🚫 incomparable: llvm-mos replaces the loop with a closed-form __mulsi3 call | 65 | 31 | 38 | -27 | 0.58 | 🟢 | 117 | 53 | 70 |
+| realistic | fibonacci | converted | 50 | 34 | 46 | -4 | 0.92 | 🟢 | 91 | 61 | 87 |
+| coalescing | redundant-copy | converted 🚫 duplicate of control-flow/select | 12 | 11 | 11 | -1 | 0.92 | 🟢 | 22 | 22 | 20 |
+| control-flow | select | converted | 12 | 11 | 11 | -1 | 0.92 | 🟢 | 22 | 22 | 20 |
+| pressure | pressure-i16 | converted | 55 | 40 | 49 | -6 | 0.89 | 🟢 | 99 | 70 | 77 |
+| control-flow | if-else | converted | 36 | 26 | 30 | -6 | 0.83 | 🟢 | 56 | 48 | 55 |
+| pressure | pressure-high | converted | 230 | 139 | 182 | -48 | 0.79 | 🟢 | 466 | 261 | 344 |
+| realistic | factorial-recursive | converted | 60 | 47 | 46 | -14 | 0.77 | 🟢 | 110 | 87 | 80 |
+| basics | stack-args | converted | 122 | 64 | 79 | -43 | 0.65 | 🟢 | 219 | 94 | 115 |
+| pressure | pressure-i64 | converted | 392 | — | 226 | -166 | 0.58 | 🟢 | 808 | — | 434 |
+| control-flow | loop-counter | converted 🚫 incomparable: llvm-mos replaces the loop with a closed-form __mulsi3 call | 65 | 31 | 37 | -28 | 0.57 | 🟢 | 117 | 53 | 69 |
+| pressure | live-across-call | converted | 23 | 11 | 12 | -11 | 0.52 | 🟢 | 37 | 21 | 18 |
+| control-flow | nested-loop | converted | 139 | 64 | 70 | -69 | 0.50 | 🟢 | 271 | 127 | 136 |
+| pressure | many-calls | converted | 178 | 68 | 78 | -100 | 0.44 | 🟢 | 312 | 110 | 126 |
+| basics | chain-arith | converted | 51 | 24 | 22 | -29 | 0.43 | 🟢 | 85 | 42 | 34 |
 | memory | struct-pass | converted 🚫 incomparable: the by-value struct ABI is modelled as two i16 arguments, which llvm-mos does not pass the same way | 10 | 14 | 1 | -9 | 0.10 | 🟢 | 18 | 28 | 3 |
 | control-flow | switch | blocked | 38 | 36 | — | — | — |  | 62 | 67 | — |
 | memory | ptr-deref | blocked | 23 | 12 | — | — | — |  | 41 | 21 | — |
@@ -160,32 +160,220 @@ Irie (26):
 
 ```asm
 strlen_impl:
-    STA $04
-    STX $03
-    STA $02
+    STA $14
+    STX $15
 .bb1:
-    LDA $02
     STA $12
     STX $13
     LDY #$00
+    STA $16
     LDA ($12),Y
-    BEQ .bb3
+    BNE .bb3
 .bb2:
+    SEC
+    LDA $16
+    SBC $14
+    TAY
+    TXA
+    SBC $15
+    TAX
+    TYA
+    RTS
+.bb3:
     CLC
-    LDA $02
+    LDA $16
     ADC #$01
-    STA $02
+    TAY
     TXA
     ADC #$00
     TAX
+    TYA
     JMP .bb1
-.bb3:
-    SEC
+```
+
+</details>
+
+<details>
+<summary>memory/array-index — llvm-mos 37, Oscar64 21, Irie 60, ratio 1.62</summary>
+
+llvm-mos (37):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "array-index.c"
+    .section    .text.array_index,"ax",@progbits
+    .globl    array_index                     ; -- Begin function array_index
+    .type    array_index,@function
+array_index:                            ; @array_index
+; %bb.0:
+    stx    __rc4
+    asl
+    rol    __rc4
+    clc
+    adc    __rc2
+    tay
+    lda    __rc3
+    adc    __rc4
+    tax
+    sty    __rc2
+    sty    __rc4
+    sta    __rc3
+    ldy    #0
+    lda    (__rc2),y
+    sta    __rc6
+    clc
+    lda    __rc4
+    adc    #2
+    sta    __rc4
+    txa
+    adc    #0
+    sta    __rc5
+    iny
+    lda    (__rc2),y
+    tax
+    sty    __rc7
+    iny
+    clc
+    lda    __rc6
+    adc    (__rc2),y
+    sta    __rc2
+    txa
+    ldy    __rc7
+    adc    (__rc4),y
+    tax
+    lda    __rc2
+    rts
+.Lfunc_end0:
+    .size    array_index, .Lfunc_end0-array_index
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (21):
+
+```asm
+array_index: ; array_index(const i16*,i16)->i16
+.s4:
+08a8 : 06 0f __ ASL P2 ; (i + 0)
+08aa : 26 10 __ ROL P3 ; (i + 1)
+08ac : 18 __ __ CLC
+08ad : a5 0d __ LDA P0 ; (a + 0)
+08af : 65 0f __ ADC P2 ; (i + 0)
+08b1 : 85 0d __ STA P0 ; (a + 0)
+08b3 : a5 0e __ LDA P1 ; (a + 1)
+08b5 : 65 10 __ ADC P3 ; (i + 1)
+08b7 : 85 0e __ STA P1 ; (a + 1)
+08b9 : 18 __ __ CLC
+08ba : a0 00 __ LDY #$00
+08bc : b1 0d __ LDA (P0),y ; (a + 0)
+08be : a0 02 __ LDY #$02
+08c0 : 71 0d __ ADC (P0),y ; (a + 0)
+08c2 : 85 1b __ STA ACCU + 0
+08c4 : 88 __ __ DEY
+08c5 : b1 0d __ LDA (P0),y ; (a + 0)
+08c7 : a0 03 __ LDY #$03
+08c9 : 71 0d __ ADC (P0),y ; (a + 0)
+08cb : 85 1c __ STA ACCU + 1
+.s3:
+08cd : 60 __ __ RTS
+```
+
+Irie (60):
+
+```asm
+array_index:
+    STA $14
     LDA $02
-    SBC $04
+    ASL
+    TAY
+    LDA $03
+    ROL
+    CLC
+    STA $15
+    TYA
+    ADC $14
+    STX $16
+    TAX
+    LDA $15
+    ADC $16
+    STX $12
+    STA $13
+    LDY #$00
+    STA $17
+    LDA ($12),Y
+    LDY #$01
+    STA $18
+    LDA ($12),Y
+    CLC
+    STA $19
+    TYA
+    ADC $02
+    TAX
+    LDA $03
+    ADC #$00
     TAY
     TXA
-    SBC $03
+    ASL
+    TAX
+    TYA
+    ROL
+    CLC
+    TAY
+    TXA
+    ADC $14
+    TAX
+    TYA
+    ADC $16
+    STX $12
+    STA $13
+    LDY #$00
+    STA $1A
+    LDA ($12),Y
+    LDY #$01
+    STA $1B
+    LDA ($12),Y
+    CLC
+    TAX
+    LDA $18
+    ADC $1B
+    TAY
+    TXA
+    ADC $19
     TAX
     TYA
     RTS
@@ -194,7 +382,165 @@ strlen_impl:
 </details>
 
 <details>
-<summary>realistic/crc8 — llvm-mos 48, Oscar64 32, Irie 80, ratio 1.67</summary>
+<summary>constraints/shift-const — llvm-mos 26, Oscar64 24, Irie 38, ratio 1.46</summary>
+
+llvm-mos (26):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "shift-const.c"
+    .section    .text.shift_const,"ax",@progbits
+    .globl    shift_const                     ; -- Begin function shift_const
+    .type    shift_const,@function
+shift_const:                            ; @shift_const
+; %bb.0:
+    tay
+    txa
+    sty    __rc2
+    asl    __rc2
+    stx    __rc3
+    rol    __rc3
+    asl    __rc2
+    rol    __rc3
+    asl    __rc2
+    rol    __rc3
+    cpx    #128
+    ror
+    sty    __rc4
+    ror    __rc4
+    cmp    #128
+    ror
+    tax
+    lda    __rc4
+    ror
+    ora    __rc2
+    tay
+    txa
+    ora    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    shift_const, .Lfunc_end0-shift_const
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (24):
+
+```asm
+shift_const: ; shift_const(i16)->i16
+.s4:
+089a : 85 1b __ STA ACCU + 0
+089c : 0a __ __ ASL
+089d : 85 43 __ STA T1 + 0
+089f : 8a __ __ TXA
+08a0 : 2a __ __ ROL
+08a1 : 06 43 __ ASL T1 + 0
+08a3 : 2a __ __ ROL
+08a4 : 06 43 __ ASL T1 + 0
+08a6 : 2a __ __ ROL
+08a7 : 85 44 __ STA T1 + 1
+08a9 : 8a __ __ TXA
+08aa : 4a __ __ LSR
+08ab : 66 1b __ ROR ACCU + 0
+08ad : 4a __ __ LSR
+08ae : 66 1b __ ROR ACCU + 0
+08b0 : 49 20 __ EOR #$20
+08b2 : 38 __ __ SEC
+08b3 : e9 20 __ SBC #$20
+08b5 : 05 44 __ ORA T1 + 1
+08b7 : 85 1c __ STA ACCU + 1
+08b9 : a5 1b __ LDA ACCU + 0
+08bb : 05 43 __ ORA T1 + 0
+08bd : 85 1b __ STA ACCU + 0
+.s3:
+08bf : 60 __ __ RTS
+```
+
+Irie (38):
+
+```asm
+shift_const:
+    STA $14
+    ASL
+    TAY
+    TXA
+    ROL
+    STA $15
+    TYA
+    ASL
+    TAY
+    LDA $15
+    ROL
+    STA $16
+    TYA
+    ASL
+    STA $17
+    LDA $16
+    ROL
+    CPX #$80
+    STA $18
+    TXA
+    ROR
+    TAX
+    LDA $14
+    ROR
+    CPX #$80
+    TAY
+    TXA
+    ROR
+    TAX
+    TYA
+    ROR
+    ORA $17
+    TAY
+    TXA
+    ORA $18
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>realistic/crc8 — llvm-mos 48, Oscar64 32, Irie 68, ratio 1.42</summary>
 
 llvm-mos (48):
 
@@ -360,107 +706,94 @@ crc8: ; crc8(const u8*,u16)->u8
 08d7 : f0 d0 __ BEQ $08a9 ; (crc8.s9 + 0)
 ```
 
-Irie (80):
+Irie (68):
 
 ```asm
 crc8:
-    STA $04
-    LDA #$FF
-    STA $0A
-    LDA #$00
-    STA $07
-    LDA #$00
-    STA $05
+    LDY #$00
+    STA $14
+    STX $15
+    STY $16
+    LDX #$FF
+    STX $17
 .bb1:
-    LDA $05
+    LDA $16
+    STY $18
     CMP $03
     BCC .bb2
     BNE .bb8
-    LDA $07
-    CMP $02
-    BCS .bb9
+    CPY $02
+    BCS .bb8
 .bb2:
     CLC
-    LDA $04
-    ADC $07
-    TAY
-    TXA
-    ADC $05
-    STY $12
+    LDA $14
+    ADC $18
+    TAX
+    LDA $15
+    ADC $16
+    STX $12
     STA $13
     LDY #$00
     LDA ($12),Y
-    STA $06
-    LDA $0A
-    EOR $06
-    STA $0A
-    LDA #$00
-    STA $09
-    LDA #$00
-    STA $08
+    EOR $17
+    STY $19
+    STY $1A
+    STA $17
 .bb3:
-    LDA #$08
-    STA $0B
+    LDA $1A
+    EOR #$80
+    TAX
     LDA #$00
-    STA $06
-    LDA $08
     EOR #$80
-    TAY
-    LDA $06
-    EOR #$80
-    STA $06
-    TYA
-    CMP $06
+    STA $1B
+    CPX $1B
     BCC .bb5
     BNE .bb4
-    LDA $09
-    CMP $0B
+    LDA $19
+    CMP #$08
     BCC .bb5
 .bb4:
     CLC
-    LDA $07
+    LDA $18
     ADC #$01
-    STA $07
-    LDA $05
+    STA $18
+    LDA $16
     ADC #$00
-    STA $05
+    STA $16
+    LDY $18
     JMP .bb1
 .bb5:
-    LDA $0A
+    LDA $17
     AND #$80
-    TAY
-    LDA $0A
+    TAX
+    LDA $17
     ASL
-    STA $0A
-    TYA
-    BEQ .bb7
+    CPX #$00
+    BNE .bb7
 .bb6:
-    LDA $0A
-    EOR #$31
-    STA $0A
-.bb7:
     CLC
-    LDA $09
+    STA $17
+    LDA $19
     ADC #$01
-    STA $09
-    LDA $08
+    STA $19
+    LDA $1A
     ADC #$00
-    STA $08
+    STA $1A
     JMP .bb3
+.bb7:
+    EOR #$31
+    JMP .bb6
 .bb8:
-    LDA $0A
-    RTS
-.bb9:
-    LDA $0A
+    LDA $17
     RTS
 ```
 
 </details>
 
 <details>
-<summary>memory/array-index — llvm-mos 37, Oscar64 21, Irie 61, ratio 1.65</summary>
+<summary>control-flow/loop-sum-array — llvm-mos 43, Oscar64 31, Irie 58, ratio 1.35</summary>
 
-llvm-mos (37):
+llvm-mos (43):
 
 ```asm
     .zeropage    __rc0
@@ -495,51 +828,66 @@ llvm-mos (37):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "array-index.c"
-    .section    .text.array_index,"ax",@progbits
-    .globl    array_index                     ; -- Begin function array_index
-    .type    array_index,@function
-array_index:                            ; @array_index
+    .file    "loop-sum-array.c"
+    .section    .text.loop_sum_array,"ax",@progbits
+    .globl    loop_sum_array                  ; -- Begin function loop_sum_array
+    .type    loop_sum_array,@function
+loop_sum_array:                         ; @loop_sum_array
 ; %bb.0:
-    stx    __rc4
-    asl
-    rol    __rc4
-    clc
-    adc    __rc2
     tay
-    lda    __rc3
-    adc    __rc4
-    tax
-    sty    __rc2
-    sty    __rc4
-    sta    __rc3
-    ldy    #0
-    lda    (__rc2),y
-    sta    __rc6
-    clc
-    lda    __rc4
-    adc    #2
-    sta    __rc4
+    cmp    #1
     txa
-    adc    #0
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bmi    .LBB0_8
+; %bb.3:
+    sty    __rc4
+    ldy    #0
+    tya
+    sty    __rc6
+.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
+    clc
+    ldy    #0
+    adc    (__rc2),y
     sta    __rc5
     iny
-    lda    (__rc2),y
-    tax
-    sty    __rc7
-    iny
-    clc
     lda    __rc6
     adc    (__rc2),y
-    sta    __rc2
-    txa
-    ldy    __rc7
-    adc    (__rc4),y
-    tax
+    sta    __rc6
     lda    __rc2
+    clc
+    adc    #2
+    sta    __rc2
+    lda    __rc3
+    adc    #0
+    sta    __rc3
+    lda    #255
+    dec    __rc4
+    cmp    __rc4
+    bne    .LBB0_6
+; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
+    dex
+.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
+    lda    __rc5
+    cpx    #0
+    bne    .LBB0_4
+; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
+    ldy    __rc4
+    bne    .LBB0_4
+    jmp    .LBB0_9
+.LBB0_8:
+    lda    #0
+    tax
+    stx    __rc6
+.LBB0_9:
+    ldx    __rc6
     rts
 .Lfunc_end0:
-    .size    array_index, .Lfunc_end0-array_index
+    .size    loop_sum_array, .Lfunc_end0-loop_sum_array
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
@@ -548,486 +896,124 @@ array_index:                            ; @array_index
     .globl    __do_init_stack
 ```
 
-Oscar64 (21):
+Oscar64 (31):
 
 ```asm
-array_index: ; array_index(const i16*,i16)->i16
+loop_sum_array: ; loop_sum_array(const i16*,i16)->i16
 .s4:
-08a8 : 06 0f __ ASL P2 ; (i + 0)
-08aa : 26 10 __ ROL P3 ; (i + 1)
-08ac : 18 __ __ CLC
-08ad : a5 0d __ LDA P0 ; (a + 0)
-08af : 65 0f __ ADC P2 ; (i + 0)
-08b1 : 85 0d __ STA P0 ; (a + 0)
-08b3 : a5 0e __ LDA P1 ; (a + 1)
-08b5 : 65 10 __ ADC P3 ; (i + 1)
-08b7 : 85 0e __ STA P1 ; (a + 1)
-08b9 : 18 __ __ CLC
-08ba : a0 00 __ LDY #$00
-08bc : b1 0d __ LDA (P0),y ; (a + 0)
-08be : a0 02 __ LDY #$02
-08c0 : 71 0d __ ADC (P0),y ; (a + 0)
-08c2 : 85 1b __ STA ACCU + 0
-08c4 : 88 __ __ DEY
-08c5 : b1 0d __ LDA (P0),y ; (a + 0)
-08c7 : a0 03 __ LDY #$03
-08c9 : 71 0d __ ADC (P0),y ; (a + 0)
-08cb : 85 1c __ STA ACCU + 1
-.s3:
-08cd : 60 __ __ RTS
-```
-
-Irie (61):
-
-```asm
-array_index:
-    STA $04
-    LDA $02
-    STA $07
-    LDA $03
-    STA $06
-    LDA $02
-    ASL
-    STA $03
-    LDA $06
-    ROL
-    STA $02
-    CLC
-    LDA $04
-    ADC $03
-    TAY
-    TXA
-    ADC $02
-    STY $12
-    STA $13
-    LDY #$00
-    LDA ($12),Y
-    STA $05
-    LDY #$01
-    LDA ($12),Y
-    STA $03
-    CLC
-    LDA $07
-    ADC #$01
-    STA $02
-    LDA $06
-    ADC #$00
-    TAY
-    LDA $02
-    ASL
-    STA $06
-    TYA
-    ROL
-    STA $02
-    CLC
-    LDA $04
-    ADC $06
-    TAY
-    TXA
-    ADC $02
-    STY $12
-    STA $13
-    LDY #$00
-    LDA ($12),Y
-    STA $04
-    LDY #$01
-    LDA ($12),Y
-    STA $02
-    CLC
-    LDA $05
-    ADC $04
-    TAY
-    LDA $03
-    ADC $02
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>realistic/gcd — llvm-mos 40, Oscar64 24, Irie 65, ratio 1.63</summary>
-
-llvm-mos (40):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "gcd.c"
-    .section    .text.gcd,"ax",@progbits
-    .globl    gcd                             ; -- Begin function gcd
-    .type    gcd,@function
-gcd:                                    ; @gcd
-; %bb.0:
-    sta    __rc16
-    lda    __rc20
-    pha
-    lda    __rc21
-    pha
-    lda    __rc16
-    ldy    __rc2
-    inc    __rc3
-    dec    __rc3
-    bne    .LBB0_2
-; %bb.1:
-    cpy    #0
-    beq    .LBB0_5
-.LBB0_2:                                ; =>This Inner Loop Header: Depth=1
-    sty    __rc17
-    ldy    __rc3
-    sty    __rc21
-    ldy    __rc17
-    sty    __rc20
-    sty    __rc2
-    jsr    __modhi3
-    tay
-    stx    __rc3
-    lda    __rc20
-    ldx    __rc21
-    inc    __rc3
-    dec    __rc3
-    bne    .LBB0_2
-; %bb.3:                                ;   in Loop: Header=BB0_2 Depth=1
-    cpy    #0
-    bne    .LBB0_2
-.LBB0_4:
-    ldx    __rc21
-    lda    __rc20
-    sta    __rc16
-    pla
-    sta    __rc21
-    pla
-    sta    __rc20
-    lda    __rc16
-    rts
-.LBB0_5:
-    sta    __rc20
-    stx    __rc21
-    jmp    .LBB0_4
-.Lfunc_end0:
-    .size    gcd, .Lfunc_end0-gcd
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (24):
-
-```asm
-gcd: ; gcd(i16,i16)->i16
-.s4:
-08a8 : a5 10 __ LDA P3 ; (b + 1)
-08aa : 4c cc 08 JMP $08cc ; (gcd.l7 + 0)
-.s5:
-08ad : a5 0d __ LDA P0 ; (a + 0)
-08af : 85 1b __ STA ACCU + 0
-08b1 : a5 0e __ LDA P1 ; (a + 1)
-08b3 : 85 1c __ STA ACCU + 1
-08b5 : a5 0f __ LDA P2 ; (b + 0)
-08b7 : 85 03 __ STA WORK + 0
-08b9 : 85 0d __ STA P0 ; (a + 0)
-08bb : a5 10 __ LDA P3 ; (b + 1)
-08bd : 85 04 __ STA WORK + 1
-08bf : 85 0e __ STA P1 ; (a + 1)
-08c1 : 20 9b 09 JSR $099b ; (mods16 + 0)
-08c4 : a5 05 __ LDA WORK + 2
-08c6 : 85 0f __ STA P2 ; (b + 0)
-08c8 : a5 06 __ LDA WORK + 3
-08ca : 85 10 __ STA P3 ; (b + 1)
-.l7:
-08cc : 05 0f __ ORA P2 ; (b + 0)
-08ce : d0 dd __ BNE $08ad ; (gcd.s5 + 0)
+08a8 : a9 00 __ LDA #$00
+08aa : 85 1b __ STA ACCU + 0
+08ac : 85 1c __ STA ACCU + 1
+08ae : a5 10 __ LDA P3 ; (n + 1)
+08b0 : 30 2d __ BMI $08df ; (loop_sum_array.s3 + 0)
 .s6:
-08d0 : a5 0d __ LDA P0 ; (a + 0)
-08d2 : 85 1b __ STA ACCU + 0
-08d4 : a5 0e __ LDA P1 ; (a + 1)
-08d6 : 85 1c __ STA ACCU + 1
+08b2 : 05 0f __ ORA P2 ; (n + 0)
+08b4 : f0 29 __ BEQ $08df ; (loop_sum_array.s3 + 0)
+.s7:
+08b6 : a6 10 __ LDX P3 ; (n + 1)
+.l5:
+08b8 : a0 00 __ LDY #$00
+08ba : b1 0d __ LDA (P0),y ; (a + 0)
+08bc : 18 __ __ CLC
+08bd : 65 1b __ ADC ACCU + 0
+08bf : 85 1b __ STA ACCU + 0
+08c1 : c8 __ __ INY
+08c2 : b1 0d __ LDA (P0),y ; (a + 0)
+08c4 : 65 1c __ ADC ACCU + 1
+08c6 : 85 1c __ STA ACCU + 1
+08c8 : 18 __ __ CLC
+08c9 : a5 0d __ LDA P0 ; (a + 0)
+08cb : 69 02 __ ADC #$02
+08cd : 85 0d __ STA P0 ; (a + 0)
+08cf : 90 02 __ BCC $08d3 ; (loop_sum_array.s12 + 0)
+.s11:
+08d1 : e6 0e __ INC P1 ; (a + 1)
+.s12:
+08d3 : a5 0f __ LDA P2 ; (n + 0)
+08d5 : d0 01 __ BNE $08d8 ; (loop_sum_array.s9 + 0)
+.s8:
+08d7 : ca __ __ DEX
+.s9:
+08d8 : c6 0f __ DEC P2 ; (n + 0)
+08da : d0 dc __ BNE $08b8 ; (loop_sum_array.l5 + 0)
+.s10:
+08dc : 8a __ __ TXA
+08dd : d0 d9 __ BNE $08b8 ; (loop_sum_array.l5 + 0)
 .s3:
-08d8 : 60 __ __ RTS
+08df : 60 __ __ RTS
 ```
 
-Irie (65):
+Irie (58):
 
 ```asm
-gcd:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    TYA
-    STA $04
-    TXA
-    TAY
+loop_sum_array:
+    LDY #$00
+    STA $14
+    STX $15
+    STY $16
+    STY $17
+    STY $18
 .bb1:
+    LDA $16
+    EOR #$80
+    TAX
     LDA $03
-    BNE .bb11
-    LDA $02
-    BNE .bb12
+    EOR #$80
+    STA $19
+    STY $1A
+    CPX $19
+    BCC .bb3
+    BNE .bb2
+    CPY $02
+    BCC .bb3
 .bb2:
-    LDA $04
-    STY $02
-    LDX $02
+    LDX $18
+    LDA $17
+    RTS
 .bb3:
+    LDA $1A
+    ASL
+    TAX
+    LDA $16
+    ROL
+    CLC
     TAY
-    PLA
-    STA $15
-    PLA
-    STA $14
+    TXA
+    ADC $14
+    TAX
     TYA
-    RTS
-.bb4:
+    ADC $15
+    STX $12
+    STA $13
+    LDY #$00
+    STA $1B
+    LDA ($12),Y
+    LDY #$01
+    STA $1C
+    LDA ($12),Y
+    CLC
+    TAX
+    LDA $17
+    ADC $1C
+    STA $17
+    TXA
+    ADC $18
+    CLC
+    TAX
     TYA
-    BMI .bb9
-.bb5:
-    LDA #$00
-    STA $03
-.bb6:
-    LDA $14
-    BMI .bb10
-.bb7:
-    LDA #$00
-    STA $07
-.bb8:
-    LDA $04
-    STY $02
-    LDX $02
-    LDY $03
-    STY $02
-    LDY $15
-    STY $04
-    LDY $14
-    STY $05
-    LDY $07
-    STY $06
-    JSR __modsi3
-    LDY $15
-    STY $04
-    LDY $14
-    STA $02
-    STX $03
+    ADC $1A
+    TAY
+    LDA $16
+    ADC #$00
+    STA $16
+    STX $18
     JMP .bb1
-.bb9:
-    LDA #$FF
-    STA $03
-    JMP .bb6
-.bb10:
-    LDA #$FF
-    STA $07
-    JMP .bb8
-.bb11:
-    LDA $02
-    STA $15
-    LDA $03
-    STA $14
-    JMP .bb4
-.bb12:
-    LDA $02
-    STA $15
-    LDA $03
-    STA $14
-    JMP .bb4
 ```
 
 </details>
 
 <details>
-<summary>constraints/shift-const — llvm-mos 26, Oscar64 24, Irie 41, ratio 1.58</summary>
-
-llvm-mos (26):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "shift-const.c"
-    .section    .text.shift_const,"ax",@progbits
-    .globl    shift_const                     ; -- Begin function shift_const
-    .type    shift_const,@function
-shift_const:                            ; @shift_const
-; %bb.0:
-    tay
-    txa
-    sty    __rc2
-    asl    __rc2
-    stx    __rc3
-    rol    __rc3
-    asl    __rc2
-    rol    __rc3
-    asl    __rc2
-    rol    __rc3
-    cpx    #128
-    ror
-    sty    __rc4
-    ror    __rc4
-    cmp    #128
-    ror
-    tax
-    lda    __rc4
-    ror
-    ora    __rc2
-    tay
-    txa
-    ora    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    shift_const, .Lfunc_end0-shift_const
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (24):
-
-```asm
-shift_const: ; shift_const(i16)->i16
-.s4:
-089a : 85 1b __ STA ACCU + 0
-089c : 0a __ __ ASL
-089d : 85 43 __ STA T1 + 0
-089f : 8a __ __ TXA
-08a0 : 2a __ __ ROL
-08a1 : 06 43 __ ASL T1 + 0
-08a3 : 2a __ __ ROL
-08a4 : 06 43 __ ASL T1 + 0
-08a6 : 2a __ __ ROL
-08a7 : 85 44 __ STA T1 + 1
-08a9 : 8a __ __ TXA
-08aa : 4a __ __ LSR
-08ab : 66 1b __ ROR ACCU + 0
-08ad : 4a __ __ LSR
-08ae : 66 1b __ ROR ACCU + 0
-08b0 : 49 20 __ EOR #$20
-08b2 : 38 __ __ SEC
-08b3 : e9 20 __ SBC #$20
-08b5 : 05 44 __ ORA T1 + 1
-08b7 : 85 1c __ STA ACCU + 1
-08b9 : a5 1b __ LDA ACCU + 0
-08bb : 05 43 __ ORA T1 + 0
-08bd : 85 1b __ STA ACCU + 0
-.s3:
-08bf : 60 __ __ RTS
-```
-
-Irie (41):
-
-```asm
-shift_const:
-    STA $05
-    STX $04
-    ASL
-    TAX
-    LDA $04
-    ROL
-    TAY
-    TXA
-    ASL
-    TAX
-    TYA
-    ROL
-    TAY
-    TXA
-    ASL
-    STA $03
-    TYA
-    ROL
-    STA $02
-    LDA $04
-    CMP #$80
-    ROR
-    TAY
-    LDA $05
-    ROR
-    TAX
-    TYA
-    CMP #$80
-    ROR
-    STA $04
-    TXA
-    ROR
-    STA $05
-    LDA $03
-    ORA $05
-    TAY
-    LDA $02
-    ORA $04
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>memory/two-pointer-copy — llvm-mos 47, Oscar64 31, Irie 71, ratio 1.51</summary>
+<summary>memory/two-pointer-copy — llvm-mos 47, Oscar64 31, Irie 63, ratio 1.34</summary>
 
 llvm-mos (47):
 
@@ -1184,92 +1170,82 @@ two_pointer_copy: ; two_pointer_copy(i16*,const i16*,i16)->void
 08df : 60 __ __ RTS
 ```
 
-Irie (71):
+Irie (63):
 
 ```asm
 two_pointer_copy:
-    STA $06
-    LDA #$00
-    STA $08
-    LDA #$00
-    STA $09
+    LDY #$00
+    STA $14
+    STX $15
+    STY $16
 .bb1:
-    LDA $09
+    LDA $16
     EOR #$80
-    TAY
+    TAX
     LDA $05
     EOR #$80
-    STA $07
-    TYA
-    CMP $07
-    BCC .bb4
+    STA $17
+    STY $18
+    CPX $17
+    BCC .bb3
     BNE .bb2
-    LDA $08
-    CMP $04
-    BCC .bb5
+    CPY $04
+    BCC .bb3
 .bb2:
     RTS
 .bb3:
-    LDA $08
+    LDA $18
     ASL
-    STA $0B
-    LDA $07
+    TAX
+    LDA $16
     ROL
-    STA $0A
     CLC
-    LDA $0B
-    STA $09
-    LDA $02
-    ADC $09
-    TAY
-    LDA $0A
-    STA $09
-    LDA $03
-    ADC $09
-    STY $12
-    STA $13
-    LDY #$00
-    LDA ($12),Y
-    STA $0C
-    LDY #$01
-    LDA ($12),Y
-    STA $09
-    CLC
-    LDA $06
-    ADC $0B
-    TAY
+    STA $19
     TXA
-    ADC $0A
+    ADC $02
+    TAY
+    LDA $03
+    ADC $19
     STY $12
     STA $13
+    STY $1A
     LDY #$00
-    LDA $0C
+    STA $1B
+    LDA ($12),Y
+    LDY #$01
+    STA $1C
+    LDA ($12),Y
+    CLC
+    STA $1D
+    TXA
+    ADC $14
+    TAX
+    LDA $15
+    ADC $19
+    STX $12
+    STA $13
+    LDY #$00
+    STA $1E
+    LDA $1C
     STA ($12),Y
     LDY #$01
-    LDA $09
+    LDA $1D
     STA ($12),Y
     CLC
-    LDA $08
-    ADC #$01
-    STA $08
-    LDA $07
+    TYA
+    ADC $18
+    STA $18
+    LDA $16
     ADC #$00
-    STA $09
+    STA $16
+    LDY $18
     JMP .bb1
-.bb4:
-    LDA $09
-    STA $07
-    JMP .bb3
-.bb5:
-    LDA $09
-    STA $07
-    JMP .bb3
 ```
 
 </details>
 
 <details>
-<summary>widths/zero-extend — llvm-mos 6, Oscar64 7, Irie 9, ratio 1.50</summary>
+<summary>widths/zero-extend — llvm-mos 6, Oscar64 7, Irie 8, ratio 1.33</summary>
 
 llvm-mos (6):
 
@@ -1345,254 +1321,24 @@ zero_extend: ; zero_extend(u8)->i16
 08a1 : 60 __ __ RTS
 ```
 
-Irie (9):
+Irie (8):
 
 ```asm
 zero_extend:
-    LDX #$00
     CLC
     ADC #$01
-    TAY
-    TXA
+    STA $14
+    LDA #$00
     ADC #$00
     TAX
-    TYA
+    LDA $14
     RTS
 ```
 
 </details>
 
 <details>
-<summary>control-flow/loop-sum-array — llvm-mos 43, Oscar64 31, Irie 63, ratio 1.47</summary>
-
-llvm-mos (43):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "loop-sum-array.c"
-    .section    .text.loop_sum_array,"ax",@progbits
-    .globl    loop_sum_array                  ; -- Begin function loop_sum_array
-    .type    loop_sum_array,@function
-loop_sum_array:                         ; @loop_sum_array
-; %bb.0:
-    tay
-    cmp    #1
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bmi    .LBB0_8
-; %bb.3:
-    sty    __rc4
-    ldy    #0
-    tya
-    sty    __rc6
-.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
-    clc
-    ldy    #0
-    adc    (__rc2),y
-    sta    __rc5
-    iny
-    lda    __rc6
-    adc    (__rc2),y
-    sta    __rc6
-    lda    __rc2
-    clc
-    adc    #2
-    sta    __rc2
-    lda    __rc3
-    adc    #0
-    sta    __rc3
-    lda    #255
-    dec    __rc4
-    cmp    __rc4
-    bne    .LBB0_6
-; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
-    dex
-.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
-    lda    __rc5
-    cpx    #0
-    bne    .LBB0_4
-; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
-    ldy    __rc4
-    bne    .LBB0_4
-    jmp    .LBB0_9
-.LBB0_8:
-    lda    #0
-    tax
-    stx    __rc6
-.LBB0_9:
-    ldx    __rc6
-    rts
-.Lfunc_end0:
-    .size    loop_sum_array, .Lfunc_end0-loop_sum_array
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (31):
-
-```asm
-loop_sum_array: ; loop_sum_array(const i16*,i16)->i16
-.s4:
-08a8 : a9 00 __ LDA #$00
-08aa : 85 1b __ STA ACCU + 0
-08ac : 85 1c __ STA ACCU + 1
-08ae : a5 10 __ LDA P3 ; (n + 1)
-08b0 : 30 2d __ BMI $08df ; (loop_sum_array.s3 + 0)
-.s6:
-08b2 : 05 0f __ ORA P2 ; (n + 0)
-08b4 : f0 29 __ BEQ $08df ; (loop_sum_array.s3 + 0)
-.s7:
-08b6 : a6 10 __ LDX P3 ; (n + 1)
-.l5:
-08b8 : a0 00 __ LDY #$00
-08ba : b1 0d __ LDA (P0),y ; (a + 0)
-08bc : 18 __ __ CLC
-08bd : 65 1b __ ADC ACCU + 0
-08bf : 85 1b __ STA ACCU + 0
-08c1 : c8 __ __ INY
-08c2 : b1 0d __ LDA (P0),y ; (a + 0)
-08c4 : 65 1c __ ADC ACCU + 1
-08c6 : 85 1c __ STA ACCU + 1
-08c8 : 18 __ __ CLC
-08c9 : a5 0d __ LDA P0 ; (a + 0)
-08cb : 69 02 __ ADC #$02
-08cd : 85 0d __ STA P0 ; (a + 0)
-08cf : 90 02 __ BCC $08d3 ; (loop_sum_array.s12 + 0)
-.s11:
-08d1 : e6 0e __ INC P1 ; (a + 1)
-.s12:
-08d3 : a5 0f __ LDA P2 ; (n + 0)
-08d5 : d0 01 __ BNE $08d8 ; (loop_sum_array.s9 + 0)
-.s8:
-08d7 : ca __ __ DEX
-.s9:
-08d8 : c6 0f __ DEC P2 ; (n + 0)
-08da : d0 dc __ BNE $08b8 ; (loop_sum_array.l5 + 0)
-.s10:
-08dc : 8a __ __ TXA
-08dd : d0 d9 __ BNE $08b8 ; (loop_sum_array.l5 + 0)
-.s3:
-08df : 60 __ __ RTS
-```
-
-Irie (63):
-
-```asm
-loop_sum_array:
-    STA $04
-    LDA #$00
-    STA $0A
-    LDA #$00
-    STA $09
-    LDA $0A
-    STA $08
-    LDA $09
-    STA $07
-.bb1:
-    LDA $07
-    EOR #$80
-    TAY
-    LDA $03
-    EOR #$80
-    STA $05
-    TYA
-    CMP $05
-    BCC .bb4
-    BNE .bb5
-    LDA $08
-    CMP $02
-    BCC .bb4
-.bb2:
-    LDA $0A
-    LDX $09
-.bb3:
-    RTS
-.bb4:
-    LDA $08
-    ASL
-    STA $06
-    LDA $07
-    ROL
-    STA $05
-    CLC
-    LDA $04
-    ADC $06
-    TAY
-    TXA
-    ADC $05
-    STY $12
-    STA $13
-    LDY #$00
-    LDA ($12),Y
-    STA $06
-    LDY #$01
-    LDA ($12),Y
-    STA $05
-    CLC
-    LDA $0A
-    ADC $06
-    STA $0A
-    LDA $09
-    ADC $05
-    STA $09
-    CLC
-    LDA $08
-    ADC #$01
-    STA $08
-    LDA $07
-    ADC #$00
-    STA $07
-    JMP .bb1
-.bb5:
-    LDA $0A
-    LDX $09
-    RTS
-```
-
-</details>
-
-<details>
-<summary>constraints/compare-flags — llvm-mos 47, Oscar64 40, Irie 65, ratio 1.38</summary>
+<summary>constraints/compare-flags — llvm-mos 47, Oscar64 40, Irie 57, ratio 1.21</summary>
 
 llvm-mos (47):
 
@@ -1771,96 +1517,205 @@ compare_flags: ; compare_flags(i16,i16,i16)->u8
 08f4 : 90 f2 __ BCC $08e8 ; (compare_flags.s14 + 0)
 ```
 
-Irie (65):
+Irie (57):
 
 ```asm
 compare_flags:
-    STA $07
-    LDA $02
-    STA $08
-    LDA $04
-    STA $06
+    STA $14
     TXA
     EOR #$80
     TAY
     LDA $03
     EOR #$80
-    STA $02
-    TYA
-    CMP $02
+    STA $15
+    STX $16
+    CPY $15
     BCC .bb11
     BNE .bb1
-    LDA $07
-    CMP $08
+    LDA $14
+    CMP $02
     BCC .bb11
 .bb1:
-    LDA #$00
-    STA $04
+    LDX #$00
 .bb2:
     LDA $03
     EOR #$80
     TAY
     LDA $05
     EOR #$80
-    STA $02
-    TYA
-    CMP $02
+    STA $17
+    STX $18
+    CPY $17
     BCC .bb12
     BNE .bb3
-    LDA $08
-    CMP $06
+    LDA $02
+    CMP $04
     BCC .bb12
 .bb3:
-    LDA #$00
-    STA $02
+    LDX #$00
 .bb4:
-    LDA $04
-    AND $02
-    BEQ .bb13
-.bb5:
-    LDY #$01
-.bb6:
     TXA
+    AND $18
+    BNE .bb13
+.bb5:
+    LDX #$00
+.bb6:
+    LDA $16
+    STX $19
     CMP $05
     BNE .bb14
-    LDA $07
-    CMP $06
+    LDA $14
+    CMP $04
     BNE .bb14
 .bb7:
-    LDA #$00
-    STA $02
+    LDX #$00
 .bb8:
-    TYA
-    AND $02
-    BEQ .bb15
+    TXA
+    AND $19
+    BNE .bb15
 .bb9:
-    LDA #$01
+    LDX #$00
 .bb10:
+    TXA
     RTS
 .bb11:
-    LDA #$01
-    STA $04
+    LDX #$01
     JMP .bb2
 .bb12:
-    LDA #$01
-    STA $02
+    LDX #$01
     JMP .bb4
 .bb13:
-    LDY #$00
+    LDX #$01
     JMP .bb6
 .bb14:
-    LDA #$01
-    STA $02
+    LDX #$01
     JMP .bb8
 .bb15:
-    LDA #$00
-    RTS
+    LDX #$01
+    JMP .bb10
 ```
 
 </details>
 
 <details>
-<summary>constraints/bitops — llvm-mos 30, Oscar64 23, Irie 37, ratio 1.23</summary>
+<summary>widths/sign-extend — llvm-mos 11, Oscar64 13, Irie 13, ratio 1.18</summary>
+
+llvm-mos (11):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "sign-extend.c"
+    .section    .text.sign_extend,"ax",@progbits
+    .globl    sign_extend                     ; -- Begin function sign_extend
+    .type    sign_extend,@function
+sign_extend:                            ; @sign_extend
+; %bb.0:
+    tax
+    bpl    .LBB0_2
+; %bb.1:
+    ldx    #255
+    jmp    .LBB0_3
+.LBB0_2:
+    ldx    #0
+.LBB0_3:
+    clc
+    adc    #255
+    cmp    #255
+    bne    .LBB0_5
+; %bb.4:
+    dex
+.LBB0_5:
+    rts
+.Lfunc_end0:
+    .size    sign_extend, .Lfunc_end0-sign_extend
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (13):
+
+```asm
+sign_extend: ; sign_extend(i8)->i16
+.s4:
+0897 : a8 __ __ TAY
+0898 : 0a __ __ ASL
+0899 : a2 00 __ LDX #$00
+089b : 90 01 __ BCC $089e ; (sign_extend.s6 + 0)
+.s5:
+089d : ca __ __ DEX
+.s6:
+089e : 98 __ __ TYA
+089f : 38 __ __ SEC
+08a0 : e9 01 __ SBC #$01
+08a2 : 85 1b __ STA ACCU + 0
+08a4 : 8a __ __ TXA
+08a5 : e9 00 __ SBC #$00
+08a7 : 85 1c __ STA ACCU + 1
+.s3:
+08a9 : 60 __ __ RTS
+```
+
+Irie (13):
+
+```asm
+sign_extend:
+    TAX
+    BMI .bb3
+.bb1:
+    LDY #$00
+.bb2:
+    SEC
+    SBC #$01
+    STA $14
+    TYA
+    SBC #$00
+    TAX
+    LDA $14
+    RTS
+.bb3:
+    LDY #$FF
+    JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>constraints/bitops — llvm-mos 30, Oscar64 23, Irie 32, ratio 1.07</summary>
 
 llvm-mos (30):
 
@@ -1974,44 +1829,39 @@ bitops: ; bitops(i16,i16,i16)->i16
 08de : 60 __ __ RTS
 ```
 
-Irie (37):
+Irie (32):
 
 ```asm
 bitops:
-    STA $08
-    STX $07
-    LDX $02
-    STX $06
-    LDX $03
-    STX $02
-    AND $06
-    TAY
-    LDA $07
+    STA $14
     AND $02
-    TAX
-    LDA $06
-    EOR $04
-    STA $03
+    TAY
+    TXA
+    AND $03
+    STA $15
     LDA $02
+    EOR $04
+    STA $16
+    LDA $03
     EOR $05
-    STA $02
+    STA $17
     TYA
-    ORA $03
+    ORA $16
     TAY
-    TXA
-    ORA $02
-    TAX
-    LDA $08
+    LDA $15
+    ORA $17
+    STA $18
+    LDA $14
     AND $04
-    STA $03
-    LDA $07
+    STA $19
+    TXA
     AND $05
-    STA $02
+    TAX
     TYA
-    ORA $03
+    ORA $19
     TAY
     TXA
-    ORA $02
+    ORA $18
     TAX
     TYA
     RTS
@@ -2020,7 +1870,1076 @@ bitops:
 </details>
 
 <details>
-<summary>widths/sign-extend — llvm-mos 11, Oscar64 13, Irie 13, ratio 1.18</summary>
+<summary>realistic/gcd — llvm-mos 40, Oscar64 24, Irie 41, ratio 1.03</summary>
+
+llvm-mos (40):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "gcd.c"
+    .section    .text.gcd,"ax",@progbits
+    .globl    gcd                             ; -- Begin function gcd
+    .type    gcd,@function
+gcd:                                    ; @gcd
+; %bb.0:
+    sta    __rc16
+    lda    __rc20
+    pha
+    lda    __rc21
+    pha
+    lda    __rc16
+    ldy    __rc2
+    inc    __rc3
+    dec    __rc3
+    bne    .LBB0_2
+; %bb.1:
+    cpy    #0
+    beq    .LBB0_5
+.LBB0_2:                                ; =>This Inner Loop Header: Depth=1
+    sty    __rc17
+    ldy    __rc3
+    sty    __rc21
+    ldy    __rc17
+    sty    __rc20
+    sty    __rc2
+    jsr    __modhi3
+    tay
+    stx    __rc3
+    lda    __rc20
+    ldx    __rc21
+    inc    __rc3
+    dec    __rc3
+    bne    .LBB0_2
+; %bb.3:                                ;   in Loop: Header=BB0_2 Depth=1
+    cpy    #0
+    bne    .LBB0_2
+.LBB0_4:
+    ldx    __rc21
+    lda    __rc20
+    sta    __rc16
+    pla
+    sta    __rc21
+    pla
+    sta    __rc20
+    lda    __rc16
+    rts
+.LBB0_5:
+    sta    __rc20
+    stx    __rc21
+    jmp    .LBB0_4
+.Lfunc_end0:
+    .size    gcd, .Lfunc_end0-gcd
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (24):
+
+```asm
+gcd: ; gcd(i16,i16)->i16
+.s4:
+08a8 : a5 10 __ LDA P3 ; (b + 1)
+08aa : 4c cc 08 JMP $08cc ; (gcd.l7 + 0)
+.s5:
+08ad : a5 0d __ LDA P0 ; (a + 0)
+08af : 85 1b __ STA ACCU + 0
+08b1 : a5 0e __ LDA P1 ; (a + 1)
+08b3 : 85 1c __ STA ACCU + 1
+08b5 : a5 0f __ LDA P2 ; (b + 0)
+08b7 : 85 03 __ STA WORK + 0
+08b9 : 85 0d __ STA P0 ; (a + 0)
+08bb : a5 10 __ LDA P3 ; (b + 1)
+08bd : 85 04 __ STA WORK + 1
+08bf : 85 0e __ STA P1 ; (a + 1)
+08c1 : 20 9b 09 JSR $099b ; (mods16 + 0)
+08c4 : a5 05 __ LDA WORK + 2
+08c6 : 85 0f __ STA P2 ; (b + 0)
+08c8 : a5 06 __ LDA WORK + 3
+08ca : 85 10 __ STA P3 ; (b + 1)
+.l7:
+08cc : 05 0f __ ORA P2 ; (b + 0)
+08ce : d0 dd __ BNE $08ad ; (gcd.s5 + 0)
+.s6:
+08d0 : a5 0d __ LDA P0 ; (a + 0)
+08d2 : 85 1b __ STA ACCU + 0
+08d4 : a5 0e __ LDA P1 ; (a + 1)
+08d6 : 85 1c __ STA ACCU + 1
+.s3:
+08d8 : 60 __ __ RTS
+```
+
+Irie (41):
+
+```asm
+gcd:
+    LDY $02
+    STY $14
+    LDY $03
+    STY $15
+    STA $16
+    STX $17
+.bb1:
+    LDA $15
+    BNE .bb3
+    LDA $14
+    BNE .bb3
+.bb2:
+    LDX $17
+    LDA $16
+    RTS
+.bb3:
+    LDA $17
+    BMI .bb8
+.bb4:
+    LDX #$00
+.bb5:
+    LDY $15
+    BMI .bb9
+.bb6:
+    LDY #$00
+.bb7:
+    STX $02
+    STX $03
+    LDX $14
+    STX $04
+    LDX $15
+    STX $05
+    STY $06
+    STY $07
+    TAX
+    LDA $16
+    JSR __modsi3
+    LDY $14
+    STY $16
+    STA $14
+    LDY $15
+    STY $17
+    STX $15
+    JMP .bb1
+.bb8:
+    LDX #$FF
+    JMP .bb5
+.bb9:
+    LDY #$FF
+    JMP .bb7
+```
+
+</details>
+
+<details>
+<summary>basics/add-i16 — llvm-mos 8, Oscar64 8, Irie 8, ratio 1.00</summary>
+
+llvm-mos (8):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "add-i16.c"
+    .section    .text.add_i16,"ax",@progbits
+    .globl    add_i16                         ; -- Begin function add_i16
+    .type    add_i16,@function
+add_i16:                                ; @add_i16
+; %bb.0:
+    clc
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    add_i16, .Lfunc_end0-add_i16
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (8):
+
+```asm
+add_i16: ; add_i16(i16,i16)->i16
+.s4:
+08a8 : 18 __ __ CLC
+08a9 : a5 0f __ LDA P2 ; (b + 0)
+08ab : 65 0d __ ADC P0 ; (a + 0)
+08ad : 85 1b __ STA ACCU + 0
+08af : a5 10 __ LDA P3 ; (b + 1)
+08b1 : 65 0e __ ADC P1 ; (a + 1)
+08b3 : 85 1c __ STA ACCU + 1
+.s3:
+08b5 : 60 __ __ RTS
+```
+
+Irie (8):
+
+```asm
+add_i16:
+    CLC
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>basics/add-i32 — llvm-mos 14, Oscar64 14, Irie 14, ratio 1.00</summary>
+
+llvm-mos (14):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "add-i32.c"
+    .section    .text.add_i32,"ax",@progbits
+    .globl    add_i32                         ; -- Begin function add_i32
+    .type    add_i32,@function
+add_i32:                                ; @add_i32
+; %bb.0:
+    clc
+    adc    __rc4
+    tay
+    txa
+    adc    __rc5
+    tax
+    lda    __rc2
+    adc    __rc6
+    sta    __rc2
+    lda    __rc3
+    adc    __rc7
+    sta    __rc3
+    tya
+    rts
+.Lfunc_end0:
+    .size    add_i32, .Lfunc_end0-add_i32
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (14):
+
+```asm
+add_i32: ; add_i32(i32,i32)->i32
+.s4:
+08a3 : 18 __ __ CLC
+08a4 : a5 11 __ LDA P4 ; (b + 0)
+08a6 : 65 0d __ ADC P0 ; (a + 0)
+08a8 : 85 1b __ STA ACCU + 0
+08aa : a5 12 __ LDA P5 ; (b + 1)
+08ac : 65 0e __ ADC P1 ; (a + 1)
+08ae : 85 1c __ STA ACCU + 1
+08b0 : a5 13 __ LDA P6 ; (b + 2)
+08b2 : 65 0f __ ADC P2 ; (a + 2)
+08b4 : 85 1d __ STA ACCU + 2
+08b6 : a5 14 __ LDA P7 ; (b + 3)
+08b8 : 65 10 __ ADC P3 ; (a + 3)
+08ba : 85 1e __ STA ACCU + 3
+.s3:
+08bc : 60 __ __ RTS
+```
+
+Irie (14):
+
+```asm
+add_i32:
+    CLC
+    ADC $04
+    TAY
+    TXA
+    ADC $05
+    TAX
+    LDA $02
+    ADC $06
+    STA $02
+    LDA $03
+    ADC $07
+    STA $03
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>basics/add-i8 — llvm-mos 4, Oscar64 4, Irie 4, ratio 1.00</summary>
+
+llvm-mos (4):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "add-i8.c"
+    .section    .text.add_i8,"ax",@progbits
+    .globl    add_i8                          ; -- Begin function add_i8
+    .type    add_i8,@function
+add_i8:                                 ; @add_i8
+; %bb.0:
+    stx    __rc2
+    clc
+    adc    __rc2
+    rts
+.Lfunc_end0:
+    .size    add_i8, .Lfunc_end0-add_i8
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (4):
+
+```asm
+add_i8: ; add_i8(u8,u8)->u8
+.s4:
+0897 : 18 __ __ CLC
+0898 : a5 0e __ LDA P1 ; (b + 0)
+089a : 65 0d __ ADC P0 ; (a + 0)
+.s3:
+089c : 60 __ __ RTS
+```
+
+Irie (4):
+
+```asm
+add_i8:
+    CLC
+    STX $14
+    ADC $14
+    RTS
+```
+
+</details>
+
+<details>
+<summary>basics/identity-i8 — llvm-mos 1, Oscar64 1, Irie 1, ratio 1.00</summary>
+
+llvm-mos (1):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "identity-i8.c"
+    .section    .text.identity_i8,"ax",@progbits
+    .globl    identity_i8                     ; -- Begin function identity_i8
+    .type    identity_i8,@function
+identity_i8:                            ; @identity_i8
+; %bb.0:
+    rts
+.Lfunc_end0:
+    .size    identity_i8, .Lfunc_end0-identity_i8
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (1):
+
+```asm
+identity_i8: ; identity_i8(u8)->u8
+.s3:
+0890 : 60 __ __ RTS
+```
+
+Irie (1):
+
+```asm
+identity_i8:
+    RTS
+```
+
+</details>
+
+<details>
+<summary>basics/many-args — llvm-mos 36, Oscar64 36, Irie 36, ratio 1.00</summary>
+
+llvm-mos (36):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "many-args.c"
+    .section    .text.many_args,"ax",@progbits
+    .globl    many_args                       ; -- Begin function many_args
+    .type    many_args,@function
+many_args:                              ; @many_args
+; %bb.0:
+    clc
+    adc    __rc2
+    sta    __rc2
+    txa
+    adc    __rc3
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc4
+    sta    __rc2
+    lda    __rc3
+    adc    __rc5
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc6
+    sta    __rc2
+    lda    __rc3
+    adc    __rc7
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc8
+    sta    __rc2
+    lda    __rc3
+    adc    __rc9
+    tax
+    lda    __rc2
+    clc
+    adc    __rc10
+    tay
+    txa
+    adc    __rc11
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    many_args, .Lfunc_end0-many_args
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (36):
+
+```asm
+many_args: ; many_args(i16,i16,i16,i16,i16,i16)->i16
+.s4:
+08d0 : 18 __ __ CLC
+08d1 : a5 0f __ LDA P2 ; (b + 0)
+08d3 : 65 0d __ ADC P0 ; (a + 0)
+08d5 : aa __ __ TAX
+08d6 : a5 10 __ LDA P3 ; (b + 1)
+08d8 : 65 0e __ ADC P1 ; (a + 1)
+08da : a8 __ __ TAY
+08db : 8a __ __ TXA
+08dc : 18 __ __ CLC
+08dd : 65 11 __ ADC P4 ; (c + 0)
+08df : aa __ __ TAX
+08e0 : 98 __ __ TYA
+08e1 : 65 12 __ ADC P5 ; (c + 1)
+08e3 : a8 __ __ TAY
+08e4 : 8a __ __ TXA
+08e5 : 18 __ __ CLC
+08e6 : 65 13 __ ADC P6 ; (d + 0)
+08e8 : aa __ __ TAX
+08e9 : 98 __ __ TYA
+08ea : 65 14 __ ADC P7 ; (d + 1)
+08ec : a8 __ __ TAY
+08ed : 8a __ __ TXA
+08ee : 18 __ __ CLC
+08ef : 65 15 __ ADC P8 ; (e + 0)
+08f1 : aa __ __ TAX
+08f2 : 98 __ __ TYA
+08f3 : 65 16 __ ADC P9 ; (e + 1)
+08f5 : a8 __ __ TAY
+08f6 : 8a __ __ TXA
+08f7 : 18 __ __ CLC
+08f8 : 65 17 __ ADC P10 ; (f + 0)
+08fa : 85 1b __ STA ACCU + 0
+08fc : 98 __ __ TYA
+08fd : 65 18 __ ADC P11 ; (f + 1)
+08ff : 85 1c __ STA ACCU + 1
+.s3:
+0901 : 60 __ __ RTS
+```
+
+Irie (36):
+
+```asm
+many_args:
+    CLC
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    CLC
+    TAX
+    TYA
+    ADC $04
+    TAY
+    TXA
+    ADC $05
+    CLC
+    TAX
+    TYA
+    ADC $06
+    TAY
+    TXA
+    ADC $07
+    CLC
+    TAX
+    TYA
+    ADC $08
+    TAY
+    TXA
+    ADC $09
+    CLC
+    TAX
+    TYA
+    ADC $0A
+    TAY
+    TXA
+    ADC $0B
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>basics/ret-const — llvm-mos 3, Oscar64 1, Irie 3, ratio 1.00</summary>
+
+llvm-mos (3):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "ret-const.c"
+    .section    .text.ret_const,"ax",@progbits
+    .globl    ret_const                       ; -- Begin function ret_const
+    .type    ret_const,@function
+ret_const:                              ; @ret_const
+; %bb.0:
+    lda    #210
+    ldx    #4
+    rts
+.Lfunc_end0:
+    .size    ret_const, .Lfunc_end0-ret_const
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (1):
+
+```asm
+ret_const: ; ret_const()->void
+.s3:
+0894 : 60 __ __ RTS
+```
+
+Irie (3):
+
+```asm
+ret_const:
+    LDX #$04
+    LDA #$D2
+    RTS
+```
+
+</details>
+
+<details>
+<summary>basics/sub-i16 — llvm-mos 8, Oscar64 8, Irie 8, ratio 1.00</summary>
+
+llvm-mos (8):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "sub-i16.c"
+    .section    .text.sub_i16,"ax",@progbits
+    .globl    sub_i16                         ; -- Begin function sub_i16
+    .type    sub_i16,@function
+sub_i16:                                ; @sub_i16
+; %bb.0:
+    sec
+    sbc    __rc2
+    tay
+    txa
+    sbc    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    sub_i16, .Lfunc_end0-sub_i16
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (8):
+
+```asm
+sub_i16: ; sub_i16(i16,i16)->i16
+.s4:
+08a8 : a5 0d __ LDA P0 ; (a + 0)
+08aa : 38 __ __ SEC
+08ab : e5 0f __ SBC P2 ; (b + 0)
+08ad : 85 1b __ STA ACCU + 0
+08af : a5 0e __ LDA P1 ; (a + 1)
+08b1 : e5 10 __ SBC P3 ; (b + 1)
+08b3 : 85 1c __ STA ACCU + 1
+.s3:
+08b5 : 60 __ __ RTS
+```
+
+Irie (8):
+
+```asm
+sub_i16:
+    SEC
+    SBC $02
+    TAY
+    TXA
+    SBC $03
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/commutative — llvm-mos 8, Oscar64 8, Irie 8, ratio 1.00</summary>
+
+llvm-mos (8):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "commutative.c"
+    .section    .text.commutative,"ax",@progbits
+    .globl    commutative                     ; -- Begin function commutative
+    .type    commutative,@function
+commutative:                            ; @commutative
+; %bb.0:
+    clc
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    commutative, .Lfunc_end0-commutative
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (8):
+
+```asm
+commutative: ; commutative(i16,i16)->i16
+.s4:
+08a8 : 18 __ __ CLC
+08a9 : a5 0f __ LDA P2 ; (b + 0)
+08ab : 65 0d __ ADC P0 ; (a + 0)
+08ad : 85 1b __ STA ACCU + 0
+08af : a5 10 __ LDA P3 ; (b + 1)
+08b1 : 65 0e __ ADC P1 ; (a + 1)
+08b3 : 85 1c __ STA ACCU + 1
+.s3:
+08b5 : 60 __ __ RTS
+```
+
+Irie (8):
+
+```asm
+commutative:
+    CLC
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/copy-passthrough — llvm-mos 1, Oscar64 3, Irie 1, ratio 1.00</summary>
+
+llvm-mos (1):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "copy-passthrough.c"
+    .section    .text.copy_passthrough,"ax",@progbits
+    .globl    copy_passthrough                ; -- Begin function copy_passthrough
+    .type    copy_passthrough,@function
+copy_passthrough:                       ; @copy_passthrough
+; %bb.0:
+    rts
+.Lfunc_end0:
+    .size    copy_passthrough, .Lfunc_end0-copy_passthrough
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (3):
+
+```asm
+copy_passthrough: ; copy_passthrough(i16)->i16
+.s4:
+089a : 86 1c __ STX ACCU + 1
+089c : 85 1b __ STA ACCU + 0
+.s3:
+089e : 60 __ __ RTS
+```
+
+Irie (1):
+
+```asm
+copy_passthrough:
+    RTS
+```
+
+</details>
+
+<details>
+<summary>coalescing/swap — llvm-mos 11, Oscar64 8, Irie 11, ratio 1.00</summary>
 
 llvm-mos (11):
 
@@ -2057,30 +2976,25 @@ llvm-mos (11):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "sign-extend.c"
-    .section    .text.sign_extend,"ax",@progbits
-    .globl    sign_extend                     ; -- Begin function sign_extend
-    .type    sign_extend,@function
-sign_extend:                            ; @sign_extend
+    .file    "swap.c"
+    .section    .text.swap_diff,"ax",@progbits
+    .globl    swap_diff                       ; -- Begin function swap_diff
+    .type    swap_diff,@function
+swap_diff:                              ; @swap_diff
 ; %bb.0:
+    sta    __rc4
+    stx    __rc5
+    lda    __rc2
+    sec
+    sbc    __rc4
+    tay
+    lda    __rc3
+    sbc    __rc5
     tax
-    bpl    .LBB0_2
-; %bb.1:
-    ldx    #255
-    jmp    .LBB0_3
-.LBB0_2:
-    ldx    #0
-.LBB0_3:
-    clc
-    adc    #255
-    cmp    #255
-    bne    .LBB0_5
-; %bb.4:
-    dex
-.LBB0_5:
+    tya
     rts
 .Lfunc_end0:
-    .size    sign_extend, .Lfunc_end0-sign_extend
+    .size    swap_diff, .Lfunc_end0-swap_diff
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
@@ -2089,55 +3003,1824 @@ sign_extend:                            ; @sign_extend
     .globl    __do_init_stack
 ```
 
-Oscar64 (13):
+Oscar64 (8):
 
 ```asm
-sign_extend: ; sign_extend(i8)->i16
+swap_diff: ; swap_diff(i16,i16)->i16
 .s4:
-0897 : a8 __ __ TAY
-0898 : 0a __ __ ASL
-0899 : a2 00 __ LDX #$00
-089b : 90 01 __ BCC $089e ; (sign_extend.s6 + 0)
-.s5:
-089d : ca __ __ DEX
-.s6:
-089e : 98 __ __ TYA
-089f : 38 __ __ SEC
-08a0 : e9 01 __ SBC #$01
-08a2 : 85 1b __ STA ACCU + 0
-08a4 : 8a __ __ TXA
-08a5 : e9 00 __ SBC #$00
-08a7 : 85 1c __ STA ACCU + 1
+08a8 : a5 0f __ LDA P2 ; (b + 0)
+08aa : 38 __ __ SEC
+08ab : e5 0d __ SBC P0 ; (a + 0)
+08ad : 85 1b __ STA ACCU + 0
+08af : a5 10 __ LDA P3 ; (b + 1)
+08b1 : e5 0e __ SBC P1 ; (a + 1)
+08b3 : 85 1c __ STA ACCU + 1
 .s3:
-08a9 : 60 __ __ RTS
+08b5 : 60 __ __ RTS
 ```
 
-Irie (13):
+Irie (11):
 
 ```asm
-sign_extend:
-    CMP #$00
-    BMI .bb3
-.bb1:
-    LDX #$00
-.bb2:
+swap_diff:
     SEC
-    SBC #$01
+    STA $14
+    LDA $02
+    SBC $14
+    STX $15
+    STA $16
+    LDA $03
+    SBC $15
+    TAX
+    LDA $16
+    RTS
+```
+
+</details>
+
+<details>
+<summary>constraints/inc-dec — llvm-mos 4, Oscar64 7, Irie 4, ratio 1.00</summary>
+
+llvm-mos (4):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "inc-dec.c"
+    .section    .text.inc_dec,"ax",@progbits
+    .globl    inc_dec                         ; -- Begin function inc_dec
+    .type    inc_dec,@function
+inc_dec:                                ; @inc_dec
+; %bb.0:
+    stx    __rc2
+    clc
+    adc    __rc2
+    rts
+.Lfunc_end0:
+    .size    inc_dec, .Lfunc_end0-inc_dec
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (7):
+
+```asm
+inc_dec: ; inc_dec(u8,u8)->u8
+.s4:
+0897 : a6 0d __ LDX P0 ; (a + 0)
+0899 : e8 __ __ INX
+089a : 8a __ __ TXA
+089b : c6 0e __ DEC P1 ; (b + 0)
+089d : 18 __ __ CLC
+089e : 65 0e __ ADC P1 ; (b + 0)
+.s3:
+08a0 : 60 __ __ RTS
+```
+
+Irie (4):
+
+```asm
+inc_dec:
+    CLC
+    STX $14
+    ADC $14
+    RTS
+```
+
+</details>
+
+<details>
+<summary>constraints/shift-var — llvm-mos 1, Oscar64 14, Irie 1, ratio 1.00</summary>
+
+llvm-mos (1):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "shift-var.c"
+    .section    .text.shift_var,"ax",@progbits
+    .globl    shift_var                       ; -- Begin function shift_var
+    .type    shift_var,@function
+shift_var:                              ; @shift_var
+; %bb.0:
+    jmp    __ashlhi3
+.Lfunc_end0:
+    .size    shift_var, .Lfunc_end0-shift_var
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (14):
+
+```asm
+shift_var: ; shift_var(i16,i16)->i16
+.s4:
+08a8 : a5 0f __ LDA P2 ; (n + 0)
+08aa : 29 0f __ AND #$0f
+08ac : a8 __ __ TAY
+08ad : a5 0e __ LDA P1 ; (a + 1)
+08af : c0 00 __ CPY #$00
+08b1 : f0 06 __ BEQ $08b9 ; (shift_var.s6 + 0)
+.l5:
+08b3 : 06 0d __ ASL P0 ; (a + 0)
+08b5 : 2a __ __ ROL
+08b6 : 88 __ __ DEY
+08b7 : d0 fa __ BNE $08b3 ; (shift_var.l5 + 0)
+.s6:
+08b9 : 85 1c __ STA ACCU + 1
+08bb : a5 0d __ LDA P0 ; (a + 0)
+08bd : 85 1b __ STA ACCU + 0
+.s3:
+08bf : 60 __ __ RTS
+```
+
+Irie (1):
+
+```asm
+shift_var:
+    JMP __ashlhi3
+```
+
+</details>
+
+<details>
+<summary>memory/global-rw — llvm-mos 10, Oscar64 9, Irie 10, ratio 1.00</summary>
+
+llvm-mos (10):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "global-rw.c"
+    .section    .text.global_rw,"ax",@progbits
+    .globl    global_rw                       ; -- Begin function global_rw
+    .type    global_rw,@function
+global_rw:                              ; @global_rw
+; %bb.0:
+    clc
+    adc    counter
+    tay
+    txa
+    adc    counter+1
+    tax
+    tya
+    sty    counter
+    stx    counter+1
+    rts
+.Lfunc_end0:
+    .size    global_rw, .Lfunc_end0-global_rw
+                                        ; -- End function
+    .type    counter,@object                 ; @counter
+    .section    .bss.counter,"aw",@nobits
+    .globl    counter
+counter:
+    .short    0                               ; 0x0
+    .size    counter, 2
+
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that there is something in .bss, so it may need to be zeroed.
+    .globl    __do_zero_bss
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (9):
+
+```asm
+global_rw: ; global_rw(i16)->i16
+.s4:
+08a6 : 18 __ __ CLC
+08a7 : 6d ba 08 ADC $08ba ; (counter + 0)
+08aa : 85 1b __ STA ACCU + 0
+08ac : 8d ba 08 STA $08ba ; (counter + 0)
+08af : 8a __ __ TXA
+08b0 : 6d bb 08 ADC $08bb ; (counter + 1)
+08b3 : 85 1c __ STA ACCU + 1
+08b5 : 8d bb 08 STA $08bb ; (counter + 1)
+.s3:
+08b8 : 60 __ __ RTS
+```
+
+Irie (10):
+
+```asm
+global_rw:
+    CLC
+    ADC counter
     TAY
     TXA
-    SBC #$00
+    ADC counter+1
+    STY counter
+    STA counter+1
     TAX
     TYA
     RTS
+```
+
+</details>
+
+<details>
+<summary>widths/truncate — llvm-mos 3, Oscar64 4, Irie 3, ratio 1.00</summary>
+
+llvm-mos (3):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "truncate.c"
+    .section    .text.truncate,"ax",@progbits
+    .globl    truncate                        ; -- Begin function truncate
+    .type    truncate,@function
+truncate:                               ; @truncate
+; %bb.0:
+    clc
+    adc    __rc2
+    rts
+.Lfunc_end0:
+    .size    truncate, .Lfunc_end0-truncate
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (4):
+
+```asm
+truncate: ; truncate(i16,i16)->u8
+.s4:
+08a1 : 18 __ __ CLC
+08a2 : a5 0f __ LDA P2 ; (b + 0)
+08a4 : 65 0d __ ADC P0 ; (a + 0)
+.s3:
+08a6 : 60 __ __ RTS
+```
+
+Irie (3):
+
+```asm
+truncate:
+    CLC
+    ADC $02
+    RTS
+```
+
+</details>
+
+<details>
+<summary>control-flow/early-return — llvm-mos 28, Oscar64 30, Irie 27, ratio 0.96</summary>
+
+llvm-mos (28):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "early-return.c"
+    .section    .text.early_return,"ax",@progbits
+    .globl    early_return                    ; -- Begin function early_return
+    .type    early_return,@function
+early_return:                           ; @early_return
+; %bb.0:
+    cpx    #0
+    bmi    .LBB0_4
+; %bb.1:
+    tay
+    txa
+    inc    __rc3
+    dec    __rc3
+    bmi    .LBB0_5
+; %bb.2:
+    clc
+    tya
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    ldx    __rc5
+    bmi    .LBB0_5
+; %bb.3:
+    tax
+    tya
+    clc
+    adc    __rc4
+    tay
+    txa
+    adc    __rc5
+    jmp    .LBB0_5
+.LBB0_4:
+    ldy    #0
+    tya
+.LBB0_5:
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    early_return, .Lfunc_end0-early_return
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (30):
+
+```asm
+early_return: ; early_return(i16,i16,i16)->i16
+.s4:
+08b2 : a4 0e __ LDY P1 ; (a + 1)
+08b4 : 10 07 __ BPL $08bd ; (early_return.s6 + 0)
+.s5:
+08b6 : a9 00 __ LDA #$00
+08b8 : 85 1b __ STA ACCU + 0
+.s3:
+08ba : 85 1c __ STA ACCU + 1
+08bc : 60 __ __ RTS
+.s6:
+08bd : a6 0d __ LDX P0 ; (a + 0)
+08bf : 24 10 __ BIT P3 ; (b + 1)
+08c1 : 10 06 __ BPL $08c9 ; (early_return.s8 + 0)
+.s7:
+08c3 : 98 __ __ TYA
+.s10:
+08c4 : 86 1b __ STX ACCU + 0
+08c6 : 85 1c __ STA ACCU + 1
+08c8 : 60 __ __ RTS
+.s8:
+08c9 : 8a __ __ TXA
+08ca : 18 __ __ CLC
+08cb : 65 0f __ ADC P2 ; (b + 0)
+08cd : aa __ __ TAX
+08ce : 98 __ __ TYA
+08cf : 65 10 __ ADC P3 ; (b + 1)
+08d1 : 24 12 __ BIT P5 ; (c + 1)
+08d3 : 30 ef __ BMI $08c4 ; (early_return.s10 + 0)
+.s9:
+08d5 : a8 __ __ TAY
+08d6 : 8a __ __ TXA
+08d7 : 18 __ __ CLC
+08d8 : 65 11 __ ADC P4 ; (c + 0)
+08da : 85 1b __ STA ACCU + 0
+08dc : 98 __ __ TYA
+08dd : 65 12 __ ADC P5 ; (c + 1)
+08df : 85 1c __ STA ACCU + 1
+08e1 : 60 __ __ RTS
+```
+
+Irie (27):
+
+```asm
+early_return:
+    CPX #$00
+    BMI .bb5
+.bb1:
+    LDY $03
+    BMI .bb6
+.bb2:
+    CLC
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    LDX $05
+    BMI .bb4
 .bb3:
-    LDX #$FF
+    CLC
+    TAX
+    TYA
+    ADC $04
+    TAY
+    TXA
+    ADC $05
+.bb4:
+    TAX
+    TYA
+    RTS
+.bb5:
+    LDY #$00
+    TYA
+    JMP .bb4
+.bb6:
+    TAY
+    TXA
+    JMP .bb4
+```
+
+</details>
+
+<details>
+<summary>widths/mixed-widths — llvm-mos 43, Oscar64 36, Irie 40, ratio 0.93</summary>
+
+llvm-mos (43):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "mixed-widths.c"
+    .section    .text.mixed_widths,"ax",@progbits
+    .globl    mixed_widths                    ; -- Begin function mixed_widths
+    .type    mixed_widths,@function
+mixed_widths:                           ; @mixed_widths
+; %bb.0:
+    sta    __rc7
+    txa
+    ldx    __rc2
+    ldy    __rc3
+    clc
+    adc    __rc7
+    sta    __rc2
+    txa
+    adc    #0
+    sta    __rc3
+    bpl    .LBB0_2
+; %bb.1:
+    ldx    #255
+    jmp    .LBB0_3
+.LBB0_2:
+    ldx    #0
+.LBB0_3:
+    stx    __rc8
+    tya
+    clc
+    adc    __rc7
+    tax
+    lda    __rc4
+    adc    #0
+    sta    __rc4
+    lda    __rc5
+    adc    #0
+    sta    __rc5
+    lda    __rc6
+    adc    #0
+    sta    __rc6
+    txa
+    clc
+    adc    __rc2
+    tay
+    lda    __rc4
+    adc    __rc3
+    tax
+    lda    __rc5
+    adc    __rc8
+    sta    __rc2
+    lda    __rc6
+    adc    __rc8
+    sta    __rc3
+    tya
+    rts
+.Lfunc_end0:
+    .size    mixed_widths, .Lfunc_end0-mixed_widths
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (36):
+
+```asm
+mixed_widths: ; mixed_widths(u8,i16,i32)->i32
+.s4:
+08ad : 18 __ __ CLC
+08ae : a5 0e __ LDA P1 ; (b + 0)
+08b0 : 65 0d __ ADC P0 ; (a + 0)
+08b2 : aa __ __ TAX
+08b3 : a5 0f __ LDA P2 ; (b + 1)
+08b5 : 69 00 __ ADC #$00
+08b7 : a8 __ __ TAY
+08b8 : 29 80 __ AND #$80
+08ba : 10 02 __ BPL $08be ; (mixed_widths.s4 + 17)
+08bc : a9 ff __ LDA #$ff
+08be : 85 1e __ STA ACCU + 3
+08c0 : 8a __ __ TXA
+08c1 : 18 __ __ CLC
+08c2 : 65 10 __ ADC P3 ; (c + 0)
+08c4 : aa __ __ TAX
+08c5 : 98 __ __ TYA
+08c6 : 65 11 __ ADC P4 ; (c + 1)
+08c8 : a8 __ __ TAY
+08c9 : a5 12 __ LDA P5 ; (c + 2)
+08cb : 65 1e __ ADC ACCU + 3
+08cd : 85 1d __ STA ACCU + 2
+08cf : a5 13 __ LDA P6 ; (c + 3)
+08d1 : 65 1e __ ADC ACCU + 3
+08d3 : 85 1e __ STA ACCU + 3
+08d5 : 8a __ __ TXA
+08d6 : 18 __ __ CLC
+08d7 : 65 0d __ ADC P0 ; (a + 0)
+08d9 : 85 1b __ STA ACCU + 0
+08db : 98 __ __ TYA
+08dc : 69 00 __ ADC #$00
+08de : 85 1c __ STA ACCU + 1
+08e0 : 90 06 __ BCC $08e8 ; (mixed_widths.s3 + 0)
+.s6:
+08e2 : e6 1d __ INC ACCU + 2
+08e4 : d0 02 __ BNE $08e8 ; (mixed_widths.s3 + 0)
+.s5:
+08e6 : e6 1e __ INC ACCU + 3
+.s3:
+08e8 : 60 __ __ RTS
+```
+
+Irie (40):
+
+```asm
+mixed_widths:
+    CLC
+    STA $14
+    TXA
+    ADC $14
+    TAX
+    LDA #$00
+    ADC $02
+    BMI .bb3
+.bb1:
+    LDY #$00
+.bb2:
+    CLC
+    STA $15
+    TXA
+    ADC $03
+    TAX
+    LDA $15
+    ADC $04
+    STA $16
+    TYA
+    ADC $05
+    STA $17
+    TYA
+    ADC $06
+    CLC
+    TAY
+    TXA
+    ADC $14
+    STA $18
+    LDA $16
+    ADC #$00
+    TAX
+    LDA $17
+    ADC #$00
+    STA $02
+    TYA
+    ADC #$00
+    STA $03
+    LDA $18
+    RTS
+.bb3:
+    LDY #$FF
     JMP .bb2
 ```
 
 </details>
 
 <details>
-<summary>pressure/pressure-high — llvm-mos 230, Oscar64 139, Irie 261, ratio 1.13</summary>
+<summary>control-flow/common-subexpr — llvm-mos 39, Oscar64 29, Irie 36, ratio 0.92</summary>
+
+llvm-mos (39):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "common-subexpr.c"
+    .section    .text.common_subexpr,"ax",@progbits
+    .globl    common_subexpr                  ; -- Begin function common_subexpr
+    .type    common_subexpr,@function
+common_subexpr:                         ; @common_subexpr
+; %bb.0:
+    stx    __rc4
+    ldx    __rc6
+    ldy    __rc7
+    clc
+    adc    __rc2
+    sta    __rc6
+    lda    __rc4
+    adc    __rc3
+    sta    __rc4
+    lda    __rc5
+    bmi    .LBB0_4
+; %bb.1:
+    stx    __rc2
+    sty    __rc3
+    stx    __rc5
+    ldx    #255
+    dec    __rc2
+    cpx    __rc2
+    bne    .LBB0_3
+; %bb.2:
+    dec    __rc3
+.LBB0_3:
+    lda    __rc6
+    sta    g2
+    ldx    __rc4
+    stx    g2+1
+    ldx    __rc5
+    stx    g3
+    sty    g3+1
+    ldx    __rc2
+    ldy    __rc3
+    jmp    .LBB0_7
+.LBB0_4:
+    inx
+    bne    .LBB0_6
+; %bb.5:
+    iny
+.LBB0_6:
+    lda    __rc6
+    sta    g1
+    lda    __rc4
+    sta    g1+1
+.LBB0_7:
+    stx    g0
+    sty    g0+1
+    rts
+.Lfunc_end0:
+    .size    common_subexpr, .Lfunc_end0-common_subexpr
+                                        ; -- End function
+    .type    g0,@object                      ; @g0
+    .section    .bss.g0,"aw",@nobits
+    .globl    g0
+g0:
+    .short    0                               ; 0x0
+    .size    g0, 2
+
+    .type    g1,@object                      ; @g1
+    .section    .bss.g1,"aw",@nobits
+    .globl    g1
+g1:
+    .short    0                               ; 0x0
+    .size    g1, 2
+
+    .type    g2,@object                      ; @g2
+    .section    .bss.g2,"aw",@nobits
+    .globl    g2
+g2:
+    .short    0                               ; 0x0
+    .size    g2, 2
+
+    .type    g3,@object                      ; @g3
+    .section    .bss.g3,"aw",@nobits
+    .globl    g3
+g3:
+    .short    0                               ; 0x0
+    .size    g3, 2
+
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that there is something in .bss, so it may need to be zeroed.
+    .globl    __do_zero_bss
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (29):
+
+```asm
+common_subexpr: ; common_subexpr(i16,i16,i16,i16)->void
+.s4:
+08e2 : 18 __ __ CLC
+08e3 : a5 0f __ LDA P2 ; (b + 0)
+08e5 : 65 0d __ ADC P0 ; (a + 0)
+08e7 : a8 __ __ TAY
+08e8 : a5 10 __ LDA P3 ; (b + 1)
+08ea : 65 0e __ ADC P1 ; (a + 1)
+08ec : 24 12 __ BIT P5 ; (c + 1)
+08ee : 10 12 __ BPL $0902 ; (common_subexpr.s7 + 0)
+.s5:
+08f0 : 8c 23 09 STY $0923 ; (g1 + 0)
+08f3 : 8d 24 09 STA $0924 ; (g1 + 1)
+08f6 : 18 __ __ CLC
+08f7 : a5 13 __ LDA P6 ; (d + 0)
+08f9 : 69 01 __ ADC #$01
+08fb : 8d 21 09 STA $0921 ; (g0 + 0)
+08fe : a9 00 __ LDA #$00
+0900 : f0 18 __ BEQ $091a ; (common_subexpr.s6 + 0)
+.s7:
+0902 : 8c 25 09 STY $0925 ; (g2 + 0)
+0905 : 8d 26 09 STA $0926 ; (g2 + 1)
+0908 : a5 14 __ LDA P7 ; (d + 1)
+090a : 8d 28 09 STA $0928 ; (g3 + 1)
+090d : a5 13 __ LDA P6 ; (d + 0)
+090f : 8d 27 09 STA $0927 ; (g3 + 0)
+0912 : 38 __ __ SEC
+0913 : e9 01 __ SBC #$01
+0915 : 8d 21 09 STA $0921 ; (g0 + 0)
+0918 : a9 ff __ LDA #$ff
+.s6:
+091a : 65 14 __ ADC P7 ; (d + 1)
+091c : 8d 22 09 STA $0922 ; (g0 + 1)
+.s3:
+091f : 60 __ __ RTS
+```
+
+Irie (36):
+
+```asm
+common_subexpr:
+    CLC
+    ADC $02
+    TAY
+    TXA
+    ADC $03
+    STA $14
+    LDA $05
+    BMI .bb3
+.bb1:
+    SEC
+    LDA $06
+    SBC #$01
+    TAX
+    LDA $07
+    SBC #$00
+    STX g0
+    STA g0+1
+    STY g2
+    LDA $14
+    STA g2+1
+    LDA $06
+    STA g3
+    LDA $07
+    STA g3+1
+.bb2:
+    RTS
+.bb3:
+    CLC
+    LDA $06
+    ADC #$01
+    TAX
+    LDA $07
+    ADC #$00
+    STX g0
+    STA g0+1
+    STY g1
+    LDA $14
+    STA g1+1
+    RTS
+```
+
+</details>
+
+<details>
+<summary>realistic/fibonacci — llvm-mos 50, Oscar64 34, Irie 46, ratio 0.92</summary>
+
+llvm-mos (50):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "fibonacci.c"
+    .section    .text.fibonacci,"ax",@progbits
+    .globl    fibonacci                       ; -- Begin function fibonacci
+    .type    fibonacci,@function
+fibonacci:                              ; @fibonacci
+; %bb.0:
+    tay
+    cmp    #1
+    txa
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bmi    .LBB0_8
+; %bb.3:
+    sty    __rc2
+    ldy    #0
+    lda    #1
+    sta    __rc3
+    tya
+    sta    __rc5
+    sta    __rc4
+.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
+    lda    __rc5
+    clc
+    adc    __rc3
+    sta    __rc7
+    tya
+    adc    __rc4
+    sta    __rc8
+    ldy    #255
+    dec    __rc2
+    cpy    __rc2
+    bne    .LBB0_6
+; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
+    dex
+.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
+    ldy    __rc3
+    sty    __rc6
+    lda    __rc4
+    pha
+    ldy    __rc3
+    sty    __rc5
+    ldy    __rc7
+    sty    __rc3
+    ldy    __rc4
+    lda    __rc8
+    sta    __rc4
+    pla
+    cpx    #0
+    bne    .LBB0_4
+; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
+    inc    __rc2
+    dec    __rc2
+    bne    .LBB0_4
+    jmp    .LBB0_9
+.LBB0_8:
+    lda    #0
+    sta    __rc6
+.LBB0_9:
+    tax
+    lda    __rc6
+    rts
+.Lfunc_end0:
+    .size    fibonacci, .Lfunc_end0-fibonacci
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (34):
+
+```asm
+fibonacci: ; fibonacci(i16)->i16
+.s4:
+089a : 85 43 __ STA T1 + 0
+089c : a9 00 __ LDA #$00
+089e : 85 1b __ STA ACCU + 0
+08a0 : 85 1c __ STA ACCU + 1
+08a2 : 8a __ __ TXA
+08a3 : 30 31 __ BMI $08d6 ; (fibonacci.s3 + 0)
+.s7:
+08a5 : 05 43 __ ORA T1 + 0
+08a7 : f0 2d __ BEQ $08d6 ; (fibonacci.s3 + 0)
+.s5:
+08a9 : 86 44 __ STX T1 + 1
+08ab : a2 00 __ LDX #$00
+08ad : 86 1c __ STX ACCU + 1
+08af : e6 1b __ INC ACCU + 0
+08b1 : a0 00 __ LDY #$00
+.l6:
+08b3 : 8a __ __ TXA
+08b4 : 18 __ __ CLC
+08b5 : 65 1b __ ADC ACCU + 0
+08b7 : aa __ __ TAX
+08b8 : 98 __ __ TYA
+08b9 : 65 1c __ ADC ACCU + 1
+08bb : a4 1c __ LDY ACCU + 1
+08bd : 85 1c __ STA ACCU + 1
+08bf : 8a __ __ TXA
+08c0 : a6 1b __ LDX ACCU + 0
+08c2 : 85 1b __ STA ACCU + 0
+08c4 : a5 43 __ LDA T1 + 0
+08c6 : d0 02 __ BNE $08ca ; (fibonacci.s10 + 0)
+.s9:
+08c8 : c6 44 __ DEC T1 + 1
+.s10:
+08ca : c6 43 __ DEC T1 + 0
+08cc : d0 e5 __ BNE $08b3 ; (fibonacci.l6 + 0)
+.s11:
+08ce : a5 44 __ LDA T1 + 1
+08d0 : d0 e1 __ BNE $08b3 ; (fibonacci.l6 + 0)
+.s8:
+08d2 : 86 1b __ STX ACCU + 0
+08d4 : 84 1c __ STY ACCU + 1
+.s3:
+08d6 : 60 __ __ RTS
+```
+
+Irie (46):
+
+```asm
+fibonacci:
+    STA $14
+    STX $15
+    LDY #$00
+    STY $16
+    STY $17
+    LDX #$01
+    STX $18
+    STY $19
+    STY $1A
+    STY $1B
+.bb1:
+    LDA $1B
+    EOR #$80
+    TAX
+    LDA $15
+    EOR #$80
+    STA $1C
+    CPX $1C
+    BCC .bb3
+    BNE .bb2
+    LDA $1A
+    CMP $14
+    BCC .bb3
+.bb2:
+    LDX $17
+    LDA $16
+    RTS
+.bb3:
+    CLC
+    LDA $16
+    ADC $18
+    TAX
+    LDA $17
+    ADC $19
+    CLC
+    TAY
+    LDA $1A
+    ADC #$01
+    STA $1A
+    LDA $1B
+    ADC #$00
+    STA $1B
+    LDA $18
+    STA $16
+    STX $18
+    LDA $19
+    STA $17
+    STY $19
+    JMP .bb1
+```
+
+</details>
+
+<details>
+<summary>coalescing/redundant-copy — llvm-mos 12, Oscar64 11, Irie 11, ratio 0.92</summary>
+
+llvm-mos (12):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "redundant-copy.c"
+    .section    .text.redundant_copy,"ax",@progbits
+    .globl    redundant_copy                  ; -- Begin function redundant_copy
+    .type    redundant_copy,@function
+redundant_copy:                         ; @redundant_copy
+; %bb.0:
+    stx    __rc6
+    ldx    __rc6
+    bne    .LBB0_2
+; %bb.1:
+    tax
+    beq    .LBB0_3
+.LBB0_2:
+    ldx    __rc2
+    ldy    __rc3
+    stx    __rc4
+    sty    __rc5
+.LBB0_3:
+    ldx    __rc5
+    lda    __rc4
+    rts
+.Lfunc_end0:
+    .size    redundant_copy, .Lfunc_end0-redundant_copy
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (11):
+
+```asm
+redundant_copy: ; redundant_copy(i16,i16,i16)->i16
+.s4:
+08b2 : a5 0d __ LDA P0 ; (cond + 0)
+08b4 : 05 0e __ ORA P1 ; (cond + 1)
+08b6 : d0 07 __ BNE $08bf ; (redundant_copy.s5 + 0)
+.s6:
+08b8 : a5 12 __ LDA P5 ; (b + 1)
+08ba : a4 11 __ LDY P4 ; (b + 0)
+08bc : 4c c3 08 JMP $08c3 ; (redundant_copy.s3 + 0)
+.s5:
+08bf : a5 10 __ LDA P3 ; (a + 1)
+08c1 : a4 0f __ LDY P2 ; (a + 0)
+.s3:
+08c3 : 84 1b __ STY ACCU + 0
+08c5 : 85 1c __ STA ACCU + 1
+08c7 : 60 __ __ RTS
+```
+
+Irie (11):
+
+```asm
+redundant_copy:
+    CPX #$00
+    BNE .bb3
+    TAX
+    BNE .bb3
+.bb1:
+    LDX $05
+    LDY $04
+.bb2:
+    TYA
+    RTS
+.bb3:
+    LDY $02
+    LDX $03
+    JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>control-flow/select — llvm-mos 12, Oscar64 11, Irie 11, ratio 0.92</summary>
+
+llvm-mos (12):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "select.c"
+    .section    .text.select_val,"ax",@progbits
+    .globl    select_val                      ; -- Begin function select_val
+    .type    select_val,@function
+select_val:                             ; @select_val
+; %bb.0:
+    stx    __rc6
+    ldx    __rc6
+    bne    .LBB0_2
+; %bb.1:
+    tax
+    beq    .LBB0_3
+.LBB0_2:
+    ldx    __rc2
+    ldy    __rc3
+    stx    __rc4
+    sty    __rc5
+.LBB0_3:
+    ldx    __rc5
+    lda    __rc4
+    rts
+.Lfunc_end0:
+    .size    select_val, .Lfunc_end0-select_val
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (11):
+
+```asm
+select_val: ; select_val(i16,i16,i16)->i16
+.s4:
+08b2 : a5 0d __ LDA P0 ; (cond + 0)
+08b4 : 05 0e __ ORA P1 ; (cond + 1)
+08b6 : d0 07 __ BNE $08bf ; (select_val.s5 + 0)
+.s7:
+08b8 : a5 12 __ LDA P5 ; (b + 1)
+08ba : a4 11 __ LDY P4 ; (b + 0)
+08bc : 4c c3 08 JMP $08c3 ; (select_val.s6 + 0)
+.s5:
+08bf : a5 10 __ LDA P3 ; (a + 1)
+08c1 : a4 0f __ LDY P2 ; (a + 0)
+.s6:
+08c3 : 84 1b __ STY ACCU + 0
+08c5 : 85 1c __ STA ACCU + 1
+.s3:
+08c7 : 60 __ __ RTS
+```
+
+Irie (11):
+
+```asm
+select_val:
+    CPX #$00
+    BNE .bb3
+    TAX
+    BNE .bb3
+.bb1:
+    LDX $05
+    LDY $04
+.bb2:
+    TYA
+    RTS
+.bb3:
+    LDY $02
+    LDX $03
+    JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>pressure/pressure-i16 — llvm-mos 55, Oscar64 40, Irie 49, ratio 0.89</summary>
+
+llvm-mos (55):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "pressure-i16.c"
+    .section    .text.pressure_i16,"ax",@progbits
+    .globl    pressure_i16                    ; -- Begin function pressure_i16
+    .type    pressure_i16,@function
+pressure_i16:                           ; @pressure_i16
+; %bb.0:
+    sta    __rc8
+    stx    __rc9
+    ldx    __rc7
+    clc
+    lda    __rc2
+    adc    __rc8
+    ldy    #0
+    sty    __rc10
+    sta    __rc14
+    lda    __rc3
+    adc    __rc9
+    sta    __rc13
+    lda    __rc6
+    clc
+    adc    __rc4
+    sta    __rc12
+    lda    __rc7
+    adc    __rc5
+    sta    __rc11
+    clc
+    lda    __rc4
+    adc    __rc8
+    sta    __rc8
+    lda    __rc5
+    adc    __rc9
+    sta    __rc7
+    clc
+    lda    __rc6
+    adc    __rc2
+    tay
+    txa
+    adc    __rc3
+    sta    __rc3
+    tya
+    eor    __rc8
+    sta    __rc2
+    lda    __rc12
+    eor    __rc14
+    sta    __rc6
+    lda    __rc11
+    eor    __rc13
+    sta    __rc4
+    lda    __rc3
+    eor    __rc7
+    sta    __rc3
+    ldx    __rc10
+    cpx    #1
+    lda    __rc6
+    adc    __rc2
+    tay
+    lda    __rc4
+    adc    __rc3
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    pressure_i16, .Lfunc_end0-pressure_i16
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (40):
+
+```asm
+pressure_i16: ; pressure_i16(i16,i16,i16,i16)->i16
+.s4:
+08bc : 18 __ __ CLC
+08bd : a5 11 __ LDA P4 ; (c + 0)
+08bf : 65 13 __ ADC P6 ; (d + 0)
+08c1 : 85 1b __ STA ACCU + 0
+08c3 : a5 12 __ LDA P5 ; (c + 1)
+08c5 : 65 14 __ ADC P7 ; (d + 1)
+08c7 : 85 1c __ STA ACCU + 1
+08c9 : 18 __ __ CLC
+08ca : a5 0d __ LDA P0 ; (a + 0)
+08cc : 65 0f __ ADC P2 ; (b + 0)
+08ce : 45 1b __ EOR ACCU + 0
+08d0 : 85 1b __ STA ACCU + 0
+08d2 : a5 0e __ LDA P1 ; (a + 1)
+08d4 : 65 10 __ ADC P3 ; (b + 1)
+08d6 : 45 1c __ EOR ACCU + 1
+08d8 : a8 __ __ TAY
+08d9 : 18 __ __ CLC
+08da : a5 11 __ LDA P4 ; (c + 0)
+08dc : 65 0d __ ADC P0 ; (a + 0)
+08de : 85 11 __ STA P4 ; (c + 0)
+08e0 : a5 12 __ LDA P5 ; (c + 1)
+08e2 : 65 0e __ ADC P1 ; (a + 1)
+08e4 : 85 12 __ STA P5 ; (c + 1)
+08e6 : 18 __ __ CLC
+08e7 : a5 13 __ LDA P6 ; (d + 0)
+08e9 : 65 0f __ ADC P2 ; (b + 0)
+08eb : 45 11 __ EOR P4 ; (c + 0)
+08ed : aa __ __ TAX
+08ee : a5 14 __ LDA P7 ; (d + 1)
+08f0 : 65 10 __ ADC P3 ; (b + 1)
+08f2 : 45 12 __ EOR P5 ; (c + 1)
+08f4 : 85 1c __ STA ACCU + 1
+08f6 : 8a __ __ TXA
+08f7 : 18 __ __ CLC
+08f8 : 65 1b __ ADC ACCU + 0
+08fa : 85 1b __ STA ACCU + 0
+08fc : 98 __ __ TYA
+08fd : 65 1c __ ADC ACCU + 1
+08ff : 85 1c __ STA ACCU + 1
+.s3:
+0901 : 60 __ __ RTS
+```
+
+Irie (49):
+
+```asm
+pressure_i16:
+    CLC
+    TAY
+    ADC $02
+    STA $14
+    TXA
+    ADC $03
+    CLC
+    STA $15
+    LDA $04
+    ADC $06
+    STA $16
+    LDA $05
+    ADC $07
+    CLC
+    STA $17
+    TYA
+    ADC $04
+    TAY
+    TXA
+    ADC $05
+    CLC
+    TAX
+    LDA $02
+    ADC $06
+    STA $18
+    LDA $03
+    ADC $07
+    STA $19
+    LDA $14
+    EOR $16
+    STA $1A
+    LDA $15
+    EOR $17
+    STA $1B
+    TYA
+    EOR $18
+    TAY
+    TXA
+    EOR $19
+    CLC
+    TAX
+    TYA
+    ADC $1A
+    TAY
+    TXA
+    ADC $1B
+    TAX
+    TYA
+    RTS
+```
+
+</details>
+
+<details>
+<summary>control-flow/if-else — llvm-mos 36, Oscar64 26, Irie 30, ratio 0.83</summary>
+
+llvm-mos (36):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "if-else.c"
+    .section    .text.if_else,"ax",@progbits
+    .globl    if_else                         ; -- Begin function if_else
+    .type    if_else,@function
+if_else:                                ; @if_else
+; %bb.0:
+    sta    __rc4
+    pha
+    txa
+    tay
+    pla
+    ldx    __rc2
+    sta    __rc5
+    cpx    __rc4
+    lda    __rc3
+    pha
+    tya
+    tax
+    pla
+    sty    __rc4
+    sbc    __rc4
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    tay
+    bpl    .LBB0_4
+; %bb.3:
+    sec
+    lda    __rc5
+    sbc    __rc2
+    tay
+    txa
+    sbc    __rc3
+    jmp    .LBB0_5
+.LBB0_4:
+    sec
+    lda    __rc2
+    sbc    __rc5
+    tay
+    lda    __rc3
+    stx    __rc2
+    sbc    __rc2
+.LBB0_5:
+    tax
+    tya
+    rts
+.Lfunc_end0:
+    .size    if_else, .Lfunc_end0-if_else
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (26):
+
+```asm
+if_else: ; if_else(i16,i16)->i16
+.s4:
+08a8 : a5 10 __ LDA P3 ; (b + 1)
+08aa : c5 0e __ CMP P1 ; (a + 1)
+08ac : d0 08 __ BNE $08b6 ; (if_else.s10 + 0)
+.s7:
+08ae : a5 0f __ LDA P2 ; (b + 0)
+08b0 : c5 0d __ CMP P0 ; (a + 0)
+.s8:
+08b2 : b0 08 __ BCS $08bc ; (if_else.s6 + 0)
+08b4 : 90 14 __ BCC $08ca ; (if_else.s5 + 0)
+.s10:
+08b6 : 45 0e __ EOR P1 ; (a + 1)
+08b8 : 10 f8 __ BPL $08b2 ; (if_else.s8 + 0)
+.s9:
+08ba : b0 0e __ BCS $08ca ; (if_else.s5 + 0)
+.s6:
+08bc : 38 __ __ SEC
+08bd : a5 0f __ LDA P2 ; (b + 0)
+08bf : e5 0d __ SBC P0 ; (a + 0)
+08c1 : 85 1b __ STA ACCU + 0
+08c3 : a5 10 __ LDA P3 ; (b + 1)
+08c5 : e5 0e __ SBC P1 ; (a + 1)
+08c7 : 85 1c __ STA ACCU + 1
+08c9 : 60 __ __ RTS
+.s5:
+08ca : 38 __ __ SEC
+08cb : a5 0d __ LDA P0 ; (a + 0)
+08cd : e5 0f __ SBC P2 ; (b + 0)
+08cf : 85 1b __ STA ACCU + 0
+08d1 : a5 0e __ LDA P1 ; (a + 1)
+08d3 : e5 10 __ SBC P3 ; (b + 1)
+.s3:
+08d5 : 85 1c __ STA ACCU + 1
+08d7 : 60 __ __ RTS
+```
+
+Irie (30):
+
+```asm
+abs_diff:
+    STA $14
+    TXA
+    EOR #$80
+    TAY
+    LDA $03
+    EOR #$80
+    STA $15
+    STX $16
+    CPY $15
+    BCC .bb3
+    BNE .bb1
+    LDA $14
+    CMP $02
+    BCC .bb3
+.bb1:
+    SEC
+    LDA $14
+    SBC $02
+    STA $17
+    LDA $16
+    SBC $03
+.bb2:
+    TAX
+    LDA $17
+    RTS
+.bb3:
+    SEC
+    LDA $02
+    SBC $14
+    STA $17
+    LDA $03
+    SBC $16
+    JMP .bb2
+```
+
+</details>
+
+<details>
+<summary>pressure/pressure-high — llvm-mos 230, Oscar64 139, Irie 182, ratio 0.79</summary>
 
 llvm-mos (230):
 
@@ -2577,269 +5260,190 @@ pressure_high: ; pressure_high(i32,i32,i32,i32)->i32
 09b2 : 60 __ __ RTS
 ```
 
-Irie (261):
+Irie (182):
 
 ```asm
 pressure_high:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    LDA $16
-    PHA
-    LDA $17
-    PHA
-    LDA $18
-    PHA
-    LDA $19
-    PHA
-    LDA $1A
-    PHA
-    LDA $1B
-    PHA
-    LDA $1C
-    PHA
-    LDA $1D
-    PHA
-    LDA $1E
-    PHA
-    LDA $1F
-    PHA
-    TYA
-    STA pressure_high_spill15
-    STX pressure_high_spill16
-    LDA $02
-    STA pressure_high_spill17
-    LDA $03
-    STA pressure_high_spill18
-    LDA $04
-    STA $1F
-    LDA $05
-    STA $1E
-    LDA $06
-    STA $1D
-    LDA $07
-    STA $1C
-    LDA $08
-    STA $1B
-    LDA $09
-    STA $1A
-    LDA $0A
-    STA $19
-    LDA $0B
-    STA $18
-    LDA $0C
-    STA $17
-    LDA $0D
-    STA $16
-    LDA $0E
-    STA $15
-    LDA $0F
     STA $14
-    LDA pressure_high_spill15
-    LDX pressure_high_spill16
-    LDY pressure_high_spill17
-    STY $02
-    LDY pressure_high_spill18
-    STY $03
+    STX $15
+    LDY $02
+    STY $16
+    LDY $03
+    STY $17
+    LDY $04
+    STY $18
+    LDY $05
+    STY $19
+    LDY $06
+    STY $1A
+    LDY $07
+    STY $1B
+    LDY $08
+    STY $1C
+    LDY $09
+    STY $1D
+    LDY $0A
+    STY $1E
+    LDY $0B
+    STY $1F
+    LDY $0C
+    STY $20
+    LDY $0D
+    STY $21
+    LDY $0E
+    STY $22
+    LDY $0F
+    STY $23
     JSR __mulsi3
-    STA pressure_high_spill193
-    TXA
-    STA pressure_high_spill194
-    LDA $02
-    STA pressure_high_spill195
-    LDA $03
-    STA pressure_high_spill196
-    LDA $1F
-    LDX $1E
-    LDY $1D
-    STY $02
-    LDY $1C
-    STY $03
-    LDY $1B
-    STY $04
+    STA $24
+    STX $25
+    LDY $02
+    STY $26
+    LDY $03
+    STY $27
     LDY $1A
-    STY $05
-    LDY $19
-    STY $06
-    LDY $18
-    STY $07
-    JSR __mulsi3
-    STA $1C
-    STX $1D
-    LDA $02
-    STA $1E
-    LDA $03
-    STA $1F
-    LDA $1B
-    LDX $1A
-    LDY $19
     STY $02
-    LDY $18
+    LDY $1B
     STY $03
-    LDY $17
+    LDY $1C
     STY $04
-    LDY $16
+    LDY $1D
     STY $05
-    LDY $15
+    LDY $1E
     STY $06
-    LDY $14
+    LDY $1F
     STY $07
+    LDX $19
+    LDA $18
     JSR __mulsi3
     STA $18
     STX $19
-    LDA $02
-    STA $1A
-    LDA $03
-    STA $1B
-    LDA $17
-    LDX $16
-    LDY $15
+    LDY $02
+    STY $1A
+    LDY $03
+    STY $1B
+    LDY $1E
     STY $02
-    LDY $14
+    LDY $1F
     STY $03
-    LDY pressure_high_spill15
+    LDY $20
     STY $04
-    LDY pressure_high_spill16
+    LDY $21
     STY $05
-    LDY pressure_high_spill17
+    LDY $22
     STY $06
-    LDY pressure_high_spill18
+    LDY $23
     STY $07
+    LDX $1D
+    LDA $1C
     JSR __mulsi3
+    STA $1C
+    STX $1D
+    LDY $02
+    STY $1E
+    LDY $03
+    STY $1F
+    LDY $22
+    STY $02
+    LDY $23
+    STY $03
+    LDY $14
+    STY $04
+    LDY $15
+    STY $05
+    LDY $16
+    STY $06
+    LDY $17
+    STY $07
+    LDX $21
+    LDA $20
+    JSR __mulsi3
+    CLC
     STA $14
-    STX $15
-    LDA $02
-    STA $16
-    LDA $03
-    STA $17
-    CLC
-    LDA pressure_high_spill193
-    ADC $1C
+    LDA $24
+    ADC $18
+    STA $20
+    LDA $25
+    ADC $19
+    LDY $02
+    STY $16
+    STA $21
+    LDA $26
+    ADC $1A
+    LDY $03
+    STY $17
     STA $02
-    LDA pressure_high_spill194
-    ADC $1D
-    TAX
-    LDA pressure_high_spill195
-    ADC $1E
-    STA $03
-    LDA pressure_high_spill196
-    ADC $1F
-    STA $04
+    LDA $27
+    ADC $1B
     CLC
-    LDA $18
+    STA $03
+    LDA $1C
     ADC $14
-    TAY
-    LDA $19
-    ADC $15
+    STA $04
+    TXA
+    ADC $1D
     STA $05
-    LDA $1A
+    LDA $1E
     ADC $16
     STA $06
-    LDA $1B
-    ADC $17
-    STA $07
-    LDA $02
-    STA $08
-    LDA $03
-    STA $02
-    LDA $08
-    STA $08
-    LDA $04
-    STA $03
-    LDA $08
-    STY $04
-    JSR __mulsi3
-    TAY
-    LDA $02
-    STA $05
-    LDA $03
-    STA $04
-    CLC
-    LDA pressure_high_spill193
-    STA $02
     TYA
-    ADC $02
-    TAY
-    LDA pressure_high_spill194
-    STA $02
-    TXA
-    ADC $02
-    TAX
-    LDA pressure_high_spill195
-    STA $02
-    LDA $05
-    ADC $02
-    STA $02
-    LDA pressure_high_spill196
-    STA $03
-    LDA $04
-    ADC $03
-    STA $03
-    CLC
-    TYA
-    ADC $1C
-    TAY
-    TXA
-    ADC $1D
-    TAX
-    LDA $02
-    ADC $1E
-    STA $02
-    LDA $03
     ADC $1F
-    STA $03
+    STX $15
+    STA $07
+    LDX $21
+    LDA $20
+    JSR __mulsi3
     CLC
+    ADC $24
+    TAY
+    TXA
+    ADC $25
+    TAX
+    LDA $02
+    ADC $26
+    STA $22
+    LDA $03
+    ADC $27
+    CLC
+    STA $23
     TYA
     ADC $18
     TAY
     TXA
     ADC $19
     TAX
-    LDA $02
+    LDA $22
     ADC $1A
-    STA $02
-    LDA $03
+    STA $1A
+    LDA $23
     ADC $1B
-    STA $03
     CLC
+    STA $1B
+    TYA
+    ADC $1C
+    TAY
+    TXA
+    ADC $1D
+    TAX
+    LDA $1A
+    ADC $1E
+    STA $1A
+    LDA $1B
+    ADC $1F
+    CLC
+    STA $1B
     TYA
     ADC $14
     TAY
     TXA
     ADC $15
     TAX
-    LDA $02
+    LDA $1A
     ADC $16
     STA $02
-    LDA $03
+    LDA $1B
     ADC $17
     STA $03
-    PLA
-    STA $1F
-    PLA
-    STA $1E
-    PLA
-    STA $1D
-    PLA
-    STA $1C
-    PLA
-    STA $1B
-    PLA
-    STA $1A
-    PLA
-    STA $19
-    PLA
-    STA $18
-    PLA
-    STA $17
-    PLA
-    STA $16
-    PLA
-    STA $15
-    PLA
-    STA $14
     TYA
     RTS
 ```
@@ -2847,9 +5451,9 @@ pressure_high:
 </details>
 
 <details>
-<summary>pressure/pressure-i16 — llvm-mos 55, Oscar64 40, Irie 61, ratio 1.11</summary>
+<summary>realistic/factorial-recursive — llvm-mos 60, Oscar64 47, Irie 46, ratio 0.77</summary>
 
-llvm-mos (55):
+llvm-mos (60):
 
 ```asm
     .zeropage    __rc0
@@ -2884,443 +5488,14 @@ llvm-mos (55):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "pressure-i16.c"
-    .section    .text.pressure_i16,"ax",@progbits
-    .globl    pressure_i16                    ; -- Begin function pressure_i16
-    .type    pressure_i16,@function
-pressure_i16:                           ; @pressure_i16
-; %bb.0:
-    sta    __rc8
-    stx    __rc9
-    ldx    __rc7
-    clc
-    lda    __rc2
-    adc    __rc8
-    ldy    #0
-    sty    __rc10
-    sta    __rc14
-    lda    __rc3
-    adc    __rc9
-    sta    __rc13
-    lda    __rc6
-    clc
-    adc    __rc4
-    sta    __rc12
-    lda    __rc7
-    adc    __rc5
-    sta    __rc11
-    clc
-    lda    __rc4
-    adc    __rc8
-    sta    __rc8
-    lda    __rc5
-    adc    __rc9
-    sta    __rc7
-    clc
-    lda    __rc6
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    sta    __rc3
-    tya
-    eor    __rc8
-    sta    __rc2
-    lda    __rc12
-    eor    __rc14
-    sta    __rc6
-    lda    __rc11
-    eor    __rc13
-    sta    __rc4
-    lda    __rc3
-    eor    __rc7
-    sta    __rc3
-    ldx    __rc10
-    cpx    #1
-    lda    __rc6
-    adc    __rc2
-    tay
-    lda    __rc4
-    adc    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    pressure_i16, .Lfunc_end0-pressure_i16
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (40):
-
-```asm
-pressure_i16: ; pressure_i16(i16,i16,i16,i16)->i16
-.s4:
-08bc : 18 __ __ CLC
-08bd : a5 11 __ LDA P4 ; (c + 0)
-08bf : 65 13 __ ADC P6 ; (d + 0)
-08c1 : 85 1b __ STA ACCU + 0
-08c3 : a5 12 __ LDA P5 ; (c + 1)
-08c5 : 65 14 __ ADC P7 ; (d + 1)
-08c7 : 85 1c __ STA ACCU + 1
-08c9 : 18 __ __ CLC
-08ca : a5 0d __ LDA P0 ; (a + 0)
-08cc : 65 0f __ ADC P2 ; (b + 0)
-08ce : 45 1b __ EOR ACCU + 0
-08d0 : 85 1b __ STA ACCU + 0
-08d2 : a5 0e __ LDA P1 ; (a + 1)
-08d4 : 65 10 __ ADC P3 ; (b + 1)
-08d6 : 45 1c __ EOR ACCU + 1
-08d8 : a8 __ __ TAY
-08d9 : 18 __ __ CLC
-08da : a5 11 __ LDA P4 ; (c + 0)
-08dc : 65 0d __ ADC P0 ; (a + 0)
-08de : 85 11 __ STA P4 ; (c + 0)
-08e0 : a5 12 __ LDA P5 ; (c + 1)
-08e2 : 65 0e __ ADC P1 ; (a + 1)
-08e4 : 85 12 __ STA P5 ; (c + 1)
-08e6 : 18 __ __ CLC
-08e7 : a5 13 __ LDA P6 ; (d + 0)
-08e9 : 65 0f __ ADC P2 ; (b + 0)
-08eb : 45 11 __ EOR P4 ; (c + 0)
-08ed : aa __ __ TAX
-08ee : a5 14 __ LDA P7 ; (d + 1)
-08f0 : 65 10 __ ADC P3 ; (b + 1)
-08f2 : 45 12 __ EOR P5 ; (c + 1)
-08f4 : 85 1c __ STA ACCU + 1
-08f6 : 8a __ __ TXA
-08f7 : 18 __ __ CLC
-08f8 : 65 1b __ ADC ACCU + 0
-08fa : 85 1b __ STA ACCU + 0
-08fc : 98 __ __ TYA
-08fd : 65 1c __ ADC ACCU + 1
-08ff : 85 1c __ STA ACCU + 1
-.s3:
-0901 : 60 __ __ RTS
-```
-
-Irie (61):
-
-```asm
-pressure_i16:
-    STA $0D
-    LDY $02
-    STY $0A
-    LDY $03
-    STY $08
-    LDY $04
-    STY $03
-    LDY $05
-    STY $02
-    LDY $06
-    STY $0C
-    LDY $07
-    STY $06
-    CLC
-    ADC $0A
-    STA $05
-    TXA
-    ADC $08
-    STA $04
-    CLC
-    LDA $03
-    ADC $0C
-    STA $0B
-    LDA $02
-    ADC $06
-    STA $09
-    CLC
-    LDA $0D
-    ADC $03
-    STA $03
-    TXA
-    ADC $02
-    STA $02
-    CLC
-    LDA $0A
-    ADC $0C
-    STA $07
-    LDA $08
-    ADC $06
-    STA $06
-    LDA $05
-    EOR $0B
-    TAY
-    LDA $04
-    EOR $09
-    TAX
-    LDA $03
-    EOR $07
-    STA $03
-    LDA $02
-    EOR $06
-    STA $02
-    CLC
-    TYA
-    ADC $03
-    TAY
-    TXA
-    ADC $02
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>widths/mixed-widths — llvm-mos 43, Oscar64 36, Irie 46, ratio 1.07</summary>
-
-llvm-mos (43):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "mixed-widths.c"
-    .section    .text.mixed_widths,"ax",@progbits
-    .globl    mixed_widths                    ; -- Begin function mixed_widths
-    .type    mixed_widths,@function
-mixed_widths:                           ; @mixed_widths
-; %bb.0:
-    sta    __rc7
-    txa
-    ldx    __rc2
-    ldy    __rc3
-    clc
-    adc    __rc7
-    sta    __rc2
-    txa
-    adc    #0
-    sta    __rc3
-    bpl    .LBB0_2
-; %bb.1:
-    ldx    #255
-    jmp    .LBB0_3
-.LBB0_2:
-    ldx    #0
-.LBB0_3:
-    stx    __rc8
-    tya
-    clc
-    adc    __rc7
-    tax
-    lda    __rc4
-    adc    #0
-    sta    __rc4
-    lda    __rc5
-    adc    #0
-    sta    __rc5
-    lda    __rc6
-    adc    #0
-    sta    __rc6
-    txa
-    clc
-    adc    __rc2
-    tay
-    lda    __rc4
-    adc    __rc3
-    tax
-    lda    __rc5
-    adc    __rc8
-    sta    __rc2
-    lda    __rc6
-    adc    __rc8
-    sta    __rc3
-    tya
-    rts
-.Lfunc_end0:
-    .size    mixed_widths, .Lfunc_end0-mixed_widths
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (36):
-
-```asm
-mixed_widths: ; mixed_widths(u8,i16,i32)->i32
-.s4:
-08ad : 18 __ __ CLC
-08ae : a5 0e __ LDA P1 ; (b + 0)
-08b0 : 65 0d __ ADC P0 ; (a + 0)
-08b2 : aa __ __ TAX
-08b3 : a5 0f __ LDA P2 ; (b + 1)
-08b5 : 69 00 __ ADC #$00
-08b7 : a8 __ __ TAY
-08b8 : 29 80 __ AND #$80
-08ba : 10 02 __ BPL $08be ; (mixed_widths.s4 + 17)
-08bc : a9 ff __ LDA #$ff
-08be : 85 1e __ STA ACCU + 3
-08c0 : 8a __ __ TXA
-08c1 : 18 __ __ CLC
-08c2 : 65 10 __ ADC P3 ; (c + 0)
-08c4 : aa __ __ TAX
-08c5 : 98 __ __ TYA
-08c6 : 65 11 __ ADC P4 ; (c + 1)
-08c8 : a8 __ __ TAY
-08c9 : a5 12 __ LDA P5 ; (c + 2)
-08cb : 65 1e __ ADC ACCU + 3
-08cd : 85 1d __ STA ACCU + 2
-08cf : a5 13 __ LDA P6 ; (c + 3)
-08d1 : 65 1e __ ADC ACCU + 3
-08d3 : 85 1e __ STA ACCU + 3
-08d5 : 8a __ __ TXA
-08d6 : 18 __ __ CLC
-08d7 : 65 0d __ ADC P0 ; (a + 0)
-08d9 : 85 1b __ STA ACCU + 0
-08db : 98 __ __ TYA
-08dc : 69 00 __ ADC #$00
-08de : 85 1c __ STA ACCU + 1
-08e0 : 90 06 __ BCC $08e8 ; (mixed_widths.s3 + 0)
-.s6:
-08e2 : e6 1d __ INC ACCU + 2
-08e4 : d0 02 __ BNE $08e8 ; (mixed_widths.s3 + 0)
-.s5:
-08e6 : e6 1e __ INC ACCU + 3
-.s3:
-08e8 : 60 __ __ RTS
-```
-
-Irie (46):
-
-```asm
-mixed_widths:
-    STA $07
-    STX $08
-    LDX $02
-    LDY $03
-    STY $02
-    CLC
-    ADC $08
-    TAY
-    TXA
-    ADC #$00
-    TAX
-    CMP #$00
-    BMI .bb3
-.bb1:
-    LDA #$00
-    STA $03
-.bb2:
-    CLC
-    TYA
-    ADC $02
-    TAY
-    TXA
-    ADC $04
-    TAX
-    LDA $03
-    ADC $05
-    STA $02
-    LDA $03
-    ADC $06
-    STA $03
-    CLC
-    TYA
-    ADC $07
-    TAY
-    TXA
-    ADC #$00
-    TAX
-    LDA $02
-    ADC #$00
-    STA $02
-    LDA $03
-    ADC #$00
-    STA $03
-    TYA
-    RTS
-.bb3:
-    LDA #$FF
-    STA $03
-    JMP .bb2
-```
-
-</details>
-
-<details>
-<summary>realistic/fibonacci — llvm-mos 50, Oscar64 34, Irie 51, ratio 1.02</summary>
-
-llvm-mos (50):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "fibonacci.c"
-    .section    .text.fibonacci,"ax",@progbits
-    .globl    fibonacci                       ; -- Begin function fibonacci
-    .type    fibonacci,@function
-fibonacci:                              ; @fibonacci
+    .file    "factorial-recursive.c"
+    .section    .text.factorial,"ax",@progbits
+    .globl    factorial                       ; -- Begin function factorial
+    .type    factorial,@function
+factorial:                              ; @factorial
 ; %bb.0:
     tay
-    cmp    #1
+    cmp    #2
     txa
     sbc    #0
     bvc    .LBB0_2
@@ -3328,1801 +5503,62 @@ fibonacci:                              ; @fibonacci
     eor    #128
 .LBB0_2:
     cmp    #0
-    bmi    .LBB0_8
+    bpl    .LBB0_4
 ; %bb.3:
-    sty    __rc2
-    ldy    #0
+    ldx    #0
     lda    #1
-    sta    __rc3
-    tya
-    sta    __rc5
-    sta    __rc4
-.LBB0_4:                                ; =>This Inner Loop Header: Depth=1
-    lda    __rc5
-    clc
-    adc    __rc3
-    sta    __rc7
-    tya
-    adc    __rc4
-    sta    __rc8
-    ldy    #255
-    dec    __rc2
-    cpy    __rc2
-    bne    .LBB0_6
-; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=1
-    dex
-.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=1
-    ldy    __rc3
-    sty    __rc6
-    lda    __rc4
-    pha
-    ldy    __rc3
-    sty    __rc5
-    ldy    __rc7
-    sty    __rc3
-    ldy    __rc4
-    lda    __rc8
-    sta    __rc4
-    pla
-    cpx    #0
-    bne    .LBB0_4
-; %bb.7:                                ;   in Loop: Header=BB0_4 Depth=1
-    inc    __rc2
-    dec    __rc2
-    bne    .LBB0_4
-    jmp    .LBB0_9
-.LBB0_8:
-    lda    #0
-    sta    __rc6
-.LBB0_9:
-    tax
-    lda    __rc6
     rts
-.Lfunc_end0:
-    .size    fibonacci, .Lfunc_end0-fibonacci
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (34):
-
-```asm
-fibonacci: ; fibonacci(i16)->i16
-.s4:
-089a : 85 43 __ STA T1 + 0
-089c : a9 00 __ LDA #$00
-089e : 85 1b __ STA ACCU + 0
-08a0 : 85 1c __ STA ACCU + 1
-08a2 : 8a __ __ TXA
-08a3 : 30 31 __ BMI $08d6 ; (fibonacci.s3 + 0)
-.s7:
-08a5 : 05 43 __ ORA T1 + 0
-08a7 : f0 2d __ BEQ $08d6 ; (fibonacci.s3 + 0)
-.s5:
-08a9 : 86 44 __ STX T1 + 1
-08ab : a2 00 __ LDX #$00
-08ad : 86 1c __ STX ACCU + 1
-08af : e6 1b __ INC ACCU + 0
-08b1 : a0 00 __ LDY #$00
-.l6:
-08b3 : 8a __ __ TXA
-08b4 : 18 __ __ CLC
-08b5 : 65 1b __ ADC ACCU + 0
-08b7 : aa __ __ TAX
-08b8 : 98 __ __ TYA
-08b9 : 65 1c __ ADC ACCU + 1
-08bb : a4 1c __ LDY ACCU + 1
-08bd : 85 1c __ STA ACCU + 1
-08bf : 8a __ __ TXA
-08c0 : a6 1b __ LDX ACCU + 0
-08c2 : 85 1b __ STA ACCU + 0
-08c4 : a5 43 __ LDA T1 + 0
-08c6 : d0 02 __ BNE $08ca ; (fibonacci.s10 + 0)
-.s9:
-08c8 : c6 44 __ DEC T1 + 1
-.s10:
-08ca : c6 43 __ DEC T1 + 0
-08cc : d0 e5 __ BNE $08b3 ; (fibonacci.l6 + 0)
-.s11:
-08ce : a5 44 __ LDA T1 + 1
-08d0 : d0 e1 __ BNE $08b3 ; (fibonacci.l6 + 0)
-.s8:
-08d2 : 86 1b __ STX ACCU + 0
-08d4 : 84 1c __ STY ACCU + 1
-.s3:
-08d6 : 60 __ __ RTS
-```
-
-Irie (51):
-
-```asm
-fibonacci:
-    STA $05
-    STX $0A
-    LDA #$00
-    STA $09
-    LDA #$00
-    STA $08
-    LDA #$01
-    STA $07
-    LDA #$00
-    STA $06
-    LDA #$00
-    STA $04
-    LDA #$00
-    STA $03
-.bb1:
-    LDA $03
-    EOR #$80
-    TAX
-    LDA $0A
-    EOR #$80
-    STA $02
-    TXA
-    CMP $02
-    BCC .bb3
-    BNE .bb2
-    LDA $04
-    CMP $05
-    BCC .bb3
-.bb2:
-    LDA $09
-    LDX $08
-    RTS
-.bb3:
-    CLC
-    LDA $09
-    ADC $07
-    TAX
-    LDA $08
-    ADC $06
-    TAY
-    CLC
-    LDA $04
-    ADC #$01
-    STA $04
-    LDA $03
-    ADC #$00
-    STA $03
-    LDA $07
-    STA $09
-    LDA $06
-    STA $08
-    STX $07
-    STY $06
-    JMP .bb1
-```
-
-</details>
-
-<details>
-<summary>basics/add-i16 — llvm-mos 8, Oscar64 8, Irie 8, ratio 1.00</summary>
-
-llvm-mos (8):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "add-i16.c"
-    .section    .text.add_i16,"ax",@progbits
-    .globl    add_i16                         ; -- Begin function add_i16
-    .type    add_i16,@function
-add_i16:                                ; @add_i16
-; %bb.0:
-    clc
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    add_i16, .Lfunc_end0-add_i16
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (8):
-
-```asm
-add_i16: ; add_i16(i16,i16)->i16
-.s4:
-08a8 : 18 __ __ CLC
-08a9 : a5 0f __ LDA P2 ; (b + 0)
-08ab : 65 0d __ ADC P0 ; (a + 0)
-08ad : 85 1b __ STA ACCU + 0
-08af : a5 10 __ LDA P3 ; (b + 1)
-08b1 : 65 0e __ ADC P1 ; (a + 1)
-08b3 : 85 1c __ STA ACCU + 1
-.s3:
-08b5 : 60 __ __ RTS
-```
-
-Irie (8):
-
-```asm
-add_i16:
-    CLC
-    ADC $02
-    TAY
-    TXA
-    ADC $03
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>basics/add-i32 — llvm-mos 14, Oscar64 14, Irie 14, ratio 1.00</summary>
-
-llvm-mos (14):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "add-i32.c"
-    .section    .text.add_i32,"ax",@progbits
-    .globl    add_i32                         ; -- Begin function add_i32
-    .type    add_i32,@function
-add_i32:                                ; @add_i32
-; %bb.0:
-    clc
-    adc    __rc4
-    tay
-    txa
-    adc    __rc5
-    tax
-    lda    __rc2
-    adc    __rc6
-    sta    __rc2
-    lda    __rc3
-    adc    __rc7
-    sta    __rc3
-    tya
-    rts
-.Lfunc_end0:
-    .size    add_i32, .Lfunc_end0-add_i32
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (14):
-
-```asm
-add_i32: ; add_i32(i32,i32)->i32
-.s4:
-08a3 : 18 __ __ CLC
-08a4 : a5 11 __ LDA P4 ; (b + 0)
-08a6 : 65 0d __ ADC P0 ; (a + 0)
-08a8 : 85 1b __ STA ACCU + 0
-08aa : a5 12 __ LDA P5 ; (b + 1)
-08ac : 65 0e __ ADC P1 ; (a + 1)
-08ae : 85 1c __ STA ACCU + 1
-08b0 : a5 13 __ LDA P6 ; (b + 2)
-08b2 : 65 0f __ ADC P2 ; (a + 2)
-08b4 : 85 1d __ STA ACCU + 2
-08b6 : a5 14 __ LDA P7 ; (b + 3)
-08b8 : 65 10 __ ADC P3 ; (a + 3)
-08ba : 85 1e __ STA ACCU + 3
-.s3:
-08bc : 60 __ __ RTS
-```
-
-Irie (14):
-
-```asm
-add_i32:
-    CLC
-    ADC $04
-    TAY
-    TXA
-    ADC $05
-    TAX
-    LDA $02
-    ADC $06
-    STA $02
-    LDA $03
-    ADC $07
-    STA $03
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>basics/add-i8 — llvm-mos 4, Oscar64 4, Irie 4, ratio 1.00</summary>
-
-llvm-mos (4):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "add-i8.c"
-    .section    .text.add_i8,"ax",@progbits
-    .globl    add_i8                          ; -- Begin function add_i8
-    .type    add_i8,@function
-add_i8:                                 ; @add_i8
-; %bb.0:
-    stx    __rc2
-    clc
-    adc    __rc2
-    rts
-.Lfunc_end0:
-    .size    add_i8, .Lfunc_end0-add_i8
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (4):
-
-```asm
-add_i8: ; add_i8(u8,u8)->u8
-.s4:
-0897 : 18 __ __ CLC
-0898 : a5 0e __ LDA P1 ; (b + 0)
-089a : 65 0d __ ADC P0 ; (a + 0)
-.s3:
-089c : 60 __ __ RTS
-```
-
-Irie (4):
-
-```asm
-add_i8:
-    STX $02
-    CLC
-    ADC $02
-    RTS
-```
-
-</details>
-
-<details>
-<summary>basics/identity-i8 — llvm-mos 1, Oscar64 1, Irie 1, ratio 1.00</summary>
-
-llvm-mos (1):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "identity-i8.c"
-    .section    .text.identity_i8,"ax",@progbits
-    .globl    identity_i8                     ; -- Begin function identity_i8
-    .type    identity_i8,@function
-identity_i8:                            ; @identity_i8
-; %bb.0:
-    rts
-.Lfunc_end0:
-    .size    identity_i8, .Lfunc_end0-identity_i8
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (1):
-
-```asm
-identity_i8: ; identity_i8(u8)->u8
-.s3:
-0890 : 60 __ __ RTS
-```
-
-Irie (1):
-
-```asm
-identity_i8:
-    RTS
-```
-
-</details>
-
-<details>
-<summary>basics/many-args — llvm-mos 36, Oscar64 36, Irie 36, ratio 1.00</summary>
-
-llvm-mos (36):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "many-args.c"
-    .section    .text.many_args,"ax",@progbits
-    .globl    many_args                       ; -- Begin function many_args
-    .type    many_args,@function
-many_args:                              ; @many_args
-; %bb.0:
-    clc
-    adc    __rc2
-    sta    __rc2
-    txa
-    adc    __rc3
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc4
-    sta    __rc2
-    lda    __rc3
-    adc    __rc5
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc6
-    sta    __rc2
-    lda    __rc3
-    adc    __rc7
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc8
-    sta    __rc2
-    lda    __rc3
-    adc    __rc9
-    tax
-    lda    __rc2
-    clc
-    adc    __rc10
-    tay
-    txa
-    adc    __rc11
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    many_args, .Lfunc_end0-many_args
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (36):
-
-```asm
-many_args: ; many_args(i16,i16,i16,i16,i16,i16)->i16
-.s4:
-08d0 : 18 __ __ CLC
-08d1 : a5 0f __ LDA P2 ; (b + 0)
-08d3 : 65 0d __ ADC P0 ; (a + 0)
-08d5 : aa __ __ TAX
-08d6 : a5 10 __ LDA P3 ; (b + 1)
-08d8 : 65 0e __ ADC P1 ; (a + 1)
-08da : a8 __ __ TAY
-08db : 8a __ __ TXA
-08dc : 18 __ __ CLC
-08dd : 65 11 __ ADC P4 ; (c + 0)
-08df : aa __ __ TAX
-08e0 : 98 __ __ TYA
-08e1 : 65 12 __ ADC P5 ; (c + 1)
-08e3 : a8 __ __ TAY
-08e4 : 8a __ __ TXA
-08e5 : 18 __ __ CLC
-08e6 : 65 13 __ ADC P6 ; (d + 0)
-08e8 : aa __ __ TAX
-08e9 : 98 __ __ TYA
-08ea : 65 14 __ ADC P7 ; (d + 1)
-08ec : a8 __ __ TAY
-08ed : 8a __ __ TXA
-08ee : 18 __ __ CLC
-08ef : 65 15 __ ADC P8 ; (e + 0)
-08f1 : aa __ __ TAX
-08f2 : 98 __ __ TYA
-08f3 : 65 16 __ ADC P9 ; (e + 1)
-08f5 : a8 __ __ TAY
-08f6 : 8a __ __ TXA
-08f7 : 18 __ __ CLC
-08f8 : 65 17 __ ADC P10 ; (f + 0)
-08fa : 85 1b __ STA ACCU + 0
-08fc : 98 __ __ TYA
-08fd : 65 18 __ ADC P11 ; (f + 1)
-08ff : 85 1c __ STA ACCU + 1
-.s3:
-0901 : 60 __ __ RTS
-```
-
-Irie (36):
-
-```asm
-many_args:
-    CLC
-    ADC $02
-    TAY
-    TXA
-    ADC $03
-    TAX
-    CLC
-    TYA
-    ADC $04
-    TAY
-    TXA
-    ADC $05
-    TAX
-    CLC
-    TYA
-    ADC $06
-    TAY
-    TXA
-    ADC $07
-    TAX
-    CLC
-    TYA
-    ADC $08
-    TAY
-    TXA
-    ADC $09
-    TAX
-    CLC
-    TYA
-    ADC $0A
-    TAY
-    TXA
-    ADC $0B
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>basics/ret-const — llvm-mos 3, Oscar64 1, Irie 3, ratio 1.00</summary>
-
-llvm-mos (3):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "ret-const.c"
-    .section    .text.ret_const,"ax",@progbits
-    .globl    ret_const                       ; -- Begin function ret_const
-    .type    ret_const,@function
-ret_const:                              ; @ret_const
-; %bb.0:
-    lda    #210
-    ldx    #4
-    rts
-.Lfunc_end0:
-    .size    ret_const, .Lfunc_end0-ret_const
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (1):
-
-```asm
-ret_const: ; ret_const()->void
-.s3:
-0894 : 60 __ __ RTS
-```
-
-Irie (3):
-
-```asm
-ret_const:
-    LDA #$D2
-    LDX #$04
-    RTS
-```
-
-</details>
-
-<details>
-<summary>basics/sub-i16 — llvm-mos 8, Oscar64 8, Irie 8, ratio 1.00</summary>
-
-llvm-mos (8):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "sub-i16.c"
-    .section    .text.sub_i16,"ax",@progbits
-    .globl    sub_i16                         ; -- Begin function sub_i16
-    .type    sub_i16,@function
-sub_i16:                                ; @sub_i16
-; %bb.0:
-    sec
-    sbc    __rc2
-    tay
-    txa
-    sbc    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    sub_i16, .Lfunc_end0-sub_i16
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (8):
-
-```asm
-sub_i16: ; sub_i16(i16,i16)->i16
-.s4:
-08a8 : a5 0d __ LDA P0 ; (a + 0)
-08aa : 38 __ __ SEC
-08ab : e5 0f __ SBC P2 ; (b + 0)
-08ad : 85 1b __ STA ACCU + 0
-08af : a5 0e __ LDA P1 ; (a + 1)
-08b1 : e5 10 __ SBC P3 ; (b + 1)
-08b3 : 85 1c __ STA ACCU + 1
-.s3:
-08b5 : 60 __ __ RTS
-```
-
-Irie (8):
-
-```asm
-sub_i16:
-    SEC
-    SBC $02
-    TAY
-    TXA
-    SBC $03
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>coalescing/commutative — llvm-mos 8, Oscar64 8, Irie 8, ratio 1.00</summary>
-
-llvm-mos (8):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "commutative.c"
-    .section    .text.commutative,"ax",@progbits
-    .globl    commutative                     ; -- Begin function commutative
-    .type    commutative,@function
-commutative:                            ; @commutative
-; %bb.0:
-    clc
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    commutative, .Lfunc_end0-commutative
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (8):
-
-```asm
-commutative: ; commutative(i16,i16)->i16
-.s4:
-08a8 : 18 __ __ CLC
-08a9 : a5 0f __ LDA P2 ; (b + 0)
-08ab : 65 0d __ ADC P0 ; (a + 0)
-08ad : 85 1b __ STA ACCU + 0
-08af : a5 10 __ LDA P3 ; (b + 1)
-08b1 : 65 0e __ ADC P1 ; (a + 1)
-08b3 : 85 1c __ STA ACCU + 1
-.s3:
-08b5 : 60 __ __ RTS
-```
-
-Irie (8):
-
-```asm
-commutative:
-    CLC
-    ADC $02
-    TAY
-    TXA
-    ADC $03
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>coalescing/copy-passthrough — llvm-mos 1, Oscar64 3, Irie 1, ratio 1.00</summary>
-
-llvm-mos (1):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "copy-passthrough.c"
-    .section    .text.copy_passthrough,"ax",@progbits
-    .globl    copy_passthrough                ; -- Begin function copy_passthrough
-    .type    copy_passthrough,@function
-copy_passthrough:                       ; @copy_passthrough
-; %bb.0:
-    rts
-.Lfunc_end0:
-    .size    copy_passthrough, .Lfunc_end0-copy_passthrough
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (3):
-
-```asm
-copy_passthrough: ; copy_passthrough(i16)->i16
-.s4:
-089a : 86 1c __ STX ACCU + 1
-089c : 85 1b __ STA ACCU + 0
-.s3:
-089e : 60 __ __ RTS
-```
-
-Irie (1):
-
-```asm
-copy_passthrough:
-    RTS
-```
-
-</details>
-
-<details>
-<summary>coalescing/redundant-copy — llvm-mos 12, Oscar64 11, Irie 12, ratio 1.00</summary>
-
-llvm-mos (12):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "redundant-copy.c"
-    .section    .text.redundant_copy,"ax",@progbits
-    .globl    redundant_copy                  ; -- Begin function redundant_copy
-    .type    redundant_copy,@function
-redundant_copy:                         ; @redundant_copy
-; %bb.0:
-    stx    __rc6
-    ldx    __rc6
-    bne    .LBB0_2
-; %bb.1:
-    tax
-    beq    .LBB0_3
-.LBB0_2:
-    ldx    __rc2
-    ldy    __rc3
-    stx    __rc4
-    sty    __rc5
-.LBB0_3:
-    ldx    __rc5
-    lda    __rc4
-    rts
-.Lfunc_end0:
-    .size    redundant_copy, .Lfunc_end0-redundant_copy
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (11):
-
-```asm
-redundant_copy: ; redundant_copy(i16,i16,i16)->i16
-.s4:
-08b2 : a5 0d __ LDA P0 ; (cond + 0)
-08b4 : 05 0e __ ORA P1 ; (cond + 1)
-08b6 : d0 07 __ BNE $08bf ; (redundant_copy.s5 + 0)
-.s6:
-08b8 : a5 12 __ LDA P5 ; (b + 1)
-08ba : a4 11 __ LDY P4 ; (b + 0)
-08bc : 4c c3 08 JMP $08c3 ; (redundant_copy.s3 + 0)
-.s5:
-08bf : a5 10 __ LDA P3 ; (a + 1)
-08c1 : a4 0f __ LDY P2 ; (a + 0)
-.s3:
-08c3 : 84 1b __ STY ACCU + 0
-08c5 : 85 1c __ STA ACCU + 1
-08c7 : 60 __ __ RTS
-```
-
-Irie (12):
-
-```asm
-redundant_copy:
-    TAY
-    TXA
-    BNE .bb2
-    TYA
-    BNE .bb2
-.bb1:
-    LDA $04
-    STA $02
-    LDA $05
-    STA $03
-.bb2:
-    LDA $02
-    LDX $03
-    RTS
-```
-
-</details>
-
-<details>
-<summary>coalescing/swap — llvm-mos 11, Oscar64 8, Irie 11, ratio 1.00</summary>
-
-llvm-mos (11):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "swap.c"
-    .section    .text.swap_diff,"ax",@progbits
-    .globl    swap_diff                       ; -- Begin function swap_diff
-    .type    swap_diff,@function
-swap_diff:                              ; @swap_diff
-; %bb.0:
-    sta    __rc4
-    stx    __rc5
-    lda    __rc2
-    sec
-    sbc    __rc4
-    tay
-    lda    __rc3
-    sbc    __rc5
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    swap_diff, .Lfunc_end0-swap_diff
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (8):
-
-```asm
-swap_diff: ; swap_diff(i16,i16)->i16
-.s4:
-08a8 : a5 0f __ LDA P2 ; (b + 0)
-08aa : 38 __ __ SEC
-08ab : e5 0d __ SBC P0 ; (a + 0)
-08ad : 85 1b __ STA ACCU + 0
-08af : a5 10 __ LDA P3 ; (b + 1)
-08b1 : e5 0e __ SBC P1 ; (a + 1)
-08b3 : 85 1c __ STA ACCU + 1
-.s3:
-08b5 : 60 __ __ RTS
-```
-
-Irie (11):
-
-```asm
-swap_diff:
-    STA $05
-    STX $04
-    SEC
-    LDA $02
-    SBC $05
-    TAY
-    LDA $03
-    SBC $04
-    TAX
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>constraints/inc-dec — llvm-mos 4, Oscar64 7, Irie 4, ratio 1.00</summary>
-
-llvm-mos (4):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "inc-dec.c"
-    .section    .text.inc_dec,"ax",@progbits
-    .globl    inc_dec                         ; -- Begin function inc_dec
-    .type    inc_dec,@function
-inc_dec:                                ; @inc_dec
-; %bb.0:
-    stx    __rc2
-    clc
-    adc    __rc2
-    rts
-.Lfunc_end0:
-    .size    inc_dec, .Lfunc_end0-inc_dec
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (7):
-
-```asm
-inc_dec: ; inc_dec(u8,u8)->u8
-.s4:
-0897 : a6 0d __ LDX P0 ; (a + 0)
-0899 : e8 __ __ INX
-089a : 8a __ __ TXA
-089b : c6 0e __ DEC P1 ; (b + 0)
-089d : 18 __ __ CLC
-089e : 65 0e __ ADC P1 ; (b + 0)
-.s3:
-08a0 : 60 __ __ RTS
-```
-
-Irie (4):
-
-```asm
-inc_dec:
-    STX $02
-    CLC
-    ADC $02
-    RTS
-```
-
-</details>
-
-<details>
-<summary>constraints/shift-var — llvm-mos 1, Oscar64 14, Irie 1, ratio 1.00</summary>
-
-llvm-mos (1):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "shift-var.c"
-    .section    .text.shift_var,"ax",@progbits
-    .globl    shift_var                       ; -- Begin function shift_var
-    .type    shift_var,@function
-shift_var:                              ; @shift_var
-; %bb.0:
-    jmp    __ashlhi3
-.Lfunc_end0:
-    .size    shift_var, .Lfunc_end0-shift_var
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (14):
-
-```asm
-shift_var: ; shift_var(i16,i16)->i16
-.s4:
-08a8 : a5 0f __ LDA P2 ; (n + 0)
-08aa : 29 0f __ AND #$0f
-08ac : a8 __ __ TAY
-08ad : a5 0e __ LDA P1 ; (a + 1)
-08af : c0 00 __ CPY #$00
-08b1 : f0 06 __ BEQ $08b9 ; (shift_var.s6 + 0)
-.l5:
-08b3 : 06 0d __ ASL P0 ; (a + 0)
-08b5 : 2a __ __ ROL
-08b6 : 88 __ __ DEY
-08b7 : d0 fa __ BNE $08b3 ; (shift_var.l5 + 0)
-.s6:
-08b9 : 85 1c __ STA ACCU + 1
-08bb : a5 0d __ LDA P0 ; (a + 0)
-08bd : 85 1b __ STA ACCU + 0
-.s3:
-08bf : 60 __ __ RTS
-```
-
-Irie (1):
-
-```asm
-shift_var:
-    JMP __ashlhi3
-```
-
-</details>
-
-<details>
-<summary>control-flow/select — llvm-mos 12, Oscar64 11, Irie 12, ratio 1.00</summary>
-
-llvm-mos (12):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "select.c"
-    .section    .text.select_val,"ax",@progbits
-    .globl    select_val                      ; -- Begin function select_val
-    .type    select_val,@function
-select_val:                             ; @select_val
-; %bb.0:
-    stx    __rc6
-    ldx    __rc6
-    bne    .LBB0_2
-; %bb.1:
-    tax
-    beq    .LBB0_3
-.LBB0_2:
-    ldx    __rc2
-    ldy    __rc3
-    stx    __rc4
-    sty    __rc5
-.LBB0_3:
-    ldx    __rc5
-    lda    __rc4
-    rts
-.Lfunc_end0:
-    .size    select_val, .Lfunc_end0-select_val
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (11):
-
-```asm
-select_val: ; select_val(i16,i16,i16)->i16
-.s4:
-08b2 : a5 0d __ LDA P0 ; (cond + 0)
-08b4 : 05 0e __ ORA P1 ; (cond + 1)
-08b6 : d0 07 __ BNE $08bf ; (select_val.s5 + 0)
-.s7:
-08b8 : a5 12 __ LDA P5 ; (b + 1)
-08ba : a4 11 __ LDY P4 ; (b + 0)
-08bc : 4c c3 08 JMP $08c3 ; (select_val.s6 + 0)
-.s5:
-08bf : a5 10 __ LDA P3 ; (a + 1)
-08c1 : a4 0f __ LDY P2 ; (a + 0)
-.s6:
-08c3 : 84 1b __ STY ACCU + 0
-08c5 : 85 1c __ STA ACCU + 1
-.s3:
-08c7 : 60 __ __ RTS
-```
-
-Irie (12):
-
-```asm
-select_val:
-    TAY
-    TXA
-    BNE .bb2
-    TYA
-    BNE .bb2
-.bb1:
-    LDA $04
-    STA $02
-    LDA $05
-    STA $03
-.bb2:
-    LDA $02
-    LDX $03
-    RTS
-```
-
-</details>
-
-<details>
-<summary>memory/global-rw — llvm-mos 10, Oscar64 9, Irie 10, ratio 1.00</summary>
-
-llvm-mos (10):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "global-rw.c"
-    .section    .text.global_rw,"ax",@progbits
-    .globl    global_rw                       ; -- Begin function global_rw
-    .type    global_rw,@function
-global_rw:                              ; @global_rw
-; %bb.0:
-    clc
-    adc    counter
-    tay
-    txa
-    adc    counter+1
-    tax
-    tya
-    sty    counter
-    stx    counter+1
-    rts
-.Lfunc_end0:
-    .size    global_rw, .Lfunc_end0-global_rw
-                                        ; -- End function
-    .type    counter,@object                 ; @counter
-    .section    .bss.counter,"aw",@nobits
-    .globl    counter
-counter:
-    .short    0                               ; 0x0
-    .size    counter, 2
-
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that there is something in .bss, so it may need to be zeroed.
-    .globl    __do_zero_bss
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (9):
-
-```asm
-global_rw: ; global_rw(i16)->i16
-.s4:
-08a6 : 18 __ __ CLC
-08a7 : 6d ba 08 ADC $08ba ; (counter + 0)
-08aa : 85 1b __ STA ACCU + 0
-08ac : 8d ba 08 STA $08ba ; (counter + 0)
-08af : 8a __ __ TXA
-08b0 : 6d bb 08 ADC $08bb ; (counter + 1)
-08b3 : 85 1c __ STA ACCU + 1
-08b5 : 8d bb 08 STA $08bb ; (counter + 1)
-.s3:
-08b8 : 60 __ __ RTS
-```
-
-Irie (10):
-
-```asm
-global_rw:
-    CLC
-    ADC counter
-    TAY
-    TXA
-    ADC counter+1
-    TAX
-    STY counter
-    STX counter+1
-    TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>widths/truncate — llvm-mos 3, Oscar64 4, Irie 3, ratio 1.00</summary>
-
-llvm-mos (3):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "truncate.c"
-    .section    .text.truncate,"ax",@progbits
-    .globl    truncate                        ; -- Begin function truncate
-    .type    truncate,@function
-truncate:                               ; @truncate
-; %bb.0:
-    clc
-    adc    __rc2
-    rts
-.Lfunc_end0:
-    .size    truncate, .Lfunc_end0-truncate
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (4):
-
-```asm
-truncate: ; truncate(i16,i16)->u8
-.s4:
-08a1 : 18 __ __ CLC
-08a2 : a5 0f __ LDA P2 ; (b + 0)
-08a4 : 65 0d __ ADC P0 ; (a + 0)
-.s3:
-08a6 : 60 __ __ RTS
-```
-
-Irie (3):
-
-```asm
-truncate:
-    CLC
-    ADC $02
-    RTS
-```
-
-</details>
-
-<details>
-<summary>pressure/live-across-call — llvm-mos 23, Oscar64 11, Irie 22, ratio 0.96</summary>
-
-llvm-mos (23):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "live-across-call.c"
-    .section    .text.live_across_call,"ax",@progbits
-    .globl    live_across_call                ; -- Begin function live_across_call
-    .type    live_across_call,@function
-live_across_call:                       ; @live_across_call
-; %bb.0:
-    sta    __rc16
+.LBB0_4:
     lda    __rc20
     pha
     lda    __rc21
     pha
-    lda    __rc16
+    lda    __rc22
+    pha
+    lda    #1
+    stx    __rc22
+    ldx    #0
+.LBB0_5:                                ; =>This Inner Loop Header: Depth=1
+    sty    __rc21
+    pha
+    lda    __rc22
     sta    __rc20
-    stx    __rc21
-    jsr    g
-    clc
-    adc    __rc20
-    tay
-    txa
-    adc    __rc21
-    tax
-    tya
+    pla
+    sty    __rc5
+    ldy    #255
+    dec    __rc21
+    cpy    __rc21
+    bne    .LBB0_7
+; %bb.6:                                ;   in Loop: Header=BB0_5 Depth=1
+    dec    __rc20
+.LBB0_7:                                ;   in Loop: Header=BB0_5 Depth=1
+    sta    __rc2
+    stx    __rc3
+    ldx    __rc22
+    ldy    __rc5
+    sty    .Lfactorial_sstk                ; 1-byte Folded Spill
+    lda    __rc5
+    jsr    __mulhi3
+    ldy    __rc22
+    bne    .LBB0_9
+; %bb.8:                                ;   in Loop: Header=BB0_5 Depth=1
+    ldy    .Lfactorial_sstk                ; 1-byte Folded Reload
+    cpy    #3
+    jmp    .LBB0_10
+.LBB0_9:                                ;   in Loop: Header=BB0_5 Depth=1
+    ldy    __rc22
+    cpy    #0
+.LBB0_10:                               ;   in Loop: Header=BB0_5 Depth=1
+    ldy    __rc21
+    pha
+    lda    __rc20
+    sta    __rc22
+    pla
+    bcs    .LBB0_5
+; %bb.11:
     sta    __rc16
+    pla
+    sta    __rc22
     pla
     sta    __rc21
     pla
@@ -5130,457 +5566,145 @@ live_across_call:                       ; @live_across_call
     lda    __rc16
     rts
 .Lfunc_end0:
-    .size    live_across_call, .Lfunc_end0-live_across_call
+    .size    factorial, .Lfunc_end0-factorial
                                         ; -- End function
+    .type    .Lstatic_stack,@object          ; @static_stack
+    .section    .noinit..Lstatic_stack,"aw",@nobits
+.Lstatic_stack:
+    .zero    1
+    .size    .Lstatic_stack, 1
+
+.Lfactorial_sstk = .Lstatic_stack
+    .size    .Lfactorial_sstk, 1
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
     .addrsig
+    .addrsig_sym .Lstatic_stack
     ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
     .globl    __do_init_stack
 ```
 
-Oscar64 (11):
+Oscar64 (47):
 
 ```asm
-live_across_call: ; live_across_call(i16)->i16
+factorial: ; factorial(i16)->i16
+.s1:
+08b7 : 38 __ __ SEC
+08b8 : a5 23 __ LDA SP + 0
+08ba : e9 04 __ SBC #$04
+08bc : 85 23 __ STA SP + 0
+08be : b0 02 __ BCS $08c2 ; (factorial.s4 + 0)
+08c0 : c6 24 __ DEC SP + 1
 .s4:
-089e : a5 0d __ LDA P0 ; (a + 0)
-08a0 : a6 0e __ LDX P1 ; (a + 1)
-08a2 : 20 b3 08 JSR $08b3 ; (g.s4 + 0)
-08a5 : 18 __ __ CLC
-08a6 : a5 1b __ LDA ACCU + 0
-08a8 : 65 0d __ ADC P0 ; (a + 0)
-08aa : 85 1b __ STA ACCU + 0
-08ac : a5 1c __ LDA ACCU + 1
-08ae : 65 0e __ ADC P1 ; (a + 1)
-08b0 : 85 1c __ STA ACCU + 1
+08c2 : a0 06 __ LDY #$06
+08c4 : b1 23 __ LDA (SP + 0),y
+08c6 : aa __ __ TAX
+08c7 : c8 __ __ INY
+08c8 : b1 23 __ LDA (SP + 0),y
+08ca : 30 08 __ BMI $08d4 ; (factorial.s5 + 0)
+.s8:
+08cc : 85 46 __ STA T1 + 1
+08ce : d0 0a __ BNE $08da ; (factorial.s6 + 0)
+.s7:
+08d0 : e0 02 __ CPX #$02
+08d2 : b0 06 __ BCS $08da ; (factorial.s6 + 0)
+.s5:
+08d4 : a9 00 __ LDA #$00
+08d6 : a2 01 __ LDX #$01
+08d8 : d0 24 __ BNE $08fe ; (factorial.s3 + 0)
+.s6:
+08da : 8a __ __ TXA
+08db : 38 __ __ SEC
+08dc : e9 01 __ SBC #$01
+08de : a0 02 __ LDY #$02
+08e0 : 91 23 __ STA (SP + 0),y
+08e2 : a5 46 __ LDA T1 + 1
+08e4 : e9 00 __ SBC #$00
+08e6 : c8 __ __ INY
+08e7 : 91 23 __ STA (SP + 0),y
+08e9 : 20 b7 08 JSR $08b7 ; (factorial.s1 + 0)
+08ec : a0 06 __ LDY #$06
+08ee : b1 23 __ LDA (SP + 0),y
+08f0 : 85 03 __ STA WORK + 0
+08f2 : c8 __ __ INY
+08f3 : b1 23 __ LDA (SP + 0),y
+08f5 : 85 04 __ STA WORK + 1
+08f7 : 20 0e 09 JSR $090e ; (mul16 + 0)
+08fa : a5 06 __ LDA WORK + 3
+08fc : a6 05 __ LDX WORK + 2
 .s3:
-08b2 : 60 __ __ RTS
+08fe : 86 1b __ STX ACCU + 0
+0900 : 85 1c __ STA ACCU + 1
+0902 : 18 __ __ CLC
+0903 : a5 23 __ LDA SP + 0
+0905 : 69 04 __ ADC #$04
+0907 : 85 23 __ STA SP + 0
+0909 : 90 02 __ BCC $090d ; (factorial.s3 + 15)
+090b : e6 24 __ INC SP + 1
+090d : 60 __ __ RTS
 ```
 
-Irie (22):
+Irie (46):
 
 ```asm
-g:
+factorial:
+    STA $14
+    LDA #$00
+    EOR #$80
+    TAY
+    TXA
+    EOR #$80
+    STA $15
+    STX $16
+    CPY $15
+    BCC .bb3
+    BNE .bb1
+    LDA #$01
+    CMP $14
+    BCC .bb3
+.bb1:
+    LDX #$00
+    LDY #$01
+.bb2:
+    TYA
     RTS
-
-live_across_call:
+.bb3:
+    SEC
+    LDA $14
+    SBC #$01
+    STA $17
+    LDA $16
+    SBC #$00
+    TAX
+    LDA $17
     TAY
     LDA $14
     PHA
-    LDA $15
+    LDA $16
     PHA
     TYA
-    STA $14
-    STX $15
-    JSR g
-    CLC
-    ADC $14
+    JSR factorial
     TAY
-    TXA
-    ADC $15
-    TAX
     PLA
-    STA $15
+    STA $16
     PLA
     STA $14
     TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>control-flow/early-return — llvm-mos 28, Oscar64 30, Irie 26, ratio 0.93</summary>
-
-llvm-mos (28):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "early-return.c"
-    .section    .text.early_return,"ax",@progbits
-    .globl    early_return                    ; -- Begin function early_return
-    .type    early_return,@function
-early_return:                           ; @early_return
-; %bb.0:
-    cpx    #0
-    bmi    .LBB0_4
-; %bb.1:
-    tay
-    txa
-    inc    __rc3
-    dec    __rc3
-    bmi    .LBB0_5
-; %bb.2:
-    clc
-    tya
-    adc    __rc2
-    tay
-    txa
-    adc    __rc3
-    ldx    __rc5
-    bmi    .LBB0_5
-; %bb.3:
-    tax
-    tya
-    clc
-    adc    __rc4
-    tay
-    txa
-    adc    __rc5
-    jmp    .LBB0_5
-.LBB0_4:
-    ldy    #0
-    tya
-.LBB0_5:
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    early_return, .Lfunc_end0-early_return
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (30):
-
-```asm
-early_return: ; early_return(i16,i16,i16)->i16
-.s4:
-08b2 : a4 0e __ LDY P1 ; (a + 1)
-08b4 : 10 07 __ BPL $08bd ; (early_return.s6 + 0)
-.s5:
-08b6 : a9 00 __ LDA #$00
-08b8 : 85 1b __ STA ACCU + 0
-.s3:
-08ba : 85 1c __ STA ACCU + 1
-08bc : 60 __ __ RTS
-.s6:
-08bd : a6 0d __ LDX P0 ; (a + 0)
-08bf : 24 10 __ BIT P3 ; (b + 1)
-08c1 : 10 06 __ BPL $08c9 ; (early_return.s8 + 0)
-.s7:
-08c3 : 98 __ __ TYA
-.s10:
-08c4 : 86 1b __ STX ACCU + 0
-08c6 : 85 1c __ STA ACCU + 1
-08c8 : 60 __ __ RTS
-.s8:
-08c9 : 8a __ __ TXA
-08ca : 18 __ __ CLC
-08cb : 65 0f __ ADC P2 ; (b + 0)
-08cd : aa __ __ TAX
-08ce : 98 __ __ TYA
-08cf : 65 10 __ ADC P3 ; (b + 1)
-08d1 : 24 12 __ BIT P5 ; (c + 1)
-08d3 : 30 ef __ BMI $08c4 ; (early_return.s10 + 0)
-.s9:
-08d5 : a8 __ __ TAY
-08d6 : 8a __ __ TXA
-08d7 : 18 __ __ CLC
-08d8 : 65 11 __ ADC P4 ; (c + 0)
-08da : 85 1b __ STA ACCU + 0
-08dc : 98 __ __ TYA
-08dd : 65 12 __ ADC P5 ; (c + 1)
-08df : 85 1c __ STA ACCU + 1
-08e1 : 60 __ __ RTS
-```
-
-Irie (26):
-
-```asm
-early_return:
-    TAY
-    TXA
-    BMI .bb5
-.bb1:
-    LDA $03
-    BMI .bb4
-.bb2:
-    CLC
-    TYA
-    ADC $02
-    TAY
-    TXA
-    ADC $03
-    TAX
-    LDA $05
-    BMI .bb4
-.bb3:
-    CLC
-    TYA
-    ADC $04
-    TAY
-    TXA
-    ADC $05
-    TAX
-.bb4:
-    TYA
-    RTS
-.bb5:
-    LDY #$00
-    LDX #$00
-    JMP .bb4
-```
-
-</details>
-
-<details>
-<summary>control-flow/common-subexpr — llvm-mos 39, Oscar64 29, Irie 36, ratio 0.92</summary>
-
-llvm-mos (39):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "common-subexpr.c"
-    .section    .text.common_subexpr,"ax",@progbits
-    .globl    common_subexpr                  ; -- Begin function common_subexpr
-    .type    common_subexpr,@function
-common_subexpr:                         ; @common_subexpr
-; %bb.0:
-    stx    __rc4
-    ldx    __rc6
-    ldy    __rc7
-    clc
-    adc    __rc2
-    sta    __rc6
-    lda    __rc4
-    adc    __rc3
-    sta    __rc4
-    lda    __rc5
-    bmi    .LBB0_4
-; %bb.1:
-    stx    __rc2
-    sty    __rc3
-    stx    __rc5
-    ldx    #255
-    dec    __rc2
-    cpx    __rc2
-    bne    .LBB0_3
-; %bb.2:
-    dec    __rc3
-.LBB0_3:
-    lda    __rc6
-    sta    g2
-    ldx    __rc4
-    stx    g2+1
-    ldx    __rc5
-    stx    g3
-    sty    g3+1
-    ldx    __rc2
-    ldy    __rc3
-    jmp    .LBB0_7
-.LBB0_4:
-    inx
-    bne    .LBB0_6
-; %bb.5:
-    iny
-.LBB0_6:
-    lda    __rc6
-    sta    g1
-    lda    __rc4
-    sta    g1+1
-.LBB0_7:
-    stx    g0
-    sty    g0+1
-    rts
-.Lfunc_end0:
-    .size    common_subexpr, .Lfunc_end0-common_subexpr
-                                        ; -- End function
-    .type    g0,@object                      ; @g0
-    .section    .bss.g0,"aw",@nobits
-    .globl    g0
-g0:
-    .short    0                               ; 0x0
-    .size    g0, 2
-
-    .type    g1,@object                      ; @g1
-    .section    .bss.g1,"aw",@nobits
-    .globl    g1
-g1:
-    .short    0                               ; 0x0
-    .size    g1, 2
-
-    .type    g2,@object                      ; @g2
-    .section    .bss.g2,"aw",@nobits
-    .globl    g2
-g2:
-    .short    0                               ; 0x0
-    .size    g2, 2
-
-    .type    g3,@object                      ; @g3
-    .section    .bss.g3,"aw",@nobits
-    .globl    g3
-g3:
-    .short    0                               ; 0x0
-    .size    g3, 2
-
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that there is something in .bss, so it may need to be zeroed.
-    .globl    __do_zero_bss
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (29):
-
-```asm
-common_subexpr: ; common_subexpr(i16,i16,i16,i16)->void
-.s4:
-08e2 : 18 __ __ CLC
-08e3 : a5 0f __ LDA P2 ; (b + 0)
-08e5 : 65 0d __ ADC P0 ; (a + 0)
-08e7 : a8 __ __ TAY
-08e8 : a5 10 __ LDA P3 ; (b + 1)
-08ea : 65 0e __ ADC P1 ; (a + 1)
-08ec : 24 12 __ BIT P5 ; (c + 1)
-08ee : 10 12 __ BPL $0902 ; (common_subexpr.s7 + 0)
-.s5:
-08f0 : 8c 23 09 STY $0923 ; (g1 + 0)
-08f3 : 8d 24 09 STA $0924 ; (g1 + 1)
-08f6 : 18 __ __ CLC
-08f7 : a5 13 __ LDA P6 ; (d + 0)
-08f9 : 69 01 __ ADC #$01
-08fb : 8d 21 09 STA $0921 ; (g0 + 0)
-08fe : a9 00 __ LDA #$00
-0900 : f0 18 __ BEQ $091a ; (common_subexpr.s6 + 0)
-.s7:
-0902 : 8c 25 09 STY $0925 ; (g2 + 0)
-0905 : 8d 26 09 STA $0926 ; (g2 + 1)
-0908 : a5 14 __ LDA P7 ; (d + 1)
-090a : 8d 28 09 STA $0928 ; (g3 + 1)
-090d : a5 13 __ LDA P6 ; (d + 0)
-090f : 8d 27 09 STA $0927 ; (g3 + 0)
-0912 : 38 __ __ SEC
-0913 : e9 01 __ SBC #$01
-0915 : 8d 21 09 STA $0921 ; (g0 + 0)
-0918 : a9 ff __ LDA #$ff
-.s6:
-091a : 65 14 __ ADC P7 ; (d + 1)
-091c : 8d 22 09 STA $0922 ; (g0 + 1)
-.s3:
-091f : 60 __ __ RTS
-```
-
-Irie (36):
-
-```asm
-common_subexpr:
-    CLC
-    ADC $02
     STA $02
-    TXA
-    ADC $03
+    STX $03
+    LDX $16
+    LDA $14
+    JSR __mulhi3
     TAY
-    LDA $05
-    BMI .bb3
-.bb1:
-    SEC
-    LDA $06
-    SBC #$01
-    TAX
-    LDA $07
-    SBC #$00
-    STX g0
-    STA g0+1
-    LDX $02
-    STX g2
-    STY g2+1
-    LDX $06
-    STX g3
-    LDX $07
-    STX g3+1
-.bb2:
-    RTS
-.bb3:
-    CLC
-    LDA $06
-    ADC #$01
-    TAX
-    LDA $07
-    ADC #$00
-    STX g0
-    STA g0+1
-    LDX $02
-    STX g1
-    STY g1+1
-    RTS
+    JMP .bb2
 ```
 
 </details>
 
 <details>
-<summary>control-flow/nested-loop — llvm-mos 139, Oscar64 64, Irie 126, ratio 0.91</summary>
+<summary>basics/stack-args — llvm-mos 122, Oscar64 64, Irie 79, ratio 0.65</summary>
 
-llvm-mos (139):
+llvm-mos (122):
 
 ```asm
     .zeropage    __rc0
@@ -5615,182 +5739,145 @@ llvm-mos (139):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "nested-loop.c"
-    .section    .text.nested_loop,"ax",@progbits
-    .globl    nested_loop                     ; -- Begin function nested_loop
-    .type    nested_loop,@function
-nested_loop:                            ; @nested_loop
+    .file    "stack-args.c"
+    .section    .text.stack_args,"ax",@progbits
+    .globl    stack_args                      ; -- Begin function stack_args
+    .type    stack_args,@function
+stack_args:                             ; @stack_args
 ; %bb.0:
     sta    __rc16
     lda    __rc20
+    pha
+    lda    __rc21
     pha
     lda    __rc22
     pha
+    lda    __rc23
+    pha
     lda    __rc16
-    tay
-    sty    __rc17
-    ldy    __rc2
-    sty    __rc20
-    ldy    __rc17
-    cmp    #1
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bpl    .LBB0_3
-    jmp    .LBB0_19
-.LBB0_3:
-    lda    __rc2
-    sta    __rc9
-    lda    __rc3
-    sta    __rc8
-    sty    .Lnested_loop_sstk+2            ; 1-byte Folded Spill
-    ldy    #255
-    dec    __rc9
-    cpy    __rc9
-    bne    .LBB0_5
-; %bb.4:
-    dec    __rc8
-.LBB0_5:
-    lda    __rc2
-    clc
-    adc    #254
-    sta    __rc4
-    lda    __rc3
-    adc    #255
+    ldy    __rc24
+    sty    .Lstack_args_sstk               ; 1-byte Folded Spill
+    ldy    __rc25
+    sty    .Lstack_args_sstk+1             ; 1-byte Folded Spill
     ldy    #0
-    sty    __rc2
-    sty    __rc5
-    ldy    __rc3
-    sty    .Lnested_loop_sstk              ; 1-byte Folded Spill
-    ldy    __rc5
-    sty    __rc3
-    sta    __rc5
-    sty    __rc6
-    sty    __rc7
-    sty    __rc22
-    stx    .Lnested_loop_sstk+1            ; 1-byte Folded Spill
-    ldx    __rc8
-    lda    __rc9
-    jsr    __mulsi3
-    ldy    .Lnested_loop_sstk              ; 1-byte Folded Reload
-    sty    __rc3
-    sta    __rc4
-    stx    __rc5
-    ldx    .Lnested_loop_sstk+1            ; 1-byte Folded Reload
-    stx    __rc6
-    lda    __rc2
-    and    #1
-    lsr
-    ror    __rc5
-    ror    __rc4
-    lda    __rc20
-    ldx    #0
-    stx    __rc9
     clc
-    adc    __rc4
-    sta    __rc7
-    tya
-    adc    __rc5
-    sta    __rc8
-    ldy    .Lnested_loop_sstk+2            ; 1-byte Folded Reload
-    ldx    __rc22
-    stx    __rc2
-    ldx    __rc22
-    stx    __rc5
-    ldx    __rc22
-    stx    __rc4
-    ldx    #0
-    stx    __rc10
-    jmp    .LBB0_13
-.LBB0_6:                                ;   in Loop: Header=BB0_13 Depth=1
-    ldx    __rc9
-    cpx    #1
-.LBB0_7:                                ;   in Loop: Header=BB0_13 Depth=1
-    lda    __rc7
-    ldx    #0
-    stx    __rc9
+    pha
+    lda    __rc0
+    sta    __rc18
+    lda    __rc1
+    sta    __rc19
+    pla
+    pha
+    lda    __rc0
+    adc    #1
+    sta    __rc20
+    lda    __rc1
+    adc    #0
+    sta    __rc21
+    clc
+    lda    __rc0
+    adc    #2
+    sta    __rc22
+    lda    __rc1
+    adc    #0
+    sta    __rc23
+    clc
+    lda    __rc0
+    adc    #3
+    sta    __rc24
+    lda    __rc1
+    adc    #0
+    sta    __rc25
+    pla
+    clc
     adc    __rc2
     sta    __rc2
-    lda    __rc8
-    adc    __rc4
-    ldx    #255
-    dec    __rc2
-    cpx    __rc2
-    bne    .LBB0_9
-; %bb.8:                                ;   in Loop: Header=BB0_13 Depth=1
+    txa
+    adc    __rc3
+    sta    __rc3
+    lda    __rc2
     clc
-    adc    #255
-.LBB0_9:                                ;   in Loop: Header=BB0_13 Depth=1
-    dey
-    cpy    #255
-    bne    .LBB0_11
-; %bb.10:                               ;   in Loop: Header=BB0_13 Depth=1
-    dec    __rc6
-.LBB0_11:                               ;   in Loop: Header=BB0_13 Depth=1
-    sta    __rc4
-    lda    __rc6
-    bne    .LBB0_13
-; %bb.12:                               ;   in Loop: Header=BB0_13 Depth=1
-    tya
-    beq    .LBB0_20
-.LBB0_13:                               ; =>This Inner Loop Header: Depth=1
-    ldx    __rc20
-    cpx    #1
+    adc    __rc4
+    sta    __rc2
     lda    __rc3
-    sbc    #0
-    bvc    .LBB0_15
-; %bb.14:                               ;   in Loop: Header=BB0_13 Depth=1
-    eor    #128
-.LBB0_15:                               ;   in Loop: Header=BB0_13 Depth=1
-    tax
-    bmi    .LBB0_6
-; %bb.16:                               ;   in Loop: Header=BB0_13 Depth=1
-    lda    __rc5
+    adc    __rc5
+    sta    __rc3
+    lda    __rc2
     clc
-    ldx    #1
-    bcs    .LBB0_18
-; %bb.17:                               ;   in Loop: Header=BB0_13 Depth=1
-    ldx    #0
-.LBB0_18:                               ;   in Loop: Header=BB0_13 Depth=1
-    stx    __rc9
-    adc    __rc2
-    sta    __rc5
-    lda    __rc10
-    adc    __rc4
-    ldx    __rc9
-    cpx    #1
-    sta    __rc10
-    jmp    .LBB0_7
-.LBB0_19:
-    lda    #0
-    sta    __rc5
+    adc    __rc6
+    sta    __rc2
+    lda    __rc3
+    adc    __rc7
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc8
+    sta    __rc2
+    lda    __rc3
+    adc    __rc9
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc10
+    sta    __rc2
+    lda    __rc3
+    adc    __rc11
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc12
+    sta    __rc2
+    lda    __rc3
+    adc    __rc13
+    sta    __rc3
+    lda    __rc2
+    clc
+    adc    __rc14
+    sta    __rc2
+    lda    __rc3
+    adc    __rc15
+    sta    __rc3
+    clc
+    lda    __rc2
+    adc    (__rc18),y
+    sta    __rc2
+    lda    __rc3
+    adc    (__rc20),y
     tax
-    stx    __rc10
-.LBB0_20:
-    ldx    __rc10
-    lda    __rc5
+    lda    __rc2
+    clc
+    adc    (__rc22),y
+    sta    __rc2
+    txa
+    adc    (__rc24),y
+    tax
+    lda    __rc2
     sta    __rc16
+    ldy    .Lstack_args_sstk+1             ; 1-byte Folded Reload
+    sty    __rc25
+    ldy    .Lstack_args_sstk               ; 1-byte Folded Reload
+    sty    __rc24
+    pla
+    sta    __rc23
     pla
     sta    __rc22
+    pla
+    sta    __rc21
     pla
     sta    __rc20
     lda    __rc16
     rts
 .Lfunc_end0:
-    .size    nested_loop, .Lfunc_end0-nested_loop
+    .size    stack_args, .Lfunc_end0-stack_args
                                         ; -- End function
     .type    .Lstatic_stack,@object          ; @static_stack
     .section    .noinit..Lstatic_stack,"aw",@nobits
 .Lstatic_stack:
-    .zero    3
-    .size    .Lstatic_stack, 3
+    .zero    2
+    .size    .Lstatic_stack, 2
 
-.Lnested_loop_sstk = .Lstatic_stack
-    .size    .Lnested_loop_sstk, 3
+.Lstack_args_sstk = .Lstatic_stack
+    .size    .Lstack_args_sstk, 2
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
     .addrsig
@@ -5802,415 +5889,164 @@ nested_loop:                            ; @nested_loop
 Oscar64 (64):
 
 ```asm
-nested_loop: ; nested_loop(i16,i16)->i16
+stack_args: ; stack_args(i16,i16,i16,i16,i16,i16,i16,i16,i16,i16)->i16
 .s4:
-08a8 : a9 00 __ LDA #$00
-08aa : 85 43 __ STA T0 + 0
-08ac : 85 44 __ STA T0 + 1
-08ae : a5 0e __ LDA P1 ; (n + 1)
-08b0 : 30 04 __ BMI $08b6 ; (nested_loop.s12 + 0)
-.s17:
-08b2 : 05 0d __ ORA P0 ; (n + 0)
-08b4 : d0 09 __ BNE $08bf ; (nested_loop.s5 + 0)
-.s12:
-08b6 : a5 43 __ LDA T0 + 0
-08b8 : 85 1b __ STA ACCU + 0
-08ba : a5 44 __ LDA T0 + 1
-08bc : 85 1c __ STA ACCU + 1
+0900 : 18 __ __ CLC
+0901 : a5 0f __ LDA P2 ; (b + 0)
+0903 : 65 0d __ ADC P0 ; (a + 0)
+0905 : aa __ __ TAX
+0906 : a5 10 __ LDA P3 ; (b + 1)
+0908 : 65 0e __ ADC P1 ; (a + 1)
+090a : a8 __ __ TAY
+090b : 8a __ __ TXA
+090c : 18 __ __ CLC
+090d : 65 11 __ ADC P4 ; (c + 0)
+090f : aa __ __ TAX
+0910 : 98 __ __ TYA
+0911 : 65 12 __ ADC P5 ; (c + 1)
+0913 : a8 __ __ TAY
+0914 : 8a __ __ TXA
+0915 : 18 __ __ CLC
+0916 : 65 13 __ ADC P6 ; (d + 0)
+0918 : aa __ __ TAX
+0919 : 98 __ __ TYA
+091a : 65 14 __ ADC P7 ; (d + 1)
+091c : a8 __ __ TAY
+091d : 8a __ __ TXA
+091e : 18 __ __ CLC
+091f : 65 15 __ ADC P8 ; (e + 0)
+0921 : aa __ __ TAX
+0922 : 98 __ __ TYA
+0923 : 65 16 __ ADC P9 ; (e + 1)
+0925 : a8 __ __ TAY
+0926 : 8a __ __ TXA
+0927 : 18 __ __ CLC
+0928 : 65 17 __ ADC P10 ; (f + 0)
+092a : aa __ __ TAX
+092b : 98 __ __ TYA
+092c : 65 18 __ ADC P11 ; (f + 1)
+092e : a8 __ __ TAY
+092f : 8a __ __ TXA
+0930 : 18 __ __ CLC
+0931 : 6d f8 9f ADC $9ff8 ; (sstack + 0)
+0934 : aa __ __ TAX
+0935 : 98 __ __ TYA
+0936 : 6d f9 9f ADC $9ff9 ; (sstack + 1)
+0939 : a8 __ __ TAY
+093a : 8a __ __ TXA
+093b : 18 __ __ CLC
+093c : 6d fa 9f ADC $9ffa ; (sstack + 2)
+093f : aa __ __ TAX
+0940 : 98 __ __ TYA
+0941 : 6d fb 9f ADC $9ffb ; (sstack + 3)
+0944 : a8 __ __ TAY
+0945 : 8a __ __ TXA
+0946 : 18 __ __ CLC
+0947 : 6d fc 9f ADC $9ffc ; (sstack + 4)
+094a : aa __ __ TAX
+094b : 98 __ __ TYA
+094c : 6d fd 9f ADC $9ffd ; (sstack + 5)
+094f : a8 __ __ TAY
+0950 : 8a __ __ TXA
+0951 : 18 __ __ CLC
+0952 : 6d fe 9f ADC $9ffe ; (sstack + 6)
+0955 : 85 1b __ STA ACCU + 0 ; (h + 0)
+0957 : 98 __ __ TYA
+0958 : 6d ff 9f ADC $9fff ; (sstack + 7)
+095b : 85 1c __ STA ACCU + 1 ; (h + 1)
 .s3:
-08be : 60 __ __ RTS
-.s5:
-08bf : a5 10 __ LDA P3 ; (m + 1)
-08c1 : 10 0c __ BPL $08cf ; (nested_loop.s8 + 0)
-.s6:
-08c3 : a9 00 __ LDA #$00
-.s7:
-08c5 : 85 49 __ STA T6 + 0
-08c7 : a9 00 __ LDA #$00
-08c9 : 85 45 __ STA T3 + 0
-08cb : 85 46 __ STA T3 + 1
-08cd : f0 08 __ BEQ $08d7 ; (nested_loop.l9 + 0)
-.s8:
-08cf : 05 0f __ ORA P2 ; (m + 0)
-08d1 : f0 f2 __ BEQ $08c5 ; (nested_loop.s7 + 0)
-.s18:
-08d3 : a9 01 __ LDA #$01
-08d5 : d0 ee __ BNE $08c5 ; (nested_loop.s7 + 0)
-.l9:
-08d7 : a9 00 __ LDA #$00
-08d9 : 85 47 __ STA T4 + 0
-08db : 85 48 __ STA T4 + 1
-08dd : a5 49 __ LDA T6 + 0
-08df : f0 32 __ BEQ $0913 ; (nested_loop.s11 + 0)
-.l10:
-08e1 : a5 45 __ LDA T3 + 0
-08e3 : 85 1b __ STA ACCU + 0
-08e5 : a5 46 __ LDA T3 + 1
-08e7 : 85 1c __ STA ACCU + 1
-08e9 : a5 47 __ LDA T4 + 0
-08eb : 85 03 __ STA WORK + 0
-08ed : a5 48 __ LDA T4 + 1
-08ef : 85 04 __ STA WORK + 1
-08f1 : 20 27 09 JSR $0927 ; (mul16 + 0)
-08f4 : 18 __ __ CLC
-08f5 : a5 43 __ LDA T0 + 0
-08f7 : 65 05 __ ADC WORK + 2
-08f9 : 85 43 __ STA T0 + 0
-08fb : a5 44 __ LDA T0 + 1
-08fd : 65 06 __ ADC WORK + 3
-08ff : 85 44 __ STA T0 + 1
-0901 : e6 47 __ INC T4 + 0
-0903 : d0 02 __ BNE $0907 ; (nested_loop.s20 + 0)
-.s19:
-0905 : e6 48 __ INC T4 + 1
-.s20:
-0907 : a5 48 __ LDA T4 + 1
-0909 : c5 10 __ CMP P3 ; (m + 1)
-090b : d0 04 __ BNE $0911 ; (nested_loop.s16 + 0)
-.s15:
-090d : a5 47 __ LDA T4 + 0
-090f : c5 0f __ CMP P2 ; (m + 0)
-.s16:
-0911 : 90 ce __ BCC $08e1 ; (nested_loop.l10 + 0)
-.s11:
-0913 : e6 45 __ INC T3 + 0
-0915 : d0 02 __ BNE $0919 ; (nested_loop.s22 + 0)
-.s21:
-0917 : e6 46 __ INC T3 + 1
-.s22:
-0919 : a5 46 __ LDA T3 + 1
-091b : c5 0e __ CMP P1 ; (n + 1)
-091d : d0 04 __ BNE $0923 ; (nested_loop.s14 + 0)
-.s13:
-091f : a5 45 __ LDA T3 + 0
-0921 : c5 0d __ CMP P0 ; (n + 0)
-.s14:
-0923 : 90 b2 __ BCC $08d7 ; (nested_loop.l9 + 0)
-0925 : b0 8f __ BCS $08b6 ; (nested_loop.s12 + 0)
+095d : 60 __ __ RTS
 ```
 
-Irie (126):
+Irie (79):
 
 ```asm
-nested_loop:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    LDA $16
-    PHA
-    LDA $17
-    PHA
-    LDA $18
-    PHA
-    LDA $19
-    PHA
-    LDA $1A
-    PHA
-    LDA $1B
-    PHA
-    LDA $1C
-    PHA
-    LDA $1D
-    PHA
-    TYA
-    STA $1D
-    STX $1C
-    LDA $02
-    STA $1B
-    LDA $03
-    STA $1A
-    LDA #$00
-    STA $18
-    LDA #$00
-    STA $19
-    LDA $18
-    STA $17
-    LDA $19
-    STA $16
-.bb1:
-    LDA $16
-    EOR #$80
-    TAY
-    LDA $1C
-    EOR #$80
-    STA $02
-    TYA
-    CMP $02
-    BCC .bb4
-    BNE .bb8
-    LDA $17
-    CMP $1D
-    BCC .bb4
-.bb2:
-    LDA $18
-    LDX $19
-.bb3:
-    TAY
-    PLA
-    STA $1D
-    PLA
-    STA $1C
-    PLA
-    STA $1B
-    PLA
-    STA $1A
-    PLA
-    STA $19
-    PLA
-    STA $18
-    PLA
-    STA $17
-    PLA
-    STA $16
-    PLA
-    STA $15
-    PLA
+stack_args:
     STA $14
-    TYA
-    RTS
-.bb4:
-    LDA #$00
-    STA $14
-    LDA #$00
-    STA $15
-.bb5:
-    LDA $15
-    EOR #$80
-    TAX
-    LDA $1A
-    EOR #$80
-    STA $02
-    TXA
-    CMP $02
-    BCC .bb7
-    BNE .bb6
-    LDA $14
-    CMP $1B
-    BCC .bb7
-.bb6:
-    CLC
-    LDA $17
-    ADC #$01
-    STA $17
-    LDA $16
-    ADC #$00
+    STX $15
+    LDY #$00
+    LDA ($00),Y
     STA $16
-    JMP .bb1
-.bb7:
-    LDA $17
-    LDX $16
-    LDY $14
-    STY $02
-    LDY $15
-    STY $03
-    JSR __mulhi3
-    STA $03
-    STX $02
-    CLC
-    LDA $18
-    ADC $03
+    LDY #$01
+    LDA ($00),Y
+    STA $17
+    LDY #$02
+    LDA ($00),Y
     STA $18
-    LDA $19
+    LDY #$03
+    LDA ($00),Y
+    STA $19
+    CLC
+    LDA $14
     ADC $02
-    STA $19
-    CLC
-    LDA $14
-    ADC #$01
-    STA $14
+    TAX
     LDA $15
-    ADC #$00
-    STA $15
-    JMP .bb5
-.bb8:
-    LDA $18
-    LDX $19
-    JMP .bb3
-```
-
-</details>
-
-<details>
-<summary>control-flow/if-else — llvm-mos 36, Oscar64 26, Irie 32, ratio 0.89</summary>
-
-llvm-mos (36):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "if-else.c"
-    .section    .text.if_else,"ax",@progbits
-    .globl    if_else                         ; -- Begin function if_else
-    .type    if_else,@function
-if_else:                                ; @if_else
-; %bb.0:
-    sta    __rc4
-    pha
-    txa
-    tay
-    pla
-    ldx    __rc2
-    sta    __rc5
-    cpx    __rc4
-    lda    __rc3
-    pha
-    tya
-    tax
-    pla
-    sty    __rc4
-    sbc    __rc4
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    tay
-    bpl    .LBB0_4
-; %bb.3:
-    sec
-    lda    __rc5
-    sbc    __rc2
-    tay
-    txa
-    sbc    __rc3
-    jmp    .LBB0_5
-.LBB0_4:
-    sec
-    lda    __rc2
-    sbc    __rc5
-    tay
-    lda    __rc3
-    stx    __rc2
-    sbc    __rc2
-.LBB0_5:
-    tax
-    tya
-    rts
-.Lfunc_end0:
-    .size    if_else, .Lfunc_end0-if_else
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (26):
-
-```asm
-if_else: ; if_else(i16,i16)->i16
-.s4:
-08a8 : a5 10 __ LDA P3 ; (b + 1)
-08aa : c5 0e __ CMP P1 ; (a + 1)
-08ac : d0 08 __ BNE $08b6 ; (if_else.s10 + 0)
-.s7:
-08ae : a5 0f __ LDA P2 ; (b + 0)
-08b0 : c5 0d __ CMP P0 ; (a + 0)
-.s8:
-08b2 : b0 08 __ BCS $08bc ; (if_else.s6 + 0)
-08b4 : 90 14 __ BCC $08ca ; (if_else.s5 + 0)
-.s10:
-08b6 : 45 0e __ EOR P1 ; (a + 1)
-08b8 : 10 f8 __ BPL $08b2 ; (if_else.s8 + 0)
-.s9:
-08ba : b0 0e __ BCS $08ca ; (if_else.s5 + 0)
-.s6:
-08bc : 38 __ __ SEC
-08bd : a5 0f __ LDA P2 ; (b + 0)
-08bf : e5 0d __ SBC P0 ; (a + 0)
-08c1 : 85 1b __ STA ACCU + 0
-08c3 : a5 10 __ LDA P3 ; (b + 1)
-08c5 : e5 0e __ SBC P1 ; (a + 1)
-08c7 : 85 1c __ STA ACCU + 1
-08c9 : 60 __ __ RTS
-.s5:
-08ca : 38 __ __ SEC
-08cb : a5 0d __ LDA P0 ; (a + 0)
-08cd : e5 0f __ SBC P2 ; (b + 0)
-08cf : 85 1b __ STA ACCU + 0
-08d1 : a5 0e __ LDA P1 ; (a + 1)
-08d3 : e5 10 __ SBC P3 ; (b + 1)
-.s3:
-08d5 : 85 1c __ STA ACCU + 1
-08d7 : 60 __ __ RTS
-```
-
-Irie (32):
-
-```asm
-abs_diff:
-    STA $05
-    STX $04
+    ADC $03
+    CLC
+    TAY
     TXA
-    EOR #$80
-    TAY
-    LDA $03
-    EOR #$80
-    STA $06
-    TYA
-    CMP $06
-    BCC .bb3
-    BNE .bb1
-    LDA $05
-    CMP $02
-    BCC .bb3
-.bb1:
-    SEC
-    LDA $05
-    SBC $02
-    TAY
-    LDA $04
-    SBC $03
+    ADC $04
     TAX
-.bb2:
     TYA
+    ADC $05
+    CLC
+    TAY
+    TXA
+    ADC $06
+    TAX
+    TYA
+    ADC $07
+    CLC
+    TAY
+    TXA
+    ADC $08
+    TAX
+    TYA
+    ADC $09
+    CLC
+    TAY
+    TXA
+    ADC $0A
+    TAX
+    TYA
+    ADC $0B
+    CLC
+    TAY
+    TXA
+    ADC $0C
+    TAX
+    TYA
+    ADC $0D
+    CLC
+    TAY
+    TXA
+    ADC $0E
+    TAX
+    TYA
+    ADC $0F
+    CLC
+    TAY
+    TXA
+    ADC $16
+    TAX
+    TYA
+    ADC $17
+    CLC
+    TAY
+    TXA
+    ADC $18
+    STA $14
+    TYA
+    ADC $19
+    TAX
+    LDA $14
     RTS
-.bb3:
-    SEC
-    LDA $02
-    SBC $05
-    TAY
-    LDA $03
-    SBC $04
-    TAX
-    JMP .bb2
 ```
 
 </details>
 
 <details>
-<summary>pressure/pressure-i64 — llvm-mos 392, Oscar64 —, Irie 333, ratio 0.85</summary>
+<summary>pressure/pressure-i64 — llvm-mos 392, Oscar64 —, Irie 226, ratio 0.58</summary>
 
 llvm-mos (392):
 
@@ -6684,351 +6520,244 @@ Oscar64 (—):
 ; pressure-i64.c(4, 5) : error 3037: Semicolon expected
 ```
 
-Irie (333):
+Irie (226):
 
 ```asm
 pressure_i64:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    LDA $16
-    PHA
-    LDA $17
-    PHA
-    LDA $18
-    PHA
-    LDA $19
-    PHA
-    LDA $1A
-    PHA
-    LDA $1B
-    PHA
-    LDA $1C
-    PHA
-    LDA $1D
-    PHA
-    LDA $1E
-    PHA
-    LDA $1F
-    PHA
-    TYA
-    STA $19
-    LDA $02
-    STA $1A
-    LDA $03
-    STA $1B
-    LDA $04
-    STA $1C
-    LDA $05
-    STA $1D
-    LDA $06
-    STA $1E
-    LDA $07
-    STA $1F
+    STA $14
+    STX $15
     LDY #$00
     LDA ($00),Y
-    STA $02
+    STA $16
     LDY #$01
     LDA ($00),Y
-    STA $03
+    STA $17
     LDY #$02
     LDA ($00),Y
-    STA $04
+    STA $18
     LDY #$03
     LDA ($00),Y
-    STA $05
+    STA $19
     LDY #$04
     LDA ($00),Y
-    STA $06
+    STA $1A
     LDY #$05
     LDA ($00),Y
-    STA $07
+    STA $1B
     LDY #$06
     LDA ($00),Y
-    STA $17
+    STA $1C
     LDY #$07
     LDA ($00),Y
-    STA $18
-    CLC
-    LDA $19
-    ADC $08
-    STA pressure_i64_spill445
-    TXA
-    ADC $09
-    STA pressure_i64_spill446
-    LDA $1A
-    ADC $0A
-    STA pressure_i64_spill447
-    LDA $1B
-    ADC $0B
-    STA pressure_i64_spill448
-    LDA $1C
-    ADC $0C
-    STA pressure_i64_spill449
-    LDA $1D
-    ADC $0D
-    STA pressure_i64_spill450
-    LDA $1E
-    ADC $0E
-    STA pressure_i64_spill451
-    LDA $1F
-    ADC $0F
-    TAY
-    CLC
-    LDA $08
-    ADC $02
-    STA $16
-    LDA $09
-    ADC $03
-    STA $15
-    LDA $0A
-    ADC $04
-    STA $14
-    LDA $0B
-    ADC $05
-    STA $11
-    LDA $0C
-    ADC $06
-    STA $10
-    LDA $0D
-    ADC $07
-    STA $0C
-    LDA $0E
-    ADC $17
-    STA $0B
-    LDA $0F
-    ADC $18
-    STA $0A
-    CLC
-    LDA $19
-    ADC $02
-    STA $08
-    TXA
-    ADC $03
-    STA $02
-    LDA $1A
-    ADC $04
-    STA $03
-    LDA $1B
-    ADC $05
-    STA $04
-    LDA $1C
-    ADC $06
-    STA $05
-    LDA $1D
-    ADC $07
-    STA $06
-    LDA $1E
-    ADC $17
-    STA $07
-    LDA $1F
-    ADC $18
-    STA $09
-    LDA $16
-    STA $0D
-    LDA pressure_i64_spill445
-    EOR $0D
-    STA $17
-    LDA $15
-    STA $0D
-    LDA pressure_i64_spill446
-    EOR $0D
-    STA $18
-    LDA $14
-    STA $0D
-    LDA pressure_i64_spill447
-    EOR $0D
-    STA $19
-    LDA $11
-    STA $0D
-    LDA pressure_i64_spill448
-    EOR $0D
-    STA $1A
-    LDA $10
-    STA $0D
-    LDA pressure_i64_spill449
-    EOR $0D
-    STA $1B
-    LDA $0C
-    STA $0D
-    LDA pressure_i64_spill450
-    EOR $0D
-    STA $1C
-    LDA $0B
-    STA $0D
-    LDA pressure_i64_spill451
-    EOR $0D
     STA $1D
-    LDA $0A
-    STA $0D
-    TYA
-    EOR $0D
-    STA $1E
-    LDA $08
-    STA $0D
-    LDA $16
-    EOR $0D
-    STA $0E
-    LDA $02
-    STA $0D
-    LDA $15
-    EOR $0D
-    STA $0D
-    LDA $03
-    STA $0F
+    CLC
     LDA $14
-    EOR $0F
-    STA $14
-    LDA $04
-    STA $0F
-    LDA $11
-    EOR $0F
-    STA $11
-    LDA $05
-    STA $0F
-    LDA $10
-    EOR $0F
-    STA $0F
-    LDA $06
-    STA $10
-    LDA $0C
-    EOR $10
-    STA $0C
-    LDA $07
-    STA $10
-    LDA $0B
-    EOR $10
-    STA $0B
-    LDA $09
-    STA $10
-    LDA $0A
-    EOR $10
-    STA $0A
-    LDA pressure_i64_spill445
-    EOR $08
-    STA $16
-    LDA pressure_i64_spill446
-    EOR $02
-    STA $15
-    LDA pressure_i64_spill447
-    EOR $03
-    STA $10
-    LDA pressure_i64_spill448
-    EOR $04
-    STA $08
-    LDA pressure_i64_spill449
-    EOR $05
-    STA $05
-    LDA pressure_i64_spill450
-    EOR $06
-    STA $04
-    LDA pressure_i64_spill451
-    EOR $07
-    STA $03
-    TYA
-    EOR $09
-    STA $02
-    CLC
-    LDA $17
-    ADC $0E
-    STA $06
-    LDA $18
-    ADC $0D
-    STA $07
-    LDA $19
-    ADC $14
-    STA $09
-    LDA $1A
-    ADC $11
-    STA $0D
-    LDA $1B
-    ADC $0F
-    STA $0E
-    LDA $1C
-    ADC $0C
-    STA $0C
-    LDA $1D
-    ADC $0B
-    STA $0B
-    LDA $1E
-    ADC $0A
-    STA $0A
-    CLC
-    LDA $06
-    ADC $16
-    STA $06
-    LDA $07
-    ADC $15
+    ADC $08
     TAX
-    LDA $09
-    ADC $10
-    STA $0F
-    LDA $0D
-    ADC $08
-    STA $09
-    LDA $0E
-    ADC $05
-    STA $08
-    LDA $0C
-    ADC $04
-    STA $05
-    LDA $0B
-    ADC $03
+    LDA $15
+    ADC $09
     TAY
-    LDA $0A
-    ADC $02
-    STA $07
-    LDA $06
-    STA $03
-    LDA $0F
-    STA $02
-    LDA $03
-    STA $04
-    LDA $09
-    STA $03
-    LDA $04
-    STA $06
-    LDA $08
-    STA $04
-    LDA $06
-    STY $06
-    TAY
-    PLA
-    STA $1F
-    PLA
+    LDA $02
+    ADC $0A
     STA $1E
-    PLA
-    STA $1D
-    PLA
-    STA $1C
-    PLA
-    STA $1B
-    PLA
-    STA $1A
-    PLA
-    STA $19
-    PLA
-    STA $18
-    PLA
-    STA $17
-    PLA
-    STA $16
-    PLA
+    LDA $03
+    ADC $0B
+    STA $1F
+    LDA $04
+    ADC $0C
+    STA $20
+    LDA $05
+    ADC $0D
+    STA $21
+    LDA $06
+    ADC $0E
+    STA $22
+    LDA $07
+    ADC $0F
+    CLC
+    STA $23
+    LDA $08
+    ADC $16
+    STA $24
+    LDA $09
+    ADC $17
+    STA $25
+    LDA $0A
+    ADC $18
+    STA $26
+    LDA $0B
+    ADC $19
+    STA $27
+    LDA $0C
+    ADC $1A
+    STA $28
+    LDA $0D
+    ADC $1B
+    STA $29
+    LDA $0E
+    ADC $1C
+    STA $2A
+    LDA $0F
+    ADC $1D
+    CLC
+    STA $2B
+    LDA $14
+    ADC $16
+    STA $14
+    LDA $15
+    ADC $17
     STA $15
-    PLA
+    LDA $02
+    ADC $18
+    STA $16
+    LDA $03
+    ADC $19
+    STA $17
+    LDA $04
+    ADC $1A
+    STA $18
+    LDA $05
+    ADC $1B
+    STA $19
+    LDA $06
+    ADC $1C
+    STA $1A
+    LDA $07
+    ADC $1D
+    STA $1B
+    TXA
+    EOR $24
+    STA $1C
+    TYA
+    EOR $25
+    STA $1D
+    LDA $1E
+    EOR $26
+    STA $2C
+    LDA $1F
+    EOR $27
+    STA $2D
+    LDA $20
+    EOR $28
+    STA $2E
+    LDA $21
+    EOR $29
+    STA $2F
+    LDA $22
+    EOR $2A
+    STA $30
+    LDA $23
+    EOR $2B
+    STA $31
+    LDA $24
+    EOR $14
+    STA $24
+    LDA $25
+    EOR $15
+    STA $25
+    LDA $26
+    EOR $16
+    STA $26
+    LDA $27
+    EOR $17
+    STA $27
+    LDA $28
+    EOR $18
+    STA $28
+    LDA $29
+    EOR $19
+    STA $29
+    LDA $2A
+    EOR $1A
+    STA $2A
+    LDA $2B
+    EOR $1B
+    STA $2B
+    TXA
+    EOR $14
+    TAX
+    TYA
+    EOR $15
+    TAY
+    LDA $1E
+    EOR $16
+    STA $16
+    LDA $1F
+    EOR $17
+    STA $17
+    LDA $20
+    EOR $18
+    STA $18
+    LDA $21
+    EOR $19
+    STA $19
+    LDA $22
+    EOR $1A
+    STA $1A
+    LDA $23
+    EOR $1B
+    CLC
+    STA $1B
+    LDA $1C
+    ADC $24
+    STA $1C
+    LDA $1D
+    ADC $25
+    STA $1D
+    LDA $2C
+    ADC $26
+    STA $32
+    LDA $2D
+    ADC $27
+    STA $33
+    LDA $2E
+    ADC $28
+    STA $1E
+    LDA $2F
+    ADC $29
+    STA $1F
+    LDA $30
+    ADC $2A
+    STA $20
+    LDA $31
+    ADC $2B
+    CLC
+    STA $21
+    TXA
+    ADC $1C
     STA $14
     TYA
+    ADC $1D
+    TAX
+    LDA $32
+    ADC $16
+    TAY
+    LDA $33
+    ADC $17
+    STA $03
+    LDA $1E
+    ADC $18
+    STA $04
+    LDA $1F
+    ADC $19
+    STA $05
+    LDA $20
+    ADC $1A
+    STA $06
+    LDA $21
+    ADC $1B
+    STY $02
+    STA $07
+    LDA $14
     RTS
 ```
 
 </details>
 
 <details>
-<summary>realistic/factorial-recursive — llvm-mos 60, Oscar64 47, Irie 48, ratio 0.80</summary>
+<summary>control-flow/loop-counter — llvm-mos 65, Oscar64 31, Irie 37, ratio 0.57</summary>
 
-llvm-mos (60):
+llvm-mos (65):
 
 ```asm
     .zeropage    __rc0
@@ -7063,14 +6792,15 @@ llvm-mos (60):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "factorial-recursive.c"
-    .section    .text.factorial,"ax",@progbits
-    .globl    factorial                       ; -- Begin function factorial
-    .type    factorial,@function
-factorial:                              ; @factorial
+    .file    "loop-counter.c"
+    .section    .text.loop_counter,"ax",@progbits
+    .globl    loop_counter                    ; -- Begin function loop_counter
+    .type    loop_counter,@function
+loop_counter:                           ; @loop_counter
 ; %bb.0:
+    stx    __rc2
     tay
-    cmp    #2
+    cmp    #1
     txa
     sbc    #0
     bvc    .LBB0_2
@@ -7078,70 +6808,71 @@ factorial:                              ; @factorial
     eor    #128
 .LBB0_2:
     cmp    #0
-    bpl    .LBB0_4
-; %bb.3:
-    ldx    #0
-    lda    #1
-    rts
-.LBB0_4:
+    bpl    .LBB0_3
+    jmp    .LBB0_8
+.LBB0_3:
     lda    __rc20
     pha
-    lda    __rc21
-    pha
-    lda    __rc22
-    pha
-    lda    #1
-    stx    __rc22
-    ldx    #0
-.LBB0_5:                                ; =>This Inner Loop Header: Depth=1
-    sty    __rc21
-    pha
-    lda    __rc22
-    sta    __rc20
-    pla
-    sty    __rc5
-    ldy    #255
-    dec    __rc21
-    cpy    __rc21
+    sty    __rc20
+    sty    __rc8
+    lda    #255
+    dec    __rc8
+    cmp    __rc8
+    bne    .LBB0_5
+; %bb.4:
+    dex
+.LBB0_5:
+    clc
+    tya
+    adc    #254
+    sta    __rc4
+    lda    __rc2
+    adc    #255
+    ldy    __rc2
+    sty    .Lloop_counter_sstk             ; 1-byte Folded Spill
+    ldy    #0
+    sty    __rc2
+    sty    __rc3
+    sta    __rc5
+    sty    __rc6
+    sty    __rc7
+    lda    __rc8
+    jsr    __mulsi3
+    sta    __rc3
+    stx    __rc4
+    lda    __rc2
+    and    #1
+    lsr
+    lda    __rc20
+    ror    __rc4
+    ror    __rc3
+    clc
+    adc    __rc3
+    tay
+    ldx    .Lloop_counter_sstk             ; 1-byte Folded Reload
+    stx    __rc2
+    lda    __rc4
+    adc    __rc2
+    dey
+    cpy    #255
     bne    .LBB0_7
-; %bb.6:                                ;   in Loop: Header=BB0_5 Depth=1
-    dec    __rc20
-.LBB0_7:                                ;   in Loop: Header=BB0_5 Depth=1
-    sta    __rc2
-    stx    __rc3
-    ldx    __rc22
-    ldy    __rc5
-    sty    .Lfactorial_sstk                ; 1-byte Folded Spill
-    lda    __rc5
-    jsr    __mulhi3
-    ldy    __rc22
-    bne    .LBB0_9
-; %bb.8:                                ;   in Loop: Header=BB0_5 Depth=1
-    ldy    .Lfactorial_sstk                ; 1-byte Folded Reload
-    cpy    #3
-    jmp    .LBB0_10
-.LBB0_9:                                ;   in Loop: Header=BB0_5 Depth=1
-    ldy    __rc22
-    cpy    #0
-.LBB0_10:                               ;   in Loop: Header=BB0_5 Depth=1
-    ldy    __rc21
-    pha
-    lda    __rc20
-    sta    __rc22
-    pla
-    bcs    .LBB0_5
-; %bb.11:
+; %bb.6:
+    clc
+    adc    #255
+.LBB0_7:
+    tax
+    tya
     sta    __rc16
-    pla
-    sta    __rc22
-    pla
-    sta    __rc21
     pla
     sta    __rc20
     lda    __rc16
     rts
+.LBB0_8:
+    lda    #0
+    tax
+    rts
 .Lfunc_end0:
-    .size    factorial, .Lfunc_end0-factorial
+    .size    loop_counter, .Lfunc_end0-loop_counter
                                         ; -- End function
     .type    .Lstatic_stack,@object          ; @static_stack
     .section    .noinit..Lstatic_stack,"aw",@nobits
@@ -7149,8 +6880,8 @@ factorial:                              ; @factorial
     .zero    1
     .size    .Lstatic_stack, 1
 
-.Lfactorial_sstk = .Lstatic_stack
-    .size    .Lfactorial_sstk, 1
+.Lloop_counter_sstk = .Lstatic_stack
+    .size    .Lloop_counter_sstk, 1
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
     .addrsig
@@ -7159,128 +6890,105 @@ factorial:                              ; @factorial
     .globl    __do_init_stack
 ```
 
-Oscar64 (47):
+Oscar64 (31):
 
 ```asm
-factorial: ; factorial(i16)->i16
-.s1:
-08b7 : 38 __ __ SEC
-08b8 : a5 23 __ LDA SP + 0
-08ba : e9 04 __ SBC #$04
-08bc : 85 23 __ STA SP + 0
-08be : b0 02 __ BCS $08c2 ; (factorial.s4 + 0)
-08c0 : c6 24 __ DEC SP + 1
+loop_counter: ; loop_counter(i16)->i16
 .s4:
-08c2 : a0 06 __ LDY #$06
-08c4 : b1 23 __ LDA (SP + 0),y
-08c6 : aa __ __ TAX
-08c7 : c8 __ __ INY
-08c8 : b1 23 __ LDA (SP + 0),y
-08ca : 30 08 __ BMI $08d4 ; (factorial.s5 + 0)
-.s8:
-08cc : 85 46 __ STA T1 + 1
-08ce : d0 0a __ BNE $08da ; (factorial.s6 + 0)
-.s7:
-08d0 : e0 02 __ CPX #$02
-08d2 : b0 06 __ BCS $08da ; (factorial.s6 + 0)
+089a : 85 43 __ STA T1 + 0
+089c : a9 00 __ LDA #$00
+089e : 85 1b __ STA ACCU + 0
+08a0 : 85 1c __ STA ACCU + 1
+08a2 : 8a __ __ TXA
+08a3 : 30 29 __ BMI $08ce ; (loop_counter.s3 + 0)
+.s9:
+08a5 : 05 43 __ ORA T1 + 0
+08a7 : f0 25 __ BEQ $08ce ; (loop_counter.s3 + 0)
 .s5:
-08d4 : a9 00 __ LDA #$00
-08d6 : a2 01 __ LDX #$01
-08d8 : d0 24 __ BNE $08fe ; (factorial.s3 + 0)
-.s6:
-08da : 8a __ __ TXA
-08db : 38 __ __ SEC
-08dc : e9 01 __ SBC #$01
-08de : a0 02 __ LDY #$02
-08e0 : 91 23 __ STA (SP + 0),y
-08e2 : a5 46 __ LDA T1 + 1
-08e4 : e9 00 __ SBC #$00
-08e6 : c8 __ __ INY
-08e7 : 91 23 __ STA (SP + 0),y
-08e9 : 20 b7 08 JSR $08b7 ; (factorial.s1 + 0)
-08ec : a0 06 __ LDY #$06
-08ee : b1 23 __ LDA (SP + 0),y
-08f0 : 85 03 __ STA WORK + 0
-08f2 : c8 __ __ INY
-08f3 : b1 23 __ LDA (SP + 0),y
-08f5 : 85 04 __ STA WORK + 1
-08f7 : 20 0e 09 JSR $090e ; (mul16 + 0)
-08fa : a5 06 __ LDA WORK + 3
-08fc : a6 05 __ LDX WORK + 2
+08a9 : 86 44 __ STX T1 + 1
+08ab : a9 00 __ LDA #$00
+08ad : aa __ __ TAX
+08ae : a8 __ __ TAY
+.l6:
+08af : 8a __ __ TXA
+08b0 : 18 __ __ CLC
+08b1 : 65 1b __ ADC ACCU + 0
+08b3 : aa __ __ TAX
+08b4 : 98 __ __ TYA
+08b5 : 65 1c __ ADC ACCU + 1
+08b7 : a8 __ __ TAY
+08b8 : e6 1b __ INC ACCU + 0
+08ba : d0 02 __ BNE $08be ; (loop_counter.s12 + 0)
+.s11:
+08bc : e6 1c __ INC ACCU + 1
+.s12:
+08be : a5 1c __ LDA ACCU + 1
+08c0 : c5 44 __ CMP T1 + 1
+08c2 : d0 04 __ BNE $08c8 ; (loop_counter.s8 + 0)
+.s7:
+08c4 : a5 1b __ LDA ACCU + 0
+08c6 : c5 43 __ CMP T1 + 0
+.s8:
+08c8 : 90 e5 __ BCC $08af ; (loop_counter.l6 + 0)
+.s10:
+08ca : 86 1b __ STX ACCU + 0
+08cc : 84 1c __ STY ACCU + 1
 .s3:
-08fe : 86 1b __ STX ACCU + 0
-0900 : 85 1c __ STA ACCU + 1
-0902 : 18 __ __ CLC
-0903 : a5 23 __ LDA SP + 0
-0905 : 69 04 __ ADC #$04
-0907 : 85 23 __ STA SP + 0
-0909 : 90 02 __ BCC $090d ; (factorial.s3 + 15)
-090b : e6 24 __ INC SP + 1
-090d : 60 __ __ RTS
+08ce : 60 __ __ RTS
 ```
 
-Irie (48):
+Irie (37):
 
 ```asm
-factorial:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    TYA
-    STA $15
-    STX $14
-    LDA #$01
-    STA $03
-    LDX #$00
-    TXA
-    EOR #$80
-    TAY
-    LDA $14
-    EOR #$80
-    STA $02
-    TYA
-    CMP $02
-    BCC .bb2
-    BNE .bb1
-    LDA $03
-    CMP $15
-    BCC .bb2
-.bb1:
-    LDA $03
-    TAY
-    PLA
-    STA $15
-    PLA
+loop_counter:
+    LDY #$00
     STA $14
-    TYA
-    RTS
-.bb2:
-    SEC
-    LDA $15
-    SBC #$01
-    TAY
-    LDA $14
-    SBC #$00
+    STX $15
+    STY $16
+    STY $17
+    STY $18
+.bb1:
+    LDA $16
+    EOR #$80
     TAX
-    TYA
-    JSR factorial
-    STA $02
-    STX $03
     LDA $15
-    LDX $14
-    JSR __mulhi3
-    STA $03
+    EOR #$80
+    STA $19
+    STY $1A
+    CPX $19
+    BCC .bb3
+    BNE .bb2
+    CPY $14
+    BCC .bb3
+.bb2:
+    LDX $18
+    LDA $17
+    RTS
+.bb3:
+    CLC
+    LDA $17
+    ADC $1A
+    TAX
+    LDA $18
+    ADC $16
+    CLC
+    STA $18
+    LDA $1A
+    ADC #$01
+    TAY
+    LDA $16
+    ADC #$00
+    STA $16
+    STX $17
     JMP .bb1
 ```
 
 </details>
 
 <details>
-<summary>basics/chain-arith — llvm-mos 51, Oscar64 24, Irie 40, ratio 0.78</summary>
+<summary>pressure/live-across-call — llvm-mos 23, Oscar64 11, Irie 12, ratio 0.52</summary>
 
-llvm-mos (51):
+llvm-mos (23):
 
 ```asm
     .zeropage    __rc0
@@ -7315,57 +7023,29 @@ llvm-mos (51):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "chain-arith.c"
-    .section    .text.chain_arith,"ax",@progbits
-    .globl    chain_arith                     ; -- Begin function chain_arith
-    .type    chain_arith,@function
-chain_arith:                            ; @chain_arith
+    .file    "live-across-call.c"
+    .section    .text.live_across_call,"ax",@progbits
+    .globl    live_across_call                ; -- Begin function live_across_call
+    .type    live_across_call,@function
+live_across_call:                       ; @live_across_call
 ; %bb.0:
     sta    __rc16
     lda    __rc20
     pha
     lda    __rc21
     pha
-    lda    __rc22
-    pha
-    lda    __rc23
-    pha
     lda    __rc16
     sta    __rc20
     stx    __rc21
-    lda    __rc2
-    ldx    __rc3
-    ldy    __rc4
-    sty    __rc22
-    ldy    __rc5
-    sty    __rc23
-    ldy    __rc20
-    sty    __rc2
-    ldy    __rc21
-    sty    __rc3
-    jsr    __mulhi3
-    sta    __rc2
-    stx    __rc3
-    sec
-    lda    __rc22
-    sbc    __rc20
-    tay
-    lda    __rc23
-    sbc    __rc21
-    tax
+    jsr    g
     clc
-    tya
-    adc    __rc2
+    adc    __rc20
     tay
     txa
-    adc    __rc3
+    adc    __rc21
     tax
     tya
     sta    __rc16
-    pla
-    sta    __rc23
-    pla
-    sta    __rc22
     pla
     sta    __rc21
     pla
@@ -7373,7 +7053,7 @@ chain_arith:                            ; @chain_arith
     lda    __rc16
     rts
 .Lfunc_end0:
-    .size    chain_arith, .Lfunc_end0-chain_arith
+    .size    live_across_call, .Lfunc_end0-live_across_call
                                         ; -- End function
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
@@ -7382,80 +7062,41 @@ chain_arith:                            ; @chain_arith
     .globl    __do_init_stack
 ```
 
-Oscar64 (24):
+Oscar64 (11):
 
 ```asm
-chain_arith: ; chain_arith(i16,i16,i16)->i16
+live_across_call: ; live_across_call(i16)->i16
 .s4:
-08b2 : a5 0f __ LDA P2 ; (b + 0)
-08b4 : 85 1b __ STA ACCU + 0
-08b6 : a5 10 __ LDA P3 ; (b + 1)
-08b8 : 85 1c __ STA ACCU + 1
-08ba : a5 0d __ LDA P0 ; (a + 0)
-08bc : 85 03 __ STA WORK + 0
-08be : a5 0e __ LDA P1 ; (a + 1)
-08c0 : 85 04 __ STA WORK + 1
-08c2 : 20 dc 08 JSR $08dc ; (mul16 + 0)
-08c5 : 18 __ __ CLC
-08c6 : a5 11 __ LDA P4 ; (c + 0)
-08c8 : 65 05 __ ADC WORK + 2
-08ca : aa __ __ TAX
-08cb : a5 12 __ LDA P5 ; (c + 1)
-08cd : 65 06 __ ADC WORK + 3
-08cf : a8 __ __ TAY
-08d0 : 8a __ __ TXA
-08d1 : 38 __ __ SEC
-08d2 : e5 0d __ SBC P0 ; (a + 0)
-08d4 : 85 1b __ STA ACCU + 0
-08d6 : 98 __ __ TYA
-08d7 : e5 0e __ SBC P1 ; (a + 1)
-08d9 : 85 1c __ STA ACCU + 1
+089e : a5 0d __ LDA P0 ; (a + 0)
+08a0 : a6 0e __ LDX P1 ; (a + 1)
+08a2 : 20 b3 08 JSR $08b3 ; (g.s4 + 0)
+08a5 : 18 __ __ CLC
+08a6 : a5 1b __ LDA ACCU + 0
+08a8 : 65 0d __ ADC P0 ; (a + 0)
+08aa : 85 1b __ STA ACCU + 0
+08ac : a5 1c __ LDA ACCU + 1
+08ae : 65 0e __ ADC P1 ; (a + 1)
+08b0 : 85 1c __ STA ACCU + 1
 .s3:
-08db : 60 __ __ RTS
+08b2 : 60 __ __ RTS
 ```
 
-Irie (40):
+Irie (12):
 
 ```asm
-chain_arith:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    LDA $16
-    PHA
-    LDA $17
-    PHA
-    TYA
+g:
+    RTS
+
+live_across_call:
     STA $14
     STX $15
-    LDY $04
-    STY $16
-    LDY $05
-    STY $17
-    JSR __mulhi3
+    JSR g
     CLC
-    ADC $16
+    ADC $14
     TAY
     TXA
-    ADC $17
+    ADC $15
     TAX
-    SEC
-    TYA
-    SBC $14
-    TAY
-    TXA
-    SBC $15
-    TAX
-    PLA
-    STA $17
-    PLA
-    STA $16
-    PLA
-    STA $15
-    PLA
-    STA $14
     TYA
     RTS
 ```
@@ -7463,9 +7104,9 @@ chain_arith:
 </details>
 
 <details>
-<summary>basics/stack-args — llvm-mos 122, Oscar64 64, Irie 92, ratio 0.75</summary>
+<summary>control-flow/nested-loop — llvm-mos 139, Oscar64 64, Irie 70, ratio 0.50</summary>
 
-llvm-mos (122):
+llvm-mos (139):
 
 ```asm
     .zeropage    __rc0
@@ -7500,145 +7141,182 @@ llvm-mos (122):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "stack-args.c"
-    .section    .text.stack_args,"ax",@progbits
-    .globl    stack_args                      ; -- Begin function stack_args
-    .type    stack_args,@function
-stack_args:                             ; @stack_args
+    .file    "nested-loop.c"
+    .section    .text.nested_loop,"ax",@progbits
+    .globl    nested_loop                     ; -- Begin function nested_loop
+    .type    nested_loop,@function
+nested_loop:                            ; @nested_loop
 ; %bb.0:
     sta    __rc16
     lda    __rc20
     pha
-    lda    __rc21
-    pha
     lda    __rc22
     pha
-    lda    __rc23
-    pha
     lda    __rc16
-    ldy    __rc24
-    sty    .Lstack_args_sstk               ; 1-byte Folded Spill
-    ldy    __rc25
-    sty    .Lstack_args_sstk+1             ; 1-byte Folded Spill
-    ldy    #0
-    clc
-    pha
-    lda    __rc0
-    sta    __rc18
-    lda    __rc1
-    sta    __rc19
-    pla
-    pha
-    lda    __rc0
-    adc    #1
-    sta    __rc20
-    lda    __rc1
-    adc    #0
-    sta    __rc21
-    clc
-    lda    __rc0
-    adc    #2
-    sta    __rc22
-    lda    __rc1
-    adc    #0
-    sta    __rc23
-    clc
-    lda    __rc0
-    adc    #3
-    sta    __rc24
-    lda    __rc1
-    adc    #0
-    sta    __rc25
-    pla
-    clc
-    adc    __rc2
-    sta    __rc2
+    tay
+    sty    __rc17
+    ldy    __rc2
+    sty    __rc20
+    ldy    __rc17
+    cmp    #1
     txa
-    adc    __rc3
-    sta    __rc3
+    sbc    #0
+    bvc    .LBB0_2
+; %bb.1:
+    eor    #128
+.LBB0_2:
+    cmp    #0
+    bpl    .LBB0_3
+    jmp    .LBB0_19
+.LBB0_3:
     lda    __rc2
+    sta    __rc9
+    lda    __rc3
+    sta    __rc8
+    sty    .Lnested_loop_sstk+2            ; 1-byte Folded Spill
+    ldy    #255
+    dec    __rc9
+    cpy    __rc9
+    bne    .LBB0_5
+; %bb.4:
+    dec    __rc8
+.LBB0_5:
+    lda    __rc2
+    clc
+    adc    #254
+    sta    __rc4
+    lda    __rc3
+    adc    #255
+    ldy    #0
+    sty    __rc2
+    sty    __rc5
+    ldy    __rc3
+    sty    .Lnested_loop_sstk              ; 1-byte Folded Spill
+    ldy    __rc5
+    sty    __rc3
+    sta    __rc5
+    sty    __rc6
+    sty    __rc7
+    sty    __rc22
+    stx    .Lnested_loop_sstk+1            ; 1-byte Folded Spill
+    ldx    __rc8
+    lda    __rc9
+    jsr    __mulsi3
+    ldy    .Lnested_loop_sstk              ; 1-byte Folded Reload
+    sty    __rc3
+    sta    __rc4
+    stx    __rc5
+    ldx    .Lnested_loop_sstk+1            ; 1-byte Folded Reload
+    stx    __rc6
+    lda    __rc2
+    and    #1
+    lsr
+    ror    __rc5
+    ror    __rc4
+    lda    __rc20
+    ldx    #0
+    stx    __rc9
     clc
     adc    __rc4
-    sta    __rc2
-    lda    __rc3
+    sta    __rc7
+    tya
     adc    __rc5
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc6
+    sta    __rc8
+    ldy    .Lnested_loop_sstk+2            ; 1-byte Folded Reload
+    ldx    __rc22
+    stx    __rc2
+    ldx    __rc22
+    stx    __rc5
+    ldx    __rc22
+    stx    __rc4
+    ldx    #0
+    stx    __rc10
+    jmp    .LBB0_13
+.LBB0_6:                                ;   in Loop: Header=BB0_13 Depth=1
+    ldx    __rc9
+    cpx    #1
+.LBB0_7:                                ;   in Loop: Header=BB0_13 Depth=1
+    lda    __rc7
+    ldx    #0
+    stx    __rc9
+    adc    __rc2
     sta    __rc2
-    lda    __rc3
-    adc    __rc7
-    sta    __rc3
-    lda    __rc2
+    lda    __rc8
+    adc    __rc4
+    ldx    #255
+    dec    __rc2
+    cpx    __rc2
+    bne    .LBB0_9
+; %bb.8:                                ;   in Loop: Header=BB0_13 Depth=1
     clc
-    adc    __rc8
-    sta    __rc2
+    adc    #255
+.LBB0_9:                                ;   in Loop: Header=BB0_13 Depth=1
+    dey
+    cpy    #255
+    bne    .LBB0_11
+; %bb.10:                               ;   in Loop: Header=BB0_13 Depth=1
+    dec    __rc6
+.LBB0_11:                               ;   in Loop: Header=BB0_13 Depth=1
+    sta    __rc4
+    lda    __rc6
+    bne    .LBB0_13
+; %bb.12:                               ;   in Loop: Header=BB0_13 Depth=1
+    tya
+    beq    .LBB0_20
+.LBB0_13:                               ; =>This Inner Loop Header: Depth=1
+    ldx    __rc20
+    cpx    #1
     lda    __rc3
-    adc    __rc9
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc10
-    sta    __rc2
-    lda    __rc3
-    adc    __rc11
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc12
-    sta    __rc2
-    lda    __rc3
-    adc    __rc13
-    sta    __rc3
-    lda    __rc2
-    clc
-    adc    __rc14
-    sta    __rc2
-    lda    __rc3
-    adc    __rc15
-    sta    __rc3
-    clc
-    lda    __rc2
-    adc    (__rc18),y
-    sta    __rc2
-    lda    __rc3
-    adc    (__rc20),y
+    sbc    #0
+    bvc    .LBB0_15
+; %bb.14:                               ;   in Loop: Header=BB0_13 Depth=1
+    eor    #128
+.LBB0_15:                               ;   in Loop: Header=BB0_13 Depth=1
     tax
-    lda    __rc2
+    bmi    .LBB0_6
+; %bb.16:                               ;   in Loop: Header=BB0_13 Depth=1
+    lda    __rc5
     clc
-    adc    (__rc22),y
-    sta    __rc2
-    txa
-    adc    (__rc24),y
+    ldx    #1
+    bcs    .LBB0_18
+; %bb.17:                               ;   in Loop: Header=BB0_13 Depth=1
+    ldx    #0
+.LBB0_18:                               ;   in Loop: Header=BB0_13 Depth=1
+    stx    __rc9
+    adc    __rc2
+    sta    __rc5
+    lda    __rc10
+    adc    __rc4
+    ldx    __rc9
+    cpx    #1
+    sta    __rc10
+    jmp    .LBB0_7
+.LBB0_19:
+    lda    #0
+    sta    __rc5
     tax
-    lda    __rc2
+    stx    __rc10
+.LBB0_20:
+    ldx    __rc10
+    lda    __rc5
     sta    __rc16
-    ldy    .Lstack_args_sstk+1             ; 1-byte Folded Reload
-    sty    __rc25
-    ldy    .Lstack_args_sstk               ; 1-byte Folded Reload
-    sty    __rc24
-    pla
-    sta    __rc23
     pla
     sta    __rc22
-    pla
-    sta    __rc21
     pla
     sta    __rc20
     lda    __rc16
     rts
 .Lfunc_end0:
-    .size    stack_args, .Lfunc_end0-stack_args
+    .size    nested_loop, .Lfunc_end0-nested_loop
                                         ; -- End function
     .type    .Lstatic_stack,@object          ; @static_stack
     .section    .noinit..Lstatic_stack,"aw",@nobits
 .Lstatic_stack:
-    .zero    2
-    .size    .Lstatic_stack, 2
+    .zero    3
+    .size    .Lstatic_stack, 3
 
-.Lstack_args_sstk = .Lstatic_stack
-    .size    .Lstack_args_sstk, 2
+.Lnested_loop_sstk = .Lstatic_stack
+    .size    .Lnested_loop_sstk, 3
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
     .addrsig
@@ -7650,177 +7328,179 @@ stack_args:                             ; @stack_args
 Oscar64 (64):
 
 ```asm
-stack_args: ; stack_args(i16,i16,i16,i16,i16,i16,i16,i16,i16,i16)->i16
+nested_loop: ; nested_loop(i16,i16)->i16
 .s4:
-0900 : 18 __ __ CLC
-0901 : a5 0f __ LDA P2 ; (b + 0)
-0903 : 65 0d __ ADC P0 ; (a + 0)
-0905 : aa __ __ TAX
-0906 : a5 10 __ LDA P3 ; (b + 1)
-0908 : 65 0e __ ADC P1 ; (a + 1)
-090a : a8 __ __ TAY
-090b : 8a __ __ TXA
-090c : 18 __ __ CLC
-090d : 65 11 __ ADC P4 ; (c + 0)
-090f : aa __ __ TAX
-0910 : 98 __ __ TYA
-0911 : 65 12 __ ADC P5 ; (c + 1)
-0913 : a8 __ __ TAY
-0914 : 8a __ __ TXA
-0915 : 18 __ __ CLC
-0916 : 65 13 __ ADC P6 ; (d + 0)
-0918 : aa __ __ TAX
-0919 : 98 __ __ TYA
-091a : 65 14 __ ADC P7 ; (d + 1)
-091c : a8 __ __ TAY
-091d : 8a __ __ TXA
-091e : 18 __ __ CLC
-091f : 65 15 __ ADC P8 ; (e + 0)
-0921 : aa __ __ TAX
-0922 : 98 __ __ TYA
-0923 : 65 16 __ ADC P9 ; (e + 1)
-0925 : a8 __ __ TAY
-0926 : 8a __ __ TXA
-0927 : 18 __ __ CLC
-0928 : 65 17 __ ADC P10 ; (f + 0)
-092a : aa __ __ TAX
-092b : 98 __ __ TYA
-092c : 65 18 __ ADC P11 ; (f + 1)
-092e : a8 __ __ TAY
-092f : 8a __ __ TXA
-0930 : 18 __ __ CLC
-0931 : 6d f8 9f ADC $9ff8 ; (sstack + 0)
-0934 : aa __ __ TAX
-0935 : 98 __ __ TYA
-0936 : 6d f9 9f ADC $9ff9 ; (sstack + 1)
-0939 : a8 __ __ TAY
-093a : 8a __ __ TXA
-093b : 18 __ __ CLC
-093c : 6d fa 9f ADC $9ffa ; (sstack + 2)
-093f : aa __ __ TAX
-0940 : 98 __ __ TYA
-0941 : 6d fb 9f ADC $9ffb ; (sstack + 3)
-0944 : a8 __ __ TAY
-0945 : 8a __ __ TXA
-0946 : 18 __ __ CLC
-0947 : 6d fc 9f ADC $9ffc ; (sstack + 4)
-094a : aa __ __ TAX
-094b : 98 __ __ TYA
-094c : 6d fd 9f ADC $9ffd ; (sstack + 5)
-094f : a8 __ __ TAY
-0950 : 8a __ __ TXA
-0951 : 18 __ __ CLC
-0952 : 6d fe 9f ADC $9ffe ; (sstack + 6)
-0955 : 85 1b __ STA ACCU + 0 ; (h + 0)
-0957 : 98 __ __ TYA
-0958 : 6d ff 9f ADC $9fff ; (sstack + 7)
-095b : 85 1c __ STA ACCU + 1 ; (h + 1)
+08a8 : a9 00 __ LDA #$00
+08aa : 85 43 __ STA T0 + 0
+08ac : 85 44 __ STA T0 + 1
+08ae : a5 0e __ LDA P1 ; (n + 1)
+08b0 : 30 04 __ BMI $08b6 ; (nested_loop.s12 + 0)
+.s17:
+08b2 : 05 0d __ ORA P0 ; (n + 0)
+08b4 : d0 09 __ BNE $08bf ; (nested_loop.s5 + 0)
+.s12:
+08b6 : a5 43 __ LDA T0 + 0
+08b8 : 85 1b __ STA ACCU + 0
+08ba : a5 44 __ LDA T0 + 1
+08bc : 85 1c __ STA ACCU + 1
 .s3:
-095d : 60 __ __ RTS
+08be : 60 __ __ RTS
+.s5:
+08bf : a5 10 __ LDA P3 ; (m + 1)
+08c1 : 10 0c __ BPL $08cf ; (nested_loop.s8 + 0)
+.s6:
+08c3 : a9 00 __ LDA #$00
+.s7:
+08c5 : 85 49 __ STA T6 + 0
+08c7 : a9 00 __ LDA #$00
+08c9 : 85 45 __ STA T3 + 0
+08cb : 85 46 __ STA T3 + 1
+08cd : f0 08 __ BEQ $08d7 ; (nested_loop.l9 + 0)
+.s8:
+08cf : 05 0f __ ORA P2 ; (m + 0)
+08d1 : f0 f2 __ BEQ $08c5 ; (nested_loop.s7 + 0)
+.s18:
+08d3 : a9 01 __ LDA #$01
+08d5 : d0 ee __ BNE $08c5 ; (nested_loop.s7 + 0)
+.l9:
+08d7 : a9 00 __ LDA #$00
+08d9 : 85 47 __ STA T4 + 0
+08db : 85 48 __ STA T4 + 1
+08dd : a5 49 __ LDA T6 + 0
+08df : f0 32 __ BEQ $0913 ; (nested_loop.s11 + 0)
+.l10:
+08e1 : a5 45 __ LDA T3 + 0
+08e3 : 85 1b __ STA ACCU + 0
+08e5 : a5 46 __ LDA T3 + 1
+08e7 : 85 1c __ STA ACCU + 1
+08e9 : a5 47 __ LDA T4 + 0
+08eb : 85 03 __ STA WORK + 0
+08ed : a5 48 __ LDA T4 + 1
+08ef : 85 04 __ STA WORK + 1
+08f1 : 20 27 09 JSR $0927 ; (mul16 + 0)
+08f4 : 18 __ __ CLC
+08f5 : a5 43 __ LDA T0 + 0
+08f7 : 65 05 __ ADC WORK + 2
+08f9 : 85 43 __ STA T0 + 0
+08fb : a5 44 __ LDA T0 + 1
+08fd : 65 06 __ ADC WORK + 3
+08ff : 85 44 __ STA T0 + 1
+0901 : e6 47 __ INC T4 + 0
+0903 : d0 02 __ BNE $0907 ; (nested_loop.s20 + 0)
+.s19:
+0905 : e6 48 __ INC T4 + 1
+.s20:
+0907 : a5 48 __ LDA T4 + 1
+0909 : c5 10 __ CMP P3 ; (m + 1)
+090b : d0 04 __ BNE $0911 ; (nested_loop.s16 + 0)
+.s15:
+090d : a5 47 __ LDA T4 + 0
+090f : c5 0f __ CMP P2 ; (m + 0)
+.s16:
+0911 : 90 ce __ BCC $08e1 ; (nested_loop.l10 + 0)
+.s11:
+0913 : e6 45 __ INC T3 + 0
+0915 : d0 02 __ BNE $0919 ; (nested_loop.s22 + 0)
+.s21:
+0917 : e6 46 __ INC T3 + 1
+.s22:
+0919 : a5 46 __ LDA T3 + 1
+091b : c5 0e __ CMP P1 ; (n + 1)
+091d : d0 04 __ BNE $0923 ; (nested_loop.s14 + 0)
+.s13:
+091f : a5 45 __ LDA T3 + 0
+0921 : c5 0d __ CMP P0 ; (n + 0)
+.s14:
+0923 : 90 b2 __ BCC $08d7 ; (nested_loop.l9 + 0)
+0925 : b0 8f __ BCS $08b6 ; (nested_loop.s12 + 0)
 ```
 
-Irie (92):
+Irie (70):
 
 ```asm
-stack_args:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    LDA $16
-    PHA
-    TYA
-    STA $10
+nested_loop:
     LDY #$00
-    LDA ($00),Y
-    STA $11
-    LDY #$01
-    LDA ($00),Y
     STA $14
-    LDY #$02
-    LDA ($00),Y
-    STA $16
-    LDY #$03
-    LDA ($00),Y
-    STA $15
-    CLC
-    LDA $10
-    ADC $02
-    TAY
-    TXA
-    ADC $03
+    STX $15
+    LDX $02
+    STX $16
+    LDX $03
+    STX $17
+    STY $18
+    STY $19
+    STY $1A
+.bb1:
+    LDA $18
+    EOR #$80
     TAX
-    CLC
-    TYA
-    ADC $04
-    TAY
-    TXA
-    ADC $05
-    TAX
-    CLC
-    TYA
-    ADC $06
-    TAY
-    TXA
-    ADC $07
-    TAX
-    CLC
-    TYA
-    ADC $08
-    TAY
-    TXA
-    ADC $09
-    TAX
-    CLC
-    TYA
-    ADC $0A
-    TAY
-    TXA
-    ADC $0B
-    TAX
-    CLC
-    TYA
-    ADC $0C
-    TAY
-    TXA
-    ADC $0D
-    TAX
-    CLC
-    TYA
-    ADC $0E
-    TAY
-    TXA
-    ADC $0F
-    TAX
-    CLC
-    TYA
-    ADC $11
-    TAY
-    TXA
-    ADC $14
-    TAX
-    CLC
-    TYA
-    ADC $16
-    TAY
-    TXA
-    ADC $15
-    TAX
-    PLA
-    STA $16
-    PLA
-    STA $15
-    PLA
-    STA $14
-    TYA
+    LDA $15
+    EOR #$80
+    STA $1B
+    STY $1C
+    CPX $1B
+    BCC .bb3
+    BNE .bb2
+    CPY $14
+    BCC .bb3
+.bb2:
+    LDX $1A
+    LDA $19
     RTS
+.bb3:
+    LDY #$00
+    STY $1D
+    STY $1E
+.bb4:
+    LDA $1E
+    EOR #$80
+    TAX
+    LDA $17
+    EOR #$80
+    STA $1F
+    CPX $1F
+    BCC .bb6
+    BNE .bb5
+    LDA $1D
+    CMP $16
+    BCC .bb6
+.bb5:
+    CLC
+    LDA $1C
+    ADC #$01
+    STA $1C
+    LDA $18
+    ADC #$00
+    STA $18
+    LDY $1C
+    JMP .bb1
+.bb6:
+    LDY $1D
+    STY $02
+    LDX $1E
+    STX $03
+    LDX $18
+    LDA $1C
+    JSR __mulhi3
+    CLC
+    ADC $19
+    STA $19
+    TXA
+    ADC $1A
+    CLC
+    STA $1A
+    LDA $1D
+    ADC #$01
+    STA $1D
+    LDA $1E
+    ADC #$00
+    STA $1E
+    JMP .bb4
 ```
 
 </details>
 
 <details>
-<summary>pressure/many-calls — llvm-mos 178, Oscar64 68, Irie 134, ratio 0.75</summary>
+<summary>pressure/many-calls — llvm-mos 178, Oscar64 68, Irie 78, ratio 0.44</summary>
 
 llvm-mos (178):
 
@@ -8127,144 +7807,88 @@ many_calls: ; many_calls(i16,i16,i16,i16)->i16
 0929 : 60 __ __ RTS
 ```
 
-Irie (134):
+Irie (78):
 
 ```asm
 g:
     RTS
 
 many_calls:
-    TAY
-    LDA $14
-    PHA
-    LDA $15
-    PHA
-    LDA $16
-    PHA
-    LDA $17
-    PHA
-    LDA $18
-    PHA
-    LDA $19
-    PHA
-    LDA $1A
-    PHA
-    LDA $1B
-    PHA
-    LDA $1C
-    PHA
-    LDA $1D
-    PHA
-    LDA $1E
-    PHA
-    LDA $1F
-    PHA
-    TYA
     STA $14
-    STX $16
+    STX $15
     LDY $02
-    STY $18
+    STY $16
     LDY $03
-    STY $19
+    STY $17
     LDY $04
-    STY $1B
+    STY $18
     LDY $05
-    STY $1C
+    STY $19
     LDY $06
-    STY $1E
+    STY $1A
     LDY $07
-    STY $1F
+    STY $1B
     JSR g
-    STA $17
-    STX $15
-    LDA $18
-    LDX $19
+    STA $1C
+    STX $1D
+    LDX $17
+    LDA $16
     JSR g
-    STA $03
-    STX $02
     CLC
-    LDA $17
-    ADC $03
+    ADC $1C
+    STA $1C
+    TXA
+    ADC $1D
     STA $1D
-    LDA $15
-    ADC $02
-    STA $1A
-    LDA $1B
-    LDX $1C
+    LDX $19
+    LDA $18
     JSR g
-    STA $17
-    STX $15
-    LDA $1E
-    LDX $1F
-    JSR g
-    STA $03
-    STX $02
-    CLC
-    LDA $17
-    ADC $03
-    STA $03
-    LDA $15
-    ADC $02
-    STA $02
-    CLC
-    LDA $1D
-    ADC $03
-    TAY
+    STA $1E
+    STX $1F
+    LDX $1B
     LDA $1A
-    ADC $02
-    TAX
+    JSR g
     CLC
+    ADC $1E
+    TAY
+    TXA
+    ADC $1F
+    CLC
+    TAX
+    TYA
+    ADC $1C
+    TAY
+    TXA
+    ADC $1D
+    CLC
+    TAX
     TYA
     ADC $14
     TAY
     TXA
-    ADC $16
-    TAX
+    ADC $15
     CLC
+    TAX
+    TYA
+    ADC $16
+    TAY
+    TXA
+    ADC $17
+    CLC
+    TAX
     TYA
     ADC $18
     TAY
     TXA
     ADC $19
-    TAX
     CLC
+    TAX
     TYA
+    ADC $1A
+    TAY
+    TXA
     ADC $1B
-    TAY
-    TXA
-    ADC $1C
     TAX
-    CLC
-    TYA
-    ADC $1E
-    TAY
-    TXA
-    ADC $1F
-    TAX
-    PLA
-    STA $1F
-    PLA
-    STA $1E
-    PLA
-    STA $1D
-    PLA
-    STA $1C
-    PLA
-    STA $1B
-    PLA
-    STA $1A
-    PLA
-    STA $19
-    PLA
-    STA $18
-    PLA
-    STA $17
-    PLA
-    STA $16
-    PLA
-    STA $15
-    PLA
-    STA $14
     TYA
     RTS
 ```
@@ -8272,9 +7896,9 @@ many_calls:
 </details>
 
 <details>
-<summary>control-flow/loop-counter — llvm-mos 65, Oscar64 31, Irie 38, ratio 0.58</summary>
+<summary>basics/chain-arith — llvm-mos 51, Oscar64 24, Irie 22, ratio 0.43</summary>
 
-llvm-mos (65):
+llvm-mos (51):
 
 ```asm
     .zeropage    __rc0
@@ -8309,196 +7933,131 @@ llvm-mos (65):
     .zeropage    __rc29
     .zeropage    __rc30
     .zeropage    __rc31
-    .file    "loop-counter.c"
-    .section    .text.loop_counter,"ax",@progbits
-    .globl    loop_counter                    ; -- Begin function loop_counter
-    .type    loop_counter,@function
-loop_counter:                           ; @loop_counter
+    .file    "chain-arith.c"
+    .section    .text.chain_arith,"ax",@progbits
+    .globl    chain_arith                     ; -- Begin function chain_arith
+    .type    chain_arith,@function
+chain_arith:                            ; @chain_arith
 ; %bb.0:
-    stx    __rc2
-    tay
-    cmp    #1
-    txa
-    sbc    #0
-    bvc    .LBB0_2
-; %bb.1:
-    eor    #128
-.LBB0_2:
-    cmp    #0
-    bpl    .LBB0_3
-    jmp    .LBB0_8
-.LBB0_3:
+    sta    __rc16
     lda    __rc20
     pha
-    sty    __rc20
-    sty    __rc8
-    lda    #255
-    dec    __rc8
-    cmp    __rc8
-    bne    .LBB0_5
-; %bb.4:
-    dex
-.LBB0_5:
+    lda    __rc21
+    pha
+    lda    __rc22
+    pha
+    lda    __rc23
+    pha
+    lda    __rc16
+    sta    __rc20
+    stx    __rc21
+    lda    __rc2
+    ldx    __rc3
+    ldy    __rc4
+    sty    __rc22
+    ldy    __rc5
+    sty    __rc23
+    ldy    __rc20
+    sty    __rc2
+    ldy    __rc21
+    sty    __rc3
+    jsr    __mulhi3
+    sta    __rc2
+    stx    __rc3
+    sec
+    lda    __rc22
+    sbc    __rc20
+    tay
+    lda    __rc23
+    sbc    __rc21
+    tax
     clc
     tya
-    adc    #254
-    sta    __rc4
-    lda    __rc2
-    adc    #255
-    ldy    __rc2
-    sty    .Lloop_counter_sstk             ; 1-byte Folded Spill
-    ldy    #0
-    sty    __rc2
-    sty    __rc3
-    sta    __rc5
-    sty    __rc6
-    sty    __rc7
-    lda    __rc8
-    jsr    __mulsi3
-    sta    __rc3
-    stx    __rc4
-    lda    __rc2
-    and    #1
-    lsr
-    lda    __rc20
-    ror    __rc4
-    ror    __rc3
-    clc
-    adc    __rc3
-    tay
-    ldx    .Lloop_counter_sstk             ; 1-byte Folded Reload
-    stx    __rc2
-    lda    __rc4
     adc    __rc2
-    dey
-    cpy    #255
-    bne    .LBB0_7
-; %bb.6:
-    clc
-    adc    #255
-.LBB0_7:
+    tay
+    txa
+    adc    __rc3
     tax
     tya
     sta    __rc16
     pla
+    sta    __rc23
+    pla
+    sta    __rc22
+    pla
+    sta    __rc21
+    pla
     sta    __rc20
     lda    __rc16
     rts
-.LBB0_8:
-    lda    #0
-    tax
-    rts
 .Lfunc_end0:
-    .size    loop_counter, .Lfunc_end0-loop_counter
+    .size    chain_arith, .Lfunc_end0-chain_arith
                                         ; -- End function
-    .type    .Lstatic_stack,@object          ; @static_stack
-    .section    .noinit..Lstatic_stack,"aw",@nobits
-.Lstatic_stack:
-    .zero    1
-    .size    .Lstatic_stack, 1
-
-.Lloop_counter_sstk = .Lstatic_stack
-    .size    .Lloop_counter_sstk, 1
     .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
     .section    ".note.GNU-stack","",@progbits
     .addrsig
-    .addrsig_sym .Lstatic_stack
     ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
     .globl    __do_init_stack
 ```
 
-Oscar64 (31):
+Oscar64 (24):
 
 ```asm
-loop_counter: ; loop_counter(i16)->i16
+chain_arith: ; chain_arith(i16,i16,i16)->i16
 .s4:
-089a : 85 43 __ STA T1 + 0
-089c : a9 00 __ LDA #$00
-089e : 85 1b __ STA ACCU + 0
-08a0 : 85 1c __ STA ACCU + 1
-08a2 : 8a __ __ TXA
-08a3 : 30 29 __ BMI $08ce ; (loop_counter.s3 + 0)
-.s9:
-08a5 : 05 43 __ ORA T1 + 0
-08a7 : f0 25 __ BEQ $08ce ; (loop_counter.s3 + 0)
-.s5:
-08a9 : 86 44 __ STX T1 + 1
-08ab : a9 00 __ LDA #$00
-08ad : aa __ __ TAX
-08ae : a8 __ __ TAY
-.l6:
-08af : 8a __ __ TXA
-08b0 : 18 __ __ CLC
-08b1 : 65 1b __ ADC ACCU + 0
-08b3 : aa __ __ TAX
-08b4 : 98 __ __ TYA
-08b5 : 65 1c __ ADC ACCU + 1
-08b7 : a8 __ __ TAY
-08b8 : e6 1b __ INC ACCU + 0
-08ba : d0 02 __ BNE $08be ; (loop_counter.s12 + 0)
-.s11:
-08bc : e6 1c __ INC ACCU + 1
-.s12:
-08be : a5 1c __ LDA ACCU + 1
-08c0 : c5 44 __ CMP T1 + 1
-08c2 : d0 04 __ BNE $08c8 ; (loop_counter.s8 + 0)
-.s7:
-08c4 : a5 1b __ LDA ACCU + 0
-08c6 : c5 43 __ CMP T1 + 0
-.s8:
-08c8 : 90 e5 __ BCC $08af ; (loop_counter.l6 + 0)
-.s10:
-08ca : 86 1b __ STX ACCU + 0
-08cc : 84 1c __ STY ACCU + 1
+08b2 : a5 0f __ LDA P2 ; (b + 0)
+08b4 : 85 1b __ STA ACCU + 0
+08b6 : a5 10 __ LDA P3 ; (b + 1)
+08b8 : 85 1c __ STA ACCU + 1
+08ba : a5 0d __ LDA P0 ; (a + 0)
+08bc : 85 03 __ STA WORK + 0
+08be : a5 0e __ LDA P1 ; (a + 1)
+08c0 : 85 04 __ STA WORK + 1
+08c2 : 20 dc 08 JSR $08dc ; (mul16 + 0)
+08c5 : 18 __ __ CLC
+08c6 : a5 11 __ LDA P4 ; (c + 0)
+08c8 : 65 05 __ ADC WORK + 2
+08ca : aa __ __ TAX
+08cb : a5 12 __ LDA P5 ; (c + 1)
+08cd : 65 06 __ ADC WORK + 3
+08cf : a8 __ __ TAY
+08d0 : 8a __ __ TXA
+08d1 : 38 __ __ SEC
+08d2 : e5 0d __ SBC P0 ; (a + 0)
+08d4 : 85 1b __ STA ACCU + 0
+08d6 : 98 __ __ TYA
+08d7 : e5 0e __ SBC P1 ; (a + 1)
+08d9 : 85 1c __ STA ACCU + 1
 .s3:
-08ce : 60 __ __ RTS
+08db : 60 __ __ RTS
 ```
 
-Irie (38):
+Irie (22):
 
 ```asm
-loop_counter:
-    STA $07
-    STX $06
-    LDA #$00
-    STA $05
-    LDX #$00
-    LDA $05
-    STA $03
-    STX $02
-.bb1:
-    LDA $02
-    EOR #$80
+chain_arith:
+    STA $14
+    STX $15
+    LDY $04
+    STY $16
+    LDY $05
+    STY $17
+    JSR __mulhi3
+    CLC
+    ADC $16
     TAY
-    LDA $06
-    EOR #$80
-    STA $04
-    TYA
-    CMP $04
-    BCC .bb3
-    BNE .bb2
-    LDA $03
-    CMP $07
-    BCC .bb3
-.bb2:
-    LDA $05
-    RTS
-.bb3:
-    CLC
-    LDA $05
-    ADC $03
-    STA $05
     TXA
-    ADC $02
+    ADC $17
+    SEC
     TAX
-    CLC
-    LDA $03
-    ADC #$01
-    STA $03
-    LDA $02
-    ADC #$00
-    STA $02
-    JMP .bb1
+    TYA
+    SBC $14
+    TAY
+    TXA
+    SBC $15
+    TAX
+    TYA
+    RTS
 ```
 
 </details>

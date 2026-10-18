@@ -8,44 +8,41 @@
 ; Compare against ext/llvm-mos-reference/constraints/shift-const.s; close gaps via irie-report.
 
 ; CHECK: shift_const:
-; CHECK:     STA $05
-; CHECK:     STX $04
+; CHECK:     STA $14
 ; CHECK:     ASL
-; CHECK:     TAX
-; CHECK:     LDA $04
-; CHECK:     ROL
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ASL
-; CHECK:     TAX
-; CHECK:     TYA
 ; CHECK:     ROL
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     STA $15
+; CHECK:     TYA
 ; CHECK:     ASL
-; CHECK:     STA $03
-; CHECK:     TYA
-; CHECK:     ROL
-; CHECK:     STA $02
-; CHECK:     LDA $04
-; CHECK:     CMP #$80
-; CHECK:     ROR
 ; CHECK:     TAY
-; CHECK:     LDA $05
-; CHECK:     ROR
-; CHECK:     TAX
+; CHECK:     LDA $15
+; CHECK:     ROL
+; CHECK:     STA $16
 ; CHECK:     TYA
-; CHECK:     CMP #$80
-; CHECK:     ROR
-; CHECK:     STA $04
+; CHECK:     ASL
+; CHECK:     STA $17
+; CHECK:     LDA $16
+; CHECK:     ROL
+; CHECK:     CPX #$80
+; CHECK:     STA $18
 ; CHECK:     TXA
 ; CHECK:     ROR
-; CHECK:     STA $05
-; CHECK:     LDA $03
-; CHECK:     ORA $05
+; CHECK:     TAX
+; CHECK:     LDA $14
+; CHECK:     ROR
+; CHECK:     CPX #$80
 ; CHECK:     TAY
-; CHECK:     LDA $02
-; CHECK:     ORA $04
+; CHECK:     TXA
+; CHECK:     ROR
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     ROR
+; CHECK:     ORA $17
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ORA $18
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS

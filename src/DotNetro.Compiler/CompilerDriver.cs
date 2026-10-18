@@ -13,7 +13,7 @@ public static class CompilerDriver
     // surface as exceptions.
     public static CompilationResult Compile(
         string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId,
-        PlacementStrategy placement = PlacementStrategy.Colouring)
+        PlacementStrategy placement = PlacementStrategy.Beam)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
             HostAssemblyResolver.ForTarget(targetId),
@@ -126,7 +126,7 @@ public sealed record CompileRequest(
     bool CaptureSnapshots = false)
 {
     /// <summary>How the Irie pipeline places values in registers and memory.</summary>
-    public PlacementStrategy Placement { get; init; } = PlacementStrategy.Colouring;
+    public PlacementStrategy Placement { get; init; } = PlacementStrategy.Beam;
 }
 
 public enum DiagnosticSeverity { Info, Warning, Error }

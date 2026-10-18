@@ -5,10 +5,9 @@
 
 ; CHECK: TestMemPtr:
 ; CHECK:     LDA slot
-; CHECK:     TAX
-; CHECK:     LDA slot+1
-; CHECK:     STX slot
-; CHECK:     STA slot+1
+; CHECK:     LDX slot+1
+; CHECK:     STA slot
+; CHECK:     STX slot+1
 ; CHECK:     RTS
 global @slot : i16
 

@@ -9,37 +9,32 @@
 ; runs the same high-to-low BCC/BNE ladder as the unsigned `ult` path.
 
 ; CHECK: TestSlt32:
-; CHECK:     STA $09
-; CHECK:     STX $08
-; CHECK:     LDX $02
+; CHECK:     STA $14
 ; CHECK:     LDA $03
 ; CHECK:     EOR #$80
 ; CHECK:     TAY
 ; CHECK:     LDA $07
 ; CHECK:     EOR #$80
-; CHECK:     STA $02
-; CHECK:     TYA
-; CHECK:     CMP $02
+; CHECK:     STA $15
+; CHECK:     CPY $15
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb1
-; CHECK:     TXA
+; CHECK:     LDA $02
 ; CHECK:     CMP $06
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $08
-; CHECK:     CMP $05
+; CHECK:     CPX $05
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $09
+; CHECK:     LDA $14
 ; CHECK:     CMP $04
 ; CHECK:     BCC .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA #$00
+; CHECK:     LDX #$00
 ; CHECK: .bb2:
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDA #$01
-; CHECK:     RTS
 
 func @TestSlt32 : (i32, i32) -> i8 {
 bb0(%0 : i32, %1 : i32):

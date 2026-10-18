@@ -7,11 +7,11 @@
 ; calls. An i16 is passed/returned LSB-first in $a / $x.
 
 ; CHECK: TestCrossCall16:
-; CHECK:     STA $15
-; CHECK:     STX $14
+; CHECK:     STA $14
+; CHECK:     STX $15
 ; CHECK:     JSR Callee
-; CHECK:     LDA $15
-; CHECK:     LDX $14
+; CHECK:     LDX $15
+; CHECK:     LDA $14
 ; CHECK:     JMP Callee
 
 func @TestCrossCall16 : (i16) -> i16 {

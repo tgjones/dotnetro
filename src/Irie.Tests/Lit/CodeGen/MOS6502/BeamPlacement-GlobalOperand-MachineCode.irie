@@ -17,6 +17,7 @@
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS
+; CHECK:
 ; CHECK: store_between:
 ; CHECK:     LDY counter
 ; CHECK:     STY $14

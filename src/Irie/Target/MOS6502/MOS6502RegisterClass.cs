@@ -21,10 +21,9 @@ public static class MOS6502RegisterClass
     public const int Anyi8 = 7; // any 8-bit register (A, X, Y, or Imag8)
     // Axy: any real architectural 8-bit register (A, X, or Y) — but NOT a
     // zero-page imaginary register. The source class for an absolute store, where
-    // all three of STA/STX/STY exist: the value may live in whichever of A/X/Y RA
-    // finds cheapest (driven by coalescing with the byte's producer), and the
-    // post-RA MOS6502AddressingModeSelectorPass refines `sta.abs` → `stx.abs` /
-    // `sty.abs` to match. Unlike Anyi8 it deliberately excludes the zp pool: a zp
+    // all three of STA/STX/STY exist: the value may live in whichever of A/X/Y is
+    // cheapest (`st.abs` takes it in any of them). Unlike Anyi8 it deliberately excludes
+    // the zp pool: a zp
     // value cannot be a direct store source, so admitting it would force a
     // copy-through-A and defeat the point. Mirrors llvm-mos's `GPR`-classed
     // store-value operand on `STAbs`.

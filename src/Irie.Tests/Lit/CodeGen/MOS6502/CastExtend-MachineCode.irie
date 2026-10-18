@@ -5,36 +5,36 @@
 ; for sext, shared by every high byte.
 
 ; CHECK: Zext8To32:
-; CHECK:     LDX #$00
-; CHECK:     STX $03
-; CHECK:     LDX $03
-; CHECK:     LDY $03
+; CHECK:     LDY #$00
 ; CHECK:     STY $02
+; CHECK:     STY $03
+; CHECK:     LDX #$00
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: Sext8To16:
-; CHECK:     CMP #$00
+; CHECK:     TAX
 ; CHECK:     BMI .bb3
 ; CHECK: .bb1:
-; CHECK:     LDX #$00
+; CHECK:     LDY #$00
 ; CHECK: .bb2:
+; CHECK:     STY $14
+; CHECK:     LDX $14
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDX #$FF
-; CHECK:     RTS
+; CHECK:     LDY #$FF
+; CHECK:     JMP .bb2
 ; CHECK:
 ; CHECK: Sext16To32:
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     CPX #$00
 ; CHECK:     BMI .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA #$00
-; CHECK:     STA $03
+; CHECK:     LDY #$00
 ; CHECK: .bb2:
-; CHECK:     TYA
-; CHECK:     LDY $03
 ; CHECK:     STY $02
+; CHECK:     STY $03
 ; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDY #$FF
 
 func @Zext8To32 : (i8) -> i32 {
 bb0(%0 : i8):

@@ -103,7 +103,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
     // --- Frame-access lowering (the eliminateFrameIndex analogue) ------------
     //
     // The indirect-Y scratch the absolute path uses: a zero-page pointer pair
-    // (matching MOS6502InstructionSelector's PointerZpLo/Hi) plus $y for the
+    // (PointerZpLo/Hi) plus $y for the
     // indexed offset. These are the physregs the abstract frame op declares
     // clobbered, so they are free here without scavenging.
     //

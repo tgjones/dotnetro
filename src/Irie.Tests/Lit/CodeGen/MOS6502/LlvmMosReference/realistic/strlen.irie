@@ -9,35 +9,35 @@
 ; Compare against ext/llvm-mos-reference/realistic/strlen.s; close gaps via irie-report.
 
 ; CHECK: strlen_impl:
-; CHECK:     STA $04
-; CHECK:     STX $03
-; CHECK:     STA $02
+; CHECK:     STA $14
+; CHECK:     STX $15
 ; CHECK: .bb1:
-; CHECK:     LDA $02
 ; CHECK:     STA $12
 ; CHECK:     STX $13
 ; CHECK:     LDY #$00
+; CHECK:     STA $16
 ; CHECK:     LDA ($12),Y
-; CHECK:     BEQ .bb3
+; CHECK:     BNE .bb3
 ; CHECK: .bb2:
-; CHECK:     CLC
-; CHECK:     LDA $02
-; CHECK:     ADC #$01
-; CHECK:     STA $02
-; CHECK:     TXA
-; CHECK:     ADC #$00
-; CHECK:     TAX
-; CHECK:     JMP .bb1
-; CHECK: .bb3:
 ; CHECK:     SEC
-; CHECK:     LDA $02
-; CHECK:     SBC $04
+; CHECK:     LDA $16
+; CHECK:     SBC $14
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     SBC $03
+; CHECK:     SBC $15
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     CLC
+; CHECK:     LDA $16
+; CHECK:     ADC #$01
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC #$00
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     JMP .bb1
 
 func @strlen_impl : (ptr) -> i16 {
 bb0(%0 : ptr):

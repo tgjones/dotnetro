@@ -17,17 +17,15 @@
 ; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     EOR #$80
-; CHECK:     STA $02
-; CHECK:     TYA
-; CHECK:     CMP $02
+; CHECK:     STA $14
+; CHECK:     CPY $14
 ; CHECK:     BCC .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA #$00
+; CHECK:     LDX #$00
 ; CHECK: .bb2:
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDA #$01
-; CHECK:     RTS
 
 func @TestSltI8 : (i8, i8) -> i8 {
 bb0(%0 : i8, %1 : i8):

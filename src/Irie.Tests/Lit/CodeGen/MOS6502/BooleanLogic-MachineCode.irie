@@ -4,161 +4,144 @@
 ; cast.zext/sext from i1 select 1 (or -1) / 0.
 
 ; CHECK: AndBool:
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     CMP $03
+; CHECK:     CPX $03
 ; CHECK:     BNE .bb7
-; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BNE .bb7
 ; CHECK: .bb1:
 ; CHECK:     LDX #$01
 ; CHECK: .bb2:
 ; CHECK:     LDA $03
+; CHECK:     STX $14
 ; CHECK:     CMP $05
 ; CHECK:     BNE .bb8
 ; CHECK:     LDA $02
 ; CHECK:     CMP $04
 ; CHECK:     BNE .bb8
 ; CHECK: .bb3:
-; CHECK:     LDA #$01
-; CHECK:     STA $02
+; CHECK:     LDX #$01
 ; CHECK: .bb4:
 ; CHECK:     TXA
-; CHECK:     AND $02
-; CHECK:     BEQ .bb9
+; CHECK:     AND $14
+; CHECK:     BNE .bb9
 ; CHECK: .bb5:
-; CHECK:     LDA #$01
+; CHECK:     LDX #$00
 ; CHECK: .bb6:
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb7:
 ; CHECK:     LDX #$00
 ; CHECK:     JMP .bb2
 ; CHECK: .bb8:
-; CHECK:     LDA #$00
-; CHECK:     STA $02
+; CHECK:     LDX #$00
 ; CHECK:     JMP .bb4
 ; CHECK: .bb9:
-; CHECK:     LDA #$00
-; CHECK:     RTS
+; CHECK:     LDX #$01
+; CHECK:     JMP .bb6
 ; CHECK:
 ; CHECK: OrBool:
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     CMP $03
+; CHECK:     CPX $03
 ; CHECK:     BNE .bb7
-; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BNE .bb7
 ; CHECK: .bb1:
 ; CHECK:     LDX #$01
 ; CHECK: .bb2:
 ; CHECK:     LDA $03
+; CHECK:     STX $14
 ; CHECK:     CMP $05
 ; CHECK:     BNE .bb8
 ; CHECK:     LDA $02
 ; CHECK:     CMP $04
 ; CHECK:     BNE .bb8
 ; CHECK: .bb3:
-; CHECK:     LDA #$01
-; CHECK:     STA $02
+; CHECK:     LDX #$01
 ; CHECK: .bb4:
 ; CHECK:     TXA
-; CHECK:     ORA $02
-; CHECK:     BEQ .bb9
+; CHECK:     ORA $14
+; CHECK:     BNE .bb9
 ; CHECK: .bb5:
-; CHECK:     LDA #$01
+; CHECK:     LDX #$00
 ; CHECK: .bb6:
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb7:
 ; CHECK:     LDX #$00
 ; CHECK:     JMP .bb2
 ; CHECK: .bb8:
-; CHECK:     LDA #$00
-; CHECK:     STA $02
+; CHECK:     LDX #$00
 ; CHECK:     JMP .bb4
 ; CHECK: .bb9:
-; CHECK:     LDA #$00
-; CHECK:     RTS
+; CHECK:     LDX #$01
+; CHECK:     JMP .bb6
 ; CHECK:
 ; CHECK: XorBool:
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     CMP $03
+; CHECK:     CPX $03
 ; CHECK:     BNE .bb7
-; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BNE .bb7
 ; CHECK: .bb1:
 ; CHECK:     LDX #$01
 ; CHECK: .bb2:
 ; CHECK:     LDA $03
+; CHECK:     STX $14
 ; CHECK:     CMP $05
 ; CHECK:     BNE .bb8
 ; CHECK:     LDA $02
 ; CHECK:     CMP $04
 ; CHECK:     BNE .bb8
 ; CHECK: .bb3:
-; CHECK:     LDA #$01
-; CHECK:     STA $02
+; CHECK:     LDX #$01
 ; CHECK: .bb4:
 ; CHECK:     TXA
-; CHECK:     EOR $02
-; CHECK:     BEQ .bb9
+; CHECK:     EOR $14
+; CHECK:     BNE .bb9
 ; CHECK: .bb5:
-; CHECK:     LDA #$01
+; CHECK:     LDX #$00
 ; CHECK: .bb6:
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb7:
 ; CHECK:     LDX #$00
 ; CHECK:     JMP .bb2
 ; CHECK: .bb8:
-; CHECK:     LDA #$00
-; CHECK:     STA $02
+; CHECK:     LDX #$00
 ; CHECK:     JMP .bb4
 ; CHECK: .bb9:
-; CHECK:     LDA #$00
-; CHECK:     RTS
+; CHECK:     LDX #$01
+; CHECK:     JMP .bb6
 ; CHECK:
 ; CHECK: ZextBool16:
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     CMP $03
+; CHECK:     CPX $03
 ; CHECK:     BCC .bb1
 ; CHECK:     BNE .bb3
-; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BCS .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA #$01
+; CHECK:     LDX #$01
 ; CHECK: .bb2:
+; CHECK:     TXA
 ; CHECK:     LDX #$00
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDA #$00
+; CHECK:     LDX #$00
 ; CHECK:     JMP .bb2
 ; CHECK:
 ; CHECK: SextBool32:
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     CMP $03
+; CHECK:     CPX $03
 ; CHECK:     BCC .bb1
 ; CHECK:     BNE .bb3
-; CHECK:     TYA
 ; CHECK:     CMP $02
 ; CHECK:     BCS .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA #$FF
-; CHECK:     STA $03
+; CHECK:     LDX #$FF
 ; CHECK: .bb2:
-; CHECK:     LDA $03
-; CHECK:     LDX $03
-; CHECK:     LDY $03
-; CHECK:     STY $02
+; CHECK:     STX $02
+; CHECK:     STX $03
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDA #$00
-; CHECK:     STA $03
+; CHECK:     LDX #$00
 ; CHECK:     JMP .bb2
 
 func @AndBool : (i16, i16, i16) -> i8 {

@@ -1,9 +1,8 @@
 ; RUN: @iriec --target mos6502 --stop-after PseudoExpansion @file
 
 ; Checks the unified-MIR pipeline output after the final pass —
-; PseudoExpansion. By this point every `pseudo.copy` left by the register
-; allocator (and untouched by CopyElimination + the target's AMS pass) has
-; been lowered to a concrete MOS6502 move:
+; PseudoExpansion. By this point every `pseudo.copy` left by placement (and
+; untouched by CopyElimination) has been lowered to a concrete MOS6502 move:
 ;   $reg = pseudo.copy $a    →  mos6502.sta.zp (when reg is a zero-page slot)
 ;   $a   = pseudo.copy $x    →  mos6502.txa
 ;   $a   = pseudo.copy $zpN  →  mos6502.lda.zp
@@ -11,11 +10,9 @@
 ;   $zpN = pseudo.copy $zpM  →  mos6502.lda.zp + mos6502.sta.zp (goes via $a)
 ;
 ; Only target opcodes and the closing rts remain — no `pseudo.*` or `core.*`.
-; Note: where a zp→zp copy would clobber $a while $a still holds a live value
-; (and at the return-value setup, whose $a output is consumed by the rts),
-; MOS6502ParallelCopyPass reschedules the acyclic parallel copy: it evacuates the
-; live $a value into a free scratch zp slot (here $zp8 / $zp9) and emits the
-; $a-destined load last, so the lda+sta expansion no longer corrupts $a.
+; Note: the low byte of the sum is parked in $y (`tay`) while $a is reused for
+; the other bytes, and moved back into $a (`tya`) last, so the return value
+; reaches $a intact at the rts.
 
 ; CHECK: func @TestFunction : (i32, i32) -> i32 {
 ; CHECK: bb0():

@@ -13,16 +13,16 @@
 ; Compare against ext/llvm-mos-reference/coalescing/swap.s; close gaps via irie-report.
 
 ; CHECK: swap_diff:
-; CHECK:     STA $05
-; CHECK:     STX $04
 ; CHECK:     SEC
+; CHECK:     STA $14
 ; CHECK:     LDA $02
-; CHECK:     SBC $05
-; CHECK:     TAY
+; CHECK:     SBC $14
+; CHECK:     STX $15
+; CHECK:     STA $16
 ; CHECK:     LDA $03
-; CHECK:     SBC $04
+; CHECK:     SBC $15
 ; CHECK:     TAX
-; CHECK:     TYA
+; CHECK:     LDA $16
 ; CHECK:     RTS
 
 func @swap_diff : (i16, i16) -> i16 {

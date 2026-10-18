@@ -84,7 +84,7 @@ public sealed record LiveIntervals(
     // The point at which an instruction WRITES its def operands.
     public static int DefSlot(int baseSlot) => baseSlot + 1;
 
-    // ---- Query API (consumed by RegisterAllocatorPass in Phase 2) ----------
+    // ---- Query API (consumed by RegisterScavengingPass) ----------
 
     // Does this vreg's interval overlap this physreg's busy interval? True =>
     // the vreg cannot be placed on that physreg. Subsumes the old pass's
@@ -139,8 +139,8 @@ public sealed record LiveIntervals(
 // A *value number* identifies the maximal set of segments of one vreg that carry
 // the SAME value: segments connected through the CFG with no intervening def of
 // that vreg. A def starts a new value number; at a CFG join the value numbers
-// flowing in from each predecessor are unified into one (post-PhiElimination MIR
-// is non-SSA, so a vreg can legitimately have multiple defs reaching a join — the
+// flowing in from each predecessor are unified into one (non-SSA MIR
+// is allowed, so a vreg can legitimately have multiple defs reaching a join — the
 // join's live-in is genuinely one merged value). Computed by
 // LiveIntervalsValueNumbering (a reaching-definition union-find) and threaded
 // onto each emitted segment. ValNo is NOT involved in interference: Overlaps /

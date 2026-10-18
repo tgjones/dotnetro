@@ -8,40 +8,35 @@
 ; A wide (i16) bitwise op narrows to independent per-byte i8 ops (no carry chain).
 
 ; CHECK: bitops:
-; CHECK:     STA $08
-; CHECK:     STX $07
-; CHECK:     LDX $02
-; CHECK:     STX $06
-; CHECK:     LDX $03
-; CHECK:     STX $02
-; CHECK:     AND $06
-; CHECK:     TAY
-; CHECK:     LDA $07
+; CHECK:     STA $14
 ; CHECK:     AND $02
-; CHECK:     TAX
-; CHECK:     LDA $06
-; CHECK:     EOR $04
-; CHECK:     STA $03
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     AND $03
+; CHECK:     STA $15
 ; CHECK:     LDA $02
+; CHECK:     EOR $04
+; CHECK:     STA $16
+; CHECK:     LDA $03
 ; CHECK:     EOR $05
-; CHECK:     STA $02
+; CHECK:     STA $17
 ; CHECK:     TYA
-; CHECK:     ORA $03
+; CHECK:     ORA $16
 ; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     ORA $02
-; CHECK:     TAX
-; CHECK:     LDA $08
+; CHECK:     LDA $15
+; CHECK:     ORA $17
+; CHECK:     STA $18
+; CHECK:     LDA $14
 ; CHECK:     AND $04
-; CHECK:     STA $03
-; CHECK:     LDA $07
+; CHECK:     STA $19
+; CHECK:     TXA
 ; CHECK:     AND $05
-; CHECK:     STA $02
+; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ORA $03
+; CHECK:     ORA $19
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ORA $02
+; CHECK:     ORA $18
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS

@@ -18,7 +18,6 @@ public abstract class Target
             ? CallLowering
             : throw new NotSupportedException($"Calling convention {convention} is not supported by this target.");
     public abstract LegalizerInfo LegalizerInfo { get; }
-    public abstract InstructionSelector InstructionSelector { get; }
     public abstract PseudoExpander PseudoExpander { get; }
     public abstract BranchLowering BranchLowering { get; }
     public abstract FrameLowering FrameLowering { get; }
@@ -43,32 +42,22 @@ public abstract class Target
     // runs after the legalizer and before instruction selection).
     public virtual void AddPreInstructionSelectionPasses(Irie.Passes.PassManager pm) { }
 
-    // Shape selection and placement for Irie.Passes.PlacementStrategy.Naive; a
-    // target without them cannot be built with that strategy.
-    public virtual Irie.Target.InstructionSelector CreateShapeSelector() =>
-        throw new NotSupportedException("This target has no shape selector (PlacementStrategy.Naive).");
+    // Shape selection and the placements (Irie.Passes.PlacementStrategy).
+    public abstract Irie.Target.InstructionSelector CreateShapeSelector();
 
-    public virtual Irie.Passes.Pass CreateNaivePlacementPass() =>
-        throw new NotSupportedException("This target has no naive placement (PlacementStrategy.Naive).");
+    public abstract Irie.Passes.Pass CreateNaivePlacementPass();
 
-    public virtual Irie.Passes.Pass CreateBeamPlacementPass() =>
-        throw new NotSupportedException("This target has no beam placement (PlacementStrategy.Beam).");
+    public abstract Irie.Passes.Pass CreateBeamPlacementPass();
 
-    // The post-placement passes that take the place of AddPostRegisterAllocationPasses
-    // for a strategy: by default, the same.
-    public virtual void AddPostPlacementPasses(Irie.Passes.PassManager pm, Irie.Passes.PlacementStrategy placement) =>
-        AddPostRegisterAllocationPasses(pm);
+    // Called by the driver after placement, between CopyEliminationPass and the
+    // lowering passes: the target's zero-page layout and the like.
+    public virtual void AddPostPlacementPasses(Irie.Passes.PassManager pm) { }
 
-    // Called by the driver between RegisterAllocatorPass and CopyEliminationPass.
+    // Called by the driver between placement and CopyEliminationPass.
     // Targets append their branch-folder passes here — the llvm-mos Control Flow
     // Optimizer slot, which runs after the VReg rewriter and before copy-opt
     // (Irie's CopyElimination). MOS6502 uses this for empty-block elimination.
     public virtual void AddBranchFoldingPasses(Irie.Passes.PassManager pm) { }
-
-    // Called by iriec between CopyEliminationPass and PseudoExpansionPass.
-    // Targets append their own post-RA passes (e.g. addressing-mode selection
-    // for MOS6502) — there is no generic stage at this point in the pipeline.
-    public virtual void AddPostRegisterAllocationPasses(Irie.Passes.PassManager pm) { }
 
     // Called by iriec after PseudoExpansionPass (and before RegisterScavenging).
     // Targets append late-optimization passes that need the final expanded

@@ -15,8 +15,8 @@ var maxTicksOption = new Option<int>("--max-ticks") { Description = "Emulator ti
 
 var placementOption = new Option<string>("--placement")
 {
-    Description = "How the compiled code places values: 'colouring' (default), 'naive' (every value in a home) or 'beam'",
-    DefaultValueFactory = _ => "colouring",
+    Description = "How the compiled code places values: 'beam' (default; a beam search keeps values in registers) or 'naive' (every value in a home)",
+    DefaultValueFactory = _ => "beam",
 };
 
 var rootCommand = new RootCommand("Irie execution checker -- runs a MIR function over generated inputs in the interpreter and, compiled, in the emulator, and compares the results");
@@ -44,7 +44,6 @@ rootCommand.SetAction(parseResult =>
     var maxTicks = parseResult.GetValue(maxTicksOption);
     ExecSettings.Placement = parseResult.GetValue(placementOption) switch
     {
-        "colouring" => PlacementStrategy.Colouring,
         "naive"     => PlacementStrategy.Naive,
         "beam"      => PlacementStrategy.Beam,
         var other   => throw new ArgumentException($"Unknown --placement '{other}'."),

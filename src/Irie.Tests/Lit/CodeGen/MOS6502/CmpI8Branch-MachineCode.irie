@@ -6,9 +6,9 @@
 ; reaches on either edge (no JMP to a separate return tail).
 
 ; CHECK: CmpEq:
-; CHECK:     STX $02
-; CHECK:     CMP $02
-; CHECK:     BEQ .bb1
+; CHECK:     STX $14
+; CHECK:     CMP $14
+; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS
 

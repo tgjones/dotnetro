@@ -6,7 +6,7 @@
 ; CHECK: Add64:
 ; CHECK:     CLC
 ; CHECK:     ADC $08
-; CHECK:     STA $08
+; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $09
 ; CHECK:     TAX
@@ -28,7 +28,7 @@
 ; CHECK:     LDA $07
 ; CHECK:     ADC $0F
 ; CHECK:     STA $07
-; CHECK:     LDA $08
+; CHECK:     TYA
 ; CHECK:     RTS
 
 func @Add64 : (i64, i64) -> i64 {

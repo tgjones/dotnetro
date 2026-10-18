@@ -32,8 +32,8 @@ namespace Irie.Target.MOS6502;
 //   * $x ↔ $y               — needs $a (`T?A ; TA?`) OR a dead zp slot
 //                             (`ST? $tmp ; LD? $tmp`); the scavenger picks
 //                             whichever is free, so a live $a is never trashed.
-// Because the scavenger preserves any live value, MOS6502ParallelCopyPass no
-// longer has to evacuate $a — it is now pure parallel-copy sequentialization.
+// Because the scavenger preserves any live value, no pass has to evacuate $a
+// ahead of an expanded copy.
 public sealed class MOS6502PseudoExpander : Irie.Target.PseudoExpander
 {
     public override void Expand(MirInstruction copy, MirBuilder builder)

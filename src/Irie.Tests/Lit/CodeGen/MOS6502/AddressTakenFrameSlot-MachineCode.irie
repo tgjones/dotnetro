@@ -25,11 +25,8 @@
 ; CHECK:     LDA #$04
 ; CHECK:     STA $14
 ; CHECK:     LDA $14
+; CHECK:     LDX #>owner_local0
 ; CHECK:     LDA #<owner_local0
-; CHECK:     TAY
-; CHECK:     LDA #>owner_local0
-; CHECK:     TAX
-; CHECK:     TYA
 ; CHECK:     JMP sink
 
 func @sink : (ptr) -> void {

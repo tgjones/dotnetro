@@ -8,24 +8,18 @@
 
 ; CHECK: load_store_global:
 ; CHECK:     LDA g
-; CHECK:     TAY
-; CHECK:     LDA g+1
-; CHECK:     TAX
-; CHECK:     STY g
+; CHECK:     LDX g+1
+; CHECK:     STA g
 ; CHECK:     STX g+1
-; CHECK:     TYA
 ; CHECK:     RTS
 
-; The low byte stays in $y and the high byte in $x, so the stores are STY/STX
-; absolute directly (no transfer back through $a) — the value is read in place
-; via the generic st.abs's Axy operand class, refined to sty.abs/stx.abs post-RA.
-; Layout at $1000: the 16-byte function, then g (2 bytes) at $1010/$1011.
-;   AD 10 10  LDA $1010 (g)        A8  TAY
-;   AD 11 10  LDA $1011 (g+1)      AA  TAX     <- +1 offset applied
-;   8C 10 10  STY $1010 (g)        8E 11 10  STX $1011 (g+1)
-;   98  TYA   60  RTS
-; CHECK-bin: 00000000: AD 10 10 A8 AD 11 10 AA  8C 10 10 8E 11 10 98 60
-; CHECK-bin: 00000010: 00 00
+; The two bytes are loaded into A and X and stored straight back (STA/STX
+; absolute), and they are also the return value, so nothing is transferred.
+; Layout at $1000: the 13-byte function, then g (2 bytes) at $100D/$100E.
+;   AD 0D 10  LDA $100D (g)        AE 0E 10  LDX $100E (g+1)   <- +1 offset applied
+;   8D 0D 10  STA $100D (g)        8E 0E 10  STX $100E (g+1)
+;   60  RTS
+; CHECK-bin: 00000000: AD 0D 10 AE 0E 10 8D 0D  10 8E 0E 10 60 00 00
 
 global @g : i16 = bytes "\x00\x00"
 func @load_store_global : () -> i16 {

@@ -14,23 +14,17 @@
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: WriteLineBoolean:
-; CHECK:     CMP #$00
-; CHECK:     BEQ .bb3
-; CHECK: .bb1:
-; CHECK:     LDA #<True_String
-; CHECK:     TAY
-; CHECK:     LDA #>True_String
 ; CHECK:     TAX
-; CHECK:     TYA
+; CHECK:     BNE .bb3
+; CHECK: .bb1:
+; CHECK:     LDX #>False_String
+; CHECK:     LDA #<False_String
 ; CHECK:     JSR WriteLineString
 ; CHECK: .bb2:
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     LDA #<False_String
-; CHECK:     TAY
-; CHECK:     LDA #>False_String
-; CHECK:     TAX
-; CHECK:     TYA
+; CHECK:     LDX #>True_String
+; CHECK:     LDA #<True_String
 ; CHECK:     JMP WriteLineString
 
 func @WriteLineString : (ptr) -> void {

@@ -10,59 +10,54 @@
 ; Compare against ext/llvm-mos-reference/realistic/fibonacci.s; close gaps via irie-report.
 
 ; CHECK: fibonacci:
-; CHECK:     STA $08
-; CHECK:     STX $07
-; CHECK:     LDA #$00
-; CHECK:     STA $06
-; CHECK:     LDA #$00
-; CHECK:     STA $05
-; CHECK:     LDA #$01
-; CHECK:     STA $0A
-; CHECK:     LDA #$00
-; CHECK:     STA $09
-; CHECK:     LDA #$00
-; CHECK:     STA $04
-; CHECK:     LDA #$00
-; CHECK:     STA $03
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDY #$00
+; CHECK:     STY $16
+; CHECK:     STY $17
+; CHECK:     LDX #$01
+; CHECK:     STX $18
+; CHECK:     STY $19
+; CHECK:     STY $1A
+; CHECK:     STY $1B
 ; CHECK: .bb1:
-; CHECK:     LDA $03
+; CHECK:     LDA $1B
 ; CHECK:     EOR #$80
 ; CHECK:     TAX
-; CHECK:     LDA $07
+; CHECK:     LDA $15
 ; CHECK:     EOR #$80
-; CHECK:     STA $02
-; CHECK:     TXA
-; CHECK:     CMP $02
+; CHECK:     STA $1C
+; CHECK:     CPX $1C
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb2
-; CHECK:     LDA $04
-; CHECK:     CMP $08
+; CHECK:     LDA $1A
+; CHECK:     CMP $14
 ; CHECK:     BCC .bb3
 ; CHECK: .bb2:
-; CHECK:     LDA $06
-; CHECK:     LDX $05
+; CHECK:     LDX $17
+; CHECK:     LDA $16
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     CLC
-; CHECK:     LDA $06
-; CHECK:     ADC $0A
+; CHECK:     LDA $16
+; CHECK:     ADC $18
 ; CHECK:     TAX
-; CHECK:     LDA $05
-; CHECK:     ADC $09
-; CHECK:     TAY
+; CHECK:     LDA $17
+; CHECK:     ADC $19
 ; CHECK:     CLC
-; CHECK:     LDA $04
+; CHECK:     TAY
+; CHECK:     LDA $1A
 ; CHECK:     ADC #$01
-; CHECK:     STA $04
-; CHECK:     LDA $03
+; CHECK:     STA $1A
+; CHECK:     LDA $1B
 ; CHECK:     ADC #$00
-; CHECK:     STA $03
-; CHECK:     LDA $0A
-; CHECK:     STA $06
-; CHECK:     LDA $09
-; CHECK:     STA $05
-; CHECK:     STX $0A
-; CHECK:     STY $09
+; CHECK:     STA $1B
+; CHECK:     LDA $18
+; CHECK:     STA $16
+; CHECK:     STX $18
+; CHECK:     LDA $19
+; CHECK:     STA $17
+; CHECK:     STY $19
 ; CHECK:     JMP .bb1
 
 func @fibonacci : (i16) -> i16 {

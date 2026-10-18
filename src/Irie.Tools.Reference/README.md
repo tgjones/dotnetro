@@ -149,8 +149,8 @@ committed llvm-mos `-print-changed` IR dump (`<case>.txt`); the right column is
 the Irie MIR captured from `iriec --print-changed`, one panel per pass.
 
 Stages are aligned at the shared GlobalISel-style backbone (start, ABI/arg
-lowering, legalization, instruction selection, PHI elimination, two-address,
-register allocation, copy cleanup, pseudo expansion). Stages with no counterpart
+lowering, legalization, instruction selection, register placement, copy cleanup,
+pseudo expansion). Stages with no counterpart
 on one side — llvm's LLVM-IR-level optimization and analysis passes, Irie's
 target-specific passes — render single-sided, and that's expected. Passes that
 ran without changing the IR are shown dimmed.

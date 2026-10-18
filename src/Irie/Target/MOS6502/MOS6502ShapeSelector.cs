@@ -10,8 +10,7 @@ namespace Irie.Target.MOS6502;
 // mos6502 dialect (adc, sbc, inc, dec, and, ora, eor, shle, lshre, cmp_br, load,
 // store, const), with the register pinning left out.
 //
-// It keeps what MOS6502InstructionSelector does well and drops the part that
-// decides placement:
+// It selects only what does not decide placement:
 //   - arith.cmpi + cf.cond_br (and the lexicographic select tree of a wide compare)
 //     fuse into cmp_br ops, one per byte, exiting on the flags of that one compare;
 //   - memory accesses become load / store of a symbol, or of a pointer pair;
@@ -63,7 +62,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
             {
                 PseudoOp.Copy or PseudoOp.Merge => true,
                 PseudoOp.Unmerge => SelectUnmerge(instruction, builder),
-                PseudoOp.Return  => MOS6502InstructionSelector.SelectReturn(instruction, builder),
+                PseudoOp.Return  => SelectReturn(instruction, builder),
                 _ => false,
             };
         }
@@ -285,7 +284,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
 
         if (rootDef.Opcode.Dialect == ArithDialect.Id && (ArithOp)rootDef.Opcode.Code == ArithOp.Select)
         {
-            var (predicate, bytes) = MOS6502InstructionSelector.RecoverCmpTree(function, condId, toRemove);
+            var (predicate, bytes) = RecoverCmpTree(function, condId, toRemove);
             EmitLadder(builder, predicate,
                 [.. bytes.Select(p => (MirOperand)new VirtualReg(p.a, IsDefinition: false))],
                 [.. bytes.Select(p => (MirOperand)new VirtualReg(p.b, IsDefinition: false))],
@@ -314,7 +313,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
 
     // The compare of an N-byte value (index 0 least significant), one cmp_br per
     // byte from the top down, for a canonical predicate (eq, uge, slt after the
-    // legalizer's normalisation). Same ladder as the colouring path's selector:
+    // legalizer's normalisation). The ladder:
     //   eq:   each byte exits to F on ne; equal to the end falls to T
     //   ult:  each byte exits to T on cc and to F on ne; the last has only the cc exit
     //   uge:  each byte exits to F on cc and to T on ne; the last exits to T on cs
@@ -415,12 +414,12 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
                 "MOS6502ShapeSelector: mem.load.byte_at must have shape `%def : i8 = mem.load.byte_at %addr, <offset>`.");
 
         builder.SetInsertionPointBefore(instr);
-        if (MOS6502InstructionSelector.TryResolveSymbolAddress(function, addr.Id) is { } symbol)
+        if (TryResolveSymbolAddress(function, addr.Id) is { } symbol)
             builder.BuildInstruction(
                 MOS6502Dialect.OpRef(MOS6502Op.Load), def, new Symbol(symbol, (int)offset.Value));
         else
         {
-            var (lo, hi) = MOS6502InstructionSelector.ResolveRuntimePointerBytesOrThrow(function, addr.Id);
+            var (lo, hi) = ResolveRuntimePointerBytesOrThrow(function, addr.Id);
             builder.BuildInstruction(
                 MOS6502Dialect.OpRef(MOS6502Op.Load),
                 def, new VirtualReg(lo, IsDefinition: false), new VirtualReg(hi, IsDefinition: false), offset);
@@ -441,12 +440,12 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
                 "MOS6502ShapeSelector: mem.store.byte_at must have shape `mem.store.byte_at %addr, <offset>, %val`.");
 
         builder.SetInsertionPointBefore(instr);
-        if (MOS6502InstructionSelector.TryResolveSymbolAddress(function, addr.Id) is { } symbol)
+        if (TryResolveSymbolAddress(function, addr.Id) is { } symbol)
             builder.BuildInstruction(
                 MOS6502Dialect.OpRef(MOS6502Op.Store), value, new Symbol(symbol, (int)offset.Value));
         else
         {
-            var (lo, hi) = MOS6502InstructionSelector.ResolveRuntimePointerBytesOrThrow(function, addr.Id);
+            var (lo, hi) = ResolveRuntimePointerBytesOrThrow(function, addr.Id);
             builder.BuildInstruction(
                 MOS6502Dialect.OpRef(MOS6502Op.Store),
                 value, new VirtualReg(lo, IsDefinition: false), new VirtualReg(hi, IsDefinition: false), offset);
@@ -464,7 +463,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
             || instr.Operands[0] is not VirtualReg { IsDefinition: true } lo
             || instr.Operands[1] is not VirtualReg { IsDefinition: true } hi
             || instr.Operands[2] is not VirtualReg { IsDefinition: false } source
-            || MOS6502InstructionSelector.TryResolveSymbolAddress(function, source.Id) is not { } symbol)
+            || TryResolveSymbolAddress(function, source.Id) is not { } symbol)
             throw new NotSupportedException(
                 "MOS6502ShapeSelector: a pseudo.unmerge that is not the two address bytes of a symbol survived legalization.");
 
@@ -473,5 +472,155 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         builder.BuildInstruction(MOS6502Dialect.OpRef(MOS6502Op.Const), hi, new Symbol(symbol), new Immediate(1));
         builder.Remove(instr);
         return true;
+    }
+
+    // pseudo.return → mos6502.rts. The return physregs are surfaced as
+    // implicit uses on the rts, gathered by scanning backward from the
+    // pseudo.return for a *contiguous* run of `$reg = pseudo.copy %v` (or
+    // `$reg = pseudo.copy $reg`) instructions: AbiLowering.LowerReturn emits
+    // exactly that run immediately before pseudo.return. Scanning only the
+    // contiguous run avoids picking up unrelated physreg-target copies
+    // emitted earlier in the block (e.g. the indirect-Y pointer setup that
+    // mem.load/store lowering inserts).
+    private static bool SelectReturn(MirInstruction instr, MirBuilder builder)
+    {
+        var block = instr.Parent!;
+        var implicitUses = new List<MirOperand>();
+
+        var index = block.Instructions.IndexOf(instr);
+        for (var i = index - 1; i >= 0; i--)
+        {
+            var prev = block.Instructions[i];
+            if (prev.Opcode.Dialect != PseudoDialect.Id) break;
+            if ((PseudoOp)prev.Opcode.Code != PseudoOp.Copy) break;
+            if (prev.Operands.Length == 0) break;
+            if (prev.Operands[0] is not PhysicalReg phys || !phys.IsDefinition) break;
+            implicitUses.Insert(0, new PhysicalReg(phys.Id, IsDefinition: false, IsImplicit: true));
+        }
+
+        builder.SetInsertionPointBefore(instr);
+        builder.BuildInstruction(
+            MOS6502Dialect.OpRef(MOS6502Op.Rts),
+            implicitUses.ToArray());
+
+        builder.Remove(instr);
+        return true;
+    }
+
+    // Walk a wide-compare lexicographic tree rooted at `vreg`, returning the
+    // overall canonical predicate and the per-byte operand vregs (index 0 = least
+    // significant). Collects every tree instruction (selects, leaf cmpis, and the
+    // arith.nots described below) into `treeInstrs` for the caller to erase.
+    // Mirrors the shape built by MOS6502LegalizerInfo.BuildLexicographic:
+    //   leaf:   %r = arith.cmpi <pred>, %a, %b
+    //   select: %r = arith.select %eqHi, %rest, %cmpHi
+    //           with %eqHi = cmpi eq, %aHi, %bHi  and  %cmpHi = cmpi <pred>, %aHi, %bHi
+    //
+    // The "rest" / lower-byte compares are built with the unsigned `ult`
+    // predicate, which the legalizer's consumer-independent normalization then
+    // rewrites to `uge` wrapped in an arith.not (exactly as llvm-mos does). The
+    // ladder is driven entirely by the *overall* predicate (recovered from the
+    // outermost high-byte compare) and the per-byte operands, so those per-byte
+    // predicates and the nots wrapping them are irrelevant here — StripNots looks
+    // through them, and the lower-level predicates are discarded.
+    private static (ArithCmpPredicate predicate, List<(int a, int b)> bytes)
+        RecoverCmpTree(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
+    {
+        vreg = StripNots(function, vreg, treeInstrs);
+        var def = function.GetDefinition(vreg)
+            ?? throw new InvalidOperationException(
+                $"MOS6502ShapeSelector: wide-compare tree vreg %{vreg} has no definition.");
+        treeInstrs.Add(def);
+
+        if (def.Opcode.Dialect == ArithDialect.Id && (ArithOp)def.Opcode.Code == ArithOp.CmpI)
+        {
+            // Leaf: the least-significant byte's compare.
+            var leafPred = (ArithCmpPredicate)((Immediate)def.Operands[1]).Value;
+            var a = ((VirtualReg)def.Operands[2]).Id;
+            var b = ((VirtualReg)def.Operands[3]).Id;
+            return (leafPred, [(a, b)]);
+        }
+
+        if (def.Opcode.Dialect == ArithDialect.Id && (ArithOp)def.Opcode.Code == ArithOp.Select)
+        {
+            // operands: [0]=def, [1]=cond(eqHi), [2]=true(rest), [3]=false(cmpHi)
+            var restVreg = ((VirtualReg)def.Operands[2]).Id;
+            var cmpHiVreg = StripNots(function, ((VirtualReg)def.Operands[3]).Id, treeInstrs);
+            var eqHiVreg = StripNots(function, ((VirtualReg)def.Operands[1]).Id, treeInstrs);
+
+            var cmpHiDef = function.GetDefinition(cmpHiVreg)!;
+            var eqHiDef = function.GetDefinition(eqHiVreg)!;
+            treeInstrs.Add(cmpHiDef);
+            treeInstrs.Add(eqHiDef);
+
+            // The overall predicate is this (outermost) level's high-byte compare;
+            // lower levels use the unsigned "rest" predicate, which the ladder
+            // derives itself, so the recursive predicate is discarded.
+            var predicate = (ArithCmpPredicate)((Immediate)cmpHiDef.Operands[1]).Value;
+            var aHi = ((VirtualReg)cmpHiDef.Operands[2]).Id;
+            var bHi = ((VirtualReg)cmpHiDef.Operands[3]).Id;
+
+            var (_, restBytes) = RecoverCmpTree(function, restVreg, treeInstrs);
+            restBytes.Add((aHi, bHi));   // append the more-significant byte
+            return (predicate, restBytes);
+        }
+
+        throw new NotSupportedException(
+            $"MOS6502ShapeSelector: unexpected opcode in wide-compare tree at %{vreg}.");
+    }
+
+    // Follow a chain of `arith.not` definitions, collecting them into
+    // `treeInstrs`, and return the underlying (non-not) vreg.
+    private static int StripNots(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
+    {
+        while (true)
+        {
+            var def = function.GetDefinition(vreg);
+            if (def is null
+                || def.Opcode.Dialect != ArithDialect.Id
+                || (ArithOp)def.Opcode.Code != ArithOp.Not)
+                return vreg;
+            treeInstrs.Add(def);
+            vreg = ((VirtualReg)def.Operands[1]).Id;
+        }
+    }
+
+    private static string? TryResolveSymbolAddress(MirFunction function, int addrVreg)
+    {
+        var def = function.GetDefinition(addrVreg);
+        if (def is not null
+            && def.Opcode.Dialect == MemDialect.Id
+            && (MemOp)def.Opcode.Code == MemOp.Symbol
+            && def.Operands.Length >= 2
+            && def.Operands[1] is Symbol symbolOperand)
+        {
+            return symbolOperand.Name;
+        }
+        return null;
+    }
+
+    // The two byte vregs (low, high) of a runtime i16 pointer. Throws if the
+    // address vreg is not defined by a pseudo.merge of exactly two byte vregs —
+    // other pointer shapes (frame slots, scalar i16 vregs that never went
+    // through a merge) are not yet supported, so the gap stays visible.
+    private static (int Lo, int Hi) ResolveRuntimePointerBytesOrThrow(MirFunction function, int addrVreg)
+    {
+        var def = function.GetDefinition(addrVreg);
+        if (def is not null
+            && def.Opcode.Dialect == PseudoDialect.Id
+            && (PseudoOp)def.Opcode.Code == PseudoOp.Merge)
+        {
+            var bytes = new List<int>();
+            foreach (var op in def.Operands)
+                if (op is VirtualReg v && !v.IsDefinition)
+                    bytes.Add(v.Id);
+            if (bytes.Count == 2)
+                return (bytes[0], bytes[1]);
+        }
+
+        throw new NotSupportedException(
+            "MOS6502ShapeSelector: runtime mem.load/store currently only supports " +
+            "addresses produced by `mem.symbol @name` or a two-byte pseudo.merge (i16 " +
+            "pointer). Other address sources (frame slots, scalar i16 vregs) land later.");
     }
 }

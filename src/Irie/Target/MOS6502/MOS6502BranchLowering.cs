@@ -3,7 +3,7 @@ using Irie.Mir;
 namespace Irie.Target.MOS6502;
 
 // After instruction selection an unconditional branch is `mos6502.jmp.abs`, so
-// a split critical-edge block created post-isel by PhiEliminationPass uses it
+// a block a later pass creates (tail duplication, edge splitting) uses it
 // (a generic `cf.br` would reach machine-code emission unlowered). See
 // BranchLowering.
 public sealed class MOS6502BranchLowering : Irie.Target.BranchLowering

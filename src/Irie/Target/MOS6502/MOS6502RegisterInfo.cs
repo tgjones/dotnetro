@@ -9,7 +9,7 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     private static readonly int[] YcRegs    = [MOS6502Registers.Y];
     private static readonly int[] CcRegs    = [MOS6502Registers.C];
     // RC0/RC1 are reserved as the soft stack pointer per CC_MOS; RC18/RC19 as
-    // momentary pointer scratch (MOS6502FrameLowering/MOS6502InstructionSelector's
+    // momentary pointer scratch (MOS6502FrameLowering's
     // PointerZpLo/Hi). Both pairs are excluded from the allocatable range: unlike an
     // ordinary Imag8 register, these are written and read back within a single,
     // tightly-sequenced expansion with no vreg standing in for the value in
@@ -38,11 +38,7 @@ public sealed class MOS6502RegisterInfo : TargetRegisterInfo
     // (tie-break) preference order. It is deliberately zp-pool-FIRST: that is the
     // right default for a LONG-lived value, which should sit in the abundant
     // zero-page file and leave the three scarce architectural registers ($a/$x/$y)
-    // free for the arithmetic chain. The allocator's
-    // cost-driven colour selection (GraphColouringAllocator.ColourPreferenceOrder)
-    // overrides this order for SHORT-lived values, promoting $y/$x ahead of the zp
-    // pool so a brief cross-instruction value lands in a real register the way the
-    // llvm-mos references do (e.g. add-i16 parks its low result byte in $y).
+    // free for the arithmetic chain.
     //
     // $y was added to close the "$y gap".
     // It competes with indexed addressing as the index register, but `mem.*`

@@ -1,8 +1,8 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; CHECK: TestFunction:
-; CHECK:     STX $02
-; CHECK:     AND $02
+; CHECK:     STX $14
+; CHECK:     AND $14
 ; CHECK:     ORA #$0F
 ; CHECK:     EOR #$55
 ; CHECK:     RTS

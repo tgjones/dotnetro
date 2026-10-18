@@ -6,34 +6,32 @@
 ; byte ADC; when the full sum is kept it stays a wide chain.
 
 ; CHECK: AddTrunc:
-; CHECK:     STX $02
 ; CHECK:     CLC
-; CHECK:     ADC $02
+; CHECK:     STX $14
+; CHECK:     ADC $14
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: SubTrunc:
-; CHECK:     STX $02
 ; CHECK:     SEC
-; CHECK:     SBC $02
+; CHECK:     STX $14
+; CHECK:     SBC $14
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: AddWide:
-; CHECK:     STX $02
-; CHECK:     LDX #$00
-; CHECK:     STX $03
 ; CHECK:     CLC
-; CHECK:     ADC $02
-; CHECK:     TAY
-; CHECK:     LDA $03
+; CHECK:     STX $14
+; CHECK:     ADC $14
+; CHECK:     STA $15
+; CHECK:     LDA #$00
 ; CHECK:     ADC #$00
 ; CHECK:     TAX
-; CHECK:     LDA $03
+; CHECK:     LDA #$00
 ; CHECK:     ADC #$00
 ; CHECK:     STA $02
-; CHECK:     LDA $03
+; CHECK:     LDA #$00
 ; CHECK:     ADC #$00
 ; CHECK:     STA $03
-; CHECK:     TYA
+; CHECK:     LDA $15
 ; CHECK:     RTS
 
 func @AddTrunc : (i8, i8) -> i8 {

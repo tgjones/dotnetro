@@ -11,20 +11,19 @@
 ; Compare against ext/llvm-mos-reference/coalescing/redundant-copy.s; close gaps via irie-report.
 
 ; CHECK: redundant_copy:
-; CHECK:     TAY
-; CHECK:     TXA
-; CHECK:     BNE .bb2
-; CHECK:     TYA
-; CHECK:     BNE .bb2
+; CHECK:     CPX #$00
+; CHECK:     BNE .bb3
+; CHECK:     TAX
+; CHECK:     BNE .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA $04
-; CHECK:     STA $02
-; CHECK:     LDA $05
-; CHECK:     STA $03
+; CHECK:     LDX $05
+; CHECK:     LDY $04
 ; CHECK: .bb2:
-; CHECK:     LDA $02
-; CHECK:     LDX $03
+; CHECK:     TYA
 ; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDY $02
+; CHECK:     LDX $03
 
 func @redundant_copy : (i16, i16, i16) -> i16 {
 bb0(%0 : i16, %1 : i16, %2 : i16):

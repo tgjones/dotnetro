@@ -13,40 +13,38 @@
 ; Compare against ext/llvm-mos-reference/control-flow/if-else.s; close gaps via irie-report.
 
 ; CHECK: abs_diff:
-; CHECK:     STA $05
-; CHECK:     STX $04
+; CHECK:     STA $14
 ; CHECK:     TXA
 ; CHECK:     EOR #$80
 ; CHECK:     TAY
 ; CHECK:     LDA $03
 ; CHECK:     EOR #$80
-; CHECK:     STA $06
-; CHECK:     TYA
-; CHECK:     CMP $06
+; CHECK:     STA $15
+; CHECK:     STX $16
+; CHECK:     CPY $15
 ; CHECK:     BCC .bb3
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $05
+; CHECK:     LDA $14
 ; CHECK:     CMP $02
 ; CHECK:     BCC .bb3
 ; CHECK: .bb1:
 ; CHECK:     SEC
-; CHECK:     LDA $05
+; CHECK:     LDA $14
 ; CHECK:     SBC $02
-; CHECK:     TAY
-; CHECK:     LDA $04
+; CHECK:     STA $17
+; CHECK:     LDA $16
 ; CHECK:     SBC $03
-; CHECK:     TAX
 ; CHECK: .bb2:
-; CHECK:     TYA
+; CHECK:     TAX
+; CHECK:     LDA $17
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     SEC
 ; CHECK:     LDA $02
-; CHECK:     SBC $05
-; CHECK:     TAY
+; CHECK:     SBC $14
+; CHECK:     STA $17
 ; CHECK:     LDA $03
-; CHECK:     SBC $04
-; CHECK:     TAX
+; CHECK:     SBC $16
 ; CHECK:     JMP .bb2
 
 func @abs_diff : (i16, i16) -> i16 {

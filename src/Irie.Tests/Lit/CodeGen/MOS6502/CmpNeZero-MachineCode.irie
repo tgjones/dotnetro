@@ -12,7 +12,7 @@
 ; RTS that the BEQ reaches on either edge (no separate true/false return tail).
 ;
 ; As in CmpEqZero, the const-0 operand is folded into an immediate `CMP #$00` by
-; MOS6502InstructionSelector, so no zero is materialized into zero page and no
+; the shape selector, so no zero is materialized into zero page and no
 ; scratch GPR is needed. Where a byte is produced by a flag-setting load/transfer
 ; (TXA / TYA / LDA), MOS6502LateOptimization drops the now-redundant `CMP #$00`,
 ; so only the i8 case (value arriving in $a as a bare live-in) keeps a compare.
@@ -20,29 +20,27 @@
 ; --- i8: single immediate CMP of $a vs 0; both (void) exits reach the merged RTS. ---
 
 ; CHECK: CmpNeZeroI8:
-; CHECK:     CMP #$00
-; CHECK:     BEQ .bb1
+; CHECK:     TAX
+; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: CmpNeZeroI16:
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     CPX #$00
 ; CHECK:     BNE .bb1
-; CHECK:     TYA
+; CHECK:     TAX
 ; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: CmpNeZeroI32:
-; CHECK:     TAY
-; CHECK:     LDA $03
+; CHECK:     LDY $03
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $02
+; CHECK:     LDY $02
 ; CHECK:     BNE .bb1
-; CHECK:     TXA
+; CHECK:     CPX #$00
 ; CHECK:     BNE .bb1
-; CHECK:     TYA
+; CHECK:     TAX
 ; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS

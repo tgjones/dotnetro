@@ -38,10 +38,12 @@
 ; --- mid: calls leaf_a — frame DISJOINT from callee, slot at $72 ---------
 ; CHECK: mid:
 ; CHECK:     LDA #$03
-; CHECK:     STA $18
+; CHECK:     STA $19
 ; CHECK:     JSR leaf_a
-; CHECK:     LDA $18
+; CHECK:     LDA $19
 ; CHECK:     STA $18
+; CHECK:     LDA $18
+; CHECK:     STA $19
 ; CHECK:     RTS
 
 func @leaf_a : () -> void {

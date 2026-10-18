@@ -8,25 +8,23 @@
 ; stale carry. The compare must stay while a later instruction reads C.
 
 ; CHECK: UltConst:
-; CHECK:     TAY
-; CHECK:     LDA $03
-; CHECK:     CMP #$00
+; CHECK:     LDY $03
+; CHECK:     CPY #$00
 ; CHECK:     BCC .bb1
 ; CHECK:     BNE .bb3
-; CHECK:     LDA $02
-; CHECK:     CMP #$00
+; CHECK:     LDY $02
+; CHECK:     CPY #$00
 ; CHECK:     BCC .bb1
 ; CHECK:     BNE .bb3
-; CHECK:     TXA
-; CHECK:     CMP #$00
+; CHECK:     CPX #$00
 ; CHECK:     BCC .bb1
 ; CHECK:     BNE .bb3
-; CHECK:     TYA
 ; CHECK:     CMP #$03
 ; CHECK:     BCS .bb3
 ; CHECK: .bb1:
-; CHECK:     LDA #$01
+; CHECK:     LDX #$01
 ; CHECK: .bb2:
+; CHECK:     TXA
 ; CHECK:     RTS
 
 func @UltConst : (i32) -> i8 {

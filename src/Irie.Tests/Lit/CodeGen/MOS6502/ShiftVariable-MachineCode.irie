@@ -22,15 +22,17 @@
 ; CHECK:     JMP __lshrhi3
 ; CHECK:
 ; CHECK: AShrVar8:
-; CHECK:     STX $02
 ; CHECK:     CMP #$00
 ; CHECK:     BMI .bb3
 ; CHECK: .bb1:
-; CHECK:     LDX #$00
+; CHECK:     LDY #$00
 ; CHECK: .bb2:
+; CHECK:     STX $02
+; CHECK:     STY $14
+; CHECK:     LDX $14
 ; CHECK:     JMP __ashrhi3
 ; CHECK: .bb3:
-; CHECK:     LDX #$FF
+; CHECK:     LDY #$FF
 ; CHECK:     JMP .bb2
 
 func @ShlVar16 : (i16, i8) -> i16 {

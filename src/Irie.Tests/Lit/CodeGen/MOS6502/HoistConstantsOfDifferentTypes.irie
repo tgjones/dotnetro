@@ -20,23 +20,24 @@ bb2():
 }
 
 ; CHECK: hoist_constants:
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     CPX #$00
 ; CHECK:     BNE .bb3
-; CHECK:     TYA
 ; CHECK:     CMP #$01
 ; CHECK:     BNE .bb3
 ; CHECK: .bb1:
-; CHECK:     LDY #$00
 ; CHECK:     LDX #$00
+; CHECK:     LDY #$00
 ; CHECK: .bb2:
 ; CHECK:     TYA
 ; CHECK:     RTS
 ; CHECK: .bb3:
-; CHECK:     TYA
+; CHECK:     LDA $14
 ; CHECK:     EOR #$00
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     STA $16
+; CHECK:     LDA $15
 ; CHECK:     EOR #$00
+; CHECK:     LDY $16
 ; CHECK:     TAX
 ; CHECK:     JMP .bb2

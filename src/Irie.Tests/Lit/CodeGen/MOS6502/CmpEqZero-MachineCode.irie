@@ -3,7 +3,7 @@
 ; Step 16: brfalse lowers to `arith.cmpi <eq>, %x, <0>` + cf.cond_br.
 ; Verify the eq-against-constant-0 path end-to-end at i8, i16, and i32. The
 ; constant 0 operand is folded directly into an immediate compare
-; (`CMP #$00`) — one per operand byte — by MOS6502InstructionSelector, so no
+; (`CMP #$00`) — one per operand byte — by the shape selector, so no
 ; zero is ever materialized into zero page. The cmpi+cond_br fusion then emits
 ; the per-byte CMP / BEQ / BNE chain. Where a byte is produced by a flag-setting
 ; load/transfer (TXA / TYA / LDA from a parameter byte), MOS6502LateOptimization
@@ -20,29 +20,27 @@
 ; single shared RTS that both BEQ edges reach. ---
 
 ; CHECK: CmpEqZeroI8:
-; CHECK:     CMP #$00
-; CHECK:     BEQ .bb1
+; CHECK:     TAX
+; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: CmpEqZeroI16:
-; CHECK:     TAY
-; CHECK:     TXA
+; CHECK:     CPX #$00
 ; CHECK:     BNE .bb1
-; CHECK:     TYA
+; CHECK:     TAX
 ; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: CmpEqZeroI32:
-; CHECK:     TAY
-; CHECK:     LDA $03
+; CHECK:     LDY $03
 ; CHECK:     BNE .bb1
-; CHECK:     LDA $02
+; CHECK:     LDY $02
 ; CHECK:     BNE .bb1
-; CHECK:     TXA
+; CHECK:     CPX #$00
 ; CHECK:     BNE .bb1
-; CHECK:     TYA
+; CHECK:     TAX
 ; CHECK:     BNE .bb1
 ; CHECK: .bb1:
 ; CHECK:     RTS

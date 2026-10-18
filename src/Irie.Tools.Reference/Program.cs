@@ -431,9 +431,7 @@ static (string Irie, string Llvm)[] StageAnchors() =>
     ("AbiLowering", "irtranslator"),                       // arg/return lowering into MIR
     ("Legalizer", "legalizer"),                            // legalization
     ("InstructionSelector", "instruction-select"),         // instruction selection
-    ("PhiElimination", "phi-node-elimination"),            // PHI / block-arg elimination
-    ("TwoAddressInstruction", "twoaddressinstruction"),    // two-address rewriting
-    ("RegisterAllocator", "virtregrewriter"),              // register allocation
+    ("MOS6502BeamPlacement", "virtregrewriter"),           // register / home assignment
     ("CopyElimination", "mos-copy-opt"),                   // post-RA copy cleanup
     ("PseudoExpansion", "postrapseudos"),                  // post-RA pseudo expansion
 ];

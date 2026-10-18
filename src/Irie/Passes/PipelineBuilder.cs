@@ -5,17 +5,13 @@ namespace Irie.Passes;
 // How the values of a function are placed in registers and memory.
 public enum PlacementStrategy
 {
-    // Instruction selection pins registers, then a graph-colouring allocator
-    // assigns them (the original pipeline).
-    Colouring,
-
     // Shape selection emits unpinned operations and the trivial placement homes
-    // every value: correct, slow, and independent of any register allocator.
+    // every value: correct, slow, and the baseline the beam search is checked against.
     Naive,
 
     // Shape selection as for Naive, then a beam search over what the registers hold
-    // within each block (MOS6502BeamPlacementPass): operands stay in A, X and Y
-    // when that is cheaper than a home.
+    // (MOS6502BeamPlacementPass): operands stay in A, X and Y when that is cheaper
+    // than a home.
     Beam,
 }
 
@@ -24,7 +20,7 @@ public enum PlacementStrategy
 public static class PipelineBuilder
 {
     public static void AddStandardPipeline(
-        PassManager passMgr, Target.Target target, PlacementStrategy placement = PlacementStrategy.Colouring)
+        PassManager passMgr, Target.Target target, PlacementStrategy placement = PlacementStrategy.Beam)
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());
@@ -37,60 +33,29 @@ public static class PipelineBuilder
         // Target pre-isel passes (e.g. MOS6502 select-lowering) run on legalized,
         // still-SSA MIR — the llvm-mos slot for MOSLowerSelect.
         target.AddPreInstructionSelectionPasses(passMgr);
-        if (placement is PlacementStrategy.Naive or PlacementStrategy.Beam)
-        {
-            // Shape selection: unpinned operations on typed vregs, then a
-            // placement that gives every value a home. There are no register
-            // classes, no phi elimination and no allocation: block parameters
-            // become writes of the parameters' homes on each edge.
-            passMgr.AddPass(new InstructionSelectorPass(target.CreateShapeSelector()));
-            passMgr.AddPass(placement == PlacementStrategy.Beam
-                ? target.CreateBeamPlacementPass()
-                : target.CreateNaivePlacementPass());
-            passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
-            passMgr.AddPass(new FrameLoweringPass());
-            target.AddBranchFoldingPasses(passMgr);
-            passMgr.AddPass(new CopyEliminationPass());
-            target.AddPostPlacementPasses(passMgr, placement);
-            AddLoweringAndFinalPasses(passMgr, target);
-            return;
-        }
-
-        passMgr.AddPass(new InstructionSelectorPass(target.InstructionSelector));
-        // Insert class-crossing legalization copies wherever a use operand's required
-        // register class is disjoint from its source vreg's def class (e.g. an `ac`
-        // result feeding an `imag8`/zp adc addend) — the llvm-mos ISel copy that gives
-        // every vreg one consistent class so RA never sees an `Ac ∩ Imag8 = ∅` vreg.
-        // A verified no-op while isel's out-funnels relocate every forced-`$a` result
-        // into the flexible Anyi8 class (⊇ Imag8): no operand is class-disjoint, so
-        // zero copies are inserted on every existing function. Runs right after isel,
-        // before the other copy-inserting passes and RA. See OperandLegalizationPass.
-        passMgr.AddPass(new OperandLegalizationPass(target.RegisterInfo));
-        // Conventional SSA destruction up front, then the allocator chain.
-        passMgr.AddPass(new PhiEliminationPass(target.BranchLowering));
-        passMgr.AddPass(new TwoAddressInstructionPass());
-        // Sink rematerializable defs (constants, symbol bytes) into their sole
-        // use block before allocation — the llvm-mos `machine-sink` analogue.
-        // Relieves entry-block pressure so long-lived values (arguments) keep the
-        // scarce real registers instead of being evicted to zero page. See
-        // RematerializableSinkPass.
-        passMgr.AddPass(new RematerializableSinkPass());
-        passMgr.AddPass(new RegisterAllocatorPass(target.RegisterInfo));
+        // Shape selection: unpinned operations on typed vregs, then a placement that
+        // gives every value a home. There are no register classes, no phi
+        // elimination and no allocation: block parameters become writes of the
+        // parameters' homes on each edge.
+        passMgr.AddPass(new InstructionSelectorPass(target.CreateShapeSelector()));
+        passMgr.AddPass(placement == PlacementStrategy.Beam
+            ? target.CreateBeamPlacementPass()
+            : target.CreateNaivePlacementPass());
         passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
-        // RA mints frame slots for the values it spills; give them their storage
-        // (the earlier FrameLowering ran before RA, so it never saw them). Idempotent:
-        // slots that already have a global are skipped.
+        // Placement mints frame slots for the values it spills; give them their
+        // storage (the earlier FrameLowering ran before placement, so it never saw
+        // them). Idempotent: slots that already have a global are skipped.
         passMgr.AddPass(new FrameLoweringPass());
-        // Target branch-folding passes run on physreg-only MIR after RA and before
-        // CopyElimination — the llvm-mos Control Flow Optimizer slot (after the VReg
-        // rewriter, before copy-opt). MOS6502 uses this for empty-block elimination.
+        // Target branch-folding passes run on physreg-only MIR after placement and
+        // before CopyElimination — the llvm-mos Control Flow Optimizer slot.
+        // MOS6502 uses this for empty-block elimination.
         target.AddBranchFoldingPasses(passMgr);
         passMgr.AddPass(new CopyEliminationPass());
-        target.AddPostRegisterAllocationPasses(passMgr);
+        target.AddPostPlacementPasses(passMgr);
         AddLoweringAndFinalPasses(passMgr, target);
     }
 
-    // Everything after the register / home assignment, common to both placements.
+    // Everything after the register / home assignment.
     private static void AddLoweringAndFinalPasses(PassManager passMgr, Target.Target target)
     {
         // Expand abstract frame accesses (mos6502.frame.*.byte) into concrete

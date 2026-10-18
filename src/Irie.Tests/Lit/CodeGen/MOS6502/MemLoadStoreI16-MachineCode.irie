@@ -9,10 +9,9 @@
 
 ; CHECK: TestMemI16:
 ; CHECK:     LDA ptr
-; CHECK:     TAX
-; CHECK:     LDA ptr+1
-; CHECK:     STX ptr
-; CHECK:     STA ptr+1
+; CHECK:     LDX ptr+1
+; CHECK:     STA ptr
+; CHECK:     STX ptr+1
 ; CHECK:     RTS
 
 global @ptr : i32

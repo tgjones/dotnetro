@@ -6,11 +6,7 @@ namespace Irie.Passes.Analyses;
 // LiveIntervalsAnalysis — builds the physreg-aware LiveIntervals (with holes).
 // =============================================================================
 //
-// This analysis is the Phase-1 foundation of the register-allocator redesign. It REPLACES the coarse
-// vreg-only LivenessAnalysis — but only in Phase 2; this phase merely stands it
-// up alongside the old one and proves it reproduces the old pass's ad-hoc
-// physreg-interference conclusions (ComputeClobberSlots /
-// ComputePhysRegReservations). It does NOT yet change RegisterAllocatorPass.
+// RegisterScavengingPass consumes it to find the registers dead at a copy.
 //
 // Algorithm (Appel ch. 11; same backward dataflow as the old analysis, but
 // computing precise segments instead of one [start,end] per value):
@@ -462,9 +458,9 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
 // that carry the SAME value: segments connected through the CFG with no
 // intervening def of that vreg. A def starts a new value number; at a CFG join
 // the value numbers flowing in from each predecessor are unified into one.
-// Post-PhiElimination MIR is non-SSA — a vreg can legitimately have several defs
-// reaching a join (PhiElimination lowered phis to per-predecessor copies into the
-// same destination vreg) — so the join's live-in is genuinely one merged value.
+// Non-SSA MIR — a vreg can legitimately have several defs
+// reaching a join (the scratch vregs pseudo expansion mints, for instance) — so
+// the join's live-in is genuinely one merged value.
 //
 // This is a standard reaching-definition computation, done with union-find:
 //

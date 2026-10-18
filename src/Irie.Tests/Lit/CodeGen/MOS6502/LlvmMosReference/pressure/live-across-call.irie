@@ -12,14 +12,14 @@
 ; CHECK:     RTS
 ; CHECK:
 ; CHECK: live_across_call:
-; CHECK:     STA $15
-; CHECK:     STX $14
+; CHECK:     STA $14
+; CHECK:     STX $15
 ; CHECK:     JSR g
 ; CHECK:     CLC
-; CHECK:     ADC $15
+; CHECK:     ADC $14
 ; CHECK:     TAY
 ; CHECK:     TXA
-; CHECK:     ADC $14
+; CHECK:     ADC $15
 ; CHECK:     TAX
 ; CHECK:     TYA
 ; CHECK:     RTS

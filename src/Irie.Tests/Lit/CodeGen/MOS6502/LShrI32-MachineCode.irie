@@ -1,55 +1,51 @@
 ; RUN: @iriec --target mos6502 --emit=asm @file
 
 ; CHECK: TestFunction:
-; CHECK:     STX $04
-; CHECK:     LDY $02
-; CHECK:     LDA #$00
-; CHECK:     STA $05
 ; CHECK:     LDA $03
 ; CHECK:     LSR
-; CHECK:     STA $02
-; CHECK:     TYA
-; CHECK:     ROR
-; CHECK:     TAX
-; CHECK:     LDA $04
-; CHECK:     ROR
 ; CHECK:     TAY
 ; CHECK:     LDA $02
-; CHECK:     LSR
-; CHECK:     STA $02
+; CHECK:     ROR
+; CHECK:     STA $14
 ; CHECK:     TXA
 ; CHECK:     ROR
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ROR
-; CHECK:     TAY
-; CHECK:     LDA $02
 ; CHECK:     LSR
-; CHECK:     STA $02
+; CHECK:     TAY
+; CHECK:     LDA $14
+; CHECK:     ROR
+; CHECK:     STA $15
 ; CHECK:     TXA
 ; CHECK:     ROR
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ROR
-; CHECK:     TAY
-; CHECK:     LDA $02
 ; CHECK:     LSR
-; CHECK:     STA $02
+; CHECK:     TAY
+; CHECK:     LDA $15
+; CHECK:     ROR
+; CHECK:     STA $16
 ; CHECK:     TXA
 ; CHECK:     ROR
 ; CHECK:     TAX
 ; CHECK:     TYA
-; CHECK:     ROR
-; CHECK:     TAY
-; CHECK:     LDA $02
 ; CHECK:     LSR
-; CHECK:     STA $02
+; CHECK:     TAY
+; CHECK:     LDA $16
+; CHECK:     ROR
+; CHECK:     STA $17
 ; CHECK:     TXA
 ; CHECK:     ROR
-; CHECK:     TAX
+; CHECK:     STA $18
 ; CHECK:     TYA
+; CHECK:     LSR
+; CHECK:     STA $02
+; CHECK:     LDA $17
 ; CHECK:     ROR
-; CHECK:     LDY $05
+; CHECK:     TAX
+; CHECK:     LDA $18
+; CHECK:     ROR
+; CHECK:     LDY #$00
 ; CHECK:     STY $03
 ; CHECK:     RTS
 func @TestFunction : (i32) -> i32 {
