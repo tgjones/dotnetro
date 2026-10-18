@@ -1819,16 +1819,36 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 _nz = Empty;
             }
 
+            // An argument passed on in the register it arrived in is already there.
+            var inPlace = toZp.Where(c =>
+            {
+                var source = ContentOf(c.Operands[1]);
+                return source >= 0 && !IsImm(source) && InF(source) && !InH(source)
+                    && _info.FixedReg[source] == ((PhysicalReg)c.Operands[0]).Id;
+            }).ToHashSet();
             var setsUp = toZp.Count > 0 || toGpr.Any(l => l.Count > 0);
             if (setsUp)
             {
                 if (!StoreLive(needFrom: nextPos, defLimit: nextPos)) return null;
                 if (toZp.Count > 0)
                 {
+                    // An argument still in the register it arrived in moves home only
+                    // if it is needed after the run, or if the run reads it after a
+                    // copy into its register that does not itself pass it on.
+                    var read = new HashSet<int>();
+                    foreach (var copy in run)
+                        if (copy.Operands[1] is VirtualReg r && _info.Index.TryGetValue(r.Id, out var ri)) read.Add(ri);
                     for (var i = 0; i < _info.Count; i++)
-                        if (InF(i) && !InH(i) && _info.End(i) >= _pos && !EnsureHome(i, 0)) return null;
+                    {
+                        if (!InF(i) || InH(i)) continue;
+                        var clobbered = read.Contains(i) && toZp.Any(c =>
+                            ((PhysicalReg)c.Operands[0]).Id == _info.FixedReg[i]
+                            && !(c.Operands[1] is VirtualReg s && _info.Index.TryGetValue(s.Id, out var si) && si == i));
+                        if ((_info.End(i) >= nextPos || clobbered) && !EnsureHome(i, 0)) return null;
+                    }
                     foreach (var copy in toZp)
                     {
+                        if (inPlace.Contains(copy)) continue;
                         var written = ((PhysicalReg)copy.Operands[0]).Id;
                         for (var i = 0; i < _info.Count; i++)
                             if (_info.FixedReg[i] == written) _f[i >> 6] &= ~(1UL << (i & 63));
@@ -1839,6 +1859,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             foreach (var copy in toZp)
             {
                 var source = ContentOf(copy.Operands[1]);
+                if (inPlace.Contains(copy)) continue;
                 var register = FindRegister(source);
                 if (register < 0)
                 {
