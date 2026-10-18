@@ -85,7 +85,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
             ComputeLiveness();
             BeforePlacement();
-            foreach (var block in function.Blocks.ToList())
+            foreach (var block in PlacementOrder())
                 PlaceBlock(block);
 
             // The parameters are read by every branch to the block, so they go last.
@@ -169,6 +169,17 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // Called once the constants and use counts are known, before any block is placed.
         internal virtual void BeforePlacement() { }
 
+        // The order the blocks are placed in (not the order they are laid out in).
+        internal virtual IReadOnlyList<MirBlock> PlacementOrder() => function.Blocks.ToList();
+
+        // Whether a block starts from the registers its only predecessor left, instead
+        // of from empty registers with every live value in its home.
+        internal virtual bool IsInheriting(MirBlock block) => false;
+
+        // The symbolic state at the edge into each inheriting block, kept for the
+        // checker (PlacementChecker.ExitRecord).
+        internal readonly Dictionary<MirBlock, object> _exitRecords = [];
+
         internal void CountUse(MirOperand operand)
         {
             switch (operand)
@@ -207,12 +218,14 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
         // Whether the code placed for each block is checked against the block it came
         // from (PlacementChecker); IRIE_NO_PLACEMENT_CHECK turns it off.
+        private PlacementChecker? _checker;
+
         internal static readonly bool CheckPlacement =
             Environment.GetEnvironmentVariable("IRIE_NO_PLACEMENT_CHECK") is null;
 
         internal void CheckBlock(MirBlock block, List<MirInstruction> before)
         {
-            if (CheckPlacement) new PlacementChecker(this).Check(block, before, _out);
+            if (CheckPlacement) (_checker ??= new PlacementChecker(this)).Check(block, before, _out);
         }
 
         // Places instrs[i] (or the run of copies starting there); returns the index

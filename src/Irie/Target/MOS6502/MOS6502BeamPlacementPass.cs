@@ -17,6 +17,9 @@ public sealed record BeamPlacementOptions
     public int BeamWidth { get; init; } = 8;
     public int SizeWeight { get; init; } = 1;
     public int SpeedWeight { get; init; } = 1;
+    // How many blocks ahead the exit state of a block is judged by the cost of the
+    // blocks that inherit it; 0 judges a block by itself.
+    public int Lookahead { get; init; } = 3;
 }
 
 // Placement within blocks: a beam search over what A, X, Y, the
@@ -118,7 +121,106 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                         _argRegister[d.Id] = ((PhysicalReg)instr.Operands[1]).Id;
 
         _loops = new LoopAnalysis().Compute(Function);
+        FindInheriting();
         _homeClass = HomeClasses.Build(this, _loops, vreg => _argRegister.ContainsKey(vreg) || _remat.ContainsKey(vreg));
+    }
+
+    // ------------------------------------------------------------------
+    // Block order and the blocks that inherit registers
+    // ------------------------------------------------------------------
+
+    // A block with a single incoming edge, from a block placed before it, starts
+    // from the registers that block left on the edge; every other block starts
+    // from empty registers with every live value in its home. A block placed
+    // earlier has to know which of its successors inherit, since it then leaves
+    // their values where they are instead of storing them.
+    private List<MirBlock> _order = [];
+    private readonly HashSet<MirBlock> _inheriting = [];
+    private readonly Dictionary<MirBlock, Snapshot> _entry = [];
+
+    internal override IReadOnlyList<MirBlock> PlacementOrder() => _order;
+
+    internal override bool IsInheriting(MirBlock block) => _inheriting.Contains(block);
+
+    private void FindInheriting()
+    {
+        // Reverse post-order from the entry puts a block after the blocks that reach
+        // it by a forward edge; unreachable blocks follow in layout order.
+        var visited = new HashSet<MirBlock>();
+        var post = new List<MirBlock>();
+        var stack = new Stack<(MirBlock Block, IEnumerator<MirBlock> Next)>();
+        if (Function.Blocks.Count > 0)
+        {
+            visited.Add(Function.Blocks[0]);
+            stack.Push((Function.Blocks[0], Function.Blocks[0].Successors.ToList().GetEnumerator()));
+        }
+        while (stack.Count > 0)
+        {
+            var (block, next) = stack.Peek();
+            if (next.MoveNext())
+            {
+                if (visited.Add(next.Current))
+                    stack.Push((next.Current, next.Current.Successors.ToList().GetEnumerator()));
+            }
+            else
+            {
+                post.Add(block);
+                stack.Pop();
+            }
+        }
+        post.Reverse();
+        _order = [.. post, .. Function.Blocks.Where(b => !visited.Contains(b))];
+
+        var position = new Dictionary<MirBlock, int>();
+        for (var i = 0; i < _order.Count; i++) position[_order[i]] = i;
+
+        var incoming = new Dictionary<MirBlock, int>();
+        var source = new Dictionary<MirBlock, MirBlock>();
+        foreach (var block in Function.Blocks)
+            foreach (var instr in block.Instructions)
+                foreach (var operand in instr.Operands)
+                    if (operand is BlockTarget target)
+                    {
+                        incoming[target.Block] = incoming.GetValueOrDefault(target.Block) + 1;
+                        source[target.Block] = block;
+                    }
+
+        foreach (var block in Function.Blocks.Skip(1))
+            if (incoming.GetValueOrDefault(block) == 1 && block.Parameters.Count == 0
+                && source[block] != block && position[source[block]] < position[block])
+                _inheriting.Add(block);
+    }
+
+    // The state a block starts in when it inherits its predecessor's registers.
+    private State InheritedState(BlockInfo info, Snapshot snapshot)
+    {
+        var words = (info.Count + 63) / 64;
+        var state = new State { H = new ulong[words], F = new ulong[words] };
+
+        int Local(int content)
+        {
+            if (content < 0 || content >= ImmBase) return content;
+            return info.Index.TryGetValue(content, out var i) && info.DefPos[i] < 0 && info.End(i) >= 0 ? i : Empty;
+        }
+
+        for (var k = 0; k < 3; k++) state.R[k] = Local(snapshot.R[k]);
+        state.C = Local(snapshot.C);
+        state.PtrLo = Local(snapshot.PtrLo);
+        state.PtrHi = Local(snapshot.PtrHi);
+        for (var i = 0; i < info.Count; i++)
+            if (info.DefPos[i] < 0 && snapshot.Homed.Contains(info.Vreg[i]))
+                state.H[i >> 6] |= 1UL << (i & 63);
+
+        for (var i = 0; i < info.Count; i++)
+        {
+            if (info.DefPos[i] >= 0 || info.End(i) < 0) continue;
+            var held = (state.H[i >> 6] & (1UL << (i & 63))) != 0
+                || state.R.Contains(i) || state.C == i || _remat.ContainsKey(info.Vreg[i]);
+            if (!held)
+                throw new InvalidOperationException(
+                    $"MOS6502BeamPlacement: v{info.Vreg[i]} is live into a block of @{Function.Name} but its predecessor left it nowhere.");
+        }
+        return state;
     }
 
     // ------------------------------------------------------------------
@@ -133,11 +235,16 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public required Dictionary<int, int> Index;
         public required List<int> Vreg;
         public required int[] DefPos;
+        // The last operation that reads the value, -1 if none.
         public required int[] LastUse;
+        // The last branch whose targets take the value in (live into a successor).
+        public required int[] ExitUse;
         public required long Frequency;
         // The zero-page register a value arrived in (an argument), or -1.
         public required int[] FixedReg;
         public int Count => Vreg.Count;
+        // The position from which the value is not needed any more.
+        public int End(int i) => Math.Max(LastUse[i], ExitUse[i]);
     }
 
     private BlockInfo Analyse(MirBlock block)
@@ -165,13 +272,25 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         foreach (var parameter in block.Parameters.Where(NeedsHome))
             Touch(parameter, -1, isDef: true);
+        // A block can start with a live-in value in a register, so every one is
+        // tracked, whether the block reads it or only passes it on.
+        foreach (var vreg in _liveIn[block].Order())
+            Touch(vreg, -1, isDef: false);
         for (var pos = 0; pos < instrs.Count; pos++)
         {
             foreach (var use in Uses(instrs[pos])) Touch(use.Id, pos, isDef: false);
             foreach (var def in Defs(instrs[pos])) Touch(def.Id, pos, isDef: true);
         }
-        foreach (var vreg in _liveOut[block])
-            if (index.TryGetValue(vreg, out var i)) lastUse[i] = int.MaxValue;
+
+        // A value that flows into a successor is needed up to the branch that goes
+        // there, not to the end of the block.
+        var exitUse = Enumerable.Repeat(-1, vregs.Count).ToArray();
+        for (var pos = 0; pos < instrs.Count; pos++)
+            foreach (var operand in instrs[pos].Operands)
+                if (operand is BlockTarget target)
+                    foreach (var vreg in _liveIn[target.Block])
+                        if (index.TryGetValue(vreg, out var i))
+                            exitUse[i] = Math.Max(exitUse[i], pos);
 
         var fixedReg = Enumerable.Repeat(-1, vregs.Count).ToArray();
         foreach (var instr in instrs)
@@ -185,6 +304,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             Vreg = vregs,
             DefPos = [.. defPos],
             LastUse = [.. lastUse],
+            ExitUse = exitUse,
             Frequency = _loops.Frequency(block),
             FixedReg = fixedReg,
         };
@@ -195,20 +315,33 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         _out = [];
         _carryHolds = -1;
 
-        var info = Analyse(block);
+        var info = InfoOf(block);
         var instrs = info.Instrs;
+
+        State? entry = null;
+        if (IsInheriting(block))
+        {
+            if (!_entry.TryGetValue(block, out var snapshot))
+                throw new InvalidOperationException(
+                    $"MOS6502BeamPlacement: the predecessor of a block of @{Function.Name} did not hand over its registers.");
+            entry = InheritedState(info, snapshot);
+        }
+
         for (var i = 0; i < instrs.Count;)
         {
             if (IsSearchable(instrs[i]))
             {
                 var start = i;
                 while (i < instrs.Count && IsSearchable(instrs[i])) i++;
-                RunSegment(info, start, i);
+                RunSegment(info, start, i, entry);
             }
             else
             {
+                // A barrier expects every value in its home: settle the inherited registers.
+                if (entry is not null) RunSegment(info, 0, 0, entry);
                 i = PlaceInstruction(instrs, i);
             }
+            entry = null;
         }
 
         CheckBlock(block, instrs);
@@ -302,6 +435,16 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         _ => throw new InvalidOperationException(),
     };
 
+    // What a block hands to the successor that starts from its registers: what A, X,
+    // Y, the carry and the scratch pointer hold (vreg ids or known bytes), and which
+    // values have their home written.
+    internal sealed class Snapshot
+    {
+        public required int[] R;
+        public required int C, PtrLo, PtrHi;
+        public required HashSet<int> Homed;
+    }
+
     private sealed class State
     {
         public int[] R = [Empty, Empty, Empty];   // A, X, Y
@@ -314,17 +457,22 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public long Cost;
         public State? Prev;
         public Step[] Steps = [];
+        public (MirBlock Target, Snapshot Snapshot)[] Snaps = [];
+        // Identifies the registers handed to successors so far on this path: two
+        // states that agree on the locations but handed over different things are
+        // different choices, judged by what the successors then cost.
+        public int SnapSig;
 
         public bool SameLocations(State other) =>
             R[0] == other.R[0] && R[1] == other.R[1] && R[2] == other.R[2]
-            && C == other.C && Nz == other.Nz && PtrLo == other.PtrLo && PtrHi == other.PtrHi
+            && C == other.C && Nz == other.Nz && PtrLo == other.PtrLo && PtrHi == other.PtrHi && SnapSig == other.SnapSig
             && H.AsSpan().SequenceEqual(other.H) && F.AsSpan().SequenceEqual(other.F);
 
         public int LocationHash()
         {
             var hash = new HashCode();
             hash.Add(R[0]); hash.Add(R[1]); hash.Add(R[2]);
-            hash.Add(C); hash.Add(Nz); hash.Add(PtrLo); hash.Add(PtrHi);
+            hash.Add(C); hash.Add(Nz); hash.Add(PtrLo); hash.Add(PtrHi); hash.Add(SnapSig);
             foreach (var word in H) hash.Add(word);
             foreach (var word in F) hash.Add(word);
             return hash.ToHashCode();
@@ -343,14 +491,22 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     {
         var state = new State { H = new ulong[(info.Count + 63) / 64], F = new ulong[(info.Count + 63) / 64] };
         for (var i = 0; i < info.Count; i++)
-            if (info.DefPos[i] < start && info.LastUse[i] >= start)
+            if (info.DefPos[i] < start && info.End(i) >= start)
                 state.H[i >> 6] |= 1UL << (i & 63);
         return state;
     }
 
-    private void RunSegment(BlockInfo info, int start, int end)
+    private void RunSegment(BlockInfo info, int start, int end, State? entry = null) =>
+        Replay(FindBest(info, start, end, entry, options.Lookahead));
+
+    // The cheapest placement of the stretch [start, end). When the stretch ends in
+    // branches to blocks that inherit its registers, each candidate is also charged
+    // for placing the first stretch of those blocks from the registers it leaves
+    // them (`lookahead` levels deep), so the exit state is chosen for what comes
+    // next and not only for the stretch itself.
+    private State FindBest(BlockInfo info, int start, int end, State? entry, int lookahead)
     {
-        var beam = new List<State> { InitialState(info, start) };
+        var beam = new List<State> { entry ?? InitialState(info, start) };
         for (var pos = start; pos < end;)
         {
             // A run of copies is placed as one parallel move.
@@ -373,16 +529,42 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         }
 
         State? best = null;
+        var bestTotal = 0L;
         foreach (var state in beam)
         {
             var finished = Finish(state, info, end);
-            if (finished is not null && (best is null || finished.Cost < best.Cost))
-                best = finished;
+            if (finished is null) continue;
+            var total = finished.Cost + (lookahead > 0 ? SuccessorCost(finished, lookahead) : 0);
+            if (best is null || total < bestTotal) (best, bestTotal) = (finished, total);
         }
         if (best is null)
             throw new NotSupportedException("MOS6502BeamPlacement: a stretch of operations cannot be completed.");
+        return best;
+    }
 
-        Replay(best);
+    // What the first stretch of each inheriting successor costs from the registers
+    // the placement leaves it.
+    private long SuccessorCost(State last, int lookahead)
+    {
+        var total = 0L;
+        for (var s = last; s is not null; s = s.Prev)
+            foreach (var (target, snapshot) in s.Snaps)
+            {
+                var info = InfoOf(target);
+                var entry = InheritedState(info, snapshot);
+                var end = 0;
+                while (end < info.Instrs.Count && IsSearchable(info.Instrs[end])) end++;
+                total += FindBest(info, 0, end, entry, lookahead - 1).Cost;
+            }
+        return total;
+    }
+
+    private readonly Dictionary<MirBlock, BlockInfo> _infos = [];
+
+    private BlockInfo InfoOf(MirBlock block)
+    {
+        if (!_infos.TryGetValue(block, out var info)) _infos[block] = info = Analyse(block);
+        return info;
     }
 
     private static string Describe(MirInstruction instr)
@@ -397,11 +579,15 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         for (var s = last; s is not null; s = s.Prev) path.Add(s);
         path.Reverse();
         foreach (var state in path)
+        {
             foreach (var step in state.Steps)
             {
                 if (step.Action is not null) step.Action(this);
                 else EmitVariant(step.Variant!, Resolve(step.Mem));
             }
+            foreach (var (target, snapshot) in state.Snaps)
+                _entry[target] = snapshot;
+        }
     }
 
     // The values live after the stretch have to be in their homes.
@@ -434,7 +620,14 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         {
             if (work is not null) results.Add(work.Freeze(state, normalise: true));
         }
-        Work Start() => new(this, info, state, pos, itemEnd - 1) { PreferMove = preferMove };
+        Work Start(bool settle = false) =>
+            new(this, info, state, pos, itemEnd - 1) { PreferMove = preferMove, SettleExits = settle };
+
+        // A branch to a block that inherits the registers is placed both ways: leaving
+        // the values where they are, and storing them first (a block that several
+        // arms would otherwise each have to store for, or one that only reads them).
+        var settleChoices = instr.Operands.Any(o => o is BlockTarget t && IsInheriting(t.Block))
+            ? new[] { false, true } : new[] { false };
 
         if (IsCopy(instr))
         {
@@ -448,7 +641,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         }
         if (IsJump(instr))
         {
-            Add(Start().Jump(instr));
+            foreach (var settle in settleChoices) Add(Start(settle).Jump(instr));
             return;
         }
 
@@ -465,17 +658,17 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             {
                 var op = (MOS6502Op)instr.Opcode.Code == MOS6502Op.Adc ? MOS6502Operation.Adc : MOS6502Operation.Sbc;
                 var commutative = op == MOS6502Operation.Adc;
-                AluPlans(instr, info, op, a: 2, b: 3, carryIn: 4, commutative, Start, Add);
+                AluPlans(instr, info, op, a: 2, b: 3, carryIn: 4, commutative, () => Start(), Add);
                 break;
             }
             case MOS6502Op.And:
-                AluPlans(instr, info, MOS6502Operation.And, a: 1, b: 2, carryIn: -1, commutative: true, Start, Add);
+                AluPlans(instr, info, MOS6502Operation.And, a: 1, b: 2, carryIn: -1, commutative: true, () => Start(), Add);
                 break;
             case MOS6502Op.Ora:
-                AluPlans(instr, info, MOS6502Operation.Ora, a: 1, b: 2, carryIn: -1, commutative: true, Start, Add);
+                AluPlans(instr, info, MOS6502Operation.Ora, a: 1, b: 2, carryIn: -1, commutative: true, () => Start(), Add);
                 break;
             case MOS6502Op.Eor:
-                AluPlans(instr, info, MOS6502Operation.Eor, a: 1, b: 2, carryIn: -1, commutative: true, Start, Add);
+                AluPlans(instr, info, MOS6502Operation.Eor, a: 1, b: 2, carryIn: -1, commutative: true, () => Start(), Add);
                 break;
 
             case MOS6502Op.Inc:
@@ -500,8 +693,9 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
             case MOS6502Op.Cmp:
             case MOS6502Op.CmpBr:
-                foreach (var reg in new[] { A, X, Y })
-                    Add(Start().Compare(instr, reg));
+                foreach (var settle in settleChoices)
+                    foreach (var reg in new[] { A, X, Y })
+                        Add(Start(settle).Compare(instr, reg));
                 break;
 
             case MOS6502Op.Load:
@@ -545,8 +739,12 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         private readonly ulong[] _h;
         private readonly ulong[] _f;
         private long _cost;
+        private int _snapSig;
 
         public bool PreferMove { get; init; }
+
+        // Whether a branch stores the values an inheriting successor needs, too.
+        public bool SettleExits { get; init; }
 
         public Work(BeamPlacer placer, BlockInfo info, State from, int pos, int normPos)
         {
@@ -556,6 +754,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             (_c, _nz, _ptrLo, _ptrHi) = (from.C, from.Nz, from.PtrLo, from.PtrHi);
             _h = (ulong[])from.H.Clone();
             _cost = from.Cost;
+            _snapSig = from.SnapSig;
         }
 
         public State Freeze(State parent, bool normalise)
@@ -568,7 +767,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 _ptrLo = Live(_ptrLo);
                 _ptrHi = Live(_ptrHi);
                 for (var i = 0; i < _info.Count; i++)
-                    if (_info.LastUse[i] <= _normPos)
+                    if (_info.End(i) <= _normPos)
                     {
                         _h[i >> 6] &= ~(1UL << (i & 63));
                         _f[i >> 6] &= ~(1UL << (i & 63));
@@ -577,13 +776,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return new State
             {
                 R = _r, C = _c, Nz = _nz, PtrLo = _ptrLo, PtrHi = _ptrHi, H = _h, F = _f,
-                Cost = _cost, Prev = parent, Steps = [.. _steps],
+                Cost = _cost, Prev = parent, Steps = [.. _steps], Snaps = [.. _snaps], SnapSig = _snapSig,
             };
         }
 
         // A content that is still needed after the operation, else nothing.
         private int Live(int content) =>
-            content >= 0 && content < ImmBase && _info.LastUse[content] <= _normPos ? Empty : content;
+            content >= 0 && content < ImmBase && _info.End(content) <= _normPos ? Empty : content;
 
         // -- queries --------------------------------------------------------
 
@@ -594,10 +793,15 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         private int VregOf(int i) => _info.Vreg[i];
         private bool IsRemat(int i) => i >= 0 && i < ImmBase && _placer._remat.ContainsKey(VregOf(i));
 
-        // Whether the value is read by the current operation or later.
-        private bool Needed(int content, bool after) =>
-            content >= 0 && content < ImmBase
-            && (after || _consumed.Contains(content) ? _info.LastUse[content] > _pos : _info.LastUse[content] >= _pos);
+        // Whether the value is read by the current operation or later, or flows into
+        // a successor at a branch from here on.
+        private bool Needed(int content, bool after)
+        {
+            if (content < 0 || content >= ImmBase) return false;
+            var use = _info.LastUse[content];
+            var read = after || _consumed.Contains(content) ? use > _pos : use >= _pos;
+            return read || _info.ExitUse[content] >= _pos;
+        }
 
         // Values the current operation has already used up (a branch's arguments, once
         // they are in the parameters' homes).
@@ -956,7 +1160,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             if (!MemorySide(right, pinned: 1 << reg, out var place, out var memRef)) return null;
             if (!PutIn(reg, left, pinned: 0)) return null;
 
-            if (isBranch && !StoreLive(pinned: 1 << reg, branch: instr)) return null;
+            if (isBranch && !StoreForExits(instr, pinned: 1 << reg)) return null;
 
             // The compare is emitted either way; when N/Z already reflect the value the
             // late optimisation drops it, so the search does not pay for it.
@@ -968,7 +1172,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             _c = Empty;
 
             if (isBranch)
+            {
+                CaptureExits(instr);
                 Do(placer => placer.EmitCompareBranches(instr));
+            }
             else
                 SetCarryResult(instr.Operands[0]);
             return this;
@@ -1052,33 +1259,44 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // Stores every value the rest of the block, or a successor, still needs.
-        // For a conditional branch that includes what its targets take as
-        // arguments; `needFrom` names the position from which a use counts (the
-        // barrier after a run of copies); `pinned` registers are left alone.
-        public bool StoreLive(
-            int pinned = 0, MirInstruction? branch = null, int needFrom = int.MinValue, int defLimit = int.MinValue)
+        // Stores every value the rest of the block, or a successor, still needs;
+        // `needFrom` names the position from which a use counts (the barrier after a
+        // run of copies); `pinned` registers are left alone.
+        public bool StoreLive(int pinned = 0, int needFrom = int.MinValue, int defLimit = int.MinValue)
         {
             var limit = defLimit == int.MinValue ? _pos : defLimit;
-            var arguments = new HashSet<int>();
-            if (branch is not null)
-                foreach (var operand in branch.Operands)
-                    if (operand is BlockTarget target)
-                        foreach (var arg in target.Args)
-                            if (arg is VirtualReg v && _info.Index.TryGetValue(v.Id, out var index))
-                                arguments.Add(index);
-
+            var from = needFrom == int.MinValue ? _pos : needFrom;
             var live = new List<int>();
             for (var i = 0; i < _info.Count; i++)
-            {
-                if (_info.DefPos[i] >= limit || InH(i)) continue;
-                var needed =
-                    branch is not null ? _info.LastUse[i] > _pos || arguments.Contains(i)
-                    : needFrom != int.MinValue ? _info.LastUse[i] >= needFrom
-                    : _info.LastUse[i] >= _pos;
-                if (needed) live.Add(i);
-            }
+                if (_info.DefPos[i] < limit && !InH(i) && _info.End(i) >= from)
+                    live.Add(i);
+            return Store(live, pinned);
+        }
 
+        // Stores what the targets of a branch need to find in memory: for a successor
+        // that starts from empty registers, every value live into it and the
+        // arguments it takes; for one that inherits the registers, only a value
+        // that lives in a zero-page argument register (it has no home to inherit).
+        public bool StoreForExits(MirInstruction branch, int pinned = 0, bool includeArguments = true)
+        {
+            var live = new HashSet<int>();
+            foreach (var operand in branch.Operands)
+            {
+                if (operand is not BlockTarget target) continue;
+                var inheriting = _placer.IsInheriting(target.Block);
+                foreach (var vreg in _placer._liveIn[target.Block])
+                    if (_info.Index.TryGetValue(vreg, out var i) && (!inheriting || SettleExits || InF(i)))
+                        live.Add(i);
+                if (inheriting || !includeArguments) continue;
+                foreach (var arg in target.Args)
+                    if (arg is VirtualReg v && _info.Index.TryGetValue(v.Id, out var index))
+                        live.Add(index);
+            }
+            return Store(live.Where(i => _info.DefPos[i] < _pos && !InH(i)).OrderBy(i => i).ToList(), pinned);
+        }
+
+        private bool Store(List<int> live, int pinned)
+        {
             foreach (var i in live.Where(i => FindRegister(i) >= 0))
                 if (!EnsureHome(i, pinned)) return false;
             foreach (var i in live.Where(i => !InH(i) && InF(i)))
@@ -1088,6 +1306,34 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             foreach (var i in live.Where(i => !InH(i) && _c == i))
                 if (!EnsureHome(i, pinned)) return false;
             return live.All(InH);
+        }
+
+        // What the registers hold on the way out to each successor that inherits them.
+        private readonly List<(MirBlock Target, Snapshot Snapshot)> _snaps = [];
+
+        private int ToVreg(int content) => content >= 0 && content < ImmBase ? _info.Vreg[content] : content;
+
+        private void CaptureExits(MirInstruction branch)
+        {
+            foreach (var operand in branch.Operands)
+            {
+                if (operand is not BlockTarget target || !_placer.IsInheriting(target.Block)) continue;
+                var homed = new HashSet<int>();
+                for (var i = 0; i < _info.Count; i++)
+                    if (InH(i)) homed.Add(_info.Vreg[i]);
+                var snapshot = new Snapshot
+                {
+                    R = [ToVreg(_r[A]), ToVreg(_r[X]), ToVreg(_r[Y])],
+                    C = ToVreg(_c), PtrLo = ToVreg(_ptrLo), PtrHi = ToVreg(_ptrHi), Homed = homed,
+                };
+                _snaps.Add((target.Block, snapshot));
+                var hash = new HashCode();
+                hash.Add(_snapSig); hash.Add(target.Block.GetHashCode());
+                foreach (var content in snapshot.R) hash.Add(content);
+                hash.Add(snapshot.C); hash.Add(snapshot.PtrLo); hash.Add(snapshot.PtrHi);
+                foreach (var vreg in homed.Order()) hash.Add(vreg);
+                _snapSig = hash.ToHashCode();
+            }
         }
 
         // cf.br: the arguments go straight from where they are into the parameters'
@@ -1100,12 +1346,12 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             var hazard = _placer.HasMoveHazard(moves);
             if (hazard)
             {
-                if (!StoreLive(branch: instr)) return null;
+                if (!StoreForExits(instr)) return null;
                 Do(placer => placer.EmitEdgeMoves(target));
             }
             else
             {
-                if (!StoreLive(needFrom: _pos + 1)) return null;
+                if (!StoreForExits(instr, includeArguments: false)) return null;
 
                 // An argument that shares its parameter's home needs no move, only to
                 // be in that home.
@@ -1135,6 +1381,11 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     _consumed.Add(content);
                 }
             }
+            CaptureExits(instr);
+            // A block that is nothing but the jump disappears in branch folding; one
+            // with code before it keeps the JMP (3 bytes, 3 cycles) unless it falls through.
+            if (_cost > 0)
+                _cost += 3L * _placer.Options.SizeWeight + 3L * _placer.Options.SpeedWeight * _info.Frequency;
             Do(placer => placer.Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, [])));
             return this;
         }
@@ -1230,7 +1481,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 if (toZp.Count > 0)
                 {
                     for (var i = 0; i < _info.Count; i++)
-                        if (InF(i) && !InH(i) && _info.LastUse[i] >= _pos && !EnsureHome(i, 0)) return null;
+                        if (InF(i) && !InH(i) && _info.End(i) >= _pos && !EnsureHome(i, 0)) return null;
                     foreach (var copy in toZp)
                     {
                         var written = ((PhysicalReg)copy.Operands[0]).Id;

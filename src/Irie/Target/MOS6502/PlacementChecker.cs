@@ -69,6 +69,12 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
         return term;
     }
 
+    // Vregs that alias another one live into the block being checked (they hold the
+    // same value on entry), and the input they stand for.
+    private readonly Dictionary<int, int> _canonical = [];
+
+    private Term VregInput(int vreg) => Input($"v{_canonical.GetValueOrDefault(vreg, vreg)}");
+
     private Term Const(long value) => T("c", value & 0xFF);
     private Term Input(string name) => T("in", 0, name);
     private Term Unknown() => T("unk", ++_unknowns);
@@ -142,10 +148,21 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
     {
         _function = placer.Function;
         _block = block;
+        _events.Clear();
+        _canonical.Clear();
 
         // Hand-written code is passed through as it is: nothing to check against.
         if (!before.Any(i => i.Operands.Any(o => o is VirtualReg || o is BlockTarget { Args.Length: > 0 })))
             return;
+
+        // Without a record the predecessor was not checked (or has no vregs).
+        _record = null;
+        if (placer.IsInheriting(block))
+        {
+            if (!placer._exitRecords.TryGetValue(block, out var record)) return;
+            _record = (ExitRecord)record;
+            _rename = RenameInputs(_record);
+        }
 
         if (!TryBuildExpectation(before)) return;
         Simulate(after);
@@ -160,7 +177,7 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
             case VirtualReg { IsDefinition: false } use:
                 if (placer._constants.TryGetValue(use.Id, out var constant)) return Const(constant);
                 if (placer._remat.TryGetValue(use.Id, out var remat)) return SymbolByte(remat.Symbol.Name, remat.Half);
-                return env.TryGetValue(use.Id, out var term) ? term : Input($"v{use.Id}");
+                return env.TryGetValue(use.Id, out var term) ? term : VregInput(use.Id);
         }
         throw new InvalidOperationException($"PlacementChecker: operand {operand}.");
     }
@@ -366,6 +383,53 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
 
     private void Simulate(List<MirInstruction> after)
     {
+        var state = _record is not null ? Inherit(_record) : ConventionalEntry();
+
+        _next = 0;
+        if (!Execute(after, state, edgeOf: null))
+            Fail("the code does not end in a jump or a return.");
+        if (_next != _events.Count)
+            Fail($"the code leaves out {_events.Count - _next} of the block's effects, the first being a {_events[_next].Describe}.");
+    }
+
+    private ExitRecord? _record;
+    private Dictionary<Term, Term> _rename = [];
+
+    // The input each term held on the edge in stands for here. Live-in vregs that
+    // hold the same value (a copy) are one input.
+    private Dictionary<Term, Term> RenameInputs(ExitRecord record)
+    {
+        var rename = new Dictionary<Term, Term>();
+        foreach (var (vreg, term) in record.Homes.OrderBy(h => h.Key))
+        {
+            if (rename.TryAdd(term, Input($"v{vreg}"))) continue;
+            _canonical[vreg] = int.Parse(rename[term].Text!.AsSpan(1));
+        }
+        return rename;
+    }
+
+    // What the predecessor's exit state holds, renamed to the way this block's
+    // expectation names its inputs: a location that held the value of a live-in
+    // vreg now holds that vreg's input; known bytes stay, anything else is unknown.
+    private State Inherit(ExitRecord record)
+    {
+        Term Map(Term term) =>
+            term.Kind is "c" or "sym" ? term
+            : _rename.TryGetValue(term, out var input) ? input
+            : Unknown();
+
+        var state = new State { C = Map(record.State.C), Nz = Unknown() };
+        for (var k = 0; k < 3; k++) state.R[k] = Map(record.State.R[k]);
+        foreach (var (register, term) in record.State.Memory)
+        {
+            var mapped = Map(term);
+            if (mapped.Kind != "unk") state.Memory[register] = mapped;
+        }
+        return state;
+    }
+
+    private State ConventionalEntry()
+    {
         var state = new State { C = Unknown(), Nz = Unknown() };
         var entry = _function.Blocks[0] == _block;
         state.R[A] = entry ? Input(RegisterName(A)) : Unknown();
@@ -379,14 +443,13 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
             if (placer.TryGetHome(vreg, out var home))
                 state.Memory[home] = placer._remat.TryGetValue(vreg, out var remat)
                     ? SymbolByte(remat.Symbol.Name, remat.Half)
-                    : Input($"v{vreg}");
-
-        _next = 0;
-        if (!Execute(after, state, edgeOf: null))
-            Fail("the code does not end in a jump or a return.");
-        if (_next != _events.Count)
-            Fail($"the code leaves out {_events.Count - _next} of the block's effects, the first being a {_events[_next].Describe}.");
+                    : VregInput(vreg);
+        return state;
     }
+
+    // The state on the edge into an inheriting block, and what each live-in vreg is
+    // there.
+    private sealed record ExitRecord(State State, Dictionary<int, Term> Homes);
 
     private Event Expect(EventKind kind, string what)
     {
@@ -679,13 +742,20 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
     // On an exit, the homes hold what the successor expects.
     private void CheckHomes(State s, Event exit)
     {
+        // An inheriting successor takes the registers as they are: its own check
+        // starts from this state.
+        if (placer.IsInheriting(exit.Target!))
+        {
+            placer._exitRecords[exit.Target!] = new ExitRecord(s.Clone(), exit.Homes);
+            return;
+        }
         foreach (var (vreg, term) in exit.Homes)
         {
             if (!placer.TryGetHome(vreg, out var home))
             {
                 // No code has touched the home yet, so it still holds what the vreg it
                 // shares with came in as (a branch whose argument is such a vreg).
-                if (term != Input($"v{vreg}") && !placer._remat.ContainsKey(vreg) && !SharesHome(term, vreg))
+                if (term != VregInput(vreg) && !placer._remat.ContainsKey(vreg) && !SharesHome(term, vreg))
                     Fail($"v{vreg} is needed in {B(exit.Target!)} but was never stored (it is {term}).");
                 continue;
             }

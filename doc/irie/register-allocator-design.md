@@ -731,6 +731,49 @@ tables).
   16 of the 120 C# programs are larger. Copy coalescing on top of phi coalescing changes
   no byte count and saves 6K corpus cycles.
 
+- **S4.2, block entry and exit states (done for single-predecessor blocks).** A block
+  with exactly one incoming edge, from a block placed before it, and no parameters
+  *inherits*: it starts from the registers its predecessor left on that edge (A, X, Y,
+  the carry, the scratch pointer pair, which values have their home written) instead of
+  from empty registers with everything homed. Every other block (joins, loop headers, the
+  entry) keeps the old convention. Blocks are now placed in reverse post-order, so a
+  predecessor is placed first.
+  - *Exit use.* A value that flows into a successor is needed up to the branch that goes
+    there (`BlockInfo.ExitUse`), not to the end of the block (it used to be pinned live to
+    the end of the block). `StoreForExits` stores, before a branch, only what a
+    *non-inheriting* successor needs (its live-in values and arguments); an inheriting
+    successor takes the registers as they are, except for a value that lives in its
+    zero-page argument register, which has no home to inherit.
+  - *Snapshots.* The search records, for each branch to an inheriting block, what the
+    registers hold at that point (`Snapshot`); the winning path's snapshots become the
+    entry states. A branch to an inheriting successor is placed both ways, leaving the
+    values in registers and storing them first, and states that handed over different
+    things are kept apart in the beam.
+  - *Lookahead.* A candidate end state is charged for the first stretch of each inheriting
+    successor, searched from the registers it leaves (`BeamPlacementOptions.Lookahead`,
+    default 3 levels), so the exit state is chosen for what comes next. A `JMP` out of a
+    block that has code is charged 3 bytes and 3 cycles; a block that is only a jump
+    disappears in branch folding and is free.
+  - *Checker.* `PlacementChecker` is one instance per function, so terms are shared
+    across blocks. An inheriting block is checked from its predecessor's symbolic exit
+    state, renamed to the inputs the block's expectation names (live-in vregs that hold
+    the same value are one input). Control flow into an inheriting block no longer
+    checks homes on the edge; the block's own reads and its own exits do.
+  - *Not done: N/Z across the edge.* Only the carry is inherited. The late optimisation
+    that drops `cmp #0` after a load or transfer works within one block, so a state that
+    claimed N/Z were inherited would cost compares the code still emits.
+
+  | Set | Colouring | Beam + home classes | + inherited entry |
+  |---|--:|--:|--:|
+  | `LlvmMosReference` corpus code, bytes | 3660 | 3831 | 3821 (+4.4%) |
+  | C# lit programs and benchmark kernels, bytes | 182 912 | 172 321 | 171 753 (−6.1%) |
+  | Corpus cycles of the functions under test | 5 903 825 | 5 985 762 | 5 979 732 (+1.3%) |
+
+  The gain is small because the multi-block cases are dominated by joins and loop
+  headers, which still start from homes; that is what S4.3 changes. Against colouring the
+  corpus is smaller on 9 cases, equal on 12 and larger on 22; 16 of 120 C# programs are
+  larger. `BeamPlacement-Inherit-MachineCode.irie` pins an arm that reads the sum from A.
+
 ### Work outside the allocator that still limits quality
 
 These were measured in §2.1. No allocator closes them, and on C# some are larger

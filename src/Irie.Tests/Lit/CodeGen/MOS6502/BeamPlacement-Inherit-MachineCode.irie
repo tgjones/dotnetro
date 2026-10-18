@@ -1,0 +1,41 @@
+; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "arms(*, *)"
+
+; A block with a single predecessor starts from the registers that block left: the
+; sum is still in A when each arm reads it, so neither arm reloads it from a home.
+; The block both arms return through has several predecessors and finds the result
+; in its home.
+
+; CHECK: arms:
+; CHECK:     CLC
+; CHECK:     STX $14
+; CHECK:     ADC $14
+; CHECK:     CMP #$00
+; CHECK:     BNE .bb3
+; CHECK: .bb1:
+; CHECK:     TAX
+; CHECK:     INX
+; CHECK:     STX $15
+; CHECK: .bb2:
+; CHECK:     LDA $15
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     EOR #$FF
+; CHECK:     STA $15
+; CHECK:     JMP .bb2
+
+func @arms : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.addi %0, %1
+    %3 : i8 = arith.constant 0
+    %4 : i1 = arith.cmpi eq, %2, %3
+    cf.cond_br %4, bb1(), bb2()
+bb1():
+    %5 : i8 = arith.constant 1
+    %6 : i8 = arith.addi %2, %5
+    core.return %6
+bb2():
+    %7 : i8 = arith.constant 255
+    %8 : i8 = arith.xor %2, %7
+    core.return %8
+}
