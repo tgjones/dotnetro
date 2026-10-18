@@ -11,9 +11,10 @@ public sealed class LitTests
         LitTestRunner.Run(filePath, LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration()));
     }
 
-    // The corpus cases that run on the emulator (RUN-exec), run again compiled with
-    // the naive placement (every value in a home): irie-exec still has to agree
-    // with the interpreter on every input.
+    // The corpus cases that run on the emulator (RUN-exec) use the default (beam)
+    // placement in LitTest; run them again compiled with the naive placement
+    // (every value in a home): irie-exec still has to agree with the interpreter
+    // on every input.
     [Test]
     [MethodDataSource(nameof(ExecLitTestSource))]
     public void ExecLitTestNaivePlacement(string filePath)
@@ -21,17 +22,6 @@ public sealed class LitTests
         var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
         var variables = configuration.Variables.SetItem(
             "irie-exec", configuration.Variables["irie-exec"] + " --placement naive");
-        LitTestRunner.Run(filePath, configuration with { Variables = variables });
-    }
-
-    // And with the beam placement (values kept in registers within blocks).
-    [Test]
-    [MethodDataSource(nameof(ExecLitTestSource))]
-    public void ExecLitTestBeamPlacement(string filePath)
-    {
-        var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
-        var variables = configuration.Variables.SetItem(
-            "irie-exec", configuration.Variables["irie-exec"] + " --placement beam");
         LitTestRunner.Run(filePath, configuration with { Variables = variables });
     }
 
