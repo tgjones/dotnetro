@@ -573,6 +573,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // What the first stretch of each inheriting successor costs from the registers
     // the placement leaves it.
     internal int _lookingAhead;
+    // The states being judged for blocks that do not have one yet.
+    internal readonly Dictionary<MirBlock, Snapshot> _provisional = [];
 
     private long SuccessorCost(State last, int lookahead)
     {
@@ -591,7 +593,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 var entry = InheritedState(info, snapshot);
                 var end = 0;
                 while (end < info.Instrs.Count && IsSearchable(info.Instrs[end])) end++;
-                total += FindBest(info, 0, end, entry, lookahead - 1).Cost;
+                var had = _provisional.TryGetValue(target, out var outer);
+                _provisional[target] = snapshot;
+                try { total += FindBest(info, 0, end, entry, lookahead - 1).Cost; }
+                finally { if (had) _provisional[target] = outer!; else _provisional.Remove(target); }
             }
         return total;
     }
@@ -658,15 +663,16 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         {
             if (work is not null) results.Add(work.Freeze(state, normalise: true));
         }
-        Work Start(bool settle = false) =>
-            new(this, info, state, pos, itemEnd - 1) { PreferMove = preferMove, SettleExits = settle };
+        Work Start(int exitMode = 0) =>
+            new(this, info, state, pos, itemEnd - 1) { PreferMove = preferMove, ExitMode = exitMode };
 
-        // A branch to a block that inherits the registers is placed both ways: leaving
-        // the values where they are, and storing them first (a block that several
-        // arms would otherwise each have to store for, or one that only reads them).
-        var settleChoices = instr.Operands.Any(o => o is BlockTarget t
-                && RoleOf(info.Block, t.Block) is ExitRole.Single or ExitRole.Primary)
-            ? new[] { false, true } : new[] { false };
+        // A branch to a block that starts from a snapshot is placed several ways (see
+        // Work.ExitMode): leaving the values where they are, storing them first, and,
+        // into a join, also putting block parameters in registers.
+        var settleChoices =
+            instr.Operands.Any(o => o is BlockTarget t && RoleOf(info.Block, t.Block) == ExitRole.Primary) ? new[] { 0, 1, 2, 3, 4, 5, 6 }
+            : instr.Operands.Any(o => o is BlockTarget t && RoleOf(info.Block, t.Block) == ExitRole.Single) ? new[] { 0, 1 }
+            : new[] { 0 };
 
         if (IsCopy(instr))
         {
@@ -782,8 +788,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         public bool PreferMove { get; init; }
 
-        // Whether a branch stores the values an inheriting successor needs, too.
-        public bool SettleExits { get; init; }
+        // How a branch hands over to a block that starts from a snapshot: 0 leaves the
+        // values where they are, 1 stores them first (and, into a join, hands over
+        // empty registers), 2 and 3 also load block parameters into free registers,
+        // in parameter order and in reverse; 4 and 5 do the same and store the live-in
+        // values as well; 6 only stores the live-in values.
+        public int ExitMode { get; init; }
+        public bool SettleExits => ExitMode == 1;
 
         public Work(BeamPlacer placer, BlockInfo info, State from, int pos, int normPos)
         {
@@ -1403,7 +1414,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 R = (int[])_r.Clone(), C = _c, Nz = _nz, PtrLo = _ptrLo, PtrHi = _ptrHi,
                 H = (ulong[])_h.Clone(), F = (ulong[])_f.Clone(),
             };
-            return new Work(_placer, _info, state, _pos, _normPos) { PreferMove = PreferMove, SettleExits = SettleExits };
+            return new Work(_placer, _info, state, _pos, _normPos) { PreferMove = PreferMove, ExitMode = ExitMode };
         }
 
         // The exits of a cmp_br into joins: each is placed on a copy of the work, the
@@ -1417,7 +1428,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 if (role is not (ExitRole.Primary or ExitRole.Secondary)) continue;
 
                 var edge = Fork();
-                if (!(role == ExitRole.Primary ? edge.DefineEntry(target, SettleExits) : edge.SatisfyEntry(target)))
+                if (!(role == ExitRole.Primary ? edge.DefineEntry(target, ExitMode) : edge.SatisfyEntry(target)))
                     return false;
                 _cost += edge._cost;
                 _edges.Add((branch, k + 1, [.. edge._steps]));
@@ -1436,8 +1447,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         // argument is in a register (and is not itself live into the join) stays
         // there under the parameter's name; the others are moved into their homes.
         // `settle` stores everything and hands over empty registers instead.
-        private bool DefineEntry(BlockTarget target, bool settle)
+        private bool DefineEntry(BlockTarget target, int mode)
         {
+            var settle = mode == 1;
+            var homeLive = mode >= 4;
             var parameters = target.Block.Parameters;
             var moves = _placer.EdgeMoves(target);
             var hazard = _placer.HasMoveHazard(moves);
@@ -1462,11 +1475,34 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     claimed.Add(arg.Id);
                 }
 
+            // Block parameters whose argument is not in a register can be loaded into a
+            // register that holds nothing the join needs.
+            if (mode is >= 2 and <= 5)
+            {
+                var order = parameters.Where(p => _placer._uses.GetValueOrDefault(p) > 0 && !named.Contains(p)).ToList();
+                if (mode is 3 or 5) order.Reverse();
+                foreach (var parameter in order)
+                {
+                    var k = parameters.IndexOf(parameter);
+                    var source = target.Args[k];
+                    if (source is VirtualReg { IsDefinition: false } sv && (_placer._remat.ContainsKey(sv.Id)
+                        || _placer._liveIn[target.Block].Contains(sv.Id))) continue;
+                    var pinned = 0;
+                    for (var r = 0; r < 3; r++) if (named[r] != Empty) pinned |= 1 << r;
+                    var register = new[] { X, Y, A }.FirstOrDefault(r => (pinned & (1 << r)) == 0 && IsFree(r) && !LiveRegister(r, target), -1);
+                    if (register < 0) break;
+                    var content = ContentOf(source);
+                    if (!PutIn(register, content, pinned)) return false;
+                    named[register] = parameter;
+                    namedValue[register] = content;
+                }
+            }
+
             // Live-in values are in a register or in their home.
             foreach (var i in LiveInto(target))
             {
                 if (_info.DefPos[i] >= _pos || IsRemat(i)) continue;
-                var inRegister = !settle && FindRegister(i) >= 0;
+                var inRegister = !settle && !homeLive && FindRegister(i) >= 0;
                 if (!inRegister && !InH(i) && !EnsureHome(i, 0)) return false;
             }
 
@@ -1526,17 +1562,26 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 var content = _r[k];
                 registers[k] = settle ? Empty
                     : named[k] != Empty ? named[k]
-                    : content >= 0 && content < ImmBase && _placer._liveIn[target.Block].Contains(_info.Vreg[content]) ? _info.Vreg[content]
+                    : content >= 0 && content < ImmBase && _placer._liveIn[target.Block].Contains(_info.Vreg[content])
+                        && !(homeLive && InH(content)) ? _info.Vreg[content]
                     : Empty;
             }
             var inRegisters = registers.Where(r => r != Empty).ToHashSet();
             foreach (var i in LiveInto(target))
-                if (_info.DefPos[i] < _pos && InH(i) && !inRegisters.Contains(_info.Vreg[i])) homed.Add(_info.Vreg[i]);
+                if (_info.DefPos[i] < _pos && InH(i) && (homeLive || !inRegisters.Contains(_info.Vreg[i]))) homed.Add(_info.Vreg[i]);
             foreach (var parameter in parameters)
                 if (_placer._uses.GetValueOrDefault(parameter) > 0 && !inRegisters.Contains(parameter)) homed.Add(parameter);
 
             Hand(target.Block, new Snapshot { R = registers, C = Empty, PtrLo = Empty, PtrHi = Empty, Homed = homed });
             return true;
+        }
+
+        // Whether the register holds a value the join needs and that has no home.
+        private bool LiveRegister(int register, BlockTarget target)
+        {
+            var content = _r[register];
+            return content >= 0 && content < ImmBase && !InH(content)
+                && _placer._liveIn[target.Block].Contains(_info.Vreg[content]);
         }
 
         // A later edge into a join: the values it starts from, in the registers and
@@ -1546,10 +1591,14 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             var contract = _placer.Contract(target.Block);
             if (contract is null)
             {
-                // Looking ahead from the join's first edge: the state it starts from is not
-                // chosen yet, so the edge is not charged for reaching it.
-                if (_placer._lookingAhead > 0) return true;
-                throw new InvalidOperationException(
+                // Looking ahead from the join's first edge: the state it starts from is
+                // being judged, so the edge pays for reaching that one (a loop's back edge
+                // is part of what a header's state costs).
+                if (_placer._lookingAhead > 0)
+                {
+                    if (!_placer._provisional.TryGetValue(target.Block, out contract)) return true;
+                }
+                else throw new InvalidOperationException(
                     $"MOS6502BeamPlacement: an edge into a join of @{_placer.Function.Name} is placed before the join's state is known.");
             }
             var parameters = target.Block.Parameters;
@@ -1635,7 +1684,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             var role = _placer.RoleOf(_info.Block, target.Block);
             if (role is ExitRole.Primary or ExitRole.Secondary)
             {
-                if (!(role == ExitRole.Primary ? DefineEntry(target, SettleExits) : SatisfyEntry(target))) return null;
+                if (!(role == ExitRole.Primary ? DefineEntry(target, ExitMode) : SatisfyEntry(target))) return null;
                 AddJumpCost();
                 Do(placer => placer.Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, [])));
                 return this;

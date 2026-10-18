@@ -802,6 +802,28 @@ tables).
     barely move (`crc8` 133 -> 131): the header's state is chosen from its first stretch
     alone, without the cost of the back edge, which S4.3b addresses.
 
+- **S4.3b, loop header states (done, without a loop-body dry run).** The first edge into a
+  join is placed seven ways (`ExitMode`): registers left as they are; everything stored
+  and registers empty; block parameters loaded into free registers (in parameter order
+  or in reverse) with or without storing the live-in values first; and only the live-in
+  values stored. A header's state is judged by the cost of its first stretch and of the
+  blocks that follow it, down to the latch (`Lookahead`, 3 levels): while looking ahead,
+  the back edge pays to reach the state being judged (`_provisional`), so a counter kept
+  in X is judged by what the back edge then costs. This stands in for placing the loop
+  body once per candidate; a loop whose body is deeper than the lookahead does not see
+  its back edge. A loop whose counter is a byte now keeps it in a register
+  (`BeamPlacement-LoopCounter-MachineCode.irie`: the low byte of the counter in Y).
+
+  | Set | Colouring | after S4.3a | after S4.3b |
+  |---|--:|--:|--:|
+  | `LlvmMosReference` corpus code, bytes | 3660 | 3790 | 3719 (+1.6%) |
+  | C# lit programs and benchmark kernels, bytes | 182 912 | 170 679 | 169 374 (−7.4%) |
+  | Corpus cycles of the functions under test | 5 903 825 | 5 976 654 | 5 962 929 (+1.0%) |
+
+  The 22 corpus cases that are still larger than colouring are mostly straight-line code
+  (`stack-args` +61 bytes, `pressure-high` +50, `chain-arith` +18, `struct-pass` +16);
+  their gap is inside one block, which cross-block placement cannot close.
+
 ### Work outside the allocator that still limits quality
 
 These were measured in §2.1. No allocator closes them, and on C# some are larger
