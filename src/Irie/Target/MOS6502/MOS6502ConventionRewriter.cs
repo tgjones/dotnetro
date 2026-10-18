@@ -68,6 +68,10 @@ internal static class MOS6502ConventionRewriter
         return true;
     }
 
+    // The number of calls to `callee` in the module.
+    internal static int CountCalls(MirModule module, MirFunction callee) =>
+        module.Functions.Sum(f => f.Blocks.Sum(b => b.Instructions.Count(i => IsCallTo(i, callee.Name))));
+
     // Moves the arguments and results of `callee` to `chosen` in the callee alone. A
     // trial of a convention does this, measures the callee and takes it back; the calls
     // follow in ApplyToCalls once the convention is final.
@@ -115,6 +119,36 @@ internal static class MOS6502ConventionRewriter
         if (current.SameAs(chosen)) return;
         ApplyToCallee(callee, chosen);
         ApplyToCalls(module, callee, current, chosen);
+    }
+
+    // Checks, once the functions are placed, that nothing reads an argument register
+    // outside the convention of its function: not the function itself, and not the
+    // `jsr` of any call to it, which has to hand over exactly the argument registers.
+    internal static void Verify(MirModule module)
+    {
+        var byName = module.Functions.Where(f => f.Convention is not null).ToDictionary(f => f.Name);
+        foreach (var function in module.Functions)
+        {
+            if (function.Convention is { } convention)
+            {
+                var allowed = convention.ArgBytes.ToHashSet();
+                foreach (var register in function.Blocks[0].LiveIns.Where(IsConventionRegister))
+                    if (!allowed.Contains(register))
+                        throw new InvalidOperationException(
+                            $"@{function.Name} reads register {register} on entry, which its convention ({convention}) does not pass an argument in.");
+            }
+            foreach (var block in function.Blocks)
+                foreach (var instr in block.Instructions)
+                    if (instr.Opcode == MOS6502Dialect.OpRef(MOS6502Op.JsrAbs) && instr.Operands[0] is Symbol s
+                        && byName.TryGetValue(s.Name, out var callee))
+                    {
+                        var passed = instr.Operands.OfType<PhysicalReg>()
+                            .Where(p => !p.IsDefinition && p.IsImplicit).Select(p => p.Id).ToHashSet();
+                        if (!passed.SetEquals(callee.Convention!.ArgBytes))
+                            throw new InvalidOperationException(
+                                $"@{function.Name} calls @{callee.Name} with registers [{string.Join(", ", passed.Order())}], but its convention is {callee.Convention}.");
+                    }
+        }
     }
 
     private static Dictionary<int, int> Renaming(IReadOnlyList<int> from, IReadOnlyList<int> to)

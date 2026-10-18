@@ -9,6 +9,11 @@ var targetOption = new Option<string>("--target") { Description = "Target system
 
 var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
 
+var fixedConventionsOption = new Option<bool>("--fixed-conventions")
+{
+    Description = "Give every function the default calling convention instead of letting its placement choose where its arguments and results go",
+};
+
 var rootCommand = new RootCommand();
 
 rootCommand.Options.Add(targetOption);
@@ -16,6 +21,7 @@ rootCommand.Options.Add(assemblyOption);
 rootCommand.Options.Add(outputOption);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(statsOption);
+rootCommand.Options.Add(fixedConventionsOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -38,8 +44,8 @@ rootCommand.SetAction(parseResult =>
     var compilationResult = CompilerDriver.Compile(
         Path.GetFullPath(assembly),
         "Main",
-        parseResult.GetValue(targetOption)!
-        );
+        parseResult.GetValue(targetOption)!,
+        chooseConventions: !parseResult.GetValue(fixedConventionsOption));
 
     if (parseResult.GetValue(statsOption))
         foreach (var (name, value) in compilationResult.Statistics.OrderBy(s => s.Key))

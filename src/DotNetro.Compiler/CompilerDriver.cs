@@ -12,12 +12,14 @@ public static class CompilerDriver
     // runtime through the host runtime. Failures, including an unknown target id,
     // surface as exceptions.
     public static CompilationResult Compile(
-        string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId)
+        string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId,
+        bool chooseConventions = true)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
             HostAssemblyResolver.ForTarget(targetId),
             targetId,
-            entryPointMethodName));
+            entryPointMethodName,
+            ChooseConventions: chooseConventions));
 
     // Byte-based entry point: nothing here touches the file system. Expected
     // failures (the program uses something the compiler does not support) are
@@ -61,7 +63,7 @@ public static class CompilerDriver
         var context = new CompilationContext(module);
 
         var passMgr = new PassManager(null, null);
-        PipelineBuilder.AddStandardPipeline(passMgr, target);
+        PipelineBuilder.AddStandardPipeline(passMgr, target, chooseConventions: request.ChooseConventions);
 
         List<PassSnapshot>? snapshots = null;
         if (request.CaptureSnapshots)
@@ -120,7 +122,8 @@ public sealed record CompileRequest(
     IAssemblyResolver Resolver,
     string TargetId,
     string EntryPoint = "Main",
-    bool CaptureSnapshots = false);
+    bool CaptureSnapshots = false,
+    bool ChooseConventions = true);
 
 public enum DiagnosticSeverity { Info, Warning, Error }
 

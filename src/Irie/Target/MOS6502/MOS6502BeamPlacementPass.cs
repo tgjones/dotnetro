@@ -81,15 +81,24 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
         }
         if (moved > 0)
             context.Statistics["functions with their own convention"] = moved;
+        MOS6502ConventionRewriter.Verify(module);
     }
+
+    // What a call site is assumed to pay for each argument or result byte that is not
+    // in the register the code around the call would have it in: one transfer
+    // instruction (a byte and two cycles).
+    private const long MovedByteCost = 3;
 
     // Tries the conventions that move the argument and result bytes that arrive in A
     // or X between the two, places the function under each, and gives it the cheapest
-    // (the default one on a tie). Returns whether it is not the default.
+    // (the default one on a tie). The placement of the function does not see the calls,
+    // so a convention has to save more than the calls are assumed to pay for the bytes
+    // it moves. Returns whether the function gets a convention other than the default.
     private static bool ChooseConvention(MirModule module, MirFunction function, BeamPlacementOptions settings)
     {
         var original = MOS6502ConventionRewriter.CurrentOf(function);
         var saved = function.SaveState();
+        var calls = MOS6502ConventionRewriter.CountCalls(module, function);
 
         long CostOf(FunctionConvention convention)
         {
@@ -98,7 +107,8 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
                 if (!convention.SameAs(original)) MOS6502ConventionRewriter.ApplyToCallee(function, convention);
                 var placer = new BeamPlacer(function, settings);
                 placer.Run();
-                return placer.PlacementCost;
+                return placer.PlacementCost
+                    + calls * (Moved(original.ArgBytes, convention.ArgBytes) + Moved(original.ReturnBytes, convention.ReturnBytes));
             }
             catch (NotSupportedException)
             {
@@ -130,6 +140,9 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
         MOS6502ConventionRewriter.ApplyToCalls(module, function, original, best);
         return true;
     }
+
+    private static long Moved(IReadOnlyList<int> from, IReadOnlyList<int> to) =>
+        Enumerable.Range(0, from.Count).Count(k => from[k] != to[k]) * MovedByteCost;
 
     // Every way to assign the bytes that sit in A or X to A and X, other than the
     // given one.

@@ -2,7 +2,8 @@
 
 **Status:** proposal; the steering decisions are recorded in §7. S0 to S5
 are done (progress below the stage table in §5): the beam placement is the default,
-the colouring allocator is deleted and homes share bytes; S6–S7 are not implemented.
+the colouring allocator is deleted and homes share bytes; S6 is partly done (a
+callee chooses between A and X, see its progress below); S7 is not implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -488,7 +489,7 @@ one is never built. Stages S1 and S2 do not depend on each other.
 | **S3** Placement within blocks | The beam DP of §3.4, with "everything homed" at block boundaries | Better than today's allocator on the 12 studied cases |
 | **S4** Placement across blocks | Loop-first boundary negotiation, phi via reconciliation, home classes. **Delete** the colourer and the passes in §4 | Scoreboard total and C# set better than today; no case worse by more than 2 instructions without a written reason |
 | **S5** Home slots | Byte-granular colouring, pointer pairs, recolouring after the late passes | zp footprint per program reported and lower |
-| **S6** Per-function conventions | Callee-chosen entry and exit placement | Measured on call-heavy C# benchmarks |
+| **S6** Per-function conventions (partly done, see below) | Callee-chosen entry and exit placement | Corpus and C# totals (bytes and cycles) no worse, C# set smaller; no function more than 2 instructions larger without a written reason |
 | **S7** Tuning | Beam width, frequency weights, size/speed weights; the K = ∞ oracle on small functions; tree-decomposition DP only if the oracle shows block joins lose significantly | Documented gap to the oracle |
 
 **S0 progress (2026-10-17):**
@@ -929,6 +930,65 @@ pointer pairs left out (below).
   - *Sharing inside the placer*: `HomeClasses` still merges unrelated values only past 32
     homes, because sharing there creates edge-move hazards; the layout pass avoids the
     hazard by colouring after the moves are placed.
+
+**S6 progress (2026-10-18):** the convention is chosen by the callee's placement among
+the reorderings of the bytes that arrive in or leave through A and X; the gain is small.
+Measured before any change (corpus 3353 bytes, 5 802 207 cycles; 120 C# programs 162 303
+bytes).
+
+- **Mechanism.** `AbiLoweringPass` still emits the default convention (CC_MOS) for every
+  function and call, so that every earlier pass is unchanged. A convention
+  (`FunctionConvention`: one register per argument byte and per result byte, kept on
+  `MirFunction.Convention`) is applied afterwards by renaming the ABI copies
+  (`MOS6502ConventionRewriter`): the copies out of the argument registers at the entry of
+  the callee, the copies into the result registers before its returns, and in every caller
+  the copies into the argument registers before the `jsr` and out of the result registers
+  after it, with the `jsr`'s implicit uses. A convention can name A, X and the argument
+  zero-page registers, one per byte; bytes that go on the stack and Y are not moved.
+- **Order and eligibility.** `MOS6502BeamPlacementPass` is a module pass now: it places the
+  functions callee first (ascending call-graph SCC id). A function gets a choice only if it
+  has a direct caller, its address is never taken, it is not the first function (where the
+  program starts), it is not in a call cycle, and its ABI copies and those of all its
+  calls have the shapes the rewriter renames (this leaves out the hand-written runtime).
+  The others keep CC_MOS: recursion, indirect-call targets, `runtime.irie`, OS calls and
+  the entry point, as §3.8 lists.
+- **The choice.** The function is placed once under its current convention and once under
+  each reordering of its A/X argument bytes, then each reordering of its A/X result bytes
+  (with the best arguments), and the cheapest wins (`BeamPlacer.PlacementCost`, the sum of
+  the cost of the cheapest placement of each stretch). The placement cannot see the calls,
+  so every moved byte is charged the transfer a call site would need (3: a byte and two
+  cycles) for every call in the module; without that a callee-only choice swapped the
+  arguments of a function with eight call sites and cost every site a three-instruction
+  swap. `SaveState`/`RestoreState` on `MirFunction` undo a trial placement.
+  `MOS6502ConventionRewriter.Verify` checks after placement that no function reads an
+  argument register outside its convention and that every `jsr` passes exactly the
+  registers of the callee's.
+- **Switches.** `--fixed-conventions` (`iriec`, `irie-exec`, `dnrc`) gives every function the
+  default convention. `--stats` reports `functions with their own convention`.
+
+  | Set | Before | S6 |
+  |---|--:|--:|
+  | Corpus code, bytes (`iriec`, no caller) | 3353 | 3353 |
+  | Corpus cycles of the functions under test (the exec driver calls them) | 5 802 207 | 5 797 208 (−0.09%) |
+  | 120 C# programs, bytes | 162 303 | 162 186 (−0.07%) |
+
+  21 C# programs are smaller, one is 1 byte larger (`NarrowIntegerCompare`), and 6 corpus
+  cases are faster. 22 of 813 function placements in the C# set (counting a runtime
+  function once per program) choose another convention, most of them the pointer result
+  of `ManagedHeap.Alloc` in X and A swapped. Compile time of a call-heavy program grows by
+  about 15%.
+- **What the data says.** The zero-page arguments were already free: a caller writes a
+  callee's argument registers directly and the callee keeps them as their own homes (the
+  mechanism §3.8 describes for homes, which Oscar64 also uses), so the remaining
+  convention freedom is the two registers A and X, and moving a byte between them rarely
+  saves more than the transfer it costs a caller.
+- **Tried and left out.** Letting an A/X byte also move to a free zero-page register
+  (callers charged a store or a load for it): 14 bytes less over the C# set and 0.06% fewer
+  cycles, for about twice the compile time.
+- **Not done.** Y as an argument or result register; stack arguments in another place; a
+  convention for the members of an indirect-call class (§3.8, summed preferences); costing
+  the calls with the callers' own placement (the second iteration §6 names, left to S7);
+  results left in the callee's homes.
 
 ### Work outside the allocator that still limits quality
 
