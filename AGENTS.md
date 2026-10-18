@@ -33,7 +33,7 @@ parameterized as `LitTest(Lit/CodeGen/.../Foo·irie)`, and the path argument con
 `/` (parsed as tree-node separators) and `()` (parsed as grouping operators), so any
 attempt to narrow by filename either matches every lit test or none. Don't fight it —
 just run the whole project. Both lit suites are fast (Irie.Tests ~3–5s,
-DotNetro.Compiler.Tests ~12s):
+DotNetro.Compiler.Tests ~3 min, since every lit test runs Roslyn three times):
 
 ```bash
 dotnet test --project src/Irie.Tests              # all Irie tests incl. every .irie/.s lit test

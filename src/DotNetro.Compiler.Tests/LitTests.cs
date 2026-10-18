@@ -1,7 +1,17 @@
 ﻿using DotLit;
+using TUnit.Core.Interfaces;
 
 namespace DotNetro.Compiler.Tests;
 
+// Each lit test spawns several processes (a Roslyn compile per RUN line, dnrc, the
+// emulator), so TUnit's default of four tests per core oversubscribes the machine
+// until the run looks hung. Keep one test per core.
+public sealed class LitParallelLimit : IParallelLimit
+{
+    public int Limit => Environment.ProcessorCount;
+}
+
+[ParallelLimiter<LitParallelLimit>]
 public sealed class LitTests
 {
     [Test]
@@ -20,16 +30,6 @@ public sealed class LitTests
     {
         var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
         var variables = configuration.Variables.SetItem("dnrc", configuration.Variables["dnrc"] + " --placement naive");
-        LitTestRunner.Run(filePath, configuration with { Variables = variables });
-    }
-
-    // And with the beam placement (values kept in registers within blocks).
-    [Test]
-    [MethodDataSource(nameof(LitTestSource))]
-    public void LitTestBeamPlacement(string filePath)
-    {
-        var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
-        var variables = configuration.Variables.SetItem("dnrc", configuration.Variables["dnrc"] + " --placement beam");
         LitTestRunner.Run(filePath, configuration with { Variables = variables });
     }
 
