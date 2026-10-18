@@ -19,6 +19,9 @@ namespace Irie.Target.MOS6502;
 // moves are removed before a cold path's.
 internal sealed class HomeClasses
 {
+    // The number of homes from which unrelated values share them.
+    private const int PressureLimit = 32;
+
     private readonly Dictionary<int, int> _parent = [];
     // Interference between class representatives.
     private readonly Dictionary<int, HashSet<int>> _adjacent = [];
@@ -32,6 +35,7 @@ internal sealed class HomeClasses
         var classes = new HomeClasses();
         classes.BuildInterference(placer);
         classes.Coalesce(placer, loops, excluded);
+        classes.ShareUnrelated(placer, excluded);
 
         var result = new Dictionary<int, int>();
         foreach (var vreg in classes._parent.Keys)
@@ -130,6 +134,49 @@ internal sealed class HomeClasses
             var (ra, rb) = (Find(a), Find(b));
             if (ra == rb || Adjacent(ra).Contains(rb)) continue;
             Merge(ra, rb);
+        }
+    }
+
+    // Values that have no copy or parameter in common but are never live together
+    // can share a home as well: first fit over the classes. Without it every value
+    // would keep a home of its own, and a function with many short-lived values
+    // would overflow the zero page.
+    private void ShareUnrelated(MOS6502NaivePlacementPass.Placer placer, Func<int, bool> excluded)
+    {
+        var classes = new List<int>();
+        var seen = new HashSet<int>();
+        foreach (var block in placer.Function.Blocks)
+        {
+            foreach (var parameter in block.Parameters)
+                Consider(parameter);
+            foreach (var instr in block.Instructions)
+                foreach (var def in placer.Defs(instr))
+                    Consider(def.Id);
+        }
+        void Consider(int vreg)
+        {
+            if (!placer.NeedsHome(vreg) || excluded(vreg) || placer._uses.GetValueOrDefault(vreg) == 0) return;
+            var root = Find(vreg);
+            if (seen.Add(root)) classes.Add(root);
+        }
+
+        // Sharing unrelated values costs nothing in code except that an edge may then
+        // find a move's source in a home another move writes; it is only worth it when
+        // the homes would otherwise take a real share of the zero page.
+        if (classes.Count <= PressureLimit) return;
+
+        var colours = new List<int>();
+        foreach (var root in classes)
+        {
+            var shared = false;
+            foreach (var colour in colours)
+            {
+                if (Adjacent(colour).Contains(root)) continue;
+                Merge(colour, root);
+                shared = true;
+                break;
+            }
+            if (!shared) colours.Add(root);
         }
     }
 
