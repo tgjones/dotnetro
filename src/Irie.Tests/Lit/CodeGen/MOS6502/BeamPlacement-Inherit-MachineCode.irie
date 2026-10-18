@@ -2,26 +2,25 @@
 ; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "arms(*, *)"
 
 ; A block with a single predecessor starts from the registers that block left: the
-; sum is still in A when each arm reads it, so neither arm reloads it from a home.
-; The block both arms return through has several predecessors and finds the result
-; in its home.
+; sum is still in A when each arm reads it, so neither arm reloads it from a home. The
+; block both arms return through has two predecessors; the first arm placed hands it
+; the registers it ended with (the result in X) and the other arm moves its result
+; into X, so the result never goes through memory.
 
 ; CHECK: arms:
 ; CHECK:     CLC
 ; CHECK:     STX $14
 ; CHECK:     ADC $14
-; CHECK:     CMP #$00
+; CHECK:     TAX
 ; CHECK:     BNE .bb3
 ; CHECK: .bb1:
-; CHECK:     TAX
 ; CHECK:     INX
-; CHECK:     STX $15
 ; CHECK: .bb2:
-; CHECK:     LDA $15
+; CHECK:     TXA
 ; CHECK:     RTS
 ; CHECK: .bb3:
 ; CHECK:     EOR #$FF
-; CHECK:     STA $15
+; CHECK:     TAX
 ; CHECK:     JMP .bb2
 
 func @arms : (i8, i8) -> i8 {

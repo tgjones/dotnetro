@@ -176,9 +176,17 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // of from empty registers with every live value in its home.
         internal virtual bool IsInheriting(MirBlock block) => false;
 
-        // The symbolic state at the edge into each inheriting block, kept for the
-        // checker (PlacementChecker.ExitRecord).
-        internal readonly Dictionary<MirBlock, object> _exitRecords = [];
+        // How the edge between two blocks is placed (see ExitRole).
+        internal virtual ExitRole RoleOf(MirBlock from, MirBlock to) => ExitRole.Conventional;
+
+        // The state a block that starts from a snapshot starts from.
+        internal virtual Snapshot? Contract(MirBlock block) => null;
+
+        // The target of the exit at `operandIndex` of a branch: the block itself, or a
+        // new block that does the moves the edge needs first.
+        internal virtual BlockTarget ExitTarget(MirInstruction instr, int operandIndex, BlockTarget target) =>
+            EdgeTarget(target);
+
 
         internal void CountUse(MirOperand operand)
         {
@@ -576,7 +584,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             for (var k = 2; k < instr.Operands.Length; k += 2)
             {
                 var condition = (CmpBrCondition)((Immediate)instr.Operands[k]).Value;
-                var target = EdgeTarget((BlockTarget)instr.Operands[k + 1]);
+                var target = ExitTarget(instr, k + 1, (BlockTarget)instr.Operands[k + 1]);
                 var (branch, flag) = condition switch
                 {
                     CmpBrCondition.Eq => (MOS6502Op.Beq, MOS6502Registers.Z),

@@ -774,6 +774,34 @@ tables).
   corpus is smaller on 9 cases, equal on 12 and larger on 22; 16 of 120 C# programs are
   larger. `BeamPlacement-Inherit-MachineCode.irie` pins an arm that reads the sum from A.
 
+- **S4.3a, joins and loop headers (done).** A join (a block with several incoming edges,
+  loop headers included) now starts from a snapshot too: the one the first edge placed
+  into it leaves, its *primary* (the predecessor earliest in reverse post-order, so for a
+  loop header the edge from outside). Every other edge is *secondary* and reconciles to
+  that state. Only blocks whose edges all come from the branches the search places
+  (`cf.br`, `cmp_br`), one edge per predecessor, take part; the rest keep the empty-
+  registers convention.
+  - *The state of a join* (`Snapshot`) is what A, X and Y hold, by name: a live-in value,
+    or a block parameter when the primary's argument sits in the register (and is not
+    itself live into the join); and which live-in values and parameters are in their
+    homes. Everything not in a register is in its home. The carry and the pointer pair are
+    not carried into a join.
+  - *Primary edge* (`DefineEntry`): stores what is not in a register, moves the parameters
+    that did not stay in a register into their homes, and hands over the registers as
+    they are. It is also placed with everything stored and the registers empty (the old
+    convention), and the cheaper of the two, judged by the join's first stretch, wins.
+  - *Secondary edge* (`SatisfyEntry`): stores the values the join expects in homes, moves
+    the parameters, then loads the registers the join expects (Y, X, A in turn). On a
+    `cmp_br` exit the code goes in a new block on that edge, placed on a copy of the
+    search state, only when it is non-empty; on a `cf.br` it goes before the jump.
+  - *Checker.* A block that starts from a snapshot is checked from the snapshot, and
+    every edge into it (the primary included) is checked to deliver it
+    (`CheckContract`); this replaces the earlier exit-state record and the aliasing of
+    live-in vregs that held the same value.
+  - Results: corpus 3821 -> 3790 bytes, C# 171 753 -> 170 679 bytes. Loop-heavy cases
+    barely move (`crc8` 133 -> 131): the header's state is chosen from its first stretch
+    alone, without the cost of the back edge, which S4.3b addresses.
+
 ### Work outside the allocator that still limits quality
 
 These were measured in §2.1. No allocator closes them, and on C# some are larger

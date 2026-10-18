@@ -57,7 +57,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // What a register, the carry, the N/Z flags or a pointer byte holds: nothing
     // known, a value of the block (its dense index), or a known byte.
     private const int Empty = -1;
-    private const int ImmBase = 1 << 20;
+    private const int ImmBase = Snapshot.ImmBase;
     private static int ImmContent(long value) => ImmBase + (int)(value & 0xFF);
     private static bool IsImm(int content) => content >= ImmBase;
     private static long ImmValue(int content) => content - ImmBase;
@@ -129,18 +129,33 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // Block order and the blocks that inherit registers
     // ------------------------------------------------------------------
 
-    // A block with a single incoming edge, from a block placed before it, starts
-    // from the registers that block left on the edge; every other block starts
-    // from empty registers with every live value in its home. A block placed
-    // earlier has to know which of its successors inherit, since it then leaves
-    // their values where they are instead of storing them.
+    // A block whose incoming edges all come from branches the search places starts
+    // from a snapshot of the registers instead of from empty registers with every
+    // live value in its home. With one incoming edge that is the registers the
+    // predecessor left; a join (several incoming edges) takes the registers of the
+    // first edge placed into it, its primary, and every other edge reconciles to
+    // that state. A loop header is a join whose primary is the edge from outside,
+    // so the state is chosen before the body is placed and the back edge pays to
+    // match it. A block placed earlier has to know which of its successors start
+    // from a snapshot, since it then leaves their values where they are instead of
+    // storing them.
     private List<MirBlock> _order = [];
     private readonly HashSet<MirBlock> _inheriting = [];
+    private readonly Dictionary<MirBlock, MirBlock> _primary = [];
     private readonly Dictionary<MirBlock, Snapshot> _entry = [];
 
     internal override IReadOnlyList<MirBlock> PlacementOrder() => _order;
 
     internal override bool IsInheriting(MirBlock block) => _inheriting.Contains(block);
+
+    internal override ExitRole RoleOf(MirBlock from, MirBlock to)
+    {
+        if (!_inheriting.Contains(to)) return ExitRole.Conventional;
+        if (!_primary.TryGetValue(to, out var primary)) return ExitRole.Single;
+        return from == primary ? ExitRole.Primary : ExitRole.Secondary;
+    }
+
+    internal override Snapshot? Contract(MirBlock block) => _entry.GetValueOrDefault(block);
 
     private void FindInheriting()
     {
@@ -174,21 +189,40 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         var position = new Dictionary<MirBlock, int>();
         for (var i = 0; i < _order.Count; i++) position[_order[i]] = i;
 
-        var incoming = new Dictionary<MirBlock, int>();
-        var source = new Dictionary<MirBlock, MirBlock>();
+        // The edges into each block, as (source block, the branch that makes it).
+        var incoming = new Dictionary<MirBlock, List<(MirBlock From, MirInstruction Branch)>>();
         foreach (var block in Function.Blocks)
             foreach (var instr in block.Instructions)
                 foreach (var operand in instr.Operands)
                     if (operand is BlockTarget target)
                     {
-                        incoming[target.Block] = incoming.GetValueOrDefault(target.Block) + 1;
-                        source[target.Block] = block;
+                        if (!incoming.TryGetValue(target.Block, out var list)) incoming[target.Block] = list = [];
+                        list.Add((block, instr));
                     }
 
         foreach (var block in Function.Blocks.Skip(1))
-            if (incoming.GetValueOrDefault(block) == 1 && block.Parameters.Count == 0
-                && source[block] != block && position[source[block]] < position[block])
-                _inheriting.Add(block);
+        {
+            if (!incoming.TryGetValue(block, out var edges)) continue;
+
+            // Every edge has to come from a branch the search places (not from
+            // hand-written code), from a block that is reached, one edge per block.
+            if (edges.Any(e => !IsJump(e.Branch) && !IsOp(e.Branch, MOS6502Op.CmpBr))
+                || edges.Any(e => !visited.Contains(e.From) || e.From == block && edges.Count == 1)
+                || edges.Select(e => e.From).Distinct().Count() != edges.Count)
+                continue;
+
+            if (edges.Count == 1)
+            {
+                if (block.Parameters.Count == 0 && position[edges[0].From] < position[block])
+                    _inheriting.Add(block);
+                continue;
+            }
+
+            var primary = edges.Select(e => e.From).MinBy(f => position[f])!;
+            if (position[primary] >= position[block]) continue;
+            _inheriting.Add(block);
+            _primary[block] = primary;
+        }
     }
 
     // The state a block starts in when it inherits its predecessor's registers.
@@ -231,6 +265,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // is defined and last used.
     private sealed class BlockInfo
     {
+        public required MirBlock Block;
         public required List<MirInstruction> Instrs;
         public required Dictionary<int, int> Index;
         public required List<int> Vreg;
@@ -299,6 +334,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         return new BlockInfo
         {
+            Block = block,
             Instrs = instrs,
             Index = index,
             Vreg = vregs,
@@ -435,16 +471,6 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         _ => throw new InvalidOperationException(),
     };
 
-    // What a block hands to the successor that starts from its registers: what A, X,
-    // Y, the carry and the scratch pointer hold (vreg ids or known bytes), and which
-    // values have their home written.
-    internal sealed class Snapshot
-    {
-        public required int[] R;
-        public required int C, PtrLo, PtrHi;
-        public required HashSet<int> Homed;
-    }
-
     private sealed class State
     {
         public int[] R = [Empty, Empty, Empty];   // A, X, Y
@@ -458,6 +484,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public State? Prev;
         public Step[] Steps = [];
         public (MirBlock Target, Snapshot Snapshot)[] Snaps = [];
+        // The code of the edges out of a cmp_br that need some (into a join).
+        public (MirInstruction Branch, int Operand, Step[] Steps)[] Edges = [];
         // Identifies the registers handed to successors so far on this path: two
         // states that agree on the locations but handed over different things are
         // different choices, judged by what the successors then cost.
@@ -544,7 +572,16 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
     // What the first stretch of each inheriting successor costs from the registers
     // the placement leaves it.
+    internal int _lookingAhead;
+
     private long SuccessorCost(State last, int lookahead)
+    {
+        _lookingAhead++;
+        try { return SuccessorCostCore(last, lookahead); }
+        finally { _lookingAhead--; }
+    }
+
+    private long SuccessorCostCore(State last, int lookahead)
     {
         var total = 0L;
         for (var s = last; s is not null; s = s.Prev)
@@ -580,6 +617,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         path.Reverse();
         foreach (var state in path)
         {
+            _edgeSteps = state.Edges.ToDictionary(e => (e.Branch, e.Operand), e => e.Steps);
             foreach (var step in state.Steps)
             {
                 if (step.Action is not null) step.Action(this);
@@ -626,7 +664,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         // A branch to a block that inherits the registers is placed both ways: leaving
         // the values where they are, and storing them first (a block that several
         // arms would otherwise each have to store for, or one that only reads them).
-        var settleChoices = instr.Operands.Any(o => o is BlockTarget t && IsInheriting(t.Block))
+        var settleChoices = instr.Operands.Any(o => o is BlockTarget t
+                && RoleOf(info.Block, t.Block) is ExitRole.Single or ExitRole.Primary)
             ? new[] { false, true } : new[] { false };
 
         if (IsCopy(instr))
@@ -776,7 +815,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return new State
             {
                 R = _r, C = _c, Nz = _nz, PtrLo = _ptrLo, PtrHi = _ptrHi, H = _h, F = _f,
-                Cost = _cost, Prev = parent, Steps = [.. _steps], Snaps = [.. _snaps], SnapSig = _snapSig,
+                Cost = _cost, Prev = parent, Steps = [.. _steps], Snaps = [.. _snaps], Edges = [.. _edges], SnapSig = _snapSig,
             };
         }
 
@@ -1174,6 +1213,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             if (isBranch)
             {
                 CaptureExits(instr);
+                if (!PlaceJoinExits(instr)) return null;
                 Do(placer => placer.EmitCompareBranches(instr));
             }
             else
@@ -1275,15 +1315,19 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         // Stores what the targets of a branch need to find in memory: for a successor
         // that starts from empty registers, every value live into it and the
-        // arguments it takes; for one that inherits the registers, only a value
-        // that lives in a zero-page argument register (it has no home to inherit).
+        // arguments it takes; for one that inherits the registers (its only
+        // incoming edge), only a value that lives in a zero-page argument register
+        // (it has no home to inherit). The other edges into a join do their own
+        // storing, after the branch (DefineEntry, SatisfyEntry).
         public bool StoreForExits(MirInstruction branch, int pinned = 0, bool includeArguments = true)
         {
             var live = new HashSet<int>();
             foreach (var operand in branch.Operands)
             {
                 if (operand is not BlockTarget target) continue;
-                var inheriting = _placer.IsInheriting(target.Block);
+                var role = _placer.RoleOf(_info.Block, target.Block);
+                if (role is ExitRole.Primary or ExitRole.Secondary) continue;
+                var inheriting = role == ExitRole.Single;
                 foreach (var vreg in _placer._liveIn[target.Block])
                     if (_info.Index.TryGetValue(vreg, out var i) && (!inheriting || SettleExits || InF(i)))
                         live.Add(i);
@@ -1308,32 +1352,277 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return live.All(InH);
         }
 
+        // A block that is nothing but the jump disappears in branch folding; one
+        // with code before it keeps the JMP (3 bytes, 3 cycles) unless it falls through.
+        private void AddJumpCost()
+        {
+            if (_cost > 0)
+                _cost += 3L * _placer.Options.SizeWeight + 3L * _placer.Options.SpeedWeight * _info.Frequency;
+        }
+
         // What the registers hold on the way out to each successor that inherits them.
         private readonly List<(MirBlock Target, Snapshot Snapshot)> _snaps = [];
+        private readonly List<(MirInstruction Branch, int Operand, Step[] Steps)> _edges = [];
 
         private int ToVreg(int content) => content >= 0 && content < ImmBase ? _info.Vreg[content] : content;
 
+        private void Hand(MirBlock target, Snapshot snapshot)
+        {
+            _snaps.Add((target, snapshot));
+            var hash = new HashCode();
+            hash.Add(_snapSig); hash.Add(target.GetHashCode());
+            foreach (var content in snapshot.R) hash.Add(content);
+            hash.Add(snapshot.C); hash.Add(snapshot.PtrLo); hash.Add(snapshot.PtrHi);
+            foreach (var vreg in snapshot.Homed.Order()) hash.Add(vreg);
+            _snapSig = hash.ToHashCode();
+        }
+
+        // The registers as they are, for the only edge into a block.
         private void CaptureExits(MirInstruction branch)
         {
             foreach (var operand in branch.Operands)
             {
-                if (operand is not BlockTarget target || !_placer.IsInheriting(target.Block)) continue;
+                if (operand is not BlockTarget target || _placer.RoleOf(_info.Block, target.Block) != ExitRole.Single) continue;
                 var homed = new HashSet<int>();
                 for (var i = 0; i < _info.Count; i++)
                     if (InH(i)) homed.Add(_info.Vreg[i]);
-                var snapshot = new Snapshot
+                Hand(target.Block, new Snapshot
                 {
                     R = [ToVreg(_r[A]), ToVreg(_r[X]), ToVreg(_r[Y])],
                     C = ToVreg(_c), PtrLo = ToVreg(_ptrLo), PtrHi = ToVreg(_ptrHi), Homed = homed,
-                };
-                _snaps.Add((target.Block, snapshot));
-                var hash = new HashCode();
-                hash.Add(_snapSig); hash.Add(target.Block.GetHashCode());
-                foreach (var content in snapshot.R) hash.Add(content);
-                hash.Add(snapshot.C); hash.Add(snapshot.PtrLo); hash.Add(snapshot.PtrHi);
-                foreach (var vreg in homed.Order()) hash.Add(vreg);
-                _snapSig = hash.ToHashCode();
+                });
             }
+        }
+
+        // A copy of this work to place the code of one edge in: it starts at zero
+        // cost and has steps of its own.
+        private Work Fork()
+        {
+            var state = new State
+            {
+                R = (int[])_r.Clone(), C = _c, Nz = _nz, PtrLo = _ptrLo, PtrHi = _ptrHi,
+                H = (ulong[])_h.Clone(), F = (ulong[])_f.Clone(),
+            };
+            return new Work(_placer, _info, state, _pos, _normPos) { PreferMove = PreferMove, SettleExits = SettleExits };
+        }
+
+        // The exits of a cmp_br into joins: each is placed on a copy of the work, the
+        // steps going into a block on that edge, the cost counted here.
+        private bool PlaceJoinExits(MirInstruction branch)
+        {
+            for (var k = 2; k < branch.Operands.Length; k += 2)
+            {
+                var target = (BlockTarget)branch.Operands[k + 1];
+                var role = _placer.RoleOf(_info.Block, target.Block);
+                if (role is not (ExitRole.Primary or ExitRole.Secondary)) continue;
+
+                var edge = Fork();
+                if (!(role == ExitRole.Primary ? edge.DefineEntry(target, SettleExits) : edge.SatisfyEntry(target)))
+                    return false;
+                _cost += edge._cost;
+                _edges.Add((branch, k + 1, [.. edge._steps]));
+                foreach (var (block, snapshot) in edge._snaps) Hand(block, snapshot);
+            }
+            return true;
+        }
+
+        // The values live into a join and the parameters it takes that are used, as
+        // block-local indices (-1 for an argument that is not a vreg of this block).
+        private IEnumerable<int> LiveInto(BlockTarget target) =>
+            _placer._liveIn[target.Block].Where(_info.Index.ContainsKey).Select(v => _info.Index[v]).Order();
+
+        // The first edge into a join: its registers become the state the join starts
+        // from, after storing what has to be in memory. A block parameter whose
+        // argument is in a register (and is not itself live into the join) stays
+        // there under the parameter's name; the others are moved into their homes.
+        // `settle` stores everything and hands over empty registers instead.
+        private bool DefineEntry(BlockTarget target, bool settle)
+        {
+            var parameters = target.Block.Parameters;
+            var moves = _placer.EdgeMoves(target);
+            var hazard = _placer.HasMoveHazard(moves);
+            if (hazard && !settle) return false;
+
+            // Which register keeps which parameter (and which value of this block it
+            // holds, to check it is still there once the code for the rest is placed).
+            var named = new int[3] { Empty, Empty, Empty };
+            var namedValue = new int[3] { Empty, Empty, Empty };
+            var claimed = new HashSet<int>();
+            if (!settle)
+                for (var k = 0; k < parameters.Count; k++)
+                {
+                    if (_placer._uses.GetValueOrDefault(parameters[k]) == 0) continue;
+                    if (target.Args[k] is not VirtualReg { IsDefinition: false } arg || _placer._constants.ContainsKey(arg.Id)) continue;
+                    if (_placer._liveIn[target.Block].Contains(arg.Id) || !_info.Index.TryGetValue(arg.Id, out var index)) continue;
+                    if (_placer._remat.ContainsKey(arg.Id)) continue;
+                    var register = FindRegister(index);
+                    if (register < 0 || named[register] != Empty || claimed.Contains(arg.Id)) continue;
+                    named[register] = parameters[k];
+                    namedValue[register] = index;
+                    claimed.Add(arg.Id);
+                }
+
+            // Live-in values are in a register or in their home.
+            foreach (var i in LiveInto(target))
+            {
+                if (_info.DefPos[i] >= _pos || IsRemat(i)) continue;
+                var inRegister = !settle && FindRegister(i) >= 0;
+                if (!inRegister && !InH(i) && !EnsureHome(i, 0)) return false;
+            }
+
+            // Parameters not kept in a register are written to their homes. Placing
+            // those moves can displace a register that was to keep a parameter; such a
+            // parameter is moved after all.
+            if (hazard)
+            {
+                foreach (var arg in target.Args)
+                    if (arg is VirtualReg v && _info.Index.TryGetValue(v.Id, out var index) && !IsRemat(index)
+                        && !InH(index) && !EnsureHome(index, 0))
+                        return false;
+                Do(placer => placer.EmitEdgeMoves(target));
+                _r[A] = Empty;
+                _nz = Empty;
+                _c = Empty;
+            }
+            else
+            {
+                var kept = named.Where(n => n != Empty).ToHashSet();
+                foreach (var (parameter, source) in moves)
+                    if (!kept.Contains(parameter) && !MoveToParameter(parameter, source))
+                        return false;
+                bool displaced;
+                do
+                {
+                    displaced = false;
+                    for (var register = 0; register < 3; register++)
+                    {
+                        if (named[register] == Empty || _r[register] == namedValue[register]) continue;
+                        var parameter = named[register];
+                        named[register] = Empty;
+                        displaced = true;
+                        var move = moves.FirstOrDefault(m => m.Parameter == parameter);
+                        if (move.Source is not null && !MoveToParameter(parameter, move.Source)) return false;
+                    }
+                } while (displaced);
+            }
+            var keptParameters = named.Where(n => n != Empty).ToHashSet();
+
+            // Shared homes: the argument has to be in the home it shares.
+            for (var k = 0; k < parameters.Count; k++)
+            {
+                if (keptParameters.Contains(parameters[k]) || _placer._uses.GetValueOrDefault(parameters[k]) == 0) continue;
+                if (moves.Any(m => m.Parameter == parameters[k])) continue;
+                if (target.Args[k] is VirtualReg { IsDefinition: false } shared && !_placer._constants.ContainsKey(shared.Id))
+                {
+                    var content = ContentOf(shared);
+                    if (!InH(content) && !IsRemat(content) && !EnsureHome(content, 0)) return false;
+                }
+            }
+
+            var homed = new HashSet<int>();
+            var registers = new int[3];
+            for (var k = 0; k < 3; k++)
+            {
+                var content = _r[k];
+                registers[k] = settle ? Empty
+                    : named[k] != Empty ? named[k]
+                    : content >= 0 && content < ImmBase && _placer._liveIn[target.Block].Contains(_info.Vreg[content]) ? _info.Vreg[content]
+                    : Empty;
+            }
+            var inRegisters = registers.Where(r => r != Empty).ToHashSet();
+            foreach (var i in LiveInto(target))
+                if (_info.DefPos[i] < _pos && InH(i) && !inRegisters.Contains(_info.Vreg[i])) homed.Add(_info.Vreg[i]);
+            foreach (var parameter in parameters)
+                if (_placer._uses.GetValueOrDefault(parameter) > 0 && !inRegisters.Contains(parameter)) homed.Add(parameter);
+
+            Hand(target.Block, new Snapshot { R = registers, C = Empty, PtrLo = Empty, PtrHi = Empty, Homed = homed });
+            return true;
+        }
+
+        // A later edge into a join: the values it starts from, in the registers and
+        // the homes the first edge left them in.
+        private bool SatisfyEntry(BlockTarget target)
+        {
+            var contract = _placer.Contract(target.Block);
+            if (contract is null)
+            {
+                // Looking ahead from the join's first edge: the state it starts from is not
+                // chosen yet, so the edge is not charged for reaching it.
+                if (_placer._lookingAhead > 0) return true;
+                throw new InvalidOperationException(
+                    $"MOS6502BeamPlacement: an edge into a join of @{_placer.Function.Name} is placed before the join's state is known.");
+            }
+            var parameters = target.Block.Parameters;
+
+            // The content (a block-local index or a known byte) the join expects under a name.
+            int Source(int name)
+            {
+                var k = parameters.IndexOf(name);
+                if (k >= 0) return ContentOf(target.Args[k]);
+                return _info.Index.TryGetValue(name, out var index) ? index : Empty;
+            }
+
+            var moves = _placer.EdgeMoves(target);
+            var hazard = _placer.HasMoveHazard(moves);
+
+            if (hazard)
+            {
+                // Everything is read back from its home, so everything has to be in one.
+                foreach (var i in LiveInto(target))
+                    if (_info.DefPos[i] < _pos && !IsRemat(i) && !InH(i) && !EnsureHome(i, 0)) return false;
+                foreach (var arg in target.Args)
+                    if (arg is VirtualReg v && _info.Index.TryGetValue(v.Id, out var index) && !IsRemat(index)
+                        && !InH(index) && !EnsureHome(index, 0))
+                        return false;
+                Do(placer => placer.EmitEdgeMoves(target));
+                _r[A] = Empty;
+                _nz = Empty;
+                _c = Empty;
+            }
+            else
+            {
+                foreach (var name in contract.Homed.Order())
+                {
+                    if (parameters.Contains(name))
+                    {
+                        var move = moves.FirstOrDefault(m => m.Parameter == name);
+                        if (move.Source is not null) { if (!MoveToParameter(name, move.Source)) return false; continue; }
+                        var shared = Source(name);
+                        if (shared >= 0 && shared < ImmBase && !InH(shared) && !IsRemat(shared) && !EnsureHome(shared, 0)) return false;
+                        continue;
+                    }
+                    var value = Source(name);
+                    if (value >= 0 && value < ImmBase && !InH(value) && !IsRemat(value) && !EnsureHome(value, 0)) return false;
+                }
+            }
+
+            var pinned = 0;
+            foreach (var register in new[] { Y, X, A })
+            {
+                var name = contract.R[register];
+                if (name == Empty) continue;
+                var content = Source(name);
+                if (content == Empty || !PutIn(register, content, pinned)) return false;
+                pinned |= 1 << register;
+            }
+            return true;
+        }
+
+        // The home of a parameter <- its argument, from wherever the argument is.
+        private bool MoveToParameter(int parameter, MirOperand source)
+        {
+            var content = ContentOf(source);
+            if (!IsImm(content) && !InH(content) && !InF(content) && FindRegister(content) < 0
+                && !IsRemat(content) && !EnsureHome(content, 0))
+                return false;
+            var register = FindRegister(content);
+            if (register < 0)
+            {
+                register = PickScratch(0);
+                if (!PutIn(register, content)) return false;
+            }
+            Do(V(MOS6502Operation.Spill, RegisterPlace(register), Place.Home), MemRef.HomeOf(parameter));
+            return true;
         }
 
         // cf.br: the arguments go straight from where they are into the parameters'
@@ -1342,6 +1631,16 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public Work? Jump(MirInstruction instr)
         {
             var target = (BlockTarget)instr.Operands[0];
+
+            var role = _placer.RoleOf(_info.Block, target.Block);
+            if (role is ExitRole.Primary or ExitRole.Secondary)
+            {
+                if (!(role == ExitRole.Primary ? DefineEntry(target, SettleExits) : SatisfyEntry(target))) return null;
+                AddJumpCost();
+                Do(placer => placer.Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, [])));
+                return this;
+            }
+
             var moves = _placer.EdgeMoves(target);
             var hazard = _placer.HasMoveHazard(moves);
             if (hazard)
@@ -1382,10 +1681,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 }
             }
             CaptureExits(instr);
-            // A block that is nothing but the jump disappears in branch folding; one
-            // with code before it keeps the JMP (3 bytes, 3 cycles) unless it falls through.
-            if (_cost > 0)
-                _cost += 3L * _placer.Options.SizeWeight + 3L * _placer.Options.SpeedWeight * _info.Frequency;
+            AddJumpCost();
             Do(placer => placer.Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, [])));
             return this;
         }
@@ -1518,4 +1814,35 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // The branches of a cmp_br after its compare: one per exit, through a block of
     // moves when the exit passes arguments.
     internal void EmitCompareBranches(MirInstruction instr) => EmitBranches(instr);
+
+    // The code of the edges out of the branch being replayed, by operand.
+    private Dictionary<(MirInstruction Branch, int Operand), Step[]> _edgeSteps = [];
+
+    internal override BlockTarget ExitTarget(MirInstruction instr, int operandIndex, BlockTarget target)
+    {
+        if (!_edgeSteps.TryGetValue((instr, operandIndex), out var steps))
+            return EdgeTarget(target);
+        if (steps.Length == 0)
+            return new BlockTarget(target.Block, []);
+
+        var saved = (_out, _carryHolds);
+        _out = [];
+        _carryHolds = -1;
+        foreach (var step in steps)
+        {
+            if (step.Action is not null) step.Action(this);
+            else EmitVariant(step.Variant!, Resolve(step.Mem));
+        }
+        Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, []));
+
+        var edge = Function.CreateBlock();
+        _edgeBlocks.Add(edge);
+        foreach (var instr2 in _out)
+        {
+            instr2.Parent = edge;
+            edge.Instructions.Add(instr2);
+        }
+        (_out, _carryHolds) = saved;
+        return new BlockTarget(edge, []);
+    }
 }

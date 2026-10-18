@@ -69,11 +69,7 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
         return term;
     }
 
-    // Vregs that alias another one live into the block being checked (they hold the
-    // same value on entry), and the input they stand for.
-    private readonly Dictionary<int, int> _canonical = [];
-
-    private Term VregInput(int vreg) => Input($"v{_canonical.GetValueOrDefault(vreg, vreg)}");
+    private Term VregInput(int vreg) => Input($"v{vreg}");
 
     private Term Const(long value) => T("c", value & 0xFF);
     private Term Input(string name) => T("in", 0, name);
@@ -149,20 +145,10 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
         _function = placer.Function;
         _block = block;
         _events.Clear();
-        _canonical.Clear();
 
         // Hand-written code is passed through as it is: nothing to check against.
         if (!before.Any(i => i.Operands.Any(o => o is VirtualReg || o is BlockTarget { Args.Length: > 0 })))
             return;
-
-        // Without a record the predecessor was not checked (or has no vregs).
-        _record = null;
-        if (placer.IsInheriting(block))
-        {
-            if (!placer._exitRecords.TryGetValue(block, out var record)) return;
-            _record = (ExitRecord)record;
-            _rename = RenameInputs(_record);
-        }
 
         if (!TryBuildExpectation(before)) return;
         Simulate(after);
@@ -383,7 +369,7 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
 
     private void Simulate(List<MirInstruction> after)
     {
-        var state = _record is not null ? Inherit(_record) : ConventionalEntry();
+        var state = placer.Contract(_block) is { } contract ? Inherit(contract) : ConventionalEntry();
 
         _next = 0;
         if (!Execute(after, state, edgeOf: null))
@@ -392,39 +378,32 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
             Fail($"the code leaves out {_events.Count - _next} of the block's effects, the first being a {_events[_next].Describe}.");
     }
 
-    private ExitRecord? _record;
-    private Dictionary<Term, Term> _rename = [];
-
-    // The input each term held on the edge in stands for here. Live-in vregs that
-    // hold the same value (a copy) are one input.
-    private Dictionary<Term, Term> RenameInputs(ExitRecord record)
+    // The state a block that starts from a snapshot starts in: the registers and the
+    // homes the snapshot names hold the inputs they are named for; the code of every
+    // edge into the block is checked to deliver exactly that (CheckContract).
+    private State Inherit(Snapshot contract)
     {
-        var rename = new Dictionary<Term, Term>();
-        foreach (var (vreg, term) in record.Homes.OrderBy(h => h.Key))
-        {
-            if (rename.TryAdd(term, Input($"v{vreg}"))) continue;
-            _canonical[vreg] = int.Parse(rename[term].Text!.AsSpan(1));
-        }
-        return rename;
-    }
+        const int ImmBase = Snapshot.ImmBase;
 
-    // What the predecessor's exit state holds, renamed to the way this block's
-    // expectation names its inputs: a location that held the value of a live-in
-    // vreg now holds that vreg's input; known bytes stay, anything else is unknown.
-    private State Inherit(ExitRecord record)
-    {
-        Term Map(Term term) =>
-            term.Kind is "c" or "sym" ? term
-            : _rename.TryGetValue(term, out var input) ? input
-            : Unknown();
+        // Only what is live into the block counts; a register may hold a dead value.
+        bool Wanted(int name) =>
+            name >= ImmBase || placer._liveIn[_block].Contains(name) || _block.Parameters.Contains(name);
+        Term? Of(int name) =>
+            name == Snapshot.Empty || !Wanted(name) ? null
+            : name >= ImmBase ? Const(name - ImmBase)
+            : placer._remat.TryGetValue(name, out var remat) ? SymbolByte(remat.Symbol.Name, remat.Half)
+            : VregInput(name);
 
-        var state = new State { C = Map(record.State.C), Nz = Unknown() };
-        for (var k = 0; k < 3; k++) state.R[k] = Map(record.State.R[k]);
-        foreach (var (register, term) in record.State.Memory)
-        {
-            var mapped = Map(term);
-            if (mapped.Kind != "unk") state.Memory[register] = mapped;
-        }
+        var state = new State { C = Of(contract.C) ?? Unknown(), Nz = Unknown() };
+        for (var k = 0; k < 3; k++)
+            state.R[k] = Of(contract.R[k]) ?? Unknown();
+        if (Of(contract.PtrLo) is { } lo) state.Memory[MOS6502Variants.PointerLo] = lo;
+        if (Of(contract.PtrHi) is { } hi) state.Memory[MOS6502Variants.PointerHi] = hi;
+        foreach (var vreg in contract.Homed.Where(Wanted))
+            if (placer.TryGetHome(vreg, out var home))
+                state.Memory[home] = placer._remat.TryGetValue(vreg, out var remat)
+                    ? SymbolByte(remat.Symbol.Name, remat.Half)
+                    : VregInput(vreg);
         return state;
     }
 
@@ -446,10 +425,6 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
                     : VregInput(vreg);
         return state;
     }
-
-    // The state on the edge into an inheriting block, and what each live-in vreg is
-    // there.
-    private sealed record ExitRecord(State State, Dictionary<int, Term> Homes);
 
     private Event Expect(EventKind kind, string what)
     {
@@ -740,13 +715,47 @@ internal sealed class PlacementChecker(MOS6502NaivePlacementPass.Placer placer)
         && int.TryParse(text.AsSpan(1), out var other) && placer.HomeKey(other) == placer.HomeKey(vreg);
 
     // On an exit, the homes hold what the successor expects.
+    //
+    // A successor that starts from a snapshot (ExitRole) takes the registers as they
+    // are: the first edge into it records its state for the block's own check, and
+    // every edge into it, the first included, is checked against the snapshot the
+    // block starts from.
+    private void CheckContract(State s, Event exit, Snapshot contract)
+    {
+        const int ImmBase = Snapshot.ImmBase;
+        for (var k = 0; k < 3; k++)
+        {
+            var name = contract.R[k];
+            if (name == Snapshot.Empty) continue;
+            Term expected;
+            if (name >= ImmBase) expected = Const(name - ImmBase);
+            else if (!exit.Homes.TryGetValue(name, out expected!)) continue;   // a dead value the registers happen to hold
+            if (s.R[k] != expected)
+                Fail($"{exit.Describe}: ${RegisterName(k)} holds {s.R[k]}, the successor expects {expected} (v{name}).");
+        }
+
+        foreach (var name in contract.Homed)
+        {
+            if (!exit.Homes.TryGetValue(name, out var term) || placer._remat.ContainsKey(name)) continue;
+            if (!placer.TryGetHome(name, out var home))
+            {
+                if (term != VregInput(name) && !SharesHome(term, name))
+                    Fail($"{exit.Describe}: v{name} is expected in its home but was never stored (it is {term}).");
+                continue;
+            }
+            var actual = s.Memory.TryGetValue(home, out var held) ? held : Unknown();
+            if (actual != term)
+                Fail($"{exit.Describe}: the home ${RegisterName(home)} of v{name} holds {actual}, expected {term}.");
+        }
+    }
+
     private void CheckHomes(State s, Event exit)
     {
-        // An inheriting successor takes the registers as they are: its own check
-        // starts from this state.
-        if (placer.IsInheriting(exit.Target!))
+        var role = placer.RoleOf(_block, exit.Target!);
+        if (role != ExitRole.Conventional)
         {
-            placer._exitRecords[exit.Target!] = new ExitRecord(s.Clone(), exit.Homes);
+            if (placer.Contract(exit.Target!) is { } contract)
+                CheckContract(s, exit, contract);
             return;
         }
         foreach (var (vreg, term) in exit.Homes)
