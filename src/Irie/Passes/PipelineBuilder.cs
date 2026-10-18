@@ -12,6 +12,11 @@ public enum PlacementStrategy
     // Shape selection emits unpinned operations and the trivial placement homes
     // every value: correct, slow, and independent of any register allocator.
     Naive,
+
+    // Shape selection as for Naive, then a beam search over what the registers hold
+    // within each block (MOS6502BeamPlacementPass): operands stay in A, X and Y
+    // when that is cheaper than a home.
+    Beam,
 }
 
 // The single definition of the Irie pass pipeline, shared by `iriec` and `dnrc`
@@ -32,14 +37,16 @@ public static class PipelineBuilder
         // Target pre-isel passes (e.g. MOS6502 select-lowering) run on legalized,
         // still-SSA MIR — the llvm-mos slot for MOSLowerSelect.
         target.AddPreInstructionSelectionPasses(passMgr);
-        if (placement == PlacementStrategy.Naive)
+        if (placement is PlacementStrategy.Naive or PlacementStrategy.Beam)
         {
             // Shape selection: unpinned operations on typed vregs, then a
             // placement that gives every value a home. There are no register
             // classes, no phi elimination and no allocation: block parameters
             // become writes of the parameters' homes on each edge.
             passMgr.AddPass(new InstructionSelectorPass(target.CreateShapeSelector()));
-            passMgr.AddPass(target.CreateNaivePlacementPass());
+            passMgr.AddPass(placement == PlacementStrategy.Beam
+                ? target.CreateBeamPlacementPass()
+                : target.CreateNaivePlacementPass());
             passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
             passMgr.AddPass(new FrameLoweringPass());
             target.AddBranchFoldingPasses(passMgr);

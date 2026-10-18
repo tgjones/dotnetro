@@ -1,0 +1,33 @@
+; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "live_across_call(*)"
+
+; A value live across a call is stored before the call, in its home (homes of a
+; function sit above those of its callees, so the call leaves it alone); nothing is
+; saved around the call itself.
+
+; CHECK: g:
+; CHECK:     RTS
+; CHECK:
+; CHECK: live_across_call:
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     JSR g
+; CHECK:     CLC
+; CHECK:     ADC $14
+; CHECK:     TAY
+; CHECK:     TXA
+; CHECK:     ADC $15
+; CHECK:     TAX
+; CHECK:     TYA
+; CHECK:     RTS
+
+func @g : (i16) -> i16 {
+bb0(%0 : i16):
+    core.return %0
+}
+func @live_across_call : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = call.func @g, %0
+    %2 : i16 = arith.addi %1, %0
+    core.return %2
+}

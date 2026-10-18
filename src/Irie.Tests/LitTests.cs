@@ -1,4 +1,4 @@
-using DotLit;
+﻿using DotLit;
 
 namespace Irie.Tests;
 
@@ -21,6 +21,17 @@ public sealed class LitTests
         var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
         var variables = configuration.Variables.SetItem(
             "irie-exec", configuration.Variables["irie-exec"] + " --placement naive");
+        LitTestRunner.Run(filePath, configuration with { Variables = variables });
+    }
+
+    // And with the beam placement (values kept in registers within blocks).
+    [Test]
+    [MethodDataSource(nameof(ExecLitTestSource))]
+    public void ExecLitTestBeamPlacement(string filePath)
+    {
+        var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
+        var variables = configuration.Variables.SetItem(
+            "irie-exec", configuration.Variables["irie-exec"] + " --placement beam");
         LitTestRunner.Run(filePath, configuration with { Variables = variables });
     }
 

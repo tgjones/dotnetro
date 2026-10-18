@@ -23,6 +23,16 @@ public sealed class LitTests
         LitTestRunner.Run(filePath, configuration with { Variables = variables });
     }
 
+    // And with the beam placement (values kept in registers within blocks).
+    [Test]
+    [MethodDataSource(nameof(LitTestSource))]
+    public void LitTestBeamPlacement(string filePath)
+    {
+        var configuration = LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration());
+        var variables = configuration.Variables.SetItem("dnrc", configuration.Variables["dnrc"] + " --placement beam");
+        LitTestRunner.Run(filePath, configuration with { Variables = variables });
+    }
+
     public static IEnumerable<Func<string>> LitTestSource()
     {
         var result = new List<Func<string>>();

@@ -60,13 +60,15 @@ public class MOS6502Target : Irie.Target.Target
 
     public override Pass CreateNaivePlacementPass() => new MOS6502NaivePlacementPass();
 
+    public override Pass CreateBeamPlacementPass() => new MOS6502BeamPlacementPass();
+
     // The naive placement emits concrete ops on homes already, so none of the
     // passes that refine or reorder register-allocator output run; only the
     // recursion saves and the program layout, which may put homes in absolute
     // memory when zero page runs out.
     public override void AddPostPlacementPasses(Irie.Passes.PassManager pm, PlacementStrategy placement)
     {
-        if (placement != PlacementStrategy.Naive)
+        if (placement == PlacementStrategy.Colouring)
         {
             AddPostRegisterAllocationPasses(pm);
             return;

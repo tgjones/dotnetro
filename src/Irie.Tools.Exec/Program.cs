@@ -15,7 +15,7 @@ var maxTicksOption = new Option<int>("--max-ticks") { Description = "Emulator ti
 
 var placementOption = new Option<string>("--placement")
 {
-    Description = "How the compiled code places values: 'colouring' (default) or 'naive' (every value in a home)",
+    Description = "How the compiled code places values: 'colouring' (default), 'naive' (every value in a home) or 'beam'",
     DefaultValueFactory = _ => "colouring",
 };
 
@@ -46,6 +46,7 @@ rootCommand.SetAction(parseResult =>
     {
         "colouring" => PlacementStrategy.Colouring,
         "naive"     => PlacementStrategy.Naive,
+        "beam"      => PlacementStrategy.Beam,
         var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
     };
 

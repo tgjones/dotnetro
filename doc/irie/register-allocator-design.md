@@ -1,7 +1,7 @@
 # A register allocator for the 6502 — design
 
-**Status:** proposal; the steering decisions are recorded in §7. S0, S1 and S2 are
-done (progress below the stage table in §5); nothing of S3–S7 is implemented.
+**Status:** proposal; the steering decisions are recorded in §7. S0, S1, S2 and S3
+are done (progress below the stage table in §5); nothing of S4–S7 is implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -629,6 +629,77 @@ are separate passes), next to the colouring path, selected by `--placement naive
   symbol load into `ADC abs` and no `INC`/`DEC`/`INX`/`INY` variants (the table has
   the costs, nothing selects them before S3); no placement-specific verifier — the
   post-placement verifier and the executed tests are the check until S3.
+
+**S3 progress (2026-10-18):** done, as a third strategy, `--placement beam`
+(`PlacementStrategy.Beam`; `iriec`, `dnrc`, `irie-exec`), next to the colouring and
+naive paths. The exit criterion is **not met**: beam placement is far better than the
+naive baseline but still larger than the colouring allocator, for the reason the
+stage's own design predicts (see the result).
+- **The search.** `MOS6502BeamPlacementPass` runs a beam search (K = 8) over the
+  operations between two barriers. A state is what A, X, Y, C and N/Z hold, what the
+  scratch pointer pair holds, which values are in their homes, and which arguments are
+  still in the zero-page registers they arrived in. For each operation every variant
+  of `MOS6502Variants` (operands in this register or that) turns a state into a
+  successor by a fixed sequence of moves: save what the variant overwrites, put the
+  operands in place, emit the variant. A value is stored to its home lazily, when
+  something is about to overwrite its only copy; the save is either a store or a
+  transfer to a free register (`TAY`), and both are tried. Costs are
+  `bytes × w_size + cycles × w_speed × block frequency` (both weights 1; options on
+  `BeamPlacementOptions`), taken from the variant table, so the cost of a placement is
+  what it emits. K = 1 gives 4068 corpus bytes, K = 4 gives 4000, and K = 8, 16 and 32
+  give 3993 and below, so 8 is enough here.
+- **Where it searches.** Within a block: ALU, shifts, compares, `inc`/`dec`, loads and
+  stores through a symbol or a pointer pair, the runs of copies that set up a call or
+  a return (a parallel move into A, X, Y and the argument registers), and `cf.br`.
+  Barriers (calls, frame accesses, the hand-written runtime) are placed as the naive
+  placement does. Across blocks nothing changed from S2: every live value is in its
+  home and the registers are empty. The pointer pair is a tracked location, so a second
+  access through the same pointer sets nothing up.
+- **What S2's table could not use, now available.** `mos6502.inc` / `dec` come from
+  shape selection (a byte add or subtract of one) and have `INX`, `INY` and
+  `CLC; ADC #1` variants; the transfers `TAX`, `TAY`, `TXA`, `TYA` are variants too.
+  Arguments that arrive in zero-page registers stay there for the whole function when
+  it has no call and no copy into a fixed register (they are their own homes), and are
+  otherwise read from there until the first thing that could overwrite them. A `br`
+  stores its arguments into the parameters' homes straight from wherever they are.
+- **Independent check.** `PlacementChecker` runs every block symbolically twice, as
+  shape MIR and as the emitted code, and compares the stores, calls, branches (with the
+  flags they test), the return registers and, on every exit, the home of every value
+  live into the successor (§3.10, per block). It runs on the naive and the beam
+  placement of every compile (`IRIE_NO_PLACEMENT_CHECK` turns it off; the cost is
+  below the noise of a compile). It found no fault in the naive placement, which
+  validates the checker, and it flags the four faults the tests found in the beam
+  placement during development when they are put back: a save-by-move that clobbered
+  the pointer offset in Y or the source of the transfer that follows, a flag overwritten
+  between a load and the branch on it, and an edge move that read the wrong home. Blocks
+  holding an operation it does not model are left unchecked, silently.
+- **Fixed on the way.** `LdaImmSymLo/Hi`, `LdxImmSymLo/Hi`, `INX`/`INY`/`DEX`/`DEY` and
+  `INC`/`DEC zp` were not declared as writing N and Z, so the late optimisation could
+  drop a `cmp #0` over a load of an address byte that had overwritten the flags.
+- **Result** (same measurements as S1 and S2):
+
+  | Set | Colouring | Naive | Beam |
+  |---|--:|--:|--:|
+  | `LlvmMosReference` corpus code, bytes (43 cases) | 3660 | 5076 | 3985 (+8.9%) |
+  | C# lit programs, bytes (114 programs) | 170208 | 237403 | 187417 (+10.1%) |
+  | C# benchmark kernels, bytes (6 programs) | 12704 | 17958 | 14009 (+10.3%) |
+  | Corpus cycles of the functions under test (43 functions) | 5 903 825 | 6 395 491 | 6 073 692 (+2.9%) |
+
+  Against colouring, beam placement is smaller on 7 corpus cases (`bitops`,
+  `shift-const`, `loop-sum-array`, `array-index`, `two-pointer-copy`, `many-calls`,
+  `pressure-i16`) and equal on 11 (every straight-line function: the arguments stay
+  where they arrive and the result is built where it is returned); it is faster on
+  7 and equal on 12. It is larger on the other 25, which are all functions with several
+  blocks, and the loss is the block boundary: `crc8` is 230 bytes against 155,
+  `early-return` 87 against 39, because every value that crosses a boundary is stored
+  and reloaded and every phi is a store of the parameter's home.
+- **Left for later stages.** Placement across blocks and home classes (S4) are what
+  close that gap: the values of a loop header kept in registers, and a phi sharing the
+  home of its argument. Not done and not needed to show the gap: the memory-destination
+  forms (`INC zp`, `ASL zp`; they only pay once a result can share its operand's
+  home, which is S4), the `abs,X` / `abs,Y` loads and stores (the selector would have to
+  fold an index into the address), edge moves from registers for the exits of a
+  `cmp_br`, and callee-chosen conventions (S6).
 
 ### Work outside the allocator that still limits quality
 

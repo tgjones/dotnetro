@@ -87,7 +87,7 @@ Two layers:
 
 ### Test Framework
 
-`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each is also run with `dnrc --placement naive` (`LitTestNaivePlacement`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
+`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each is also run with `dnrc --placement naive` and `--placement beam` (`LitTestNaivePlacement`, `LitTestBeamPlacement`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
 
 #### Lit `CHECK` blocks: keep them strict (complete listings)
 

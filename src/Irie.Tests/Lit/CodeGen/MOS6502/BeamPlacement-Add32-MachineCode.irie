@@ -1,0 +1,31 @@
+; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "add_i32(*, *)"
+
+; The beam placement: the arguments of an add arrive in A, X and the zero-page
+; registers, and the add reads them from where they are. The carry stays in C from one
+; ADC to the next, an intermediate byte that is still needed is parked in a free
+; register (TAY) rather than stored, and the result is built in A and X for the return.
+
+; CHECK: add_i32:
+; CHECK:     CLC
+; CHECK:     ADC $04
+; CHECK:     STA $14
+; CHECK:     TXA
+; CHECK:     ADC $05
+; CHECK:     TAX
+; CHECK:     LDA $02
+; CHECK:     ADC $06
+; CHECK:     TAY
+; CHECK:     LDA $03
+; CHECK:     ADC $07
+; CHECK:     STY $02
+; CHECK:     STA $03
+; CHECK:     STA $15
+; CHECK:     LDA $14
+; CHECK:     RTS
+
+func @add_i32 : (i32, i32) -> i32 {
+bb0(%0 : i32, %1 : i32):
+    %2 : i32 = arith.addi %0, %1
+    core.return %2
+}

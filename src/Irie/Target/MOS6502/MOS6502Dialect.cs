@@ -338,6 +338,10 @@ public sealed class MOS6502Dialect : Dialect
                 or MOS6502Op.LdxAbs or MOS6502Op.LdxAbsY
                 or MOS6502Op.LdyImm or MOS6502Op.LdyZp or MOS6502Op.LdyZpX
                 or MOS6502Op.LdyAbs or MOS6502Op.LdyAbsX
+                or MOS6502Op.LdaImmSymLo or MOS6502Op.LdaImmSymHi
+                or MOS6502Op.LdxImmSymLo or MOS6502Op.LdxImmSymHi
+                or MOS6502Op.Inx or MOS6502Op.Iny or MOS6502Op.Dex or MOS6502Op.Dey
+                or MOS6502Op.IncZp or MOS6502Op.DecZp
                 or MOS6502Op.Tax or MOS6502Op.Tay
                 or MOS6502Op.Txa or MOS6502Op.Tya
                 or MOS6502Op.Tsx => NZFlagSettingInfo,

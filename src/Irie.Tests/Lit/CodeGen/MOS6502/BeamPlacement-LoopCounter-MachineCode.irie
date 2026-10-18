@@ -1,0 +1,69 @@
+; RUN: @iriec --target mos6502 --placement beam --emit=asm @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --placement beam --exec "loop_counter(*)"
+
+; A loop: values live across the block boundaries are in their homes, as in the naive
+; placement, but inside a block the registers carry values between operations, and a
+; branch passes its arguments to the parameters' homes straight from the register that
+; holds them.
+
+; CHECK: loop_counter:
+; CHECK:     STA $14
+; CHECK:     STX $15
+; CHECK:     LDY #$00
+; CHECK:     STY $16
+; CHECK:     STY $17
+; CHECK:     STY $18
+; CHECK:     STY $19
+; CHECK: .bb1:
+; CHECK:     LDA $17
+; CHECK:     EOR #$80
+; CHECK:     TAX
+; CHECK:     LDA $15
+; CHECK:     EOR #$80
+; CHECK:     STA $1A
+; CHECK:     CPX $1A
+; CHECK:     BCC .bb3
+; CHECK:     BNE .bb2
+; CHECK:     LDA $16
+; CHECK:     CMP $14
+; CHECK:     BCC .bb3
+; CHECK: .bb2:
+; CHECK:     LDX $19
+; CHECK:     LDA $18
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     CLC
+; CHECK:     LDA $18
+; CHECK:     ADC $16
+; CHECK:     TAX
+; CHECK:     LDA $19
+; CHECK:     ADC $17
+; CHECK:     CLC
+; CHECK:     TAY
+; CHECK:     LDA $16
+; CHECK:     ADC #$01
+; CHECK:     STA $1B
+; CHECK:     LDA $17
+; CHECK:     ADC #$00
+; CHECK:     STA $17
+; CHECK:     STX $18
+; CHECK:     STY $19
+; CHECK:     LDA $1B
+; CHECK:     STA $16
+; CHECK:     JMP .bb1
+
+func @loop_counter : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 0
+    cf.br bb1(%1, %1)
+bb1(%2 : i16, %3 : i16):
+    %4 : i1 = arith.cmpi slt, %2, %0
+    cf.cond_br %4, bb2(), bb3()
+bb2():
+    %5 : i16 = arith.addi %3, %2
+    %6 : i16 = arith.constant 1
+    %7 : i16 = arith.addi %2, %6
+    cf.br bb1(%7, %5)
+bb3():
+    core.return %3
+}

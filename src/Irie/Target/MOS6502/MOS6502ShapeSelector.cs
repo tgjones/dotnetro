@@ -7,8 +7,8 @@ using Irie.Mir;
 namespace Irie.Target.MOS6502;
 
 // Shape selection: legalized generic MIR -> the unpinned byte operations of the
-// mos6502 dialect (adc, sbc, and, ora, eor, shle, lshre, cmp_br, load, store,
-// const), with the register pinning left out.
+// mos6502 dialect (adc, sbc, inc, dec, and, ora, eor, shle, lshre, cmp_br, load,
+// store, const), with the register pinning left out.
 //
 // It keeps what MOS6502InstructionSelector does well and drops the part that
 // decides placement:
@@ -141,10 +141,21 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
     // arith.addi / arith.subi on bytes: the carry-less form is an adc / sbc whose
     // carry in is a constant (0 for add, 1 for sub: the 6502 "no borrow") and whose
     // carry out nobody reads.
+    //
+    // A step of one (x + 1, x - 1, x + 0xFF, x - 0xFF) is an inc or a dec instead: the
+    // 6502 has INX, INY and INC for it, and a placement chooses among them.
     private static bool SelectBareAddSub(MirInstruction instr, MirBuilder builder, MOS6502Op op, int carryIn)
     {
         var function = builder.Function;
         builder.SetInsertionPointBefore(instr);
+
+        if (TryGetIncDec(function, instr, op, out var step, out var source))
+        {
+            builder.BuildInstruction(MOS6502Dialect.OpRef(step), instr.Operands[0], source);
+            builder.Remove(instr);
+            return true;
+        }
+
         var carryInVreg = function.CreateVirtualRegister(IRType.I1);
         builder.BuildInstruction(
             MOS6502Dialect.OpRef(MOS6502Op.Const),
@@ -160,6 +171,50 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
             instr.Operands[2],
             new VirtualReg(carryInVreg, IsDefinition: false));
         builder.Remove(instr);
+        return true;
+    }
+
+    // Whether `%r = addi|subi %a, %b` adds or subtracts one: the op to build and the
+    // operand that is stepped. Adding is commutative, so the constant may be either.
+    private static bool TryGetIncDec(
+        MirFunction function, MirInstruction instr, MOS6502Op op, out MOS6502Op step, out MirOperand source)
+    {
+        step = default;
+        source = instr.Operands[1];
+        var isAdd = op == MOS6502Op.Adc;
+
+        if (TryGetByteConstant(function, instr.Operands[2], out var value))
+            source = instr.Operands[1];
+        else if (isAdd && TryGetByteConstant(function, instr.Operands[1], out value))
+            source = instr.Operands[2];
+        else
+            return false;
+
+        if (source is not VirtualReg { IsDefinition: false }) return false;
+        if (value is not (1 or 0xFF)) return false;
+        step = (value == 1) == isAdd ? MOS6502Op.Inc : MOS6502Op.Dec;
+        return true;
+    }
+
+    private static bool TryGetByteConstant(MirFunction function, MirOperand operand, out long value)
+    {
+        value = 0;
+        if (operand is Immediate immediate)
+        {
+            value = immediate.Value & 0xFF;
+            return true;
+        }
+        if (operand is not VirtualReg { IsDefinition: false } use
+            || function.GetDefinition(use.Id) is not { } definition
+            || definition.Operands.Length < 2
+            || definition.Operands[1] is not Immediate constant)
+            return false;
+
+        var isConstant =
+            (definition.Opcode.Dialect == ArithDialect.Id && (ArithOp)definition.Opcode.Code == ArithOp.Constant)
+            || (definition.Opcode.Dialect == MOS6502Dialect.Id && (MOS6502Op)definition.Opcode.Code == MOS6502Op.Const);
+        if (!isConstant) return false;
+        value = constant.Value & 0xFF;
         return true;
     }
 

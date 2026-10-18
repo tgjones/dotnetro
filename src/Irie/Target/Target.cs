@@ -51,6 +51,9 @@ public abstract class Target
     public virtual Irie.Passes.Pass CreateNaivePlacementPass() =>
         throw new NotSupportedException("This target has no naive placement (PlacementStrategy.Naive).");
 
+    public virtual Irie.Passes.Pass CreateBeamPlacementPass() =>
+        throw new NotSupportedException("This target has no beam placement (PlacementStrategy.Beam).");
+
     // The post-placement passes that take the place of AddPostRegisterAllocationPasses
     // for a strategy: by default, the same.
     public virtual void AddPostPlacementPasses(Irie.Passes.PassManager pm, Irie.Passes.PlacementStrategy placement) =>

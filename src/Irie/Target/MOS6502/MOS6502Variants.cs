@@ -20,6 +20,9 @@ public enum MOS6502Operation
     Const,    // register <- constant or address byte
     Reload,   // register <- the home of a value
     Spill,    // home <- register
+    Inc,      // one added to a byte (mos6502.inc)
+    Dec,      // one subtracted from a byte (mos6502.dec)
+    Transfer, // register <- another register (TAX, TXA, TAY, TYA); `Memory` is the source
 }
 
 // Where an operand of a variant has to be.
@@ -157,6 +160,21 @@ public static class MOS6502Variants
         Add(MOS6502Operation.Const, "clc", Place.Carry, Place.Imm, MOS6502Op.Clc);
         Add(MOS6502Operation.Const, "sec", Place.Carry, Place.Imm, MOS6502Op.Sec);
 
+        // Steps of one. A has no INC / DEC: CLC; ADC #1 and SEC; SBC #1 do it (and
+        // write the carry, which the cost of a search sees through the clobber).
+        Add(MOS6502Operation.Inc, "inx", Place.X, Place.None, MOS6502Op.Inx);
+        Add(MOS6502Operation.Inc, "iny", Place.Y, Place.None, MOS6502Op.Iny);
+        Add(MOS6502Operation.Inc, "acc", Place.A, Place.Imm,  MOS6502Op.Clc, MOS6502Op.AdcImm);
+        Add(MOS6502Operation.Dec, "dex", Place.X, Place.None, MOS6502Op.Dex);
+        Add(MOS6502Operation.Dec, "dey", Place.Y, Place.None, MOS6502Op.Dey);
+        Add(MOS6502Operation.Dec, "acc", Place.A, Place.Imm,  MOS6502Op.Sec, MOS6502Op.SbcImm);
+
+        // Transfers between the registers: `Register` is the destination.
+        Add(MOS6502Operation.Transfer, "tax", Place.X, Place.A, MOS6502Op.Tax);
+        Add(MOS6502Operation.Transfer, "tay", Place.Y, Place.A, MOS6502Op.Tay);
+        Add(MOS6502Operation.Transfer, "txa", Place.A, Place.X, MOS6502Op.Txa);
+        Add(MOS6502Operation.Transfer, "tya", Place.A, Place.Y, MOS6502Op.Tya);
+
         // Moves between a register and the home of a value.
         Add(MOS6502Operation.Reload, "zp", Place.A, Place.Home, MOS6502Op.LdaZp);
         Add(MOS6502Operation.Reload, "zp", Place.X, Place.Home, MOS6502Op.LdxZp);
@@ -228,6 +246,14 @@ public static class MOS6502Variants
             MOS6502Op.RolAcc or MOS6502Op.RorAcc => [Def(A), Def(C), Use(A), Use(C)],
 
             MOS6502Op.Clc or MOS6502Op.Sec => [Def(C)],
+
+            MOS6502Op.Inx or MOS6502Op.Dex => [ImplicitDef(X), ImplicitUse(X)],
+            MOS6502Op.Iny or MOS6502Op.Dey => [ImplicitDef(Y), ImplicitUse(Y)],
+
+            MOS6502Op.Tax => [Def(X), Use(A)],
+            MOS6502Op.Tay => [Def(Y), Use(A)],
+            MOS6502Op.Txa => [Def(A), Use(X)],
+            MOS6502Op.Tya => [Def(A), Use(Y)],
 
             _ => throw new NotSupportedException($"MOS6502Variants.Layout: no operand layout for {op}."),
         };

@@ -302,6 +302,7 @@ public enum MOS6502Op : ushort
     // %r, %cout = mos6502.adc %a, %b, %cin     %r = %a + %b + %cin, %cout the carry
     // %r, %cout = mos6502.sbc %a, %b, %cin     %r = %a - %b - !%cin, %cout the no-borrow
     //                                          (6502 carry polarity: 1 = no borrow)
+    // %r = mos6502.inc|dec %a                  %r = %a + 1 | %a - 1 (no carry in or out)
     // %r = mos6502.and|ora|eor %a, %b
     // %c = mos6502.cmp %a, %b                  %c = (%a >=u %b), the carry a CMP leaves: the
     //                                          sign seed of an arithmetic shift right

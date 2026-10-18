@@ -27,8 +27,8 @@ var printChanged = new Option<bool>("--print-changed") { Description = "Like --p
 
 var placementOption = new Option<string>("--placement")
 {
-    Description = "How values are placed: 'colouring' (default; register-class pinning and a graph-colouring allocator) " +
-                  "or 'naive' (shape selection and a placement that gives every value a home)",
+    Description = "How values are placed: 'colouring' (default; register-class pinning and a graph-colouring allocator), " +
+                  "'naive' (shape selection and a placement that gives every value a home) or 'beam' (shape selection and a beam search within blocks)",
     DefaultValueFactory = _ => "colouring",
 };
 
@@ -81,6 +81,7 @@ rootCommand.SetAction(parseResult =>
     {
         "colouring" => PlacementStrategy.Colouring,
         "naive"     => PlacementStrategy.Naive,
+        "beam"      => PlacementStrategy.Beam,
         var other   => throw new ArgumentException($"Unknown --placement '{other}'."),
     };
     PipelineBuilder.AddStandardPipeline(passMgr, target, placement);

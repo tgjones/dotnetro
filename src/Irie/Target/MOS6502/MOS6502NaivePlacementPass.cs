@@ -39,22 +39,34 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
     public override void Run(MirFunction function) => new Placer(function).Run();
 
-    private sealed class Placer(MirFunction function)
+    // The placer is shared with MOS6502BeamPlacementPass, which replaces how the
+    // operations of a block are placed and reuses everything else (copies, edges,
+    // live-ins).
+    internal class Placer(MirFunction function)
     {
-        private const int A = MOS6502Registers.A;
-        private const int X = MOS6502Registers.X;
-        private const int Y = MOS6502Registers.Y;
-        private const int C = MOS6502Registers.C;
+        internal MirFunction Function => function;
+        internal const int A = MOS6502Registers.A;
+        internal const int X = MOS6502Registers.X;
+        internal const int Y = MOS6502Registers.Y;
+        internal const int C = MOS6502Registers.C;
 
-        private readonly Dictionary<int, long> _constants = [];
-        private readonly Dictionary<int, int> _uses = [];
-        private readonly Dictionary<int, int> _homes = [];
-        private int _nextHome;
+        internal readonly Dictionary<int, long> _constants = [];
+        internal readonly Dictionary<int, int> _uses = [];
+        internal readonly Dictionary<int, int> _homes = [];
+        internal int _nextHome;
+
+        // Address bytes (`const @sym, half`), which cost one load wherever they are
+        // needed; the vregs live into and out of each block; the blocks that only move
+        // a conditional exit's arguments.
+        internal readonly Dictionary<int, (Symbol Symbol, long Half)> _remat = [];
+        internal readonly Dictionary<MirBlock, HashSet<int>> _liveIn = [];
+        internal readonly Dictionary<MirBlock, HashSet<int>> _liveOut = [];
+        internal readonly HashSet<MirBlock> _edgeBlocks = [];
 
         // The instructions of the block being placed, and the vreg whose value the
         // carry flag is known to hold right now (-1: none).
-        private List<MirInstruction> _out = [];
-        private int _carryHolds = -1;
+        internal List<MirInstruction> _out = [];
+        internal int _carryHolds = -1;
 
         public void Run()
         {
@@ -64,11 +76,15 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
                 {
                     if (IsOp(instr, MOS6502Op.Const) && instr.Operands[1] is Immediate imm)
                         _constants[((VirtualReg)instr.Operands[0]).Id] = imm.Value;
+                    else if (IsOp(instr, MOS6502Op.Const) && instr.Operands[1] is Symbol symbol)
+                        _remat[((VirtualReg)instr.Operands[0]).Id] = (symbol, ((Immediate)instr.Operands[2]).Value);
                     foreach (var operand in instr.Operands)
                         CountUse(operand);
                 }
             }
 
+            ComputeLiveness();
+            BeforePlacement();
             foreach (var block in function.Blocks.ToList())
                 PlaceBlock(block);
 
@@ -81,7 +97,79 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             RecomputeLiveIns();
         }
 
-        private void CountUse(MirOperand operand)
+        // ------------------------------------------------------------------
+        // Liveness
+        // ------------------------------------------------------------------
+
+        // Vregs that need a home: everything but the immediate constants.
+        internal bool NeedsHome(int vreg) => !_constants.ContainsKey(vreg);
+
+        internal IEnumerable<VirtualReg> Uses(MirInstruction instr)
+        {
+            foreach (var operand in instr.Operands)
+            {
+                if (operand is VirtualReg { IsDefinition: false } use && NeedsHome(use.Id))
+                    yield return use;
+                else if (operand is BlockTarget target)
+                    foreach (var arg in target.Args)
+                        if (arg is VirtualReg { IsDefinition: false } argument && NeedsHome(argument.Id))
+                            yield return argument;
+            }
+        }
+
+        internal IEnumerable<VirtualReg> Defs(MirInstruction instr) =>
+            instr.Operands.OfType<VirtualReg>().Where(v => v.IsDefinition && NeedsHome(v.Id));
+
+        internal void ComputeLiveness()
+        {
+            function.RebuildCfg();
+            var gen = new Dictionary<MirBlock, HashSet<int>>();
+            var kill = new Dictionary<MirBlock, HashSet<int>>();
+            foreach (var block in function.Blocks)
+            {
+                var defined = block.Parameters.Where(NeedsHome).ToHashSet();
+                var used = new HashSet<int>();
+                foreach (var instr in block.Instructions)
+                {
+                    foreach (var use in Uses(instr))
+                        if (!defined.Contains(use.Id)) used.Add(use.Id);
+                    foreach (var def in Defs(instr))
+                        defined.Add(def.Id);
+                }
+                gen[block] = used;
+                kill[block] = defined;
+                _liveIn[block] = [];
+                _liveOut[block] = [];
+            }
+
+            bool changed;
+            do
+            {
+                changed = false;
+                for (var i = function.Blocks.Count - 1; i >= 0; i--)
+                {
+                    var block = function.Blocks[i];
+                    var live = new HashSet<int>();
+                    foreach (var successor in block.Successors)
+                        live.UnionWith(_liveIn[successor]);
+                    _liveOut[block] = live;
+
+                    var liveIn = new HashSet<int>(live);
+                    liveIn.ExceptWith(kill[block]);
+                    liveIn.UnionWith(gen[block]);
+                    if (!liveIn.SetEquals(_liveIn[block]))
+                    {
+                        _liveIn[block] = liveIn;
+                        changed = true;
+                    }
+                }
+            } while (changed);
+        }
+
+        // Called once the constants and use counts are known, before any block is placed.
+        internal virtual void BeforePlacement() { }
+
+        internal void CountUse(MirOperand operand)
         {
             switch (operand)
             {
@@ -99,7 +187,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // Walking a block
         // ------------------------------------------------------------------
 
-        private void PlaceBlock(MirBlock block)
+        internal virtual void PlaceBlock(MirBlock block)
         {
             _out = [];
             _carryHolds = -1;
@@ -108,6 +196,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             for (var i = 0; i < instrs.Count;)
                 i = PlaceInstruction(instrs, i);
 
+            CheckBlock(block, instrs);
             block.Instructions.Clear();
             foreach (var instr in _out)
             {
@@ -116,9 +205,19 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             }
         }
 
+        // Whether the code placed for each block is checked against the block it came
+        // from (PlacementChecker); IRIE_NO_PLACEMENT_CHECK turns it off.
+        internal static readonly bool CheckPlacement =
+            Environment.GetEnvironmentVariable("IRIE_NO_PLACEMENT_CHECK") is null;
+
+        internal void CheckBlock(MirBlock block, List<MirInstruction> before)
+        {
+            if (CheckPlacement) new PlacementChecker(this).Check(block, before, _out);
+        }
+
         // Places instrs[i] (or the run of copies starting there); returns the index
         // of the next instruction to place.
-        private int PlaceInstruction(List<MirInstruction> instrs, int i)
+        internal int PlaceInstruction(List<MirInstruction> instrs, int i)
         {
             var instr = instrs[i];
             var opcode = instr.Opcode;
@@ -157,6 +256,8 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
                 case MOS6502Op.Const:   PlaceConst(instr); break;
                 case MOS6502Op.Adc:     PlaceAddSub(instr, MOS6502Operation.Adc, instrs, i); break;
                 case MOS6502Op.Sbc:     PlaceAddSub(instr, MOS6502Operation.Sbc, instrs, i); break;
+                case MOS6502Op.Inc:     PlaceStep(instr, MOS6502Operation.Adc, "clc"); break;
+                case MOS6502Op.Dec:     PlaceStep(instr, MOS6502Operation.Sbc, "sec"); break;
                 case MOS6502Op.And:     PlaceLogic(instr, MOS6502Operation.And); break;
                 case MOS6502Op.Ora:     PlaceLogic(instr, MOS6502Operation.Ora); break;
                 case MOS6502Op.Eor:     PlaceLogic(instr, MOS6502Operation.Eor); break;
@@ -185,16 +286,16 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             return i + 1;
         }
 
-        private static bool IsOp(MirInstruction instr, MOS6502Op op) =>
+        internal static bool IsOp(MirInstruction instr, MOS6502Op op) =>
             instr.Opcode.Dialect == MOS6502Dialect.Id && (MOS6502Op)instr.Opcode.Code == op;
 
-        private static bool IsPseudo(MirInstruction instr, PseudoOp op) =>
+        internal static bool IsPseudo(MirInstruction instr, PseudoOp op) =>
             instr.Opcode.Dialect == PseudoDialect.Id && (PseudoOp)instr.Opcode.Code == op;
 
-        private bool Unused(MirOperand def) =>
+        internal bool Unused(MirOperand def) =>
             def is VirtualReg v && _uses.GetValueOrDefault(v.Id) == 0;
 
-        private static NotSupportedException Unsupported(MirInstruction instr)
+        internal static NotSupportedException Unsupported(MirInstruction instr)
         {
             var dialect = DialectRegistry.ById(instr.Opcode.Dialect);
             return new NotSupportedException(
@@ -205,7 +306,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // Emitting
         // ------------------------------------------------------------------
 
-        private MirInstruction Emit(MOS6502Op op, params MirOperand[] operands)
+        internal MirInstruction Emit(MOS6502Op op, params MirOperand[] operands)
         {
             var instr = new MirInstruction(MOS6502Dialect.OpRef(op), operands);
             _out.Add(instr);
@@ -214,7 +315,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             return instr;
         }
 
-        private void EmitVariant(Variant variant, MirOperand? memory = null)
+        internal void EmitVariant(Variant variant, MirOperand? memory = null)
         {
             foreach (var (opcode, operands) in variant.Instantiate(memory))
                 Emit((MOS6502Op)opcode.Code, operands);
@@ -222,7 +323,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
         // Anything that may change C: the ALU and shift ops, compares, the flag ops
         // and everything that calls out (a call, the expansion of a frame access).
-        private static bool WritesCarry(MOS6502Op op) => op is
+        internal static bool WritesCarry(MOS6502Op op) => op is
             MOS6502Op.AdcImm or MOS6502Op.AdcZp or MOS6502Op.AdcAbs
             or MOS6502Op.SbcImm or MOS6502Op.SbcZp or MOS6502Op.SbcAbs
             or MOS6502Op.CmpImm or MOS6502Op.CmpZp or MOS6502Op.CmpAbs
@@ -236,7 +337,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // Values: constants, homes, registers
         // ------------------------------------------------------------------
 
-        private bool TryConst(MirOperand operand, out long value)
+        internal bool TryConst(MirOperand operand, out long value)
         {
             switch (operand)
             {
@@ -250,17 +351,29 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             return false;
         }
 
-        private PhysicalReg Home(int vreg)
+        internal virtual PhysicalReg Home(int vreg)
         {
             if (!_homes.TryGetValue(vreg, out var n))
                 _homes[vreg] = n = _nextHome++;
             return new PhysicalReg(MOS6502Registers.Home(n), IsDefinition: false);
         }
 
-        private PhysicalReg NewTemporaryHome() =>
+        // The register of the home a value already has, without giving it one.
+        internal virtual bool TryGetHome(int vreg, out int register)
+        {
+            if (_homes.TryGetValue(vreg, out var n))
+            {
+                register = MOS6502Registers.Home(n);
+                return true;
+            }
+            register = 0;
+            return false;
+        }
+
+        internal PhysicalReg NewTemporaryHome() =>
             new(MOS6502Registers.Home(_nextHome++), IsDefinition: false);
 
-        private static Place RegisterPlace(int reg) => reg switch
+        internal static Place RegisterPlace(int reg) => reg switch
         {
             A => Place.A,
             X => Place.X,
@@ -269,7 +382,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         };
 
         // register <- the value of `operand` (an immediate, or its home).
-        private void LoadRegister(int reg, MirOperand operand)
+        internal void LoadRegister(int reg, MirOperand operand)
         {
             if (TryConst(operand, out var value))
                 EmitVariant(MOS6502Variants.Require(MOS6502Operation.Const, RegisterPlace(reg), Place.Imm, "imm"),
@@ -282,13 +395,13 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // The memory-side operand of an ALU or compare variant, and its place.
-        private (Place Place, MirOperand Operand) MemorySide(MirOperand operand) =>
+        internal (Place Place, MirOperand Operand) MemorySide(MirOperand operand) =>
             TryConst(operand, out var value)
                 ? (Place.Imm, new Immediate(value))
                 : (Place.Home, Home(((VirtualReg)operand).Id));
 
         // home of `def` <- register, unless nothing reads it.
-        private void StoreResult(MirOperand def, int reg)
+        internal void StoreResult(MirOperand def, int reg)
         {
             var vreg = ((VirtualReg)def).Id;
             if (_uses.GetValueOrDefault(vreg) == 0) return;
@@ -300,7 +413,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // ------------------------------------------------------------------
 
         // Puts the carry-in operand into C.
-        private void EnsureCarry(MirOperand carryIn)
+        internal void EnsureCarry(MirOperand carryIn)
         {
             if (TryConst(carryIn, out var value))
             {
@@ -319,7 +432,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // The carry an operation produced in C: left there when the next operation
         // consumes it, else stored as 0 / 1. A is the operation's result (already
         // stored) and is free to use.
-        private void HandleCarryOut(MirOperand carryOut, List<MirInstruction> instrs, int index)
+        internal void HandleCarryOut(MirOperand carryOut, List<MirInstruction> instrs, int index)
         {
             var vreg = ((VirtualReg)carryOut).Id;
             var uses = _uses.GetValueOrDefault(vreg);
@@ -338,7 +451,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
         // Whether the next operation after instrs[index] (constants take no code)
         // reads `vreg` as its carry in.
-        private static bool ConsumedByNext(List<MirInstruction> instrs, int index, int vreg)
+        internal static bool ConsumedByNext(List<MirInstruction> instrs, int index, int vreg)
         {
             for (var j = index + 1; j < instrs.Count; j++)
             {
@@ -364,7 +477,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // %v = const <imm>: nothing to emit, the value is an immediate wherever it
         // is read. An address byte is not an immediate the ALU ops take, so it is
         // materialised into its home.
-        private void PlaceConst(MirInstruction instr)
+        internal void PlaceConst(MirInstruction instr)
         {
             if (instr.Operands[1] is Immediate) return;
 
@@ -377,7 +490,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // %r, %cout = adc|sbc %a, %b, %cin
-        private void PlaceAddSub(MirInstruction instr, MOS6502Operation operation, List<MirInstruction> instrs, int index)
+        internal void PlaceAddSub(MirInstruction instr, MOS6502Operation operation, List<MirInstruction> instrs, int index)
         {
             EnsureCarry(instr.Operands[4]);
             LoadRegister(A, instr.Operands[2]);
@@ -387,8 +500,17 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             HandleCarryOut(instr.Operands[1], instrs, index);
         }
 
+        // %r = inc|dec %a: CLC; ADC #1 or SEC; SBC #1 (the naive placement works in A).
+        internal void PlaceStep(MirInstruction instr, MOS6502Operation operation, string carry)
+        {
+            EmitVariant(MOS6502Variants.Require(MOS6502Operation.Const, Place.Carry, Place.Imm, carry));
+            LoadRegister(A, instr.Operands[1]);
+            EmitVariant(MOS6502Variants.Require(operation, Place.A, Place.Imm), new Immediate(1));
+            StoreResult(instr.Operands[0], A);
+        }
+
         // %r = and|ora|eor %a, %b
-        private void PlaceLogic(MirInstruction instr, MOS6502Operation operation)
+        internal void PlaceLogic(MirInstruction instr, MOS6502Operation operation)
         {
             LoadRegister(A, instr.Operands[1]);
             var (place, memory) = MemorySide(instr.Operands[2]);
@@ -398,7 +520,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
         // %r, %cout = shle|lshre %a, %cin: asl / lsr for a zero carry in, else the
         // rotate through the carry.
-        private void PlaceShift(MirInstruction instr, MOS6502Operation operation, List<MirInstruction> instrs, int index)
+        internal void PlaceShift(MirInstruction instr, MOS6502Operation operation, List<MirInstruction> instrs, int index)
         {
             var carryIn = instr.Operands[3];
             var plain = TryConst(carryIn, out var value) && value == 0;
@@ -412,7 +534,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // %c = cmp %a, %b: the carry of the compare.
-        private void PlaceCmp(MirInstruction instr, List<MirInstruction> instrs, int index)
+        internal void PlaceCmp(MirInstruction instr, List<MirInstruction> instrs, int index)
         {
             LoadRegister(A, instr.Operands[1]);
             var (place, memory) = MemorySide(instr.Operands[2]);
@@ -421,12 +543,17 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // cmp_br %a, %b, cc, T [, cc, T2]: one compare, then a branch per exit.
-        private void PlaceCmpBr(MirInstruction instr)
+        internal void PlaceCmpBr(MirInstruction instr)
         {
             LoadRegister(A, instr.Operands[0]);
             var (place, memory) = MemorySide(instr.Operands[1]);
             EmitVariant(MOS6502Variants.Require(MOS6502Operation.Cmp, Place.A, place), memory);
+            EmitBranches(instr);
+        }
 
+        // The branches of a cmp_br on the flags its compare left: one per exit.
+        internal void EmitBranches(MirInstruction instr)
+        {
             for (var k = 2; k < instr.Operands.Length; k += 2)
             {
                 var condition = (CmpBrCondition)((Immediate)instr.Operands[k]).Value;
@@ -449,10 +576,10 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // Memory
         // ------------------------------------------------------------------
 
-        private bool IsFrameSlot(string symbol) => function.FrameSlots.Any(s => s.SymbolName == symbol);
+        internal bool IsFrameSlot(string symbol) => function.FrameSlots.Any(s => s.SymbolName == symbol);
 
         // %v = load @sym+off | %v = load %lo, %hi, off
-        private void PlaceLoad(MirInstruction instr)
+        internal void PlaceLoad(MirInstruction instr)
         {
             var def = instr.Operands[0];
             if (instr.Operands[1] is Symbol symbol)
@@ -477,7 +604,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // store %v, @sym+off | store %v, %lo, %hi, off
-        private void PlaceStore(MirInstruction instr)
+        internal void PlaceStore(MirInstruction instr)
         {
             var value = instr.Operands[0];
             if (instr.Operands[1] is Symbol symbol)
@@ -504,7 +631,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // The two bytes of a pointer into the scratch pair, and the offset into Y.
-        private void SetUpPointer(MirOperand lo, MirOperand hi, long offset)
+        internal void SetUpPointer(MirOperand lo, MirOperand hi, long offset)
         {
             var spill = MOS6502Variants.Require(MOS6502Operation.Spill, Place.A, Place.Home);
             LoadRegister(A, lo);
@@ -516,7 +643,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
         // The frame access ops the call lowering emitted for stack arguments: the
         // byte moves through A.
-        private void PlaceFrameLoad(MirInstruction instr)
+        internal void PlaceFrameLoad(MirInstruction instr)
         {
             var operands = (MirOperand[])instr.Operands.Clone();
             var def = operands[0];
@@ -525,7 +652,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             StoreResult(def, A);
         }
 
-        private void PlaceFrameStore(MirInstruction instr)
+        internal void PlaceFrameStore(MirInstruction instr)
         {
             var operands = (MirOperand[])instr.Operands.Clone();
             LoadRegister(A, operands[2]);
@@ -544,7 +671,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         //   2. bytes read out of zero-page registers into homes (through A),
         //   3. home to home,
         //   4. homes into zero-page registers (through A), then Y, X, and A last.
-        private void PlaceCopies(List<MirInstruction> run)
+        internal void PlaceCopies(List<MirInstruction> run)
         {
             var fromGpr = new List<MirInstruction>();
             var fromZp = new List<MirInstruction>();
@@ -616,7 +743,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
 
         // The target a conditional exit branches to: itself when it carries no
         // arguments, else a new block that moves them into the parameters and jumps.
-        private BlockTarget EdgeTarget(BlockTarget target)
+        internal BlockTarget EdgeTarget(BlockTarget target)
         {
             if (target.Args.Length == 0)
                 return target;
@@ -628,6 +755,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
             Emit(MOS6502Op.JmpAbs, new BlockTarget(target.Block, []));
 
             var edge = function.CreateBlock();
+            _edgeBlocks.Add(edge);
             foreach (var instr in _out)
             {
                 instr.Parent = edge;
@@ -638,7 +766,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         }
 
         // The parallel move of a branch's arguments into the target's parameters.
-        private void EmitEdgeMoves(BlockTarget target)
+        internal void EmitEdgeMoves(BlockTarget target)
         {
             var parameters = target.Block.Parameters;
             if (parameters.Count != target.Args.Length)
@@ -692,7 +820,7 @@ public sealed class MOS6502NaivePlacementPass : MirFunctionPass
         // now reads and writes: A, X, Y, the zero-page registers and the homes (the
         // flags and the fixed registers are not tracked). The entry block keeps the
         // calling convention's declared live-ins.
-        private void RecomputeLiveIns()
+        internal void RecomputeLiveIns()
         {
             static bool Tracked(int reg) =>
                 reg is A or X or Y || reg >= MOS6502Registers.RC(2);
