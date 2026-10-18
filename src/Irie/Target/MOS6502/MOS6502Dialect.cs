@@ -19,24 +19,12 @@ public sealed class MOS6502Dialect : Dialect
 
     private static readonly Dictionary<MOS6502Op, string> _names = new()
     {
-        // Pre-AMS (addressing-mode-agnostic)
-        [MOS6502Op.Lda] = "lda",
-        [MOS6502Op.Sta] = "sta",
-        [MOS6502Op.Ldx] = "ldx",
-        [MOS6502Op.Stx] = "stx",
-        [MOS6502Op.Ldy] = "ldy",
-        [MOS6502Op.Sty] = "sty",
+        // Addressing-mode-agnostic
         [MOS6502Op.And] = "and",
         [MOS6502Op.Ora] = "ora",
         [MOS6502Op.Eor] = "eor",
-        [MOS6502Op.Cpx] = "cpx",
-        [MOS6502Op.Cpy] = "cpy",
         [MOS6502Op.Inc] = "inc",
         [MOS6502Op.Dec] = "dec",
-        [MOS6502Op.Asl] = "asl",
-        [MOS6502Op.Lsr] = "lsr",
-        [MOS6502Op.Rol] = "rol",
-        [MOS6502Op.Ror] = "ror",
 
         // LDA
         [MOS6502Op.LdaImm]       = "lda.imm",
@@ -84,9 +72,6 @@ public sealed class MOS6502Dialect : Dialect
         [MOS6502Op.StyZp]   = "sty.zp",
         [MOS6502Op.StyZpX]  = "sty.zpx",
         [MOS6502Op.StyAbs]  = "sty.abs",
-
-        // Generic absolute store (pre-AMS, register-agnostic value).
-        [MOS6502Op.StAbs]   = "st.abs",
 
         // ADC
         [MOS6502Op.AdcImm]  = "adc.imm",
@@ -310,7 +295,6 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Op.CmpImm => CmpInfo,
             MOS6502Op.CpxZp or MOS6502Op.CpxImm => CpxInfo,
             MOS6502Op.CpyZp or MOS6502Op.CpyImm => CpyInfo,
-            MOS6502Op.StAbs  => StAbsInfo,
             MOS6502Op.AndZp or MOS6502Op.AndImm or MOS6502Op.AndAbs
                 or MOS6502Op.OraZp or MOS6502Op.OraImm or MOS6502Op.OraAbs
                 or MOS6502Op.EorZp or MOS6502Op.EorImm or MOS6502Op.EorAbs => LogicInfo,
@@ -462,9 +446,9 @@ public sealed class MOS6502Dialect : Dialect
     //
     // use[0] is `Ac`, though the 6502 can compare A, X or Y against memory
     // (CMP / CPX / CPY) and llvm-mos declares the operand as a GPR
-    // (`CMPImag8 (ins GPR:$l, Imag8:$r)`). Widening it to `Axy` was tried, with
-    // the post-RA addressing-mode selector refining to `cpx` / `cpy` (that
-    // machinery is in place and tested): it shrank the loop-heavy __umodsi3
+    // (`CMPImag8 (ins GPR:$l, Imag8:$r)`). Widening it to any of A/X/Y was tried,
+    // with the post-RA addressing-mode selector refining to `cpx` / `cpy` (that
+    // selector has since been removed): it shrank the loop-heavy __umodsi3
     // helper by 18%, but cost +8 instructions (734 → 742) on the llvm-mos
     // reference scoreboard — the colourer spends $x / $y on short compares
     // without weighing the moves that costs elsewhere (see early-return). Revisit
@@ -518,19 +502,6 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502RegisterClass.Imag8, // use[1]: rhs
         ],
         TiedOperands: [-1, 0, -1]);
-
-    // Pre-AMS `mos6502.st.abs` generic absolute store. use[0]=value (Axy — any of
-    // $a/$x/$y, since STA/STX/STY all have absolute forms), use[1]=Symbol (no
-    // class). Declaring Axy lets the value stay wherever its producer left it
-    // (coalesced, not copied). Mirrors
-    // llvm-mos's GPR-classed `STAbs` pseudo. The concrete StaAbs/StxAbs/StyAbs are
-    // only seen after placement, where operand classes no longer matter, so they keep the
-    // empty default.
-    private static readonly DialectInstructionInfo StAbsInfo = new(
-        OperandClasses: [
-            MOS6502RegisterClass.Axy,   // use[0]: value
-            MOS6502RegisterClass.None,  // use[1]: Symbol
-        ]);
 
     // Target ops conservatively touch physregs/memory; treat them as having
     // side effects for DCE purposes until a finer-grained model is in place.

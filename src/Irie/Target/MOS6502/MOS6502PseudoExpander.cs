@@ -38,13 +38,6 @@ public sealed class MOS6502PseudoExpander : Irie.Target.PseudoExpander
 {
     public override void Expand(MirInstruction copy, MirBuilder builder)
     {
-        if (copy.Opcode.Dialect == PseudoDialect.Id
-            && (PseudoOp)copy.Opcode.Code is PseudoOp.Spill or PseudoOp.Reload)
-        {
-            ExpandSpillOrReload(copy, builder);
-            return;
-        }
-
         // 3-operand scratch form: %dst = pseudo.copy %src using %scratch.
         // Emitted by this same expander for a scratch-needing copy and filled
         // in by RegisterScavengingPass, which calls us back to do the final
@@ -77,106 +70,6 @@ public sealed class MOS6502PseudoExpander : Irie.Target.PseudoExpander
                     $"{copy.Operands[1].GetType().Name}.");
         }
     }
-
-    // pseudo.spill <slot>, $src            → store $src into the slot
-    // $dst = pseudo.reload <slot>          → load the slot into $dst
-    // Either may carry a trailing scratch operand (the 3-operand form, as for a
-    // copy). The slot's placement was fixed before this point: a promoted
-    // zero-page slot is addressed directly (st?.zp / ld?.zp), anything else is an
-    // absolute global (st?.abs / ld?.abs @slot). A GPR value needs no scratch; a
-    // zero-page value does (the 6502 cannot move zp <-> memory without a GPR), so a
-    // 2-operand form re-emits itself with a fresh scratch vreg for the scavenger
-    // and the 3-operand form lowers to its two machine instructions.
-    private static void ExpandSpillOrReload(MirInstruction instr, MirBuilder builder)
-    {
-        var isSpill = (PseudoOp)instr.Opcode.Code == PseudoOp.Spill;
-        var ops = instr.Operands;
-        var valueIndex = isSpill ? 1 : 0;
-        var slotIndex = isSpill ? 0 : 1;
-        if (ops.Length is not (2 or 3)
-            || ops[valueIndex] is not PhysicalReg value
-            || ops[slotIndex] is not Immediate slotImm)
-            throw new InvalidOperationException(
-                "MOS6502PseudoExpander: pseudo.spill must be `spill <slot>, $r` and " +
-                "pseudo.reload `$r = reload <slot>` (physregs only after RA).");
-
-        var slot = builder.Function.FrameSlots[(int)slotImm.Value];
-
-        if (!IsZeroPage(value.Id))
-        {
-            EmitSlotAccess(builder, isSpill, slot, value.Id);
-            return;
-        }
-
-        // Zero-page value: stage it through a scratch GPR.
-        if (ops.Length == 2)
-        {
-            var scratch = builder.Function.CreateVirtualRegister(IRType.I8);
-            builder.BuildInstruction(instr.Opcode,
-                ops[0], ops[1], new VirtualReg(scratch, IsDefinition: true));
-            return;
-        }
-
-        if (ops[2] is not PhysicalReg gpr)
-            throw new InvalidOperationException(
-                "MOS6502PseudoExpander: spill/reload scratch operand was not assigned a physical " +
-                "register (RegisterScavengingPass must run before final expansion).");
-
-        if (isSpill)
-        {
-            Emit(builder, LoadZpOp(gpr.Id), gpr.Id, value.Id);    // LD{gpr} $src
-            EmitSlotAccess(builder, isSpill: true, slot, gpr.Id);  // ST{gpr} slot
-        }
-        else
-        {
-            EmitSlotAccess(builder, isSpill: false, slot, gpr.Id); // LD{gpr} slot
-            Emit(builder, StoreZpOp(gpr.Id), value.Id, gpr.Id);    // ST{gpr} $dst
-        }
-    }
-
-    // `st?`/`ld?` between GPR `gpr` and the frame slot, by the slot's placement.
-    private static void EmitSlotAccess(MirBuilder builder, bool isSpill, FrameSlot slot, int gpr)
-    {
-        if (slot.StackId == MOS6502FrameStackIds.ZeroPage)
-        {
-            if (isSpill)
-                builder.BuildInstruction(MOS6502Dialect.OpRef(StoreZpOp(gpr)),
-                    new Immediate(slot.Offset), new PhysicalReg(gpr, IsDefinition: false));
-            else
-                builder.BuildInstruction(MOS6502Dialect.OpRef(LoadZpOp(gpr)),
-                    new PhysicalReg(gpr, IsDefinition: true), new Immediate(slot.Offset));
-            return;
-        }
-
-        if (slot.StackId != FrameSlot.DefaultStackId)
-            throw new InvalidOperationException(
-                $"MOS6502PseudoExpander: spill slot {slot.SymbolName} has unexpected stack id {slot.StackId}.");
-
-        if (isSpill)
-            builder.BuildInstruction(MOS6502Dialect.OpRef(StoreAbsOp(gpr)),
-                new PhysicalReg(gpr, IsDefinition: false), new Symbol(slot.SymbolName));
-        else
-            builder.BuildInstruction(MOS6502Dialect.OpRef(LoadAbsOp(gpr)),
-                new PhysicalReg(gpr, IsDefinition: true), new Symbol(slot.SymbolName));
-    }
-
-    private static MOS6502Op LoadAbsOp(int gpr) => gpr switch
-    {
-        MOS6502Registers.A => MOS6502Op.LdaAbs,
-        MOS6502Registers.X => MOS6502Op.LdxAbs,
-        MOS6502Registers.Y => MOS6502Op.LdyAbs,
-        _ => throw new InvalidOperationException(
-            $"MOS6502PseudoExpander: ${MOS6502Registers.NameOf(gpr)} cannot load from memory."),
-    };
-
-    private static MOS6502Op StoreAbsOp(int gpr) => gpr switch
-    {
-        MOS6502Registers.A => MOS6502Op.StaAbs,
-        MOS6502Registers.X => MOS6502Op.StxAbs,
-        MOS6502Registers.Y => MOS6502Op.StyAbs,
-        _ => throw new InvalidOperationException(
-            $"MOS6502PseudoExpander: ${MOS6502Registers.NameOf(gpr)} cannot store to memory."),
-    };
 
     // The 6502 can only push/pull the accumulator.
     public override bool CanSaveOnStack(int gpr) => gpr == MOS6502Registers.A;

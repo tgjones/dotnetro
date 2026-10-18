@@ -29,30 +29,4 @@ public enum PseudoOp : ushort
     // results into return physregs. Survives until instruction selection
     // lowers it to the target return op (e.g. mos6502.rts).
     Return,
-
-    // ---- Spill / reload --------------------------------------------------------
-    //
-    // These are the ABSTRACT spill-slot store/reload (the colouring allocator that
-    // minted them is gone; the pseudo expander still lowers them, and hand-written
-    // MIR can use them). They are post-placement ops, so both operands
-    // are concrete physical registers; the only abstract thing is the frame-slot
-    // index, which references a MirFunction.FrameSlot. Placement does NOT assign
-    // that slot a physical address — a post-RA frame-placement pass decides every
-    // function's frame placement (zero-page vs absolute) by setting each slot's
-    // StackId/Offset; a future spill/reload lowering would consume that decision
-    // (the same way FrameAccessLoweringPass does) to emit each `pseudo.spill`/
-    // `pseudo.reload` as a concrete `sta.zp`/`lda.zp` (zero-page frame) or a
-    // `.bss` store/load. The slot shape (FrameSlot:
-    // index + i8 type + symbol name) is exactly the one FrameLoweringPass and
-    // that future pass already consume.
-    //
-    // pseudo.spill <slot_index>, $reg
-    //   Store $reg (a USE) into the function's frame slot <slot_index>. No def.
-    //   Operand shape: [Immediate(slotIndex), reg-use].
-    Spill,
-
-    // %dst = pseudo.reload <slot_index>
-    //   Reload the function's frame slot <slot_index> into $dst (a DEF).
-    //   Operand shape: [reg-def, Immediate(slotIndex)].
-    Reload,
 }

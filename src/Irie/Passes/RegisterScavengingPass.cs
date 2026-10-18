@@ -261,15 +261,10 @@ public sealed class RegisterScavengingPass(
     // A scratch-form copy is a `pseudo.copy` with exactly 3 operands whose
     // scratch (third) operand is still a virtual register. (Once the scavenger
     // has bound and lowered it, it no longer exists.)
-    //
-    // A `pseudo.spill <slot>, $src` / `$dst = pseudo.reload <slot>` whose value
-    // sits in a zero-page register has the same need (a GPR to carry the byte
-    // to/from the slot), so its expansion mints the same kind of 3-operand form
-    // with a trailing scratch vreg.
     private static bool IsScratchForm(MirInstruction instr)
     {
         if (instr.Opcode.Dialect != PseudoDialect.Id) return false;
-        if ((PseudoOp)instr.Opcode.Code is not (PseudoOp.Copy or PseudoOp.Spill or PseudoOp.Reload)) return false;
+        if ((PseudoOp)instr.Opcode.Code is not PseudoOp.Copy) return false;
         if (instr.Operands.Length != 3) return false;
         return instr.Operands[2] is VirtualReg;
     }

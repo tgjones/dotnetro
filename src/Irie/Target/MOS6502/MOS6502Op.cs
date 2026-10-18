@@ -2,10 +2,8 @@ namespace Irie.Target.MOS6502;
 
 // Opcodes in the `mos6502` MIR dialect. Two flavours coexist:
 //
-// - Addressing-mode-agnostic ops (`Lda`, `Sta`, `StAbs`, ...): no pass selects
-//   them any more (the pass that refined them to a concrete form after register
-//   allocation was removed with the colouring allocator); `StAbs` is only
-//   accepted in hand-written MIR.
+// - Addressing-mode-agnostic ops (`And`, `Ora`, `Eor`, `Inc`, `Dec`) that the
+//   placements classify.
 // - Concrete: the mnemonic-plus-addressing-mode forms that have a direct 6502
 //   byte mapping. Mirrors MOS6502Opcode 1:1.
 //
@@ -14,25 +12,13 @@ namespace Irie.Target.MOS6502;
 public enum MOS6502Op : ushort
 {
     // ===== Addressing-mode-agnostic =====
-    Lda,
-    Sta,
-    Ldx,
-    Stx,
-    Ldy,
-    Sty,
     And,
     Ora,
     Eor,
-    Cpx,
-    Cpy,
     Inc,
     Dec,
-    Asl,
-    Lsr,
-    Rol,
-    Ror,
 
-    // ===== Post-AMS =====
+    // ===== Concrete =====
 
     // LDA
     LdaImm,
@@ -91,13 +77,6 @@ public enum MOS6502Op : ushort
     StyZp,
     StyZpX,
     StyAbs,
-
-    // Generic absolute store. Register-agnostic "store to absolute": its value
-    // operand is the Axy class (any of $a/$x/$y). Mirrors llvm-mos's `STAbs`
-    // pseudo (a GPR-classed store, "STA abs, STX abs"), as opposed to the
-    // accumulator-specific StaAbs. Nothing rewrites it to one of the three
-    // concrete stores, so it cannot reach machine-code emission.
-    StAbs,
 
     // ADC
     AdcImm,

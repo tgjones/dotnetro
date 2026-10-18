@@ -19,14 +19,6 @@ public static class MOS6502RegisterClass
     public const int Vc    = 5; // V flag (single bit)
     public const int Imag8 = 6; // imaginary 8-bit zero-page registers (RC0..RCn)
     public const int Anyi8 = 7; // any 8-bit register (A, X, Y, or Imag8)
-    // Axy: any real architectural 8-bit register (A, X, or Y) — but NOT a
-    // zero-page imaginary register. The source class for an absolute store, where
-    // all three of STA/STX/STY exist: the value may live in whichever of A/X/Y is
-    // cheapest (`st.abs` takes it in any of them). Unlike Anyi8 it deliberately excludes
-    // the zp pool: a zp
-    // value cannot be a direct store source, so admitting it would force a
-    // copy-through-A and defeat the point. Mirrors llvm-mos's `GPR`-classed
-    // store-value operand on `STAbs`.
     // Status-flag classes for the new MIR dialect (one class per flag is the
     // first-cut layout; can be unified
     // later if RA freedom is never needed).
@@ -35,7 +27,6 @@ public static class MOS6502RegisterClass
     public const int Ic    = 10; // I flag (interrupt disable)
     public const int Dc    = 11; // D flag (decimal mode)
     public const int Bc    = 12; // B flag (break)
-    public const int Axy   = 13; // any real register (A, X, or Y); excludes zp
 
     public static string? GetName(int classId) => classId switch
     {
@@ -46,7 +37,6 @@ public static class MOS6502RegisterClass
         Vc    => "vc",
         Imag8 => "zp",
         Anyi8 => "any8",
-        Axy   => "axy",
         Nc    => "nc",
         Zc    => "zc",
         Ic    => "ic",
@@ -66,7 +56,6 @@ public static class MOS6502RegisterClass
             "vc"    => Vc,
             "zp"    => Imag8,
             "any8"  => Anyi8,
-            "axy"   => Axy,
             "nc"    => Nc,
             "zc"    => Zc,
             "ic"    => Ic,
