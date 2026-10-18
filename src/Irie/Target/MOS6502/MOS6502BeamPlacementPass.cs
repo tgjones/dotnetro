@@ -70,9 +70,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // Liveness
     // ------------------------------------------------------------------
 
-    // Arguments that arrive in zero-page registers stay there for the whole
-    // function when nothing in it can overwrite them: no call (a callee may use
-    // the registers) and no copy into a fixed zero-page register.
+    // Arguments that arrive in zero-page registers and stay there, as their own homes.
     private readonly Dictionary<int, int> _argRegister = [];
 
     internal override PhysicalReg Home(int vreg) =>
@@ -92,33 +90,59 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
     internal override int HomeKey(int vreg) => _homeClass.GetValueOrDefault(vreg, vreg);
 
-    private bool ArgumentsStayInPlace()
+    // The arguments that arrive in zero-page registers and can stay there: those
+    // that are dead by the time anything overwrites their register. A call (the
+    // callee may use any of the registers) and a copy into a fixed register
+    // overwrite; so does any other instruction that defines a zero-page register.
+    private void FindArgumentsInPlace()
     {
+        var candidates = new Dictionary<int, int>();
         foreach (var block in Function.Blocks)
             foreach (var instr in block.Instructions)
+                if (IsCopyFromZeroPage(instr) && instr.Operands[0] is VirtualReg d && !Unused(d))
+                    candidates[d.Id] = ((PhysicalReg)instr.Operands[1]).Id;
+
+        foreach (var block in Function.Blocks)
+        {
+            var live = new HashSet<int>(_liveOut[block]);
+            for (var i = block.Instructions.Count - 1; i >= 0; i--)
             {
-                if (instr.Opcode.Dialect == PseudoDialect.Id)
-                {
-                    if ((PseudoOp)instr.Opcode.Code == PseudoOp.Copy
-                        && instr.Operands[0] is PhysicalReg { Id: >= 0 } to
-                        && to.Id is not (A or X or Y))
-                        return false;
-                    continue;
-                }
-                if (instr.Opcode.Dialect == MOS6502Dialect.Id
-                    && (MOS6502Op)instr.Opcode.Code is MOS6502Op.JsrAbs or MOS6502Op.FrameLoadByte or MOS6502Op.FrameStoreByte)
-                    return false;
+                var instr = block.Instructions[i];
+                foreach (var operand in instr.Operands)
+                    if (operand is PhysicalReg { IsDefinition: true, Id: var written } && written >= MOS6502Registers.RC(2)
+                        && !MOS6502Registers.IsHome(written))
+                    {
+                        foreach (var vreg in live)
+                            if (candidates.TryGetValue(vreg, out var register) && register == written)
+                                candidates.Remove(vreg);
+
+                        // A run of copies is one parallel move that writes the zero-page
+                        // registers before it reads anything into A, X, Y, so a value
+                        // another copy of the run reads is overwritten too.
+                        if (IsCopy(instr))
+                        {
+                            for (var j = i - 1; j >= 0 && IsCopy(block.Instructions[j]); j--)
+                                RemoveReadersOf(block.Instructions[j], written);
+                            for (var j = i + 1; j < block.Instructions.Count && IsCopy(block.Instructions[j]); j++)
+                                RemoveReadersOf(block.Instructions[j], written);
+                        }
+                    }
+                foreach (var def in Defs(instr)) live.Remove(def.Id);
+                foreach (var use in Uses(instr)) live.Add(use.Id);
             }
-        return true;
+        }
+        foreach (var (vreg, register) in candidates) _argRegister[vreg] = register;
+
+        void RemoveReadersOf(MirInstruction other, int written)
+        {
+            if (other.Operands[1] is VirtualReg read && candidates.TryGetValue(read.Id, out var register) && register == written)
+                candidates.Remove(read.Id);
+        }
     }
 
     internal override void BeforePlacement()
     {
-        if (ArgumentsStayInPlace())
-            foreach (var block in Function.Blocks)
-                foreach (var instr in block.Instructions)
-                    if (IsCopyFromZeroPage(instr) && instr.Operands[0] is VirtualReg d && !Unused(d))
-                        _argRegister[d.Id] = ((PhysicalReg)instr.Operands[1]).Id;
+        FindArgumentsInPlace();
 
         _loops = new LoopAnalysis().Compute(Function);
         FindInheriting();
@@ -1809,6 +1833,18 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 if (_placer.Unused(copy.Operands[0])) continue;
                 var source = ContentOf(copy.Operands[1]);
                 var register = FindRegister(source);
+
+                // A copy between values that share a home is a rename: the value is
+                // in its home if the source was.
+                if (source >= 0 && source < ImmBase && InH(source)
+                    && _placer.HomeKey(VregOf(source)) == _placer.HomeKey(((VirtualReg)copy.Operands[0]).Id))
+                {
+                    var renamed = ResultIndex(copy.Operands[0]);
+                    SetH(renamed);
+                    if (register >= 0) _r[register] = renamed;
+                    continue;
+                }
+
                 if (register < 0)
                 {
                     register = PickScratch(0);
@@ -1823,8 +1859,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             var inPlace = toZp.Where(c =>
             {
                 var source = ContentOf(c.Operands[1]);
-                return source >= 0 && !IsImm(source) && InF(source) && !InH(source)
-                    && _info.FixedReg[source] == ((PhysicalReg)c.Operands[0]).Id;
+                var written = ((PhysicalReg)c.Operands[0]).Id;
+                if (source < 0 || IsImm(source)) return false;
+                if (_placer._argRegister.TryGetValue(VregOf(source), out var home)) return InH(source) && home == written;
+                return InF(source) && !InH(source) && _info.FixedReg[source] == written;
             }).ToHashSet();
             var setsUp = toZp.Count > 0 || toGpr.Any(l => l.Count > 0);
             if (setsUp)
