@@ -18,9 +18,9 @@ var beamWidthOption = new Option<int?>("--beam-width")
     Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
 };
 
-var fixedConventionsOption = new Option<bool>("--fixed-conventions")
+var chooseConventionsOption = new Option<bool>("--choose-conventions")
 {
-    Description = "Give every function the default calling convention instead of letting its placement choose where its arguments and results go",
+    Description = "Let the placement of a function that is only called directly choose which of A and X its arguments arrive in and its results leave in (default: every function uses the default calling convention)",
 };
 
 var rootCommand = new RootCommand("Irie execution checker -- runs a MIR function over generated inputs in the interpreter and, compiled, in the emulator, and compares the results");
@@ -30,7 +30,7 @@ rootCommand.Options.Add(execOption);
 rootCommand.Options.Add(emulatorOption);
 rootCommand.Options.Add(maxTicksOption);
 rootCommand.Options.Add(beamWidthOption);
-rootCommand.Options.Add(fixedConventionsOption);
+rootCommand.Options.Add(chooseConventionsOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -48,7 +48,7 @@ rootCommand.SetAction(parseResult =>
     var emulator = parseResult.GetValue(emulatorOption)!;
     var maxTicks = parseResult.GetValue(maxTicksOption);
     ExecSettings.BeamWidth = parseResult.GetValue(beamWidthOption);
-    ExecSettings.ChooseConventions = !parseResult.GetValue(fixedConventionsOption);
+    ExecSettings.ChooseConventions = parseResult.GetValue(chooseConventionsOption);
 
     var text = File.ReadAllText(input.FullName);
     var directives = parseResult.GetValue(execOption)!.Select(ExecDirective.Parse).ToList();
@@ -310,5 +310,5 @@ static void KeepReachable(MirModule module, MirFunction root)
 static class ExecSettings
 {
     public static int? BeamWidth;
-    public static bool ChooseConventions = true;
+    public static bool ChooseConventions;
 }

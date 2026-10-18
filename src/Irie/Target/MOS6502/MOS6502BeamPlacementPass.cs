@@ -23,7 +23,7 @@ public sealed record BeamPlacementOptions
     // Whether a function that is only ever called directly takes the arguments and
     // leaves the results where its own placement is cheapest (the calls follow), or
     // keeps the default convention.
-    public bool ChooseConventions { get; init; } = true;
+    public bool ChooseConventions { get; init; }
 }
 
 // Placement within blocks: a beam search over what A, X, Y, the

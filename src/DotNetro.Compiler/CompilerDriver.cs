@@ -13,7 +13,7 @@ public static class CompilerDriver
     // surface as exceptions.
     public static CompilationResult Compile(
         string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId,
-        bool chooseConventions = true)
+        bool chooseConventions = false)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
             HostAssemblyResolver.ForTarget(targetId),
@@ -123,7 +123,7 @@ public sealed record CompileRequest(
     string TargetId,
     string EntryPoint = "Main",
     bool CaptureSnapshots = false,
-    bool ChooseConventions = true);
+    bool ChooseConventions = false);
 
 public enum DiagnosticSeverity { Info, Warning, Error }
 

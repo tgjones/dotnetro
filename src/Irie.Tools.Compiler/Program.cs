@@ -30,9 +30,9 @@ var beamWidthOption = new Option<int?>("--beam-width")
     Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
 };
 
-var fixedConventionsOption = new Option<bool>("--fixed-conventions")
+var chooseConventionsOption = new Option<bool>("--choose-conventions")
 {
-    Description = "Give every function the default calling convention instead of letting its placement choose where its arguments and results go",
+    Description = "Let the placement of a function that is only called directly choose which of A and X its arguments arrive in and its results leave in (default: every function uses the default calling convention)",
 };
 
 var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
@@ -52,7 +52,7 @@ rootCommand.Options.Add(runPass);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(originOption);
 rootCommand.Options.Add(beamWidthOption);
-rootCommand.Options.Add(fixedConventionsOption);
+rootCommand.Options.Add(chooseConventionsOption);
 rootCommand.Options.Add(statsOption);
 rootCommand.Options.Add(printAfterAll);
 rootCommand.Options.Add(printChanged);
@@ -85,7 +85,7 @@ rootCommand.SetAction(parseResult =>
 
     var passMgr = new PassManager(stopAfterPass, startAtPass);
     PipelineBuilder.AddStandardPipeline(passMgr, target, parseResult.GetValue(beamWidthOption),
-        chooseConventions: !parseResult.GetValue(fixedConventionsOption));
+        chooseConventions: parseResult.GetValue(chooseConventionsOption));
 
     if (printAll || printDiff)
     {

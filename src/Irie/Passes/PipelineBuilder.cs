@@ -7,7 +7,7 @@ namespace Irie.Passes;
 public static class PipelineBuilder
 {
     public static void AddStandardPipeline(
-        PassManager passMgr, Target.Target target, int? beamWidth = null, bool chooseConventions = true)
+        PassManager passMgr, Target.Target target, int? beamWidth = null, bool chooseConventions = false)
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());

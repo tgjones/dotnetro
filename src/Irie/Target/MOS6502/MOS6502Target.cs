@@ -43,7 +43,7 @@ public class MOS6502Target : Irie.Target.Target
     public override Irie.Target.InstructionSelector CreateShapeSelector() => new MOS6502ShapeSelector();
 
 
-    public override Pass CreateBeamPlacementPass(int? beamWidth = null, bool chooseConventions = true) =>
+    public override Pass CreateBeamPlacementPass(int? beamWidth = null, bool chooseConventions = false) =>
         new MOS6502BeamPlacementPass(new BeamPlacementOptions
         {
             BeamWidth = beamWidth ?? new BeamPlacementOptions().BeamWidth,

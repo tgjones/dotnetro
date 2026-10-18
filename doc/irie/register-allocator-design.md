@@ -3,7 +3,7 @@
 **Status:** proposal; the steering decisions are recorded in §7. S0 to S5
 are done (progress below the stage table in §5): the beam placement is the default,
 the colouring allocator is deleted and homes share bytes; S6 is partly done (a
-callee chooses between A and X, see its progress below); S7 is not implemented.
+callee can choose between A and X, off by default; see its progress below); S7 is not implemented.
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -963,8 +963,10 @@ bytes).
   `MOS6502ConventionRewriter.Verify` checks after placement that no function reads an
   argument register outside its convention and that every `jsr` passes exactly the
   registers of the callee's.
-- **Switches.** `--fixed-conventions` (`iriec`, `irie-exec`, `dnrc`) gives every function the
-  default convention. `--stats` reports `functions with their own convention`.
+- **Switches.** The choice is off by default (decided after the measurement below: about
+  0.1% for about 15% more compile time). `--choose-conventions` (`iriec`, `irie-exec`,
+  `dnrc`) turns it on; `--stats` then reports `functions with their own convention`. The
+  figures below are with it on.
 
   | Set | Before | S6 |
   |---|--:|--:|

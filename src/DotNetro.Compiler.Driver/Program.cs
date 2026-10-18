@@ -9,9 +9,9 @@ var targetOption = new Option<string>("--target") { Description = "Target system
 
 var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
 
-var fixedConventionsOption = new Option<bool>("--fixed-conventions")
+var chooseConventionsOption = new Option<bool>("--choose-conventions")
 {
-    Description = "Give every function the default calling convention instead of letting its placement choose where its arguments and results go",
+    Description = "Let the placement of a function that is only called directly choose which of A and X its arguments arrive in and its results leave in (default: every function uses the default calling convention)",
 };
 
 var rootCommand = new RootCommand();
@@ -21,7 +21,7 @@ rootCommand.Options.Add(assemblyOption);
 rootCommand.Options.Add(outputOption);
 rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(statsOption);
-rootCommand.Options.Add(fixedConventionsOption);
+rootCommand.Options.Add(chooseConventionsOption);
 
 rootCommand.SetAction(parseResult =>
 {
@@ -45,7 +45,7 @@ rootCommand.SetAction(parseResult =>
         Path.GetFullPath(assembly),
         "Main",
         parseResult.GetValue(targetOption)!,
-        chooseConventions: !parseResult.GetValue(fixedConventionsOption));
+        chooseConventions: parseResult.GetValue(chooseConventionsOption));
 
     if (parseResult.GetValue(statsOption))
         foreach (var (name, value) in compilationResult.Statistics.OrderBy(s => s.Key))
