@@ -13,13 +13,13 @@ public static class CompilerDriver
     // surface as exceptions.
     public static CompilationResult Compile(
         string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId,
-        bool chooseConventions = false)
+        Irie.Target.PlacementTuning? tuning = null)
         => CompileCore(new CompileRequest(
             File.ReadAllBytes(dotNetAssemblyPath),
             HostAssemblyResolver.ForTarget(targetId),
             targetId,
             entryPointMethodName,
-            ChooseConventions: chooseConventions));
+            Tuning: tuning));
 
     // Byte-based entry point: nothing here touches the file system. Expected
     // failures (the program uses something the compiler does not support) are
@@ -63,7 +63,7 @@ public static class CompilerDriver
         var context = new CompilationContext(module);
 
         var passMgr = new PassManager(null, null);
-        PipelineBuilder.AddStandardPipeline(passMgr, target, chooseConventions: request.ChooseConventions);
+        PipelineBuilder.AddStandardPipeline(passMgr, target, request.Tuning);
 
         List<PassSnapshot>? snapshots = null;
         if (request.CaptureSnapshots)
@@ -116,6 +116,7 @@ public static class CompilerDriver
 /// <param name="Resolver">Supplies every other assembly the compiler needs. Framework references in the program are redirected to <see cref="WellKnownAssemblies.CoreLib"/>, so that is all it has to supply besides third-party libraries.</param>
 /// <param name="TargetId">A <see cref="TargetRegistry"/> id.</param>
 /// <param name="EntryPoint">Name of the entry point method (falls back to the top-level-statements <c>&lt;Main&gt;$</c>).</param>
+/// <param name="Tuning">Knobs of the placement search; null keeps the defaults.</param>
 /// <param name="CaptureSnapshots">Capture the module's MIR before the first pass and after each pass into <see cref="CompilationResult.PassSnapshots"/>.</param>
 public sealed record CompileRequest(
     byte[] Assembly,
@@ -123,7 +124,7 @@ public sealed record CompileRequest(
     string TargetId,
     string EntryPoint = "Main",
     bool CaptureSnapshots = false,
-    bool ChooseConventions = false);
+    Irie.Target.PlacementTuning? Tuning = null);
 
 public enum DiagnosticSeverity { Info, Warning, Error }
 

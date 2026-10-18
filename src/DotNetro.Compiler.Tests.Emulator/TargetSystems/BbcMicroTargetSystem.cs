@@ -43,7 +43,10 @@ internal sealed class BbcMicroTargetSystem : ITargetSystem
             {
                 meter?.Observe(pins.Address, cpu.SP, ticks);
                 if (HaltDetection.IsHalt(memory, pins.Address))
+                {
+                    meter?.Halt(ticks);
                     return new EmulationResult(output.ToString(), EmulationStatus.Completed);
+                }
 
                 trace?.WriteLine($"{cpu.PC:X4}  A:{cpu.A:X2} X:{cpu.X:X2} Y:{cpu.Y:X2} P:{cpu.P.AsByte(false):X2} SP:{cpu.SP:X2}");
             }

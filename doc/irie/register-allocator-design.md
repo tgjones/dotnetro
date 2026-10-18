@@ -3,7 +3,7 @@
 **Status:** proposal; the steering decisions are recorded in §7. S0 to S5
 are done (progress below the stage table in §5): the beam placement is the default,
 the colouring allocator is deleted and homes share bytes; S6 is partly done (a
-callee can choose between A and X, off by default; see its progress below); S7 is not implemented.
+callee can choose between A and X, off by default; see its progress below); S7 is done (measurements and knobs; no default changed).
 **Goal:** the best code we can get, measured in bytes and in cycles (frequency
 weighted). How fast the compiler runs matters, but comes second.
 
@@ -490,7 +490,7 @@ one is never built. Stages S1 and S2 do not depend on each other.
 | **S4** Placement across blocks | Loop-first boundary negotiation, phi via reconciliation, home classes. **Delete** the colourer and the passes in §4 | Scoreboard total and C# set better than today; no case worse by more than 2 instructions without a written reason |
 | **S5** Home slots | Byte-granular colouring, pointer pairs, recolouring after the late passes | zp footprint per program reported and lower |
 | **S6** Per-function conventions (partly done, see below) | Callee-chosen entry and exit placement | Corpus and C# totals (bytes and cycles) no worse, C# set smaller; no function more than 2 instructions larger without a written reason |
-| **S7** Tuning | Beam width, frequency weights, size/speed weights; the K = ∞ oracle on small functions; tree-decomposition DP only if the oracle shows block joins lose significantly | Documented gap to the oracle |
+| **S7** Tuning | Beam width, frequency weights, size/speed weights; the K = ∞ oracle on small functions; tree-decomposition DP only if the oracle shows block joins lose significantly | Documented gap to the oracle (done, see below) |
 
 **S0 progress (2026-10-17):**
 - (a) done: every corpus case executes (`irie-exec`, with `buf(N)` pointer arguments
@@ -991,6 +991,65 @@ bytes).
   convention for the members of an indirect-call class (§3.8, summed preferences); costing
   the calls with the callers' own placement (the second iteration §6 names, left to S7);
   results left in the callee's homes.
+
+**S7 progress (2026-10-18):** done as measurement plus knobs; no default changed.
+- **Knobs.** `--tune beam=N,size-weight=N,speed-weight=N,lookahead=N,freq-base=N,choose-conventions`
+  on `iriec`, `irie-exec` and `dnrc` (`PlacementTuning`; `--beam-width` and
+  `--choose-conventions` still work and win over `--tune`), and the presets
+  `--optimize-size` (size 8, speed 1) and `--optimize-speed` (size 1, speed 8).
+  `BeamWidth` 0 keeps every state, which is the oracle: states that agree on every
+  location are merged as before, and a step that holds more than
+  `OracleStateCap` (20 000) states keeps the cheapest, counted as
+  `placement.capped-steps` in `--stats`; `placement.cost` is the sum of the stretch costs.
+  The block frequency base (`LoopInfo.FrequencyBase`) is a knob too.
+- **Harness.** `src/Irie.Tools.Reference/sweep.py "<tune>" ...` prints one row per setting:
+  corpus bytes and cycles (`iriec`, `irie-exec`), C# set bytes and whole-program cycles
+  (`dnrc`, the emulator's `--measure` of the program's entry; the meter now also closes
+  at the halt loop), placement cost, capped steps, compile seconds, failures.
+- **Results** (Release; corpus of 43 cases, 120 C# programs; compile time measured
+  alone, in seconds for all 120 programs):
+
+  | Setting | Corpus B | Corpus cycles | C# B | C# cycles | Compile s |
+  |---|--:|--:|--:|--:|--:|
+  | beam 1 (greedy) | 3043* | 3 627 266* | 167 291* | 3 907 434* | 32 |
+  | beam 2 | 3407 | 5 835 470 | 165 937 | 3 919 588 | |
+  | beam 4 | 3276* | 5 775 789* | 164 280 | 3 883 293 | |
+  | **beam 8 (default)** | 3353 | 5 802 207 | 163 159 | 3 846 729 | 38 |
+  | beam 16 | 3353 | 5 802 207 | 163 113 | 3 846 078 | 40 |
+  | beam 32 | 3348 | 5 800 671 | 162 792 | 3 842 177 | 42 |
+  | beam 64 | 3348 | 5 800 671 | 162 776 | 3 841 946 | |
+  | **oracle (beam 0)** | 3348 | 5 800 671 | 162 773 | 3 841 902 | |
+  | `choose-conventions` | 3353 | 5 797 208 | 163 043 | 3 846 679 | 45 |
+
+  `*` marks settings where some programs fail (below), so the totals cover fewer
+  programs and cannot be compared.
+- **Gap to the oracle.** Beam 8 is 0.24% above the oracle in bytes of the C# set
+  (0.15% in the corpus) and 0.13% in cycles; the placement cost is 0.41% above. Only 4
+  steps of the C# set reached the state cap, so the oracle is exact nearly everywhere.
+  Beam 32 is within 0.01% of it for 11% more compile time. That is not a clear enough
+  win to change the default (beam 8, and 16, which gains 0.03%, stay); `--tune beam=32`
+  is there for a size-leaning build.
+- **Weights and frequencies do nothing measurable.** Size weight 1 to 8, speed weight
+  1 to 8 and a frequency base of 4, 8 or 16 change the C# bytes by less than 0.003% and the
+  cycles by less than 0.002%: where a variant is smaller it is almost always as fast.
+  So `--optimize-size` and `--optimize-speed` exist but have almost nothing to choose between.
+- **Lookahead.** 1, 2, 3, 4 and 6 give the same code as 3 (and the oracle with lookahead 6 the
+  same as the oracle with 3); 0 is not a usable setting (see failures). One level
+  would do, but the saving is below the noise.
+- **Block joins.** The oracle changes nothing about how blocks are joined, but widening the
+  only join knob there is (lookahead) changes nothing either, and the loss to the oracle
+  within a stretch is 0.24%. That bounds what the join heuristic loses along the
+  dimensions that can be varied, not what an exact method over the whole CFG would find;
+  nothing here argues for the tree-decomposition DP, and it is not built.
+- **Conventions.** `choose-conventions` gains 0.07% (C# bytes) and 0.09% (corpus
+  cycles) for 18% more compile time, as in S6; it stays off. Costing the calls with the
+  callers' own placement was not tried: the flat charge already ranks the choices that
+  matter, and the total gain available from conventions is under 0.1%.
+- **Found on the way.** A beam of 4 fails the placement checker on `fibonacci` (the back
+  edge hands over a register the loop header does not expect), and beam 1 and lookahead 0
+  fail on `fibonacci` and `gcd` (and, for lookahead 0, on C# programs) for the same reason. The checker
+  catches it (a compile error, not wrong code); the default settings are not affected.
+  It is in the handling of registers a loop header inherits (`FindInheriting`).
 
 ### Work outside the allocator that still limits quality
 

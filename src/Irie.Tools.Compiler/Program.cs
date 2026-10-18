@@ -35,6 +35,15 @@ var chooseConventionsOption = new Option<bool>("--choose-conventions")
     Description = "Let the placement of a function that is only called directly choose which of A and X its arguments arrive in and its results leave in (default: every function uses the default calling convention)",
 };
 
+var tuneOption = new Option<string?>("--tune")
+{
+    Description = "Placement search knobs, comma separated: beam=N (0 keeps every state: the oracle), size-weight=N, speed-weight=N, lookahead=N, freq-base=N, choose-conventions",
+};
+
+var optimizeSizeOption = new Option<bool>("--optimize-size") { Description = "Weigh bytes over cycles in the placement search (size-weight=8, speed-weight=1)" };
+
+var optimizeSpeedOption = new Option<bool>("--optimize-speed") { Description = "Weigh cycles over bytes in the placement search (size-weight=1, speed-weight=8)" };
+
 var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
 
 var originOption = new Option<string?>("--origin")
@@ -53,6 +62,9 @@ rootCommand.Options.Add(emitOption);
 rootCommand.Options.Add(originOption);
 rootCommand.Options.Add(beamWidthOption);
 rootCommand.Options.Add(chooseConventionsOption);
+rootCommand.Options.Add(tuneOption);
+rootCommand.Options.Add(optimizeSizeOption);
+rootCommand.Options.Add(optimizeSpeedOption);
 rootCommand.Options.Add(statsOption);
 rootCommand.Options.Add(printAfterAll);
 rootCommand.Options.Add(printChanged);
@@ -84,8 +96,8 @@ rootCommand.SetAction(parseResult =>
     var context = new CompilationContext(module);
 
     var passMgr = new PassManager(stopAfterPass, startAtPass);
-    PipelineBuilder.AddStandardPipeline(passMgr, target, parseResult.GetValue(beamWidthOption),
-        chooseConventions: parseResult.GetValue(chooseConventionsOption));
+    PipelineBuilder.AddStandardPipeline(passMgr, target,
+        PlacementTuningCli.Resolve(parseResult.GetValue(tuneOption), parseResult.GetValue(optimizeSizeOption), parseResult.GetValue(optimizeSpeedOption), parseResult.GetValue(beamWidthOption), parseResult.GetValue(chooseConventionsOption)));
 
     if (printAll || printDiff)
     {
@@ -210,5 +222,16 @@ static int ParseOrigin(string text)
     catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException)
     {
         throw new ArgumentException($"--origin value '{text}' is not a valid integer.", ex);
+    }
+}
+
+static class PlacementTuningCli
+{
+    // --tune is applied over the presets, and --beam-width and --choose-conventions over it.
+    public static Irie.Target.PlacementTuning Resolve(string? tune, bool size, bool speed, int? beamWidth, bool chooseConventions)
+    {
+        var tuning = size ? Irie.Target.PlacementTuning.Size : speed ? Irie.Target.PlacementTuning.Speed : new Irie.Target.PlacementTuning();
+        tuning = Irie.Target.PlacementTuning.Parse(tune, tuning);
+        return tuning with { BeamWidth = beamWidth ?? tuning.BeamWidth, ChooseConventions = tuning.ChooseConventions || chooseConventions };
     }
 }

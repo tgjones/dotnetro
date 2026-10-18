@@ -34,6 +34,15 @@ internal sealed class CycleMeter(ushort entryAddress)
     public long Cycles { get; private set; }
     public int Calls { get; private set; }
 
+    // The program stopped in its halt loop: a window that is still open (the program
+    // as a whole, measured from its entry) ends here.
+    public void Halt(int ticks)
+    {
+        if (!_inside) return;
+        Cycles += ticks - _startTick;
+        _inside = false;
+    }
+
     // Called at every opcode fetch: `ticks` cycles have elapsed before it.
     public void Observe(ushort pc, byte sp, int ticks)
     {

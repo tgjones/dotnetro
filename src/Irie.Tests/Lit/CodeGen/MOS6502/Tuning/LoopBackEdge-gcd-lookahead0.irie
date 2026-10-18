@@ -1,0 +1,86 @@
+; RUN: @iriec --target mos6502 --emit=asm --tune lookahead=0 @file
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --tune lookahead=0 --emulator @emulator --exec "gcd(1..40, 1..40)"
+
+; A loop whose header takes the registers of the edge from outside, placed with --tune lookahead=0:
+; the back edge reconciles to them even where its arguments overwrite the homes
+; the header expects in registers.
+
+; CHECK: gcd:
+; CHECK:     LDY $02
+; CHECK:     STY $15
+; CHECK:     LDY $03
+; CHECK:     STY $14
+; CHECK: .bb1:
+; CHECK:     STA $16
+; CHECK:     LDA $14
+; CHECK:     STX $17
+; CHECK:     BNE .bb3
+; CHECK:     LDA $15
+; CHECK:     BNE .bb3
+; CHECK: .bb2:
+; CHECK:     LDA $16
+; CHECK:     RTS
+; CHECK: .bb3:
+; CHECK:     LDA $17
+; CHECK:     BMI .bb8
+; CHECK: .bb4:
+; CHECK:     LDX #$00
+; CHECK: .bb5:
+; CHECK:     LDY $14
+; CHECK:     BMI .bb9
+; CHECK: .bb6:
+; CHECK:     LDY #$00
+; CHECK: .bb7:
+; CHECK:     STX $02
+; CHECK:     STX $03
+; CHECK:     LDX $15
+; CHECK:     STX $04
+; CHECK:     LDX $14
+; CHECK:     STX $05
+; CHECK:     STY $06
+; CHECK:     STY $07
+; CHECK:     TAX
+; CHECK:     LDA $16
+; CHECK:     JSR __modsi3
+; CHECK:     STA $16
+; CHECK:     STX $17
+; CHECK:     LDX $14
+; CHECK:     LDA $15
+; CHECK:     STA $15
+; CHECK:     LDA $14
+; CHECK:     STA $14
+; CHECK:     LDA $16
+; CHECK:     STA $18
+; CHECK:     LDA $17
+; CHECK:     STA $19
+; CHECK:     LDA $15
+; CHECK:     STA $16
+; CHECK:     LDA $14
+; CHECK:     STA $17
+; CHECK:     LDA $18
+; CHECK:     STA $15
+; CHECK:     LDA $19
+; CHECK:     STA $14
+; CHECK:     LDA $16
+; CHECK:     JMP .bb1
+; CHECK: .bb8:
+; CHECK:     LDX #$FF
+; CHECK:     JMP .bb5
+; CHECK: .bb9:
+; CHECK:     LDY #$FF
+; CHECK:     JMP .bb7
+
+
+func @gcd : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    cf.br bb1(%0, %1)
+bb1(%2 : i16, %3 : i16):
+    %4 : i16 = arith.constant 0
+    %5 : i1 = arith.cmpi ne, %3, %4
+    cf.cond_br %5, bb2(%2, %3), bb3(%2)
+bb2(%6 : i16, %7 : i16):
+    %8 : i16 = arith.sremi %6, %7
+    cf.br bb1(%7, %8)
+bb3(%9 : i16):
+    core.return %9
+}

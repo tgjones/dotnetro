@@ -43,12 +43,8 @@ public class MOS6502Target : Irie.Target.Target
     public override Irie.Target.InstructionSelector CreateShapeSelector() => new MOS6502ShapeSelector();
 
 
-    public override Pass CreateBeamPlacementPass(int? beamWidth = null, bool chooseConventions = false) =>
-        new MOS6502BeamPlacementPass(new BeamPlacementOptions
-        {
-            BeamWidth = beamWidth ?? new BeamPlacementOptions().BeamWidth,
-            ChooseConventions = chooseConventions,
-        });
+    public override Pass CreateBeamPlacementPass(PlacementTuning? tuning = null) =>
+        new MOS6502BeamPlacementPass(BeamPlacementOptions.From(tuning));
 
     // Placement emits concrete ops on homes already, so only the recursion saves
     // (which make stacked homes safe inside call cycles) and the program layout

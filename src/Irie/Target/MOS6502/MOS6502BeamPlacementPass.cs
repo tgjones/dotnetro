@@ -13,7 +13,8 @@ namespace Irie.Target.MOS6502;
 // straight-line code mostly for its size.
 public sealed record BeamPlacementOptions
 {
-    // States kept per operation; 1 is a greedy placement.
+    // States kept per operation; 1 is a greedy placement, 0 keeps every state (up to
+    // OracleStateCap), which makes the search an exact oracle for the beam.
     public int BeamWidth { get; init; } = 8;
     public int SizeWeight { get; init; } = 1;
     public int SpeedWeight { get; init; } = 1;
@@ -24,6 +25,27 @@ public sealed record BeamPlacementOptions
     // leaves the results where its own placement is cheapest (the calls follow), or
     // keeps the default convention.
     public bool ChooseConventions { get; init; }
+    // Block frequency is FrequencyBase^loop depth.
+    public int FrequencyBase { get; init; } = 8;
+    // With BeamWidth 0 (keep every state) a search that reaches this many states in
+    // one step keeps the cheapest ones only; such stretches are counted in the
+    // statistics, since the result is then not proven optimal.
+    public int OracleStateCap { get; init; } = 20000;
+
+    public static BeamPlacementOptions From(PlacementTuning? tuning)
+    {
+        var defaults = new BeamPlacementOptions();
+        if (tuning is null) return defaults;
+        return defaults with
+        {
+            BeamWidth = tuning.BeamWidth ?? defaults.BeamWidth,
+            SizeWeight = tuning.SizeWeight ?? defaults.SizeWeight,
+            SpeedWeight = tuning.SpeedWeight ?? defaults.SpeedWeight,
+            Lookahead = tuning.Lookahead ?? defaults.Lookahead,
+            FrequencyBase = tuning.FrequencyBase ?? defaults.FrequencyBase,
+            ChooseConventions = tuning.ChooseConventions,
+        };
+    }
 }
 
 // Placement within blocks: a beam search over what A, X, Y, the
@@ -66,6 +88,8 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
 
         var order = Enumerable.Range(0, graph.Functions.Count).OrderBy(i => graph.SccId[i]).ThenBy(i => i);
         var moved = 0;
+        var cost = 0L;
+        var capped = 0;
         foreach (var i in order)
         {
             var function = graph.Functions[i];
@@ -77,8 +101,13 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
                 && MOS6502ConventionRewriter.CanRewrite(module, function)
                 && ChooseConvention(module, function, settings))
                 moved++;
-            new BeamPlacer(function, settings).Run();
+            var placer = new BeamPlacer(function, settings);
+            placer.Run();
+            cost += placer.PlacementCost;
+            capped += placer.CappedStretches;
         }
+        context.Statistics["placement.cost"] = cost;
+        if (settings.BeamWidth == 0) context.Statistics["placement.capped-steps"] = capped;
         if (moved > 0)
             context.Statistics["functions with their own convention"] = moved;
         MOS6502ConventionRewriter.Verify(module);
@@ -193,6 +222,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // What the placement of the function costs: the sum over its stretches of the
     // cost of the cheapest placement found for each (without the lookahead).
     internal long PlacementCost { get; private set; }
+    // Steps of an unbounded search (BeamWidth 0) that hit the state cap.
+    internal int CappedStretches { get; private set; }
 
     // ------------------------------------------------------------------
     // Liveness
@@ -341,6 +372,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         FindArgumentsInPlace();
 
         _loops = new LoopAnalysis().Compute(Function);
+        _loops.FrequencyBase = options.FrequencyBase;
         FindInheriting();
         _homeClass = HomeClasses.Build(this, _loops, vreg => TryFixedHome(vreg, out _) || _remat.ContainsKey(vreg));
     }
@@ -794,7 +826,9 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             if (next.Count == 0)
                 throw new NotSupportedException(
                     $"MOS6502BeamPlacement: no placement for {Describe(info.Instrs[item])} in @{Function.Name}.");
-            beam = [.. next.Values.OrderBy(s => s.Cost).Take(Math.Max(1, options.BeamWidth))];
+            var keep = options.BeamWidth > 0 ? options.BeamWidth : options.OracleStateCap;
+            if (next.Count > keep && options.BeamWidth == 0) CappedStretches++;
+            beam = [.. next.Values.OrderBy(s => s.Cost).Take(keep)];
         }
 
         State? best = null;
@@ -1960,10 +1994,33 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                     if (arg is VirtualReg v && _info.Index.TryGetValue(v.Id, out var index) && !IsRemat(index)
                         && !InH(index) && !EnsureHome(index, 0))
                         return false;
+
+                // The moves go through A and overwrite the homes of the parameters, so
+                // the index registers the join expects are loaded before them, from the
+                // homes as they are now, and A afterwards from its parameter's home.
+                var loaded = 0;
+                foreach (var register in new[] { Y, X })
+                {
+                    var name = contract.R[register];
+                    if (name == Empty) continue;
+                    var content = Source(name);
+                    if (content == Empty || !PutIn(register, content, loaded)) return false;
+                    loaded |= 1 << register;
+                }
                 Do(placer => placer.EmitEdgeMoves(target));
                 _r[A] = Empty;
                 _nz = Empty;
                 _c = Empty;
+
+                var inA = contract.R[A];
+                if (inA != Empty && parameters.Contains(inA) && moves.Any(m => m.Parameter == inA))
+                {
+                    var content = Source(inA);
+                    if (content == Empty) return false;
+                    Do(V(MOS6502Operation.Reload, Place.A, Place.Home), MemRef.HomeOf(inA));
+                    _r[A] = content;
+                    _nz = IsImm(content) || IsRemat(content) ? Empty : content;
+                }
             }
             else
             {

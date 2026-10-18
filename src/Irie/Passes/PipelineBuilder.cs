@@ -7,7 +7,7 @@ namespace Irie.Passes;
 public static class PipelineBuilder
 {
     public static void AddStandardPipeline(
-        PassManager passMgr, Target.Target target, int? beamWidth = null, bool chooseConventions = false)
+        PassManager passMgr, Target.Target target, PlacementTuning? tuning = null)
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());
@@ -25,7 +25,7 @@ public static class PipelineBuilder
         // elimination and no allocation: block parameters become writes of the
         // parameters' homes on each edge.
         passMgr.AddPass(new InstructionSelectorPass(target.CreateShapeSelector()));
-        passMgr.AddPass(target.CreateBeamPlacementPass(beamWidth, chooseConventions));
+        passMgr.AddPass(target.CreateBeamPlacementPass(tuning));
         passMgr.AddPass(new PostRegisterAllocationVerifierPass(target.RegisterInfo));
         // Placement mints frame slots for the values it spills; give them their
         // storage (the earlier FrameLowering ran before placement, so it never saw

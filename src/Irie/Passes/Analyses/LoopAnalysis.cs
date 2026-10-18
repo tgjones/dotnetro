@@ -19,6 +19,9 @@ public sealed class LoopInfo
 
     public IReadOnlyList<Loop> Loops { get; }
 
+    // Each loop level multiplies the frequency by this.
+    public int FrequencyBase { get; set; } = 8;
+
     internal LoopInfo(IReadOnlyList<Loop> loops, Dictionary<MirBlock, Loop> innermost)
     {
         Loops = loops;
@@ -39,7 +42,7 @@ public sealed class LoopInfo
     {
         var frequency = 1L;
         for (var i = Math.Min(Depth(block), MaxFrequencyDepth); i > 0; i--)
-            frequency *= 8;
+            frequency *= FrequencyBase;
         return frequency;
     }
 }

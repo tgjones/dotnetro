@@ -46,7 +46,7 @@ public abstract class Target
     public abstract Irie.Target.InstructionSelector CreateShapeSelector();
 
 
-    public abstract Irie.Passes.Pass CreateBeamPlacementPass(int? beamWidth = null, bool chooseConventions = false);
+    public abstract Irie.Passes.Pass CreateBeamPlacementPass(PlacementTuning? tuning = null);
 
     // Called by the driver after placement, between CopyEliminationPass and the
     // lowering passes: the target's zero-page layout and the like.
