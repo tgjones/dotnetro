@@ -12,10 +12,8 @@
 ; CHECK:     STX $05
 ; CHECK:     LDY $02
 ; CHECK:     STY $06
-; CHECK:     TAY
-; CHECK:     LDA $03
-; CHECK:     STA $07
-; CHECK:     TYA
+; CHECK:     LDY $03
+; CHECK:     STY $07
 ; CHECK:     JMP __mulsi3
 ; CHECK: chain:
 ; CHECK:     STA $14

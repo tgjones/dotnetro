@@ -3,25 +3,24 @@
 
 ; The beam placement: the arguments of an add arrive in A, X and the zero-page
 ; registers, and the add reads them from where they are. The carry stays in C from one
-; ADC to the next, an intermediate byte that is still needed is parked in a free
-; register (TAY) rather than stored, and the result is built in A and X for the return.
+; ADC to the next, the low byte is parked in a free register (TAY) rather than stored,
+; and each result byte that returns in a zero-page register is built there (STA $02):
+; the argument that arrived in it is dead by then.
 
 ; CHECK: add_i32:
 ; CHECK:     CLC
 ; CHECK:     ADC $04
-; CHECK:     STA $14
+; CHECK:     TAY
 ; CHECK:     TXA
 ; CHECK:     ADC $05
 ; CHECK:     TAX
 ; CHECK:     LDA $02
 ; CHECK:     ADC $06
-; CHECK:     TAY
+; CHECK:     STA $02
 ; CHECK:     LDA $03
 ; CHECK:     ADC $07
-; CHECK:     STY $02
 ; CHECK:     STA $03
-; CHECK:     STA $15
-; CHECK:     LDA $14
+; CHECK:     TYA
 ; CHECK:     RTS
 
 func @add_i32 : (i32, i32) -> i32 {

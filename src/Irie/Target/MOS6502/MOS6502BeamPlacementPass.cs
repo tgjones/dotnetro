@@ -73,14 +73,22 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // Arguments that arrive in zero-page registers and stay there, as their own homes.
     private readonly Dictionary<int, int> _argRegister = [];
 
+    // Values whose only use is a copy into a fixed zero-page register (a return value,
+    // a call argument) and that nothing disturbs that register for: they are built
+    // in that register, as their own home.
+    private readonly Dictionary<int, int> _destinationRegister = [];
+
+    private bool TryFixedHome(int vreg, out int register) =>
+        _argRegister.TryGetValue(vreg, out register) || _destinationRegister.TryGetValue(vreg, out register);
+
     internal override PhysicalReg Home(int vreg) =>
-        _argRegister.TryGetValue(vreg, out var register)
+        TryFixedHome(vreg, out var register)
             ? new PhysicalReg(register, IsDefinition: false)
             : base.Home(vreg);
 
     internal override bool TryGetHome(int vreg, out int register)
     {
-        if (_argRegister.TryGetValue(vreg, out register)) return true;
+        if (TryFixedHome(vreg, out register)) return true;
         return base.TryGetHome(vreg, out register);
     }
 
@@ -132,11 +140,72 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             }
         }
         foreach (var (vreg, register) in candidates) _argRegister[vreg] = register;
+        FindDestinationHomes();
 
         void RemoveReadersOf(MirInstruction other, int written)
         {
             if (other.Operands[1] is VirtualReg read && candidates.TryGetValue(read.Id, out var register) && register == written)
                 candidates.Remove(read.Id);
+        }
+    }
+
+    private bool DefinesRegister(MirInstruction instr, int register) =>
+        instr.Operands.Any(o => o is PhysicalReg { IsDefinition: true } p && p.Id == register);
+
+    private void FindDestinationHomes()
+    {
+        foreach (var block in Function.Blocks)
+        {
+            var instrs = block.Instructions;
+            var defAt = new Dictionary<int, int>();
+
+            // The register a value arrived in, while it has not been moved.
+            var arrived = new Dictionary<int, int>();
+            foreach (var instr in instrs)
+                if (IsCopyFromZeroPage(instr) && instr.Operands[0] is VirtualReg d)
+                    arrived[d.Id] = ((PhysicalReg)instr.Operands[1]).Id;
+            var wanted = new Dictionary<int, int>();   // vreg -> register
+            for (var i = 0; i < instrs.Count; i++)
+            {
+                foreach (var def in Defs(instrs[i])) defAt[def.Id] = i;
+                if (!IsCopy(instrs[i]) || instrs[i].Operands[0] is not PhysicalReg { Id: var register }
+                    || instrs[i].Operands[1] is not VirtualReg { IsDefinition: false } value
+                    || register < MOS6502Registers.RC(2) || MOS6502Registers.IsHome(register)
+                    || register == MOS6502Variants.PointerLo || register == MOS6502Variants.PointerHi
+                    || _uses.GetValueOrDefault(value.Id) != 1 || !NeedsHome(value.Id)
+                    || _argRegister.ContainsKey(value.Id) || arrived.ContainsKey(value.Id) || _remat.ContainsKey(value.Id)
+                    || !defAt.TryGetValue(value.Id, out var def2))
+                    continue;
+                var undisturbed = true;
+                for (var k = def2 + 1; k < i && undisturbed; k++)
+                    undisturbed = !DefinesRegister(instrs[k], register);
+
+                // A run of copies is one parallel move: no other copy of it may write
+                // the register either.
+                for (var k = i - 1; k >= 0 && undisturbed && IsCopy(instrs[k]); k--)
+                    undisturbed = !DefinesRegister(instrs[k], register);
+                for (var k = i + 1; k < instrs.Count && undisturbed && IsCopy(instrs[k]); k++)
+                    undisturbed = !DefinesRegister(instrs[k], register);
+                if (undisturbed) wanted[value.Id] = register;
+            }
+            if (wanted.Count == 0) continue;
+
+            // The register must not hold something else that is still needed when
+            // the value is built.
+            var live = new HashSet<int>(_liveOut[block]);
+            for (var i = instrs.Count - 1; i >= 0; i--)
+            {
+                foreach (var def in Defs(instrs[i]))
+                {
+                    if (wanted.TryGetValue(def.Id, out var register)
+                        && !live.Any(v => v != def.Id
+                            && (TryFixedHome(v, out var other) && other == register
+                                || arrived.TryGetValue(v, out var from) && from == register)))
+                        _destinationRegister[def.Id] = register;
+                    live.Remove(def.Id);
+                }
+                foreach (var use in Uses(instrs[i])) live.Add(use.Id);
+            }
         }
     }
 
@@ -146,7 +215,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         _loops = new LoopAnalysis().Compute(Function);
         FindInheriting();
-        _homeClass = HomeClasses.Build(this, _loops, vreg => _argRegister.ContainsKey(vreg) || _remat.ContainsKey(vreg));
+        _homeClass = HomeClasses.Build(this, _loops, vreg => TryFixedHome(vreg, out _) || _remat.ContainsKey(vreg));
     }
 
     // ------------------------------------------------------------------
@@ -891,10 +960,18 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         private bool Needed(int content, bool after)
         {
             if (content < 0 || content >= ImmBase) return false;
+            if (_runEnd >= 0)
+                return _info.LastUse[content] >= _runEnd || _info.ExitUse[content] >= _pos || _pending.Contains(content);
             var use = _info.LastUse[content];
             var read = after || _consumed.Contains(content) ? use > _pos : use >= _pos;
             return read || _info.ExitUse[content] >= _pos;
         }
+
+        // While the zero-page and register moves of a run of copies are placed: the
+        // position after the run, and the values the moves still to come read. A value
+        // the run has already passed on is not needed any more.
+        private int _runEnd = -1;
+        private readonly HashSet<int> _pending = [];
 
         // Values the current operation has already used up (a branch's arguments, once
         // they are in the parameters' homes).
@@ -1893,7 +1970,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 var source = ContentOf(c.Operands[1]);
                 var written = ((PhysicalReg)c.Operands[0]).Id;
                 if (source < 0 || IsImm(source)) return false;
-                if (_placer._argRegister.TryGetValue(VregOf(source), out var home)) return InH(source) && home == written;
+                if (_placer.TryFixedHome(VregOf(source), out var home)) return InH(source) && home == written;
                 return InF(source) && !InH(source) && _info.FixedReg[source] == written;
             }).ToHashSet();
             var setsUp = toZp.Count > 0 || toGpr.Any(l => l.Count > 0);
@@ -1926,27 +2003,45 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 }
             }
 
+            var moves = toZp.Concat(toGpr[Y]).Concat(toGpr[X]).Concat(toGpr[A]).ToList();
+            void Pending(int from)
+            {
+                _pending.Clear();
+                for (var k = from; k < moves.Count; k++)
+                    if (!inPlace.Contains(moves[k])) _pending.Add(ContentOf(moves[k].Operands[1]));
+            }
+            _runEnd = nextPos;
+            Pending(0);
+
+            var done = 0;
             foreach (var copy in toZp)
             {
                 var source = ContentOf(copy.Operands[1]);
-                if (inPlace.Contains(copy)) continue;
-                var register = FindRegister(source);
-                if (register < 0)
+                if (!inPlace.Contains(copy))
                 {
-                    register = PickScratch(0);
-                    if (!PutIn(register, source)) return null;
+                    var register = FindRegister(source);
+                    if (register < 0)
+                    {
+                        register = PickScratch(0);
+                        if (!PutIn(register, source)) return null;
+                    }
+                    Do(V(MOS6502Operation.Spill, RegisterPlace(register), Place.Home),
+                        MemRef.Phys(((PhysicalReg)copy.Operands[0]).Id));
                 }
-                Do(V(MOS6502Operation.Spill, RegisterPlace(register), Place.Home),
-                    MemRef.Phys(((PhysicalReg)copy.Operands[0]).Id));
+                Pending(++done);
             }
 
             var pinned = 0;
             foreach (var register in new[] { Y, X, A })
             {
                 foreach (var copy in toGpr[register])
+                {
                     if (!PutIn(register, ContentOf(copy.Operands[1]), pinned)) return null;
+                    Pending(++done);
+                }
                 if (toGpr[register].Count > 0) pinned |= 1 << register;
             }
+            _runEnd = -1;
             return this;
         }
     }
