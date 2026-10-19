@@ -52,8 +52,14 @@ public sealed class RangeNarrowingPass : MirFunctionPass
                 function.SetValueRange(vreg, range);
 
         foreach (var block in function.Blocks)
+        {
             foreach (var instruction in block.Instructions.ToArray())
+            {
                 NarrowArithmetic(function, builder, instruction, ranges);
+                NarrowOperandBound(function, builder, instruction, ranges);
+                NarrowCompare(function, builder, instruction, ranges);
+            }
+        }
 
         CleanUpCasts(function, builder, ranges);
         RemoveDeadCode(function, builder);
@@ -104,6 +110,107 @@ public sealed class RangeNarrowingPass : MirFunctionPass
             new VirtualReg(result.Id, IsDefinition: true),
             new VirtualReg(narrowResult, IsDefinition: false));
         builder.Remove(instruction);
+    }
+
+    /// <summary>
+    /// A logical shift right by a constant, an arithmetic shift right of a non-negative value, and an unsigned
+    /// divide or remainder, whose operands all fit an unsigned M-bit value: <c>r = zext(op_M(trunc a, ...))</c>.
+    /// Unlike add and friends these look at the operands, not the result, because the high bits of the operand
+    /// feed the result.
+    /// </summary>
+    private static void NarrowOperandBound(
+        MirFunction function, MirBuilder builder, MirInstruction instruction, Dictionary<int, ValueRange> ranges)
+    {
+        if (instruction.Opcode.Dialect != ArithDialect.Id
+            || (ArithOp)instruction.Opcode.Code is not (ArithOp.LShr or ArithOp.AShr or ArithOp.UDivI or ArithOp.URemI)
+            || instruction.Operands is not [VirtualReg { IsDefinition: true } result, VirtualReg a, VirtualReg b]
+            || function.GetVRegAnnotation(result.Id) is not TypedVReg { Type: IntegerType { SizeInBits: var bits } }
+            || !ranges.TryGetValue(a.Id, out var aRange))
+            return;
+
+        var op = (ArithOp)instruction.Opcode.Code;
+        var isShift = op is ArithOp.LShr or ArithOp.AShr;
+        ValueRange? bRange = null;
+        if (!ranges.TryGetValue(b.Id, out bRange) && !isShift)
+            return;
+
+        // A shift's amount must be a constant that is valid for the narrow type; a divide's divisor must fit too.
+        var width = NarrowWidth(isShift ? aRange : aRange.Join(bRange!), bits);
+        if (width is not { } narrow)
+            return;
+        if (isShift && (bRange is null || bRange.Lo != bRange.Hi || bRange.Lo >= narrow))
+            return;
+
+        var narrowType = IntegerTypeOfWidth(narrow);
+        builder.SetInsertionPointBefore(instruction);
+        var narrowA = BuildTrunc(function, builder, a.Id, narrowType);
+        // A non-negative value shifts the same way arithmetically and logically.
+        var narrowOpcode = op == ArithOp.AShr ? ArithDialect.OpRef(ArithOp.LShr) : instruction.Opcode;
+        MirOperand narrowB = isShift
+            ? new VirtualReg(b.Id, IsDefinition: false)
+            : new VirtualReg(BuildTrunc(function, builder, b.Id, narrowType), IsDefinition: false);
+        var narrowResult = function.CreateVirtualRegister(narrowType);
+        builder.BuildInstruction(narrowOpcode,
+            new VirtualReg(narrowResult, IsDefinition: true),
+            new VirtualReg(narrowA, IsDefinition: false),
+            narrowB);
+        builder.BuildInstruction(CastDialect.OpRef(CastOp.Zext),
+            new VirtualReg(result.Id, IsDefinition: true),
+            new VirtualReg(narrowResult, IsDefinition: false));
+        builder.Remove(instruction);
+    }
+
+    /// <summary>
+    /// <c>cmpi pred a, b</c> whose operands both fit M bits compares at width M: unsigned when both fit an
+    /// unsigned M-bit value (a signed predicate becomes its unsigned form, which is the same on non-negative
+    /// values), signed when both fit a signed one and the predicate is not unsigned.
+    /// </summary>
+    private static void NarrowCompare(
+        MirFunction function, MirBuilder builder, MirInstruction instruction, Dictionary<int, ValueRange> ranges)
+    {
+        if (instruction.Opcode != ArithDialect.OpRef(ArithOp.CmpI)
+            || instruction.Operands is not [VirtualReg { IsDefinition: true } result, Immediate predicateOperand,
+                                            VirtualReg a, VirtualReg b]
+            || function.GetVRegAnnotation(a.Id) is not TypedVReg { Type: IntegerType { SizeInBits: var bits } }
+            || !ranges.TryGetValue(a.Id, out var aRange)
+            || !ranges.TryGetValue(b.Id, out var bRange))
+            return;
+
+        var predicate = (ArithCmpPredicate)predicateOperand.Value;
+        var isUnsignedPredicate = predicate is ArithCmpPredicate.Ult or ArithCmpPredicate.Ugt
+            or ArithCmpPredicate.Ule or ArithCmpPredicate.Uge;
+        foreach (var width in new[] { 8, 16, 32 })
+        {
+            if (width >= bits)
+                return;
+
+            ArithCmpPredicate narrowPredicate;
+            if (aRange.FitsUnsigned(width) && bRange.FitsUnsigned(width))
+                narrowPredicate = predicate switch
+                {
+                    ArithCmpPredicate.Slt => ArithCmpPredicate.Ult,
+                    ArithCmpPredicate.Sgt => ArithCmpPredicate.Ugt,
+                    ArithCmpPredicate.Sle => ArithCmpPredicate.Ule,
+                    ArithCmpPredicate.Sge => ArithCmpPredicate.Uge,
+                    _ => predicate,
+                };
+            else if (!isUnsignedPredicate && aRange.FitsSigned(width) && bRange.FitsSigned(width))
+                narrowPredicate = predicate;
+            else
+                continue;
+
+            var narrowType = IntegerTypeOfWidth(width);
+            builder.SetInsertionPointBefore(instruction);
+            var narrowA = BuildTrunc(function, builder, a.Id, narrowType);
+            var narrowB = BuildTrunc(function, builder, b.Id, narrowType);
+            builder.BuildInstruction(instruction.Opcode,
+                new VirtualReg(result.Id, IsDefinition: true),
+                new Immediate((long)narrowPredicate),
+                new VirtualReg(narrowA, IsDefinition: false),
+                new VirtualReg(narrowB, IsDefinition: false));
+            builder.Remove(instruction);
+            return;
+        }
     }
 
     /// <summary>

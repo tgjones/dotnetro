@@ -113,9 +113,9 @@ bb0(%0 : i16 in [0, 99]):
 ; CHECK:
 ; CHECK: func @Bitwise : (i8, i16) -> i32 {
 ; CHECK: bb0(%0 : i8, %1 : i16):
-; CHECK:     %3 : i32 in [0, 65535] = cast.zext %1
-; CHECK:     %10 : i32 = arith.constant 10
-; CHECK:     %12 : i32 in [0, 6553] = arith.udivi %3, %10
+; CHECK:     %32 : i16 = arith.constant 10
+; CHECK:     %29 : i16 = arith.udivi %1, %32
+; CHECK:     %12 : i32 in [0, 6553] = cast.zext %29
 ; CHECK:     core.return %12
 ; CHECK: }
 ; CHECK:

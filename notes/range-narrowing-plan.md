@@ -156,10 +156,10 @@ Keep each step green (`dotnet test --solution src`) before the next.
    and the trunc/ext cleanup (zero-extended results only; a result with a negative range stays wide until step 6's cost rule; step 4 also merges duplicate casts within a block). The pass is already in `PipelineBuilder.AddStandardPipeline` after `ArithSimplifyPass` (step 3). Result: 151,668 → 150,419 bytes, no program grew (`notes/measure-lit-sizes.sh`, added in step 4). Expect `ByteArithmeticPromotion`, `TernaryMixedWidth` and
    `SwitchByte` to shrink. Regenerate affected goldens with `dotlit --regenerate` and **read every
    diff**.
-5. **[ ] Rewrite: compares, shifts, divisions.** Narrow `cmpi` (check that `LegalizeCmpI` and
+5. **[x] Rewrite: compares, shifts, divisions.** Narrow `cmpi` (check that `LegalizeCmpI` and
    `PlacementChecker` handle the narrower shapes), then `lshr`/`ashr`/`udivi`/`urem`, then the
    `__mulsi3`→`__mulhi3` switch. Expect `NarrowIntegerCompare`, `CompareBranch*` and `MulInt32`
-   to change.
+   to change. Result: 150,419 → 146,314 bytes, no program grew. Shifts and divisions narrow to the width of their operands and, like step 4, only to zero-extended results (an `ashr` of a non-negative value becomes `lshr`).
 6. **[ ] Cost check and measure.** Implement the extension-cost rule. Add a script (replace the
    deleted `notes/measure-placement.sh`) that compiles every lit program with `dnrc --emit
    program` and prints per-program and total bytes. Compare to the 151,668 baseline. Any program
