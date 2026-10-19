@@ -179,4 +179,78 @@ public sealed class MirInterpreterTests
 
         await Assert.That(() => interpreter.Call("f")).Throws<InterpreterException>();
     }
+
+    /// <summary>A vreg's `in [lo, hi]` is checked as values are computed: inside holds, outside throws.</summary>
+    [Test]
+    [Arguments(10UL, 20UL, 30UL)]
+    [Arguments(255UL, 255UL, 510UL)]
+    public async Task ValueRange_HoldsWhenTheValueIsInside(ulong a, ulong b, ulong expected)
+    {
+        var interpreter = Load("""
+            func @f : (i8, i8) -> i32 {
+            bb0(%0 : i8, %1 : i8):
+                %2 : i32 in [0, 255] = cast.zext %0
+                %3 : i32 in [0, 255] = cast.zext %1
+                %4 : i32 in [0, 510] = arith.addi %2, %3
+                core.return %4
+            }
+            """);
+
+        await Assert.That(interpreter.Call("f", a, b)).IsEqualTo(expected);
+    }
+
+    [Test]
+    public async Task ValueRange_ThrowsWhenTheValueIsOutside()
+    {
+        var interpreter = Load("""
+            func @f : (i8, i8) -> i32 {
+            bb0(%0 : i8, %1 : i8):
+                %2 : i32 in [0, 255] = cast.zext %0
+                %3 : i32 in [0, 255] = cast.zext %1
+                %4 : i32 in [0, 400] = arith.addi %2, %3
+                core.return %4
+            }
+            """);
+
+        await Assert.That(interpreter.Call("f", 100UL, 100UL)).IsEqualTo(200UL);
+        await Assert.That(() => interpreter.Call("f", 255UL, 255UL)).Throws<InterpreterException>();
+    }
+
+    /// <summary>Ranges read as signed: a negative i8 parameter is inside [-128, -1] and outside [0, 127].</summary>
+    [Test]
+    public async Task ValueRange_IsReadAsSigned()
+    {
+        var holds = Load("""
+            func @f : (i8) -> i8 {
+            bb0(%0 : i8 in [-128, -1]):
+                core.return %0
+            }
+            """);
+        var wrong = Load("""
+            func @f : (i8) -> i8 {
+            bb0(%0 : i8 in [0, 127]):
+                core.return %0
+            }
+            """);
+
+        await Assert.That(holds.Call("f", 0xFFUL)).IsEqualTo(0xFFUL);
+        await Assert.That(() => wrong.Call("f", 0xFFUL)).Throws<InterpreterException>();
+    }
+
+    /// <summary>A block parameter's range is checked on each incoming edge.</summary>
+    [Test]
+    public async Task ValueRange_IsCheckedOnBlockParameters()
+    {
+        var interpreter = Load("""
+            func @f : (i8) -> i8 {
+            bb0(%0 : i8):
+                cf.br bb1(%0)
+            bb1(%1 : i8 in [0, 9]):
+                core.return %1
+            }
+            """);
+
+        await Assert.That(interpreter.Call("f", 9UL)).IsEqualTo(9UL);
+        await Assert.That(() => interpreter.Call("f", 10UL)).Throws<InterpreterException>();
+    }
 }

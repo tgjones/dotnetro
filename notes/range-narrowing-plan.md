@@ -146,7 +146,7 @@ Keep each step green (`dotnet test --solution src`) before the next.
 
 1. **[x] Range type and text form.** Add `ValueRange`, the `TypedVReg` field, the writer and the
    parser (`in [lo, hi]`), and round-trip tests in `Irie.Tests/Mir`. No pass yet.
-2. **[ ] Interpreter oracle.** Make the interpreter assert ranges. Test with hand-written MIR:
+2. **[x] Interpreter oracle.** Make the interpreter assert ranges. Test with hand-written MIR:
    one whose range holds, one whose range is deliberately wrong and must throw.
 3. **[ ] Analysis, straight-line.** `Passes/Analyses`: seeds and transfer functions for a function
    without loops (a single pass over reverse post-order; block parameters join their edges, and a

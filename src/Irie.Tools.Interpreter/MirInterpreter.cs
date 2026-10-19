@@ -128,7 +128,10 @@ public sealed class MirInterpreter
         if (block.Parameters.Count != arguments.Length)
             throw new InterpreterException($"@{function.Name}: entry block parameters do not match the signature.");
         for (var i = 0; i < arguments.Length; i++)
+        {
             values[block.Parameters[i]] = Truncate(arguments[i], function.ParameterTypes[i].SizeInBits);
+            CheckRange(function, block.Parameters[i], values[block.Parameters[i]]);
+        }
 
         while (true)
         {
@@ -175,6 +178,11 @@ public sealed class MirInterpreter
             else
             {
                 Execute(function, instruction, values);
+                foreach (var operand in operands)
+                {
+                    if (operand is VirtualReg { IsDefinition: true } def)
+                        CheckRange(function, def.Id, values[def.Id]);
+                }
             }
         }
 
@@ -193,7 +201,10 @@ public sealed class MirInterpreter
         for (var i = 0; i < incoming.Length; i++)
             incoming[i] = Read(values, target.Args[i]);
         for (var i = 0; i < incoming.Length; i++)
+        {
             values[parameters[i]] = incoming[i];
+            CheckRange(function, parameters[i], incoming[i]);
+        }
         return target.Block;
     }
 
@@ -463,6 +474,23 @@ public sealed class MirInterpreter
         return function.GetVRegAnnotation(id) is TypedVReg typed
             ? typed.Type.SizeInBits
             : throw new InterpreterException($"@{function.Name}: %{id} is not a typed vreg (the interpreter runs pre-pipeline MIR).");
+    }
+
+    /// <summary>
+    /// The soundness oracle for value-range analysis: a vreg annotated `in [lo, hi]` must only ever
+    /// hold values inside it (read as signed, except i1, which reads unsigned).
+    /// </summary>
+    private static void CheckRange(MirFunction function, int id, ulong value)
+    {
+        if (function.GetVRegAnnotation(id) is not TypedVReg { Range: { } range } typed)
+            return;
+
+        var bits = typed.Type.SizeInBits;
+        var signed = bits > 1 && bits < 64 && (value >> (bits - 1) & 1) != 0
+            ? (Int128)value - (Int128.One << bits)
+            : bits == 64 ? (Int128)(long)value : value;
+        if (!range.Contains(signed))
+            throw new InterpreterException($"@{function.Name}: %{id} holds {signed}, outside its declared range {range}.");
     }
 
     private static ulong Read(Dictionary<int, ulong> values, MirOperand operand)
