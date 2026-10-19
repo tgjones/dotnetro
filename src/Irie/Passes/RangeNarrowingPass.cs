@@ -63,14 +63,75 @@ public sealed class RangeNarrowingPass : MirFunctionPass
 
         CleanUpCasts(function, builder, ranges);
         RemoveDeadCode(function, builder);
+
+        // A result with a negative range needs a sign extension for every full-width consumer, which costs more
+        // than the narrow operation saves. It pays when every consumer is a truncation, which the peephole then
+        // folds into the narrow result, so the extension disappears.
+        var truncatedOnly = FindTruncatedOnlyResults(function);
+        if (truncatedOnly.Count > 0)
+        {
+            foreach (var block in function.Blocks)
+                foreach (var instruction in block.Instructions.ToArray())
+                    NarrowArithmetic(function, builder, instruction, ranges, truncatedOnly);
+
+            CleanUpCasts(function, builder, ranges);
+            RemoveDeadCode(function, builder);
+        }
+    }
+
+    /// <summary>The vregs that are used only by <c>cast.trunc</c> instructions.</summary>
+    private static HashSet<int> FindTruncatedOnlyResults(MirFunction function)
+    {
+        var onlyTruncated = new HashSet<int>();
+        var otherwiseUsed = new HashSet<int>();
+        foreach (var block in function.Blocks)
+        {
+            foreach (var instruction in block.Instructions)
+            {
+                var isTrunc = instruction.Opcode == CastDialect.OpRef(CastOp.Trunc);
+                foreach (var operand in instruction.Operands)
+                {
+                    foreach (var use in UsedVRegs(operand))
+                    {
+                        if (isTrunc)
+                            onlyTruncated.Add(use);
+                        else
+                            otherwiseUsed.Add(use);
+                    }
+                }
+            }
+        }
+
+        onlyTruncated.ExceptWith(otherwiseUsed);
+        return onlyTruncated;
+    }
+
+    private static IEnumerable<int> UsedVRegs(MirOperand operand)
+    {
+        switch (operand)
+        {
+            case VirtualReg { IsDefinition: false } use:
+                yield return use.Id;
+                break;
+            case BlockTarget target:
+                foreach (var argument in target.Args)
+                    foreach (var use in UsedVRegs(argument))
+                        yield return use;
+                break;
+        }
     }
 
     /// <summary>
     /// <c>r = op_N(a, b)</c> with the range of r fitting an unsigned M-bit value becomes
-    /// <c>r = zext(op_M(trunc a, trunc b))</c>.
+    /// <c>r = zext(op_M(trunc a, trunc b))</c>. With <paramref name="signedResults"/>, a result in that set whose
+    /// range is negative and fits a signed M-bit value becomes <c>r = sext(op_M(...))</c> instead.
     /// </summary>
     private static void NarrowArithmetic(
-        MirFunction function, MirBuilder builder, MirInstruction instruction, Dictionary<int, ValueRange> ranges)
+        MirFunction function,
+        MirBuilder builder,
+        MirInstruction instruction,
+        Dictionary<int, ValueRange> ranges,
+        HashSet<int>? signedResults = null)
     {
         if (instruction.Opcode.Dialect != ArithDialect.Id
             || (ArithOp)instruction.Opcode.Code is not (ArithOp.AddI or ArithOp.SubI or ArithOp.MulI
@@ -80,7 +141,7 @@ public sealed class RangeNarrowingPass : MirFunctionPass
 
         if (function.GetVRegAnnotation(result.Id) is not TypedVReg { Type: IntegerType { SizeInBits: var bits } }
             || !ranges.TryGetValue(result.Id, out var range)
-            || NarrowWidth(range, bits) is not { } narrow)
+            || NarrowWidth(range, bits, signedResults?.Contains(result.Id) == true) is not { } narrow)
             return;
 
         var op = (ArithOp)instruction.Opcode.Code;
@@ -106,7 +167,7 @@ public sealed class RangeNarrowingPass : MirFunctionPass
             new VirtualReg(narrowResult, IsDefinition: true),
             new VirtualReg(narrowA, IsDefinition: false),
             narrowB);
-        builder.BuildInstruction(CastDialect.OpRef(CastOp.Zext),
+        builder.BuildInstruction(CastDialect.OpRef(range.Lo < 0 ? CastOp.Sext : CastOp.Zext),
             new VirtualReg(result.Id, IsDefinition: true),
             new VirtualReg(narrowResult, IsDefinition: false));
         builder.Remove(instruction);
@@ -215,14 +276,15 @@ public sealed class RangeNarrowingPass : MirFunctionPass
 
     /// <summary>
     /// The smallest type width, in bits, below <paramref name="bits"/> that holds every value of a non-negative
-    /// range; null when the range is negative or needs the full width.
+    /// range; null when the range needs the full width. A negative range has no such width unless
+    /// <paramref name="signedOk"/>, when it is the smallest width holding it as a signed value.
     /// </summary>
-    private static int? NarrowWidth(ValueRange range, int bits)
+    private static int? NarrowWidth(ValueRange range, int bits, bool signedOk = false)
     {
-        if (range.Lo < 0)
+        if (range.Lo < 0 && !signedOk)
             return null;
         foreach (var width in new[] { 8, 16, 32 })
-            if (width < bits && range.FitsUnsigned(width))
+            if (width < bits && (range.Lo < 0 ? range.FitsSigned(width) : range.FitsUnsigned(width)))
                 return width;
         return null;
     }

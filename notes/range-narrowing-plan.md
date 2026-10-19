@@ -160,10 +160,11 @@ Keep each step green (`dotnet test --solution src`) before the next.
    `PlacementChecker` handle the narrower shapes), then `lshr`/`ashr`/`udivi`/`urem`, then the
    `__mulsi3`→`__mulhi3` switch. Expect `NarrowIntegerCompare`, `CompareBranch*` and `MulInt32`
    to change. Result: 150,419 → 146,314 bytes, no program grew. Shifts and divisions narrow to the width of their operands and, like step 4, only to zero-extended results (an `ashr` of a non-negative value becomes `lshr`).
-6. **[ ] Cost check and measure.** Implement the extension-cost rule. Add a script (replace the
+6. **[x] Cost check and measure.** Implement the extension-cost rule. Add a script (replace the
    deleted `notes/measure-placement.sh`) that compiles every lit program with `dnrc --emit
    program` and prints per-program and total bytes. Compare to the 151,668 baseline. Any program
    that grows is a defect to fix or an explained exception.
+   Result: a negative-range arithmetic result narrows to `sext` only when every consumer is a `cast.trunc` (second round in the pass); 146,314 → 146,312 bytes, 151,668 → 146,312 overall, no program larger than the baseline. `ashr` of a possibly-negative operand is not narrowed.
 7. **[ ] Phase 2: loops and block parameters.** Add widening and narrowing at block-parameter joins,
    branch refinement, and the block-parameter shrink rewrite. Expect the largest wins here:
    `ForLoop`, `ArrayLoopSum`, `OptWhileLoop`, `ArrayByte`, string indexer loops. Check how the beam

@@ -1,0 +1,38 @@
+; RUN: @iriec --target mos6502 --run-pass RangeNarrowing @file
+
+; A result with a negative range narrows to a sign extension only when every consumer is a truncation: then
+; the extension folds away. A full-width consumer would pay for the extension, so the add stays wide.
+
+func @OnlyTruncated : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i32 = cast.sext %0
+    %3 : i32 = cast.sext %1
+    %4 : i32 = arith.subi %2, %3
+    %5 : i8 = cast.trunc %4
+    core.return %5
+}
+
+func @FullWidthConsumer : (i8, i8) -> i32 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i32 = cast.sext %0
+    %3 : i32 = cast.sext %1
+    %4 : i32 = arith.subi %2, %3
+    core.return %4
+}
+
+; CHECK: func @OnlyTruncated : (i8, i8) -> i8 {
+; CHECK: bb0(%0 : i8, %1 : i8):
+; CHECK:     %6 : i16 = cast.sext %1
+; CHECK:     %8 : i16 = cast.sext %0
+; CHECK:     %7 : i16 = arith.subi %8, %6
+; CHECK:     %5 : i8 = cast.trunc %7
+; CHECK:     core.return %5
+; CHECK: }
+; CHECK:
+; CHECK: func @FullWidthConsumer : (i8, i8) -> i32 {
+; CHECK: bb0(%0 : i8, %1 : i8):
+; CHECK:     %2 : i32 in [-128, 127] = cast.sext %0
+; CHECK:     %3 : i32 in [-128, 127] = cast.sext %1
+; CHECK:     %4 : i32 in [-255, 255] = arith.subi %2, %3
+; CHECK:     core.return %4
+; CHECK: }
