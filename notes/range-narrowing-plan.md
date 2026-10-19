@@ -148,10 +148,10 @@ Keep each step green (`dotnet test --solution src`) before the next.
    parser (`in [lo, hi]`), and round-trip tests in `Irie.Tests/Mir`. No pass yet.
 2. **[x] Interpreter oracle.** Make the interpreter assert ranges. Test with hand-written MIR:
    one whose range holds, one whose range is deliberately wrong and must throw.
-3. **[ ] Analysis, straight-line.** `Passes/Analyses`: seeds and transfer functions for a function
+3. **[x] Analysis, straight-line.** `Passes/Analyses`: seeds and transfer functions for a function
    without loops (a single pass over reverse post-order; block parameters join their edges, and a
    loop-carried block parameter is the full range for now). Add `--run-pass RangeNarrowing`
-   `.irie` lit tests whose `CHECK` lines pin the printed ranges. Include i64 and signed cases.
+   `.irie` lit tests (this needs the pass in the pipeline, so step 3 already adds it after `ArithSimplifyPass`; it only annotates, and constants are not annotated) whose `CHECK` lines pin the printed ranges. Include i64 and signed cases.
 4. **[ ] Rewrite: arithmetic and the cleanup peephole.** Add the rules for add/sub/mul/shl/bitwise,
    and the trunc/ext cleanup. Insert `RangeNarrowingPass` in `PipelineBuilder.AddStandardPipeline`
    after `ArithSimplifyPass`. Expect `ByteArithmeticPromotion`, `TernaryMixedWidth` and

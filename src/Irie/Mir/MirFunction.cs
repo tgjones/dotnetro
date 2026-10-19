@@ -59,6 +59,13 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
 
     public VRegAnnotation GetVRegAnnotation(int vreg) => _annotations[vreg];
 
+    /// <summary>Sets the value range of an integer vreg that has a type annotation (null clears it).</summary>
+    public void SetValueRange(int vreg, ValueRange? range)
+    {
+        if (_annotations[vreg] is TypedVReg typed)
+            _annotations[vreg] = typed with { Range = range };
+    }
+
     public bool TryGetVRegAnnotation(int vreg, out VRegAnnotation annotation) =>
         _annotations.TryGetValue(vreg, out annotation!);
 

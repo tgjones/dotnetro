@@ -1,0 +1,180 @@
+; RUN: @iriec --target mos6502 --run-pass RangeNarrowing @file
+
+; RangeNarrowing annotates each integer vreg with the interval of values it can hold.
+
+func @Unsigned : (i8, i8) -> i32 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i32 = cast.zext %0
+    %3 : i32 = cast.zext %1
+    %4 : i32 = arith.addi %2, %3
+    %5 : i32 = arith.muli %2, %3
+    %6 : i32 = arith.subi %2, %3
+    %7 : i32 = arith.addi %4, %5
+    core.return %7
+}
+
+func @Signed : (i8) -> i32 {
+bb0(%0 : i8):
+    %1 : i32 = cast.sext %0
+    %2 : i8 = arith.constant 2
+    %3 : i32 = arith.ashr %1, %2
+    %4 : i32 = arith.shl %1, %2
+    %5 : i32 = arith.constant -1000
+    %6 : i32 = arith.addi %1, %5
+    core.return %6
+}
+
+func @Bitwise : (i8, i16) -> i32 {
+bb0(%0 : i8, %1 : i16):
+    %2 : i32 = cast.zext %0
+    %3 : i32 = cast.zext %1
+    %4 : i32 = arith.constant 15
+    %5 : i32 = arith.and %3, %4
+    %6 : i32 = arith.or %2, %5
+    %7 : i32 = arith.xor %2, %3
+    %8 : i8 = arith.constant 4
+    %9 : i32 = arith.lshr %3, %8
+    %10 : i32 = arith.constant 10
+    %11 : i32 = arith.uremi %3, %10
+    %12 : i32 = arith.udivi %3, %10
+    core.return %12
+}
+
+func @Wide : (i8) -> i64 {
+bb0(%0 : i8):
+    %1 : i64 = cast.zext %0
+    %2 : i64 = arith.muli %1, %1
+    %3 : i64 = arith.constant 4294967296
+    %4 : i64 = arith.addi %2, %3
+    %5 : i16 = cast.trunc %2
+    %6 : i8 = cast.trunc %2
+    core.return %4
+}
+
+; A sum that leaves the type's range wraps, so it has no known range.
+func @Wraps : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i8 = arith.addi %0, %1
+    core.return %2
+}
+
+func @Join : (i1, i8) -> i32 {
+bb0(%0 : i1, %1 : i8):
+    %2 : i32 = cast.zext %1
+    %3 : i32 = arith.constant 1000
+    cf.cond_br %0, bb1(%2), bb1(%3)
+bb1(%4 : i32):
+    %5 : i32 = arith.select %0, %2, %3
+    %6 : i32 = arith.addi %4, %5
+    core.return %6
+}
+
+; A loop-carried parameter is unknown until loops are analysed.
+func @Loop : (i8) -> i32 {
+bb0(%0 : i8):
+    %1 : i32 = arith.constant 0
+    cf.br bb1(%1)
+bb1(%2 : i32):
+    %3 : i32 = arith.constant 1
+    %4 : i32 = arith.addi %2, %3
+    %5 : i32 = cast.zext %0
+    %6 : i1 = arith.cmpi slt, %4, %5
+    cf.cond_br %6, bb1(%4), bb2
+bb2():
+    core.return %4
+}
+
+; A range written in the MIR is taken as true and seeds the analysis.
+func @Declared : (i16) -> i32 {
+bb0(%0 : i16 in [0, 99]):
+    %1 : i32 = cast.zext %0
+    %2 : i32 = arith.addi %1, %1
+    core.return %2
+}
+
+; CHECK: func @Unsigned : (i8, i8) -> i32 {
+; CHECK: bb0(%0 : i8, %1 : i8):
+; CHECK:     %2 : i32 in [0, 255] = cast.zext %0
+; CHECK:     %3 : i32 in [0, 255] = cast.zext %1
+; CHECK:     %4 : i32 in [0, 510] = arith.addi %2, %3
+; CHECK:     %5 : i32 in [0, 65025] = arith.muli %2, %3
+; CHECK:     %6 : i32 in [-255, 255] = arith.subi %2, %3
+; CHECK:     %7 : i32 in [0, 65535] = arith.addi %4, %5
+; CHECK:     core.return %7
+; CHECK: }
+; CHECK:
+; CHECK: func @Signed : (i8) -> i32 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     %1 : i32 in [-128, 127] = cast.sext %0
+; CHECK:     %2 : i8 = arith.constant 2
+; CHECK:     %3 : i32 in [-32, 31] = arith.ashr %1, %2
+; CHECK:     %4 : i32 in [-512, 508] = arith.shl %1, %2
+; CHECK:     %5 : i32 = arith.constant -1000
+; CHECK:     %6 : i32 in [-1128, -873] = arith.addi %1, %5
+; CHECK:     core.return %6
+; CHECK: }
+; CHECK:
+; CHECK: func @Bitwise : (i8, i16) -> i32 {
+; CHECK: bb0(%0 : i8, %1 : i16):
+; CHECK:     %2 : i32 in [0, 255] = cast.zext %0
+; CHECK:     %3 : i32 in [0, 65535] = cast.zext %1
+; CHECK:     %4 : i32 = arith.constant 15
+; CHECK:     %5 : i32 in [0, 15] = arith.and %3, %4
+; CHECK:     %6 : i32 in [0, 255] = arith.or %2, %5
+; CHECK:     %7 : i32 in [0, 65535] = arith.xor %2, %3
+; CHECK:     %8 : i8 = arith.constant 4
+; CHECK:     %9 : i32 in [0, 4095] = arith.lshr %3, %8
+; CHECK:     %10 : i32 = arith.constant 10
+; CHECK:     %11 : i32 in [0, 9] = arith.uremi %3, %10
+; CHECK:     %12 : i32 in [0, 6553] = arith.udivi %3, %10
+; CHECK:     core.return %12
+; CHECK: }
+; CHECK:
+; CHECK: func @Wide : (i8) -> i64 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     %1 : i64 in [0, 255] = cast.zext %0
+; CHECK:     %2 : i64 in [0, 65025] = arith.muli %1, %1
+; CHECK:     %3 : i64 = arith.constant 4294967296
+; CHECK:     %4 : i64 in [4294967296, 4295032321] = arith.addi %2, %3
+; CHECK:     %5 : i16 = cast.trunc %2
+; CHECK:     %6 : i8 = cast.trunc %2
+; CHECK:     core.return %4
+; CHECK: }
+; CHECK:
+; CHECK: func @Wraps : (i8, i8) -> i8 {
+; CHECK: bb0(%0 : i8, %1 : i8):
+; CHECK:     %2 : i8 = arith.addi %0, %1
+; CHECK:     core.return %2
+; CHECK: }
+; CHECK:
+; CHECK: func @Join : (i1, i8) -> i32 {
+; CHECK: bb0(%0 : i1, %1 : i8):
+; CHECK:     %2 : i32 in [0, 255] = cast.zext %1
+; CHECK:     %3 : i32 = arith.constant 1000
+; CHECK:     cf.cond_br %0, bb1(%2), bb1(%3)
+; CHECK: bb1(%4 : i32 in [0, 1000]):
+; CHECK:     %5 : i32 in [0, 1000] = arith.select %0, %2, %3
+; CHECK:     %6 : i32 in [0, 2000] = arith.addi %4, %5
+; CHECK:     core.return %6
+; CHECK: }
+; CHECK:
+; CHECK: func @Loop : (i8) -> i32 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     %1 : i32 = arith.constant 0
+; CHECK:     cf.br bb1(%1)
+; CHECK: bb1(%2 : i32):
+; CHECK:     %3 : i32 = arith.constant 1
+; CHECK:     %4 : i32 = arith.addi %2, %3
+; CHECK:     %5 : i32 in [0, 255] = cast.zext %0
+; CHECK:     %6 : i1 = arith.cmpi slt, %4, %5
+; CHECK:     cf.cond_br %6, bb1(%4), bb2
+; CHECK: bb2():
+; CHECK:     core.return %4
+; CHECK: }
+; CHECK:
+; CHECK: func @Declared : (i16) -> i32 {
+; CHECK: bb0(%0 : i16 in [0, 99]):
+; CHECK:     %1 : i32 in [0, 99] = cast.zext %0
+; CHECK:     %2 : i32 in [0, 198] = arith.addi %1, %1
+; CHECK:     core.return %2
+; CHECK: }
