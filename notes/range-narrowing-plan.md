@@ -1,6 +1,6 @@
 # Range narrowing: shrink i32 arithmetic, compares and loop variables to the bytes they need
 
-Status: in progress. Written 2026-10-19 after comparing Oscar64 and llvm-mos (see "Background").
+Status: done. Written 2026-10-19 after comparing Oscar64 and llvm-mos (see "Background").
 Self-contained.
 
 ## Goal
@@ -169,7 +169,7 @@ Keep each step green (`dotnet test --solution src`) before the next.
    branch refinement, and the block-parameter shrink rewrite. Expect the largest wins here:
    Result: 146,312 → 145,146 bytes, no program grew. Deviation: widening jumps to the nearest bound of a compared value (not itself loop-carried) before the type's limit, because `i + 1` at the limit wraps to the full range and hides the bound the loop test gives (`i < len`). `ForLoop`, `ArrayLoopSum`, `OptWhileLoop`, `ArrayByte`, string indexer loops. Check how the beam
    placer treats narrower parameters, and re-run the suite for placement regressions.
-8. **[ ] Regenerate, review, document.** `dotlit --regenerate` for both lit suites; review the
+8. **[x] Regenerate, review, document.** `dotlit --regenerate` for both lit suites; review the
    complete diff; re-run `dotnet test --solution src` in Debug and Release. Document the pass in
    its class comment, add it to the pass-order summary in `src/Irie/AGENTS.md`, and note the
    result in `doc/irie/llvm-mos-comparison.md` if the Oscar64 comparison table lists the gap.

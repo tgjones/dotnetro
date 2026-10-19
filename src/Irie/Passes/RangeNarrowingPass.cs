@@ -24,6 +24,10 @@ namespace Irie.Passes;
 /// narrower constant, and <c>zext(trunc y)</c> is <c>y</c> when the range of y fits the narrow width. Dead
 /// arithmetic and casts are then removed.
 ///
+/// Compares, right shifts, unsigned divides and remainders narrow to the width of their operands, and a block
+/// parameter with a small range becomes a narrow parameter (so a loop counter is one byte). Loops come from the
+/// analysis (widening, then narrowing with branch refinement).
+///
 /// Only results with a non-negative range are narrowed. Narrowing to a signed range would need a sign
 /// extension for every full-width consumer, which costs more than it saves unless the consumers narrow too.
 ///
