@@ -89,7 +89,7 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
 - [x] 2. `UnreachableBlockEliminationPass` plus lit test `UnreachableBlockElimination.irie`
       (`--run-pass UnreachableBlockElimination`): an orphan block removed, a chain of orphans removed, a
       loop reachable only from itself removed, reachable blocks untouched.
-- [ ] 3. `ConstantBranchFoldPass` plus lit test `ConstantBranchFold.irie`: constant true and false
+- [x] 3. `ConstantBranchFoldPass` plus lit test `ConstantBranchFold.irie`: constant true and false
       conditions, taken target with block arguments, a non-constant condition left alone.
 - [ ] 4. `RangeFoldPass` plus lit test `RangeFold.irie`: `zext i8` against 256 (`ult` true, `uge` false),
       `eq` of disjoint ranges, a compare inside a loop that branch refinement decides, an unsigned

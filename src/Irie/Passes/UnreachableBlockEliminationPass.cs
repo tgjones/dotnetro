@@ -6,7 +6,7 @@ namespace Irie.Passes;
 /// Removes the blocks that cannot be reached from the entry block, on generic SSA MIR.
 /// </summary>
 /// <remarks>
-/// Folding a branch (<c>ConstantBranchFoldPass</c>) drops an edge and can leave the block behind it, and
+/// Folding a branch (<see cref="ConstantBranchFoldPass"/>) drops an edge and can leave the block behind it, and
 /// everything only that block reached, without a way in. Such a block is dead code that would still be
 /// selected, placed and emitted. This is LLVM's <c>-unreachableblockelim</c>.
 ///

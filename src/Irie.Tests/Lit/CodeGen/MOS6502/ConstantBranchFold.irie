@@ -1,0 +1,90 @@
+; RUN: @iriec --target mos6502 --run-pass ConstantBranchFold @file
+
+; A cf.cond_br on a constant becomes a cf.br to the target it always takes. The untaken edge goes away
+; (its block stays until UnreachableBlockElimination), and the unused condition constant is removed.
+
+func @AlwaysTrue : (i8) -> i8 {
+bb0(%0 : i8):
+    %1 : i1 = arith.constant 1
+    cf.cond_br %1, bb1(), bb2()
+
+bb1():
+    core.return %0
+
+bb2():
+    %2 : i8 = arith.constant 7
+    core.return %2
+}
+
+func @AlwaysFalse : (i8) -> i8 {
+bb0(%0 : i8):
+    %1 : i1 = arith.constant 0
+    cf.cond_br %1, bb1(), bb2()
+
+bb1():
+    core.return %0
+
+bb2():
+    %2 : i8 = arith.constant 7
+    core.return %2
+}
+
+; The taken edge keeps its block arguments.
+func @TakenEdgeArguments : (i8, i8) -> i8 {
+bb0(%0 : i8, %1 : i8):
+    %2 : i1 = arith.constant 0
+    cf.cond_br %2, bb1(%0), bb1(%1)
+
+bb1(%3 : i8):
+    core.return %3
+}
+
+; A condition that is not a constant is left alone.
+func @Dynamic : (i1, i8) -> i8 {
+bb0(%0 : i1, %1 : i8):
+    cf.cond_br %0, bb1(), bb2()
+
+bb1():
+    core.return %1
+
+bb2():
+    %2 : i8 = arith.constant 7
+    core.return %2
+}
+
+; CHECK: func @AlwaysTrue : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     cf.br bb1
+; CHECK: bb1():
+; CHECK:     core.return %0
+; CHECK: bb2():
+; CHECK:     %2 : i8 = arith.constant 7
+; CHECK:     core.return %2
+; CHECK: }
+; CHECK: 
+; CHECK: func @AlwaysFalse : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     cf.br bb2
+; CHECK: bb1():
+; CHECK:     core.return %0
+; CHECK: bb2():
+; CHECK:     %2 : i8 = arith.constant 7
+; CHECK:     core.return %2
+; CHECK: }
+; CHECK: 
+; CHECK: func @TakenEdgeArguments : (i8, i8) -> i8 {
+; CHECK: bb0(%0 : i8, %1 : i8):
+; CHECK:     cf.br bb1(%1)
+; CHECK: bb1(%3 : i8):
+; CHECK:     core.return %3
+; CHECK: }
+; CHECK: 
+; CHECK: func @Dynamic : (i1, i8) -> i8 {
+; CHECK: bb0(%0 : i1, %1 : i8):
+; CHECK:     cf.cond_br %0, bb1, bb2
+; CHECK: bb1():
+; CHECK:     core.return %1
+; CHECK: bb2():
+; CHECK:     %2 : i8 = arith.constant 7
+; CHECK:     core.return %2
+; CHECK: }
