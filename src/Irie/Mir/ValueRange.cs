@@ -1,3 +1,5 @@
+using Irie.Dialects.Arith;
+
 namespace Irie.Mir;
 
 /// <summary>
@@ -41,6 +43,33 @@ public sealed record ValueRange(Int128 Lo, Int128 Hi)
     }
 
     public bool Contains(Int128 value) => value >= Lo && value <= Hi;
+
+    /// <summary>
+    /// Whether <c>x predicate y</c> holds for every pair with x in this range and y in <paramref name="other"/>
+    /// (true), for no pair (false), or for some pairs only (null). Unsigned predicates are decided only when both
+    /// ranges are non-negative: a range that may be negative holds large unsigned values, which this interval
+    /// reading does not order.
+    /// </summary>
+    public bool? TryDecide(ArithCmpPredicate predicate, ValueRange other)
+    {
+        var unsigned = predicate is ArithCmpPredicate.Ult or ArithCmpPredicate.Ugt
+            or ArithCmpPredicate.Ule or ArithCmpPredicate.Uge;
+        if (unsigned && (Lo < 0 || other.Lo < 0))
+            return null;
+
+        var disjoint = Hi < other.Lo || other.Hi < Lo;
+        var sameValue = Lo == Hi && other.Lo == other.Hi && Lo == other.Lo;
+        return predicate switch
+        {
+            ArithCmpPredicate.Eq => sameValue ? true : disjoint ? false : null,
+            ArithCmpPredicate.Ne => sameValue ? false : disjoint ? true : null,
+            ArithCmpPredicate.Slt or ArithCmpPredicate.Ult => Hi < other.Lo ? true : Lo >= other.Hi ? false : null,
+            ArithCmpPredicate.Sle or ArithCmpPredicate.Ule => Hi <= other.Lo ? true : Lo > other.Hi ? false : null,
+            ArithCmpPredicate.Sgt or ArithCmpPredicate.Ugt => Lo > other.Hi ? true : Hi <= other.Lo ? false : null,
+            ArithCmpPredicate.Sge or ArithCmpPredicate.Uge => Lo >= other.Hi ? true : Hi < other.Lo ? false : null,
+            _ => null,
+        };
+    }
 
     public override string ToString() => $"[{Lo}, {Hi}]";
 }
