@@ -165,9 +165,9 @@ Keep each step green (`dotnet test --solution src`) before the next.
    program` and prints per-program and total bytes. Compare to the 151,668 baseline. Any program
    that grows is a defect to fix or an explained exception.
    Result: a negative-range arithmetic result narrows to `sext` only when every consumer is a `cast.trunc` (second round in the pass); 146,314 → 146,312 bytes, 151,668 → 146,312 overall, no program larger than the baseline. `ashr` of a possibly-negative operand is not narrowed.
-7. **[ ] Phase 2: loops and block parameters.** Add widening and narrowing at block-parameter joins,
+7. **[x] Phase 2: loops and block parameters.** Add widening and narrowing at block-parameter joins,
    branch refinement, and the block-parameter shrink rewrite. Expect the largest wins here:
-   `ForLoop`, `ArrayLoopSum`, `OptWhileLoop`, `ArrayByte`, string indexer loops. Check how the beam
+   Result: 146,312 → 145,146 bytes, no program grew. Deviation: widening jumps to the nearest bound of a compared value (not itself loop-carried) before the type's limit, because `i + 1` at the limit wraps to the full range and hides the bound the loop test gives (`i < len`). `ForLoop`, `ArrayLoopSum`, `OptWhileLoop`, `ArrayByte`, string indexer loops. Check how the beam
    placer treats narrower parameters, and re-run the suite for placement regressions.
 8. **[ ] Regenerate, review, document.** `dotlit --regenerate` for both lit suites; review the
    complete diff; re-run `dotnet test --solution src` in Debug and Release. Document the pass in

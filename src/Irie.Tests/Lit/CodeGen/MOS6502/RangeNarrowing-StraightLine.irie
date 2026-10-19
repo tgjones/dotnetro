@@ -139,26 +139,27 @@ bb0(%0 : i16 in [0, 99]):
 ; CHECK: bb0(%0 : i1, %1 : i8):
 ; CHECK:     %2 : i32 in [0, 255] = cast.zext %1
 ; CHECK:     %3 : i32 = arith.constant 1000
-; CHECK:     cf.cond_br %0, bb1(%2), bb1(%3)
-; CHECK: bb1(%4 : i32 in [0, 1000]):
+; CHECK:     %10 : i16 = cast.zext %1
+; CHECK:     %13 : i16 = arith.constant 1000
+; CHECK:     cf.cond_br %0, bb1(%10), bb1(%13)
+; CHECK: bb1(%12 : i16):
 ; CHECK:     %5 : i32 in [0, 1000] = arith.select %0, %2, %3
 ; CHECK:     %7 : i16 = cast.trunc %5
-; CHECK:     %9 : i16 = cast.trunc %4
-; CHECK:     %8 : i16 = arith.addi %9, %7
+; CHECK:     %8 : i16 = arith.addi %12, %7
 ; CHECK:     %6 : i32 in [0, 2000] = cast.zext %8
 ; CHECK:     core.return %6
 ; CHECK: }
 ; CHECK:
 ; CHECK: func @Loop : (i8) -> i32 {
 ; CHECK: bb0(%0 : i8):
-; CHECK:     %1 : i32 = arith.constant 0
-; CHECK:     cf.br bb1(%1)
-; CHECK: bb1(%2 : i32):
-; CHECK:     %3 : i32 = arith.constant 1
-; CHECK:     %4 : i32 = arith.addi %2, %3
-; CHECK:     %5 : i32 in [0, 255] = cast.zext %0
-; CHECK:     %6 : i1 = arith.cmpi slt, %4, %5
-; CHECK:     cf.cond_br %6, bb1(%4), bb2
+; CHECK:     %15 : i8 = arith.constant 0
+; CHECK:     cf.br bb1(%15)
+; CHECK: bb1(%14 : i8):
+; CHECK:     %16 : i8 = arith.constant 1
+; CHECK:     %8 : i8 = arith.addi %14, %16
+; CHECK:     %4 : i32 in [1, 255] = cast.zext %8
+; CHECK:     %6 : i1 = arith.cmpi ult, %8, %0
+; CHECK:     cf.cond_br %6, bb1(%8), bb2
 ; CHECK: bb2():
 ; CHECK:     core.return %4
 ; CHECK: }

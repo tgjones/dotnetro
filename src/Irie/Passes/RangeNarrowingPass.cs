@@ -61,6 +61,7 @@ public sealed class RangeNarrowingPass : MirFunctionPass
             }
         }
 
+        NarrowBlockParameters(function, builder, ranges);
         CleanUpCasts(function, builder, ranges);
         RemoveDeadCode(function, builder);
 
@@ -171,6 +172,56 @@ public sealed class RangeNarrowingPass : MirFunctionPass
             new VirtualReg(result.Id, IsDefinition: true),
             new VirtualReg(narrowResult, IsDefinition: false));
         builder.Remove(instruction);
+    }
+
+    /// <summary>
+    /// A block parameter <c>p : iN</c> whose range fits an unsigned M-bit value becomes <c>p' : iM</c>: every
+    /// incoming edge passes <c>trunc arg</c> and the block starts with <c>p = zext p'</c>. The peephole removes
+    /// the truncations of arguments that were extensions and the extension where its users narrowed.
+    /// </summary>
+    private static void NarrowBlockParameters(
+        MirFunction function, MirBuilder builder, Dictionary<int, ValueRange> ranges)
+    {
+        foreach (var block in function.Blocks.Skip(1))
+        {
+            for (var i = 0; i < block.Parameters.Count; i++)
+            {
+                var parameter = block.Parameters[i];
+                if (function.GetVRegAnnotation(parameter) is not TypedVReg { Type: IntegerType { SizeInBits: var bits } }
+                    || !ranges.TryGetValue(parameter, out var range)
+                    || NarrowWidth(range, bits) is not { } narrow)
+                    continue;
+
+                var edges = new List<(MirInstruction Branch, int Operand)>();
+                foreach (var predecessor in function.Blocks)
+                    foreach (var instruction in predecessor.Instructions)
+                        for (var k = 0; k < instruction.Operands.Length; k++)
+                            if (instruction.Operands[k] is BlockTarget target && target.Block == block)
+                                edges.Add((instruction, k));
+                // Every edge must pass the parameter a vreg to truncate.
+                if (edges.Any(e => ((BlockTarget)e.Branch.Operands[e.Operand]) is not { } t
+                                   || i >= t.Args.Length || t.Args[i] is not VirtualReg { IsDefinition: false }))
+                    continue;
+
+                var narrowType = IntegerTypeOfWidth(narrow);
+                foreach (var (branch, operandIndex) in edges)
+                {
+                    var target = (BlockTarget)branch.Operands[operandIndex];
+                    builder.SetInsertionPointBefore(branch);
+                    var arguments = (MirOperand[])target.Args.Clone();
+                    arguments[i] = new VirtualReg(
+                        BuildTrunc(function, builder, ((VirtualReg)arguments[i]).Id, narrowType), IsDefinition: false);
+                    branch.Operands[operandIndex] = target with { Args = arguments };
+                }
+
+                var narrowParameter = function.CreateVirtualRegister(narrowType);
+                block.Parameters[i] = narrowParameter;
+                builder.SetInsertionPointAtStart(block);
+                builder.BuildInstruction(CastDialect.OpRef(CastOp.Zext),
+                    new VirtualReg(parameter, IsDefinition: true),
+                    new VirtualReg(narrowParameter, IsDefinition: false));
+            }
+        }
     }
 
     /// <summary>

@@ -9,14 +9,14 @@
 
 ; CHECK: crc8:
 ; CHECK:     LDY #$00
-; CHECK:     STA $1A
-; CHECK:     STX $1B
-; CHECK:     STY $19
+; CHECK:     STA $17
+; CHECK:     STX $18
+; CHECK:     STY $15
 ; CHECK:     LDX #$FF
 ; CHECK:     STX $14
 ; CHECK: .bb1:
-; CHECK:     LDA $19
-; CHECK:     STY $18
+; CHECK:     LDA $15
+; CHECK:     STY $16
 ; CHECK:     CMP $03
 ; CHECK:     BCC .bb2
 ; CHECK:     BNE .bb8
@@ -24,63 +24,48 @@
 ; CHECK:     BCS .bb8
 ; CHECK: .bb2:
 ; CHECK:     CLC
-; CHECK:     LDA $1A
-; CHECK:     ADC $18
+; CHECK:     LDA $17
+; CHECK:     ADC $16
 ; CHECK:     TAX
-; CHECK:     LDA $1B
-; CHECK:     ADC $19
+; CHECK:     LDA $18
+; CHECK:     ADC $15
 ; CHECK:     STX $12
 ; CHECK:     STA $13
 ; CHECK:     LDY #$00
 ; CHECK:     LDA ($12),Y
 ; CHECK:     EOR $14
-; CHECK:     STY $15
-; CHECK:     STY $16
-; CHECK:     STA $14
+; CHECK:     STY $14
 ; CHECK: .bb3:
-; CHECK:     LDA $16
-; CHECK:     EOR #$80
-; CHECK:     TAX
-; CHECK:     LDA #$00
-; CHECK:     EOR #$80
-; CHECK:     STA $17
-; CHECK:     CPX $17
-; CHECK:     BCC .bb5
-; CHECK:     BNE .bb4
-; CHECK:     LDA $15
-; CHECK:     CMP #$08
-; CHECK:     BCC .bb5
+; CHECK:     LDX $14
+; CHECK:     CPX #$08
+; CHECK:     BCS .bb7
 ; CHECK: .bb4:
-; CHECK:     CLC
-; CHECK:     LDA $18
-; CHECK:     ADC #$01
-; CHECK:     STA $18
-; CHECK:     LDA $19
-; CHECK:     ADC #$00
-; CHECK:     STA $19
-; CHECK:     LDY $18
-; CHECK:     JMP .bb1
-; CHECK: .bb5:
-; CHECK:     LDA $14
-; CHECK:     AND #$80
 ; CHECK:     TAX
-; CHECK:     LDA $14
+; CHECK:     AND #$80
+; CHECK:     TAY
+; CHECK:     TXA
 ; CHECK:     ASL
-; CHECK:     CPX #$00
-; CHECK:     BNE .bb7
-; CHECK: .bb6:
-; CHECK:     CLC
-; CHECK:     STA $14
-; CHECK:     LDA $15
-; CHECK:     ADC #$01
-; CHECK:     STA $15
-; CHECK:     LDA $16
-; CHECK:     ADC #$00
-; CHECK:     STA $16
+; CHECK:     CPY #$00
+; CHECK:     BNE .bb6
+; CHECK: .bb5:
+; CHECK:     LDX $14
+; CHECK:     INX
+; CHECK:     STX $14
 ; CHECK:     JMP .bb3
-; CHECK: .bb7:
+; CHECK: .bb6:
 ; CHECK:     EOR #$31
-; CHECK:     JMP .bb6
+; CHECK:     JMP .bb5
+; CHECK: .bb7:
+; CHECK:     CLC
+; CHECK:     TAX
+; CHECK:     LDA $16
+; CHECK:     ADC #$01
+; CHECK:     TAY
+; CHECK:     LDA $15
+; CHECK:     ADC #$00
+; CHECK:     STX $14
+; CHECK:     STA $15
+; CHECK:     JMP .bb1
 ; CHECK: .bb8:
 ; CHECK:     LDA $14
 ; CHECK:     RTS
