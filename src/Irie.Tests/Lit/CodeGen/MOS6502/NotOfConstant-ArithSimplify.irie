@@ -1,0 +1,57 @@
+; RUN: @iriec --target mos6502 --stop-after ArithSimplify @file
+
+; ArithSimplify folds `not` of a constant to the complement constant, wherever the result is used.
+
+func @NotTrue : () -> i1 {
+bb0():
+    %0 : i1 = arith.constant 1
+    %1 : i1 = arith.not %0
+    core.return %1
+}
+
+func @NotFalse : () -> i1 {
+bb0():
+    %0 : i1 = arith.constant 0
+    %1 : i1 = arith.not %0
+    core.return %1
+}
+
+; A chain folds in one run.
+func @NotNot : () -> i1 {
+bb0():
+    %0 : i1 = arith.constant 1
+    %1 : i1 = arith.not %0
+    %2 : i1 = arith.not %1
+    core.return %2
+}
+
+; The operand is not a constant: left alone.
+func @NotDynamic : (i1) -> i1 {
+bb0(%0 : i1):
+    %1 : i1 = arith.not %0
+    core.return %1
+}
+
+; CHECK: func @NotTrue : () -> i1 {
+; CHECK: bb0():
+; CHECK:     %2 : i1 = arith.constant 0
+; CHECK:     core.return %2
+; CHECK: }
+; CHECK:
+; CHECK: func @NotFalse : () -> i1 {
+; CHECK: bb0():
+; CHECK:     %2 : i1 = arith.constant 1
+; CHECK:     core.return %2
+; CHECK: }
+; CHECK:
+; CHECK: func @NotNot : () -> i1 {
+; CHECK: bb0():
+; CHECK:     %4 : i1 = arith.constant 1
+; CHECK:     core.return %4
+; CHECK: }
+; CHECK:
+; CHECK: func @NotDynamic : (i1) -> i1 {
+; CHECK: bb0(%0 : i1):
+; CHECK:     %1 : i1 = arith.not %0
+; CHECK:     core.return %1
+; CHECK: }

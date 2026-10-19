@@ -17,7 +17,8 @@ namespace Irie.Passes;
 /// The ranges come from <see cref="ValueRangeAnalysis"/>, which this pass recomputes; the call in <see cref="Run"/>
 /// is the one place to change when analysis results can be shared between passes. The ranges are computed once,
 /// before any fold, so a compare that only becomes decidable after a dead edge is removed (it tightens a block
-/// parameter's range) is not folded by this run.
+/// parameter's range) is not folded by this run. A decided compare does count as a constant for the compares
+/// after it.
 ///
 /// Runs after <see cref="RangeNarrowingPass"/> and before <see cref="SinglePredecessorBlockParamsPass"/>, which
 /// erases the block parameters that carry per-edge ranges.
@@ -45,6 +46,8 @@ public sealed class RangeFoldPass : MirFunctionPass
                 builder.SetInsertionPointBefore(instruction);
                 var constant = builder.BuildConstant(IRType.I1, outcome ? 1 : 0);
                 function.ReplaceAllUsesOfRegister(result.Id, constant);
+                // A compare of this result (the front end's `(a < b) == false`) is decided in turn.
+                ranges[constant] = ValueRange.Constant(outcome ? 1 : 0);
                 builder.Remove(instruction);
             }
         }

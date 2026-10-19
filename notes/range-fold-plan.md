@@ -95,7 +95,7 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
       `eq` of disjoint ranges, a compare inside a loop that branch refinement decides, an unsigned
       predicate on a possibly negative range (stays), overlapping ranges (stay). Complete `CHECK`
       listings.
-- [ ] 5. Register the three passes in `PipelineBuilder`; add an end-to-end lit test in
+- [x] 5. Register the three passes in `PipelineBuilder`; add an end-to-end lit test in
       `src/DotNetro.Compiler.Tests/Lit` (a byte compared against a constant it can never reach, with
       `DIFF: dotnet emulated`) so the folded program is proven to run the same.
 - [ ] 6. Run `dotlit --regenerate` over `src/Irie.Tests/Lit` and `src/DotNetro.Compiler.Tests/Lit`

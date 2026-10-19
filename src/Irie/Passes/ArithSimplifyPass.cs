@@ -19,8 +19,8 @@ namespace Irie.Passes;
 /// The transferable lesson from InstCombine's monolithic design is the
 /// worklist-to-fixpoint shape, not the grab-bag of rules: when a rewrite lands,
 /// re-enqueue the instructions that now use the new value, so an enabled outer
-/// fold runs in the same pass. There are two rules: add/sub reassociation and
-/// power-of-two strength reduction (`muli x, 2^k` → `shl x, k`, `udivi x, 2^k` →
+/// fold runs in the same pass. There are three rules: add/sub reassociation, the
+/// complement of a constant (`not c`), and power-of-two strength reduction (`muli x, 2^k` → `shl x, k`, `udivi x, 2^k` →
 /// `lshr x, k`, `uremi x, 2^k` → `and x, 2^k-1`, and the `x * 1` / `x / 1`
 /// identities — the InstCombine / DAGCombiner folds). Further rules slot into the same
 /// worklist rather than a separate pass (so they share the traversal and a
@@ -57,9 +57,11 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         {
             var instr = worklist.Dequeue();
             if (instr.Parent is null || !IsCandidate(instr)) continue; // already folded away
-            var simplified = IsPow2Candidate(instr)
-                ? TrySimplifyPow2(function, builder, instr, out var newResult)
-                : TrySimplify(function, builder, instr, out newResult);
+            var simplified = IsNot(instr)
+                ? TrySimplifyNot(function, builder, instr, out var newResult)
+                : IsPow2Candidate(instr)
+                    ? TrySimplifyPow2(function, builder, instr, out newResult)
+                    : TrySimplify(function, builder, instr, out newResult);
             if (simplified)
                 foreach (var user in UsersOf(function, newResult))
                     if (IsCandidate(user))
@@ -71,11 +73,35 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         RemoveDeadArith(function, builder);
     }
 
-    private static bool IsCandidate(MirInstruction instr) => IsAddSub(instr) || IsPow2Candidate(instr);
+    private static bool IsCandidate(MirInstruction instr) =>
+        IsAddSub(instr) || IsPow2Candidate(instr) || IsNot(instr);
+
+    private static bool IsNot(MirInstruction instr) =>
+        instr.Opcode == ArithDialect.OpRef(ArithOp.Not);
 
     private static bool IsPow2Candidate(MirInstruction instr) =>
         instr.Opcode.Dialect == ArithDialect.Id
         && (ArithOp)instr.Opcode.Code is ArithOp.MulI or ArithOp.UDivI or ArithOp.URemI;
+
+    /// <summary>
+    /// <c>not</c> of a constant is the constant's complement at the result's width (for i1, 0 and 1 swap).
+    /// </summary>
+    private static bool TrySimplifyNot(MirFunction function, MirBuilder builder, MirInstruction instr, out int newResult)
+    {
+        newResult = -1;
+
+        if (instr.Operands is not [VirtualReg { IsDefinition: true } resultDef, VirtualReg operand]
+            || function.GetVRegAnnotation(resultDef.Id) is not TypedVReg { Type: IntegerType intType }
+            || TryGetConstant(function, operand.Id) is not { } value)
+            return false;
+
+        var mask = intType.SizeInBits >= 64 ? ~0L : (1L << intType.SizeInBits) - 1;
+        builder.SetInsertionPointBefore(instr);
+        newResult = builder.BuildConstant(intType, ~value & mask);
+        function.ReplaceAllUsesOfRegister(resultDef.Id, newResult);
+        builder.Remove(instr);
+        return true;
+    }
 
     /// <summary>
     /// Multiply, unsigned divide or unsigned remainder by a constant power of two:
