@@ -57,7 +57,9 @@ public static partial class Console
         quotient += quotient >> 8;
         quotient += quotient >> 16;
         quotient >>= 3;
-        var remainder = value - ((quotient << 3) + (quotient << 1));
+        // The true remainder is at most 15, so it fits a byte; range analysis cannot derive
+        // that (it is a relational fact), but the cast lets the rest run as 8-bit arithmetic.
+        var remainder = (byte)(value - ((quotient << 3) + (quotient << 1)));
         if (remainder > 9)
         {
             quotient++;

@@ -192,11 +192,9 @@ Keep each step green (`dotnet test --solution src`) before the next.
 
 ## Follow-up tasks (not part of this plan)
 
-- **`WriteDigits` in the corelib** (`src/DotNetro.CoreLib/System/Console.cs`): range analysis cannot
-  help, because the quotient estimate is a real 32-bit computation and the remainder bound is a
-  relational fact. Declaring `var remainder = (byte)(value - ((quotient << 3) + (quotient << 1)));`
-  is valid (the true remainder is at most 15) and cut a standalone copy from 311 to 287
-  instructions with today's compiler. Apply, run the lit suite, and measure.
+- ~~**`WriteDigits` in the corelib**~~ Done: `remainder` is now `(byte)(...)`. A program that prints
+  an `int` (`AddInt32`) went from 365 to 322 assembly instructions and from 633 to 527 bytes of
+  program; the full suite passes.
 - **Static folding of compares and branches** that ranges decide (Oscar64's
   `SimplifyIntegerRangeRelops`).
 - **Interprocedural return and argument ranges** for non-escaping static methods.
