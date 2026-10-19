@@ -3,15 +3,18 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Removes identity pseudo.copy instructions (those whose def and use are the
-// same physical register, e.g. $a = pseudo.copy $a).
-//
-// These are left behind by placement when both sides of a surrounding copy end
-// up in the same physreg. Removing them is
-// correctness-neutral but keeps the MIR clean for inspection and saves bytes
-// at the CodeGen→MachineCode lowering stage.
-//
-// Runs after placement — no virtual registers may remain.
+/// <summary>
+/// Removes identity pseudo.copy instructions (those whose def and use are the
+/// same physical register, e.g. $a = pseudo.copy $a).
+/// </summary>
+/// <remarks>
+/// These are left behind by placement when both sides of a surrounding copy end
+/// up in the same physreg. Removing them is
+/// correctness-neutral but keeps the MIR clean for inspection and saves bytes
+/// at the CodeGen→MachineCode lowering stage.
+///
+/// Runs after placement — no virtual registers may remain.
+/// </remarks>
 public sealed class CopyEliminationPass : MirFunctionPass
 {
     public override string Name => "CopyElimination";

@@ -5,44 +5,47 @@ using Irie.Passes.Analyses;
 
 namespace Irie.Target.MOS6502;
 
-// Whole-program zero-page layout. Each function's zero-page footprint is one
-// contiguous BLOCK: its homes ($h0, $h1, …, the allocator's function-local pool)
-// followed by, where the target allows it, the frame slots promoted to zero page.
-// The pass places every block in the target's zero-page window with the static
-// stack colouring of StaticFrameColorer — a function's block sits above the
-// blocks of all its callees, so a call never overwrites anything its caller keeps
-// there, and nothing is saved or restored around a call. Independent subtrees of
-// the call graph reuse the same bytes, so the budget used is the deepest call path,
-// not the sum over all functions.
-//
-// Then it rewrites each home to the `RC(n)` of its final address, so every later
-// pass and the emitter see ordinary zero-page registers. It runs post-RA (the
-// homes are final), after MOS6502RecursionSavePass, and before the generic
-// FrameAccessLoweringPass so the placement it stamps on frame slots is honoured
-// when the addressing mode is chosen.
-//
-// Frame slots (spills, locals) of a NON-reentrant function are promoted into its
-// block when `promoteFrameSlots` is set: a promoted slot's symbol resolves to its
-// zero-page address everywhere (MirGlobal.FixedAddress), so the encoder reserves no
-// .bss byte for it. Slots of reentrant functions stay in absolute memory.
-//
-// The target's library routines (libcalls.s) are leaf nodes of the call graph that
-// the graph itself does not see. A routine declares the bytes of zero page it
-// scratches above the ABI registers (`.zeropage N`), which start at the window's
-// first byte (the code relies on them being contiguous with RC19), so layout
-// treats them as a block at offset 0 of the window: every function that reaches
-// the routine, directly or through the library's own jumps, is placed above it.
-// The routine then saves nothing around its use of those bytes.
-//
-// A CallerStackArg slot is never promoted: it isn't this function's own storage,
-// it reads the caller's dynamically positioned stack-argument space.
-//
-// With `allowAbsoluteHomes` (the placement keeps a home for every value of
-// the function) a home that does not fit in zero page lives in a byte of absolute
-// memory instead: every instruction that names a home has an absolute twin
-// (`lda.zp` -> `lda.abs` …), so demoting a home never invalidates the code, it
-// only makes each access a byte and a cycle dearer. Zero page goes to the homes
-// accessed most often, weighted by the loop depth of the access.
+/// <summary>
+/// Whole-program zero-page layout. Each function's zero-page footprint is one
+/// contiguous BLOCK: its homes ($h0, $h1, …, the allocator's function-local pool)
+/// followed by, where the target allows it, the frame slots promoted to zero page.
+/// The pass places every block in the target's zero-page window with the static
+/// stack colouring of StaticFrameColorer — a function's block sits above the
+/// blocks of all its callees, so a call never overwrites anything its caller keeps
+/// there, and nothing is saved or restored around a call. Independent subtrees of
+/// the call graph reuse the same bytes, so the budget used is the deepest call path,
+/// not the sum over all functions.
+/// </summary>
+/// <remarks>
+/// Then it rewrites each home to the `RC(n)` of its final address, so every later
+/// pass and the emitter see ordinary zero-page registers. It runs post-RA (the
+/// homes are final), after MOS6502RecursionSavePass, and before the generic
+/// FrameAccessLoweringPass so the placement it stamps on frame slots is honoured
+/// when the addressing mode is chosen.
+///
+/// Frame slots (spills, locals) of a NON-reentrant function are promoted into its
+/// block when `promoteFrameSlots` is set: a promoted slot's symbol resolves to its
+/// zero-page address everywhere (MirGlobal.FixedAddress), so the encoder reserves no
+/// .bss byte for it. Slots of reentrant functions stay in absolute memory.
+///
+/// The target's library routines (libcalls.s) are leaf nodes of the call graph that
+/// the graph itself does not see. A routine declares the bytes of zero page it
+/// scratches above the ABI registers (`.zeropage N`), which start at the window's
+/// first byte (the code relies on them being contiguous with RC19), so layout
+/// treats them as a block at offset 0 of the window: every function that reaches
+/// the routine, directly or through the library's own jumps, is placed above it.
+/// The routine then saves nothing around its use of those bytes.
+///
+/// A CallerStackArg slot is never promoted: it isn't this function's own storage,
+/// it reads the caller's dynamically positioned stack-argument space.
+///
+/// With `allowAbsoluteHomes` (the placement keeps a home for every value of
+/// the function) a home that does not fit in zero page lives in a byte of absolute
+/// memory instead: every instruction that names a home has an absolute twin
+/// (`lda.zp` -&gt; `lda.abs` …), so demoting a home never invalidates the code, it
+/// only makes each access a byte and a cycle dearer. Zero page goes to the homes
+/// accessed most often, weighted by the loop depth of the access.
+/// </remarks>
 public sealed class MOS6502ProgramLayoutPass(
     int zeroPageBase, int windowStart, int windowEnd, bool promoteFrameSlots,
     MachineCodeModule? library = null, bool allowAbsoluteHomes = false) : Pass
@@ -151,8 +154,10 @@ public sealed class MOS6502ProgramLayoutPass(
         }
     }
 
-    // For each function of the module, the zero-page bytes scratched by the
-    // library routines it calls (the largest footprint among them).
+    /// <summary>
+    /// For each function of the module, the zero-page bytes scratched by the
+    /// library routines it calls (the largest footprint among them).
+    /// </summary>
     private Dictionary<MirFunction, int> LibraryFloors(MirModule module)
     {
         var floors = new Dictionary<MirFunction, int>();
@@ -176,7 +181,7 @@ public sealed class MOS6502ProgramLayoutPass(
         return floors;
     }
 
-    // The largest footprint among a library routine and every routine it reaches.
+    /// <summary>The largest footprint among a library routine and every routine it reaches.</summary>
     private static int FootprintOf(string name, Dictionary<string, MachineCodeFunction> routines)
     {
         var seen = new HashSet<string> { name };
@@ -196,7 +201,7 @@ public sealed class MOS6502ProgramLayoutPass(
         return bytes;
     }
 
-    // Bytes of the frame slots this function will place in zero page.
+    /// <summary>Bytes of the frame slots this function will place in zero page.</summary>
     private int SlotBytes(MirFunction function)
     {
         if (!promoteFrameSlots || !function.IsNonReentrant) return 0;
@@ -207,7 +212,7 @@ public sealed class MOS6502ProgramLayoutPass(
         return size;
     }
 
-    // One more than the highest home index the function mentions.
+    /// <summary>One more than the highest home index the function mentions.</summary>
     private static int CountHomes(MirFunction function)
     {
         var count = 0;
@@ -224,7 +229,7 @@ public sealed class MOS6502ProgramLayoutPass(
         return count;
     }
 
-    // The homes a function mentions, ascending.
+    /// <summary>The homes a function mentions, ascending.</summary>
     private static List<int> UsedHomes(MirFunction function)
     {
         var homes = new SortedSet<int>();
@@ -240,9 +245,11 @@ public sealed class MOS6502ProgramLayoutPass(
         return [.. homes];
     }
 
-    // Zero page ran out: take zero-page homes away from the function that overflows
-    // or, since a callee's block sits under its caller's, from the callee with the
-    // most of them, by as many as the overflow needs. False if there are none left.
+    /// <summary>
+    /// Zero page ran out: take zero-page homes away from the function that overflows
+    /// or, since a callee's block sits under its caller's, from the callee with the
+    /// most of them, by as many as the overflow needs. False if there are none left.
+    /// </summary>
     private static bool DemoteHomes(
         CallGraph graph, StaticFrameColorer.Result result, Dictionary<MirFunction, int> zeroPageHomes,
         int budget, Func<MirFunction, int> size)
@@ -269,9 +276,11 @@ public sealed class MOS6502ProgramLayoutPass(
         return true;
     }
 
-    // Gives each home of the function its place — the first `zeroPageCount` by
-    // access weight a zero-page byte at the function's block, the rest a byte of
-    // absolute memory — and rewrites the code to match.
+    /// <summary>
+    /// Gives each home of the function its place — the first `zeroPageCount` by
+    /// access weight a zero-page byte at the function's block, the rest a byte of
+    /// absolute memory — and rewrites the code to match.
+    /// </summary>
     private void PlaceHomes(
         MirModule module, MirFunction function, List<int> used, int zeroPageCount, int blockStart,
         Dictionary<string, MirGlobal> globalsByName)
@@ -351,8 +360,10 @@ public sealed class MOS6502ProgramLayoutPass(
         return $"{dialect.Prefix}.{dialect.GetOpName(instr.Opcode.Code)}";
     }
 
-    // The absolute-memory form of an instruction whose operand `at` is a home that
-    // lives in absolute memory at `symbol`.
+    /// <summary>
+    /// The absolute-memory form of an instruction whose operand `at` is a home that
+    /// lives in absolute memory at `symbol`.
+    /// </summary>
     private static (MOS6502Op, MirOperand[]) AbsoluteTwin(
         MirInstruction instr, MirOperand[] operands, int at, Symbol symbol, MirFunction function)
     {

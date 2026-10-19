@@ -6,7 +6,7 @@ namespace Irie.Tests.Target.MOS6502;
 
 public sealed class ZeroPageBaseTests
 {
-    // A 32-bit add takes its second operand in RC4..RC7 (the zero-page registers).
+    /// <summary>A 32-bit add takes its second operand in RC4..RC7 (the zero-page registers).</summary>
     private const string Add32 = """
         func @f : (i32, i32) -> i32 {
         bb0(%0 : i32, %1 : i32):

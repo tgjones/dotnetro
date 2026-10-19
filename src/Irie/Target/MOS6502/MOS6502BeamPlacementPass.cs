@@ -7,29 +7,39 @@ using Irie.Passes.Analyses;
 
 namespace Irie.Target.MOS6502;
 
-// Knobs of the placement search. The objective of a placement is
-//   bytes * SizeWeight + cycles * SpeedWeight * (static block frequency)
-// summed over the emitted instructions, so a loop body pays for its cycles and
-// straight-line code mostly for its size.
+/// <summary>
+/// Knobs of the placement search. The objective of a placement is
+///   bytes * SizeWeight + cycles * SpeedWeight * (static block frequency)
+/// summed over the emitted instructions, so a loop body pays for its cycles and
+/// straight-line code mostly for its size.
+/// </summary>
 public sealed record BeamPlacementOptions
 {
-    // States kept per operation; 1 is a greedy placement, 0 keeps every state (up to
-    // OracleStateCap), which makes the search an exact oracle for the beam.
+    /// <summary>
+    /// States kept per operation; 1 is a greedy placement, 0 keeps every state (up to
+    /// OracleStateCap), which makes the search an exact oracle for the beam.
+    /// </summary>
     public int BeamWidth { get; init; } = 8;
     public int SizeWeight { get; init; } = 1;
     public int SpeedWeight { get; init; } = 1;
-    // How many blocks ahead the exit state of a block is judged by the cost of the
-    // blocks that inherit it; 0 judges a block by itself.
+    /// <summary>
+    /// How many blocks ahead the exit state of a block is judged by the cost of the
+    /// blocks that inherit it; 0 judges a block by itself.
+    /// </summary>
     public int Lookahead { get; init; } = 3;
-    // Whether a function that is only ever called directly takes the arguments and
-    // leaves the results where its own placement is cheapest (the calls follow), or
-    // keeps the default convention.
+    /// <summary>
+    /// Whether a function that is only ever called directly takes the arguments and
+    /// leaves the results where its own placement is cheapest (the calls follow), or
+    /// keeps the default convention.
+    /// </summary>
     public bool ChooseConventions { get; init; }
-    // Block frequency is FrequencyBase^loop depth.
+    /// <summary>Block frequency is FrequencyBase^loop depth.</summary>
     public int FrequencyBase { get; init; } = 8;
-    // With BeamWidth 0 (keep every state) a search that reaches this many states in
-    // one step keeps the cheapest ones only; such stretches are counted in the
-    // statistics, since the result is then not proven optimal.
+    /// <summary>
+    /// With BeamWidth 0 (keep every state) a search that reaches this many states in
+    /// one step keeps the cheapest ones only; such stretches are counted in the
+    /// statistics, since the result is then not proven optimal.
+    /// </summary>
     public int OracleStateCap { get; init; } = 20000;
 
     public static BeamPlacementOptions From(PlacementTuning? tuning)
@@ -48,33 +58,63 @@ public sealed record BeamPlacementOptions
     }
 }
 
-// Placement within blocks: a beam search over what A, X, Y, the
-// carry and the N/Z flags hold at every point of a block, choosing for each
-// operation the variant of MOS6502Variants that is cheapest given that state, and
-// when a value is stored to or reloaded from its home.
-//
-// The search state is the contents of A, X, Y, C, the value N/Z reflect, the
-// scratch pointer pair, and the set of values whose home holds their value. For
-// each operation, each way of implementing it (a variant with its operands in
-// particular registers) turns a state into a successor by a fixed sequence of
-// moves: save what the operation overwrites, put the operands where the variant
-// wants them, emit the variant. A value is stored to its home lazily, when
-// something is about to overwrite its only copy, so a value that stays in a
-// register until its last use is never stored.
-//
-// Across blocks nothing is carried: every value live
-// across a boundary is in its home and the registers are empty. The search runs on
-// the stretches of operations between two barriers (a call, a frame access,
-// hand-written runtime code), including the runs of copies that set up a call or a
-// return and the jump that ends a block; a stretch has to end with every value the
-// rest of the block, or a successor, still needs in its home. Barriers themselves
-// are placed by the base class (MOS6502Placer): operands from their homes, the work in A.
+/// <summary>
+/// Placement within blocks: a beam search over what A, X, Y, the
+/// carry and the N/Z flags hold at every point of a block, choosing for each
+/// operation the variant of MOS6502Variants that is cheapest given that state, and
+/// when a value is stored to or reloaded from its home.
+/// </summary>
+/// <remarks>
+/// The search state is the contents of A, X, Y, C, the value N/Z reflect, the
+/// scratch pointer pair, and the set of values whose home holds their value. For
+/// each operation, each way of implementing it (a variant with its operands in
+/// particular registers) turns a state into a successor by a fixed sequence of
+/// moves: save what the operation overwrites, put the operands where the variant
+/// wants them, emit the variant. A value is stored to its home lazily, when
+/// something is about to overwrite its only copy, so a value that stays in a
+/// register until its last use is never stored.
+///
+/// Across blocks nothing is carried: every value live
+/// across a boundary is in its home and the registers are empty. The search runs on
+/// the stretches of operations between two barriers (a call, a frame access,
+/// hand-written runtime code), including the runs of copies that set up a call or a
+/// return and the jump that ends a block; a stretch has to end with every value the
+/// rest of the block, or a successor, still needs in its home. Barriers themselves
+/// are placed by the base class (MOS6502Placer): operands from their homes, the work in A.
+///
+/// Arguments that arrive in zero-page registers are their own homes for as long as no
+/// call or write to that register happens while they are live (per register;
+/// FindArgumentsInPlace). The liveness (_liveIn / _liveOut), address-byte (_remat) and
+/// edge-block tables live in the shared MOS6502Placer.
+///
+/// This is a module pass: it places the functions callee first. With
+/// PlacementTuning.ChooseConventions (--choose-conventions; off by default, it gains
+/// about 0.1% for about 15% more compile time) a function that is only called directly
+/// (and is not recursive, address-taken or the first function) is placed under each
+/// reordering of its A/X argument and result bytes, keeping the cheapest;
+/// MOS6502ConventionRewriter renames the ABI copies of the function and of its calls.
+///
+/// Tuning: BeamPlacementOptions, set from the command line by `--beam-width N`
+/// (default 8; 1 is greedy, 0 keeps every state: the oracle, capped at
+/// OracleStateCap), `--tune beam=N,size-weight=N,speed-weight=N,lookahead=N,
+/// freq-base=N,choose-conventions`, `--optimize-size` and `--optimize-speed` in
+/// iriec, irie-exec and dnrc. src/Irie.Tools.Reference/sweep.py measures settings;
+/// doc/irie/register-allocator-design.md (§4) records the results behind the defaults.
+///
+/// Every placement is validated by PlacementChecker unless IRIE_NO_PLACEMENT_CHECK is
+/// set. Tests: every lit test runs the default pipeline, so the executed corpus
+/// (RUN-exec) and every .cs program exercise this pass; Lit/CodeGen/MOS6502/
+/// BeamPlacement-*.irie pin the code, GreedyPlacement-*.irie (--beam-width 1) the
+/// greedy placement and the absolute homes.
+/// </remarks>
 public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = null) : Pass
 {
     public override string Name => "MOS6502BeamPlacement";
 
-    // The functions are placed callee first, so that when a function is placed every
-    // function it calls has its convention.
+    /// <summary>
+    /// The functions are placed callee first, so that when a function is placed every
+    /// function it calls has its convention.
+    /// </summary>
     public override void Run(CompilationContext context)
     {
         var settings = options ?? new BeamPlacementOptions();
@@ -113,16 +153,20 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
         MOS6502ConventionRewriter.Verify(module);
     }
 
-    // What a call site is assumed to pay for each argument or result byte that is not
-    // in the register the code around the call would have it in: one transfer
-    // instruction (a byte and two cycles).
+    /// <summary>
+    /// What a call site is assumed to pay for each argument or result byte that is not
+    /// in the register the code around the call would have it in: one transfer
+    /// instruction (a byte and two cycles).
+    /// </summary>
     private const long MovedByteCost = 3;
 
-    // Tries the conventions that move the argument and result bytes that arrive in A
-    // or X between the two, places the function under each, and gives it the cheapest
-    // (the default one on a tie). The placement of the function does not see the calls,
-    // so a convention has to save more than the calls are assumed to pay for the bytes
-    // it moves. Returns whether the function gets a convention other than the default.
+    /// <summary>
+    /// Tries the conventions that move the argument and result bytes that arrive in A
+    /// or X between the two, places the function under each, and gives it the cheapest
+    /// (the default one on a tie). The placement of the function does not see the calls,
+    /// so a convention has to save more than the calls are assumed to pay for the bytes
+    /// it moves. Returns whether the function gets a convention other than the default.
+    /// </summary>
     private static bool ChooseConvention(MirModule module, MirFunction function, BeamPlacementOptions settings)
     {
         var original = MOS6502ConventionRewriter.CurrentOf(function);
@@ -173,8 +217,10 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
     private static long Moved(IReadOnlyList<int> from, IReadOnlyList<int> to) =>
         Enumerable.Range(0, from.Count).Count(k => from[k] != to[k]) * MovedByteCost;
 
-    // Every way to assign the bytes that sit in A or X to A and X, other than the
-    // given one.
+    /// <summary>
+    /// Every way to assign the bytes that sit in A or X to A and X, other than the
+    /// given one.
+    /// </summary>
     private static IEnumerable<int[]> Reorderings(IReadOnlyList<int> registers)
     {
         int[] pool = [MOS6502Registers.A, MOS6502Registers.X];
@@ -207,8 +253,10 @@ public sealed class MOS6502BeamPlacementPass(BeamPlacementOptions? options = nul
 internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions options)
     : MOS6502Placer(function)
 {
-    // What a register, the carry, the N/Z flags or a pointer byte holds: nothing
-    // known, a value of the block (its dense index), or a known byte.
+    /// <summary>
+    /// What a register, the carry, the N/Z flags or a pointer byte holds: nothing
+    /// known, a value of the block (its dense index), or a known byte.
+    /// </summary>
     private const int Empty = -1;
     private const int ImmBase = Snapshot.ImmBase;
     private static int ImmContent(long value) => ImmBase + (int)(value & 0xFF);
@@ -219,22 +267,26 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
     internal BeamPlacementOptions Options => options;
 
-    // What the placement of the function costs: the sum over its stretches of the
-    // cost of the cheapest placement found for each (without the lookahead).
+    /// <summary>
+    /// What the placement of the function costs: the sum over its stretches of the
+    /// cost of the cheapest placement found for each (without the lookahead).
+    /// </summary>
     internal long PlacementCost { get; private set; }
-    // Steps of an unbounded search (BeamWidth 0) that hit the state cap.
+    /// <summary>Steps of an unbounded search (BeamWidth 0) that hit the state cap.</summary>
     internal int CappedStretches { get; private set; }
 
     // ------------------------------------------------------------------
     // Liveness
     // ------------------------------------------------------------------
 
-    // Arguments that arrive in zero-page registers and stay there, as their own homes.
+    /// <summary>Arguments that arrive in zero-page registers and stay there, as their own homes.</summary>
     private readonly Dictionary<int, int> _argRegister = [];
 
-    // Values whose only use is a copy into a fixed zero-page register (a return value,
-    // a call argument) and that nothing disturbs that register for: they are built
-    // in that register, as their own home.
+    /// <summary>
+    /// Values whose only use is a copy into a fixed zero-page register (a return value,
+    /// a call argument) and that nothing disturbs that register for: they are built
+    /// in that register, as their own home.
+    /// </summary>
     private readonly Dictionary<int, int> _destinationRegister = [];
 
     private bool TryFixedHome(int vreg, out int register) =>
@@ -251,16 +303,20 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         return base.TryGetHome(vreg, out register);
     }
 
-    // Values that are never live together and are linked by a block parameter or a
-    // copy share a home: the representative of each such class.
+    /// <summary>
+    /// Values that are never live together and are linked by a block parameter or a
+    /// copy share a home: the representative of each such class.
+    /// </summary>
     private Dictionary<int, int> _homeClass = [];
 
     internal override int HomeKey(int vreg) => _homeClass.GetValueOrDefault(vreg, vreg);
 
-    // The arguments that arrive in zero-page registers and can stay there: those
-    // that are dead by the time anything overwrites their register. A call (the
-    // callee may use any of the registers) and a copy into a fixed register
-    // overwrite; so does any other instruction that defines a zero-page register.
+    /// <summary>
+    /// The arguments that arrive in zero-page registers and can stay there: those
+    /// that are dead by the time anything overwrites their register. A call (the
+    /// callee may use any of the registers) and a copy into a fixed register
+    /// overwrite; so does any other instruction that defines a zero-page register.
+    /// </summary>
     private void FindArgumentsInPlace()
     {
         var candidates = new Dictionary<int, int>();
@@ -381,16 +437,18 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // Block order and the blocks that inherit registers
     // ------------------------------------------------------------------
 
-    // A block whose incoming edges all come from branches the search places starts
-    // from a snapshot of the registers instead of from empty registers with every
-    // live value in its home. With one incoming edge that is the registers the
-    // predecessor left; a join (several incoming edges) takes the registers of the
-    // first edge placed into it, its primary, and every other edge reconciles to
-    // that state. A loop header is a join whose primary is the edge from outside,
-    // so the state is chosen before the body is placed and the back edge pays to
-    // match it. A block placed earlier has to know which of its successors start
-    // from a snapshot, since it then leaves their values where they are instead of
-    // storing them.
+    /// <summary>
+    /// A block whose incoming edges all come from branches the search places starts
+    /// from a snapshot of the registers instead of from empty registers with every
+    /// live value in its home. With one incoming edge that is the registers the
+    /// predecessor left; a join (several incoming edges) takes the registers of the
+    /// first edge placed into it, its primary, and every other edge reconciles to
+    /// that state. A loop header is a join whose primary is the edge from outside,
+    /// so the state is chosen before the body is placed and the back edge pays to
+    /// match it. A block placed earlier has to know which of its successors start
+    /// from a snapshot, since it then leaves their values where they are instead of
+    /// storing them.
+    /// </summary>
     private List<MirBlock> _order = [];
     private readonly HashSet<MirBlock> _inheriting = [];
     private readonly Dictionary<MirBlock, MirBlock> _primary = [];
@@ -477,7 +535,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         }
     }
 
-    // The state a block starts in when it inherits its predecessor's registers.
+    /// <summary>The state a block starts in when it inherits its predecessor's registers.</summary>
     private State InheritedState(BlockInfo info, Snapshot snapshot)
     {
         var words = (info.Count + 63) / 64;
@@ -513,8 +571,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // One block
     // ------------------------------------------------------------------
 
-    // Per-block tables: dense indices for the values the block touches, where each
-    // is defined and last used.
+    /// <summary>
+    /// Per-block tables: dense indices for the values the block touches, where each
+    /// is defined and last used.
+    /// </summary>
     private sealed class BlockInfo
     {
         public required MirBlock Block;
@@ -522,18 +582,20 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public required Dictionary<int, int> Index;
         public required List<int> Vreg;
         public required int[] DefPos;
-        // The last operation that reads the value, -1 if none.
+        /// <summary>The last operation that reads the value, -1 if none.</summary>
         public required int[] LastUse;
-        // The last branch whose targets take the value in (live into a successor).
+        /// <summary>The last branch whose targets take the value in (live into a successor).</summary>
         public required int[] ExitUse;
         public required long Frequency;
-        // The zero-page register a value arrived in (an argument), or -1.
+        /// <summary>The zero-page register a value arrived in (an argument), or -1.</summary>
         public required int[] FixedReg;
-        // The global a value is a load of that can be left in memory and read from
-        // there by its uses (nothing writes memory in between), or null.
+        /// <summary>
+        /// The global a value is a load of that can be left in memory and read from
+        /// there by its uses (nothing writes memory in between), or null.
+        /// </summary>
         public required Symbol?[] FoldedLoad;
         public int Count => Vreg.Count;
-        // The position from which the value is not needed any more.
+        /// <summary>The position from which the value is not needed any more.</summary>
         public int End(int i) => Math.Max(LastUse[i], ExitUse[i]);
     }
 
@@ -661,19 +723,21 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     private static bool IsCopy(MirInstruction instr) =>
         instr.Opcode.Dialect == PseudoDialect.Id && (PseudoOp)instr.Opcode.Code == PseudoOp.Copy;
 
-    // `%v = copy $rcN`: an argument that arrives in a zero-page register, which is
-    // then also the home of the value until something overwrites it.
+    /// <summary>
+    /// `%v = copy $rcN`: an argument that arrives in a zero-page register, which is
+    /// then also the home of the value until something overwrites it.
+    /// </summary>
     private static bool IsCopyFromZeroPage(MirInstruction instr) =>
         IsCopy(instr) && instr.Operands[0] is VirtualReg && instr.Operands[1] is PhysicalReg source
         && source.Id >= MOS6502Registers.RC(2) && !MOS6502Registers.IsHome(source.Id)
         && source.Id != MOS6502Variants.PointerLo && source.Id != MOS6502Variants.PointerHi;
 
-    // Dead merges and address ops that take no code.
+    /// <summary>Dead merges and address ops that take no code.</summary>
     private bool IsNoCode(MirInstruction instr) =>
         (instr.Opcode.Dialect == PseudoDialect.Id && (PseudoOp)instr.Opcode.Code == PseudoOp.Merge && Unused(instr.Operands[0]))
         || (instr.Opcode.Dialect == MemDialect.Id && (MemOp)instr.Opcode.Code == MemOp.Symbol && Unused(instr.Operands[0]));
 
-    // The operations the search places; everything else is a barrier.
+    /// <summary>The operations the search places; everything else is a barrier.</summary>
     private static bool IsJump(MirInstruction instr) =>
         instr.Opcode.Dialect == CfDialect.Id && (CfOp)instr.Opcode.Code == CfOp.Br;
 
@@ -719,8 +783,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
     private enum MemKind { None, Imm, Symbol, Home, Phys }
 
-    // The memory-side operand of a step, resolved when the step is emitted (a home
-    // gets its number then, so only the placement that is kept uses up homes).
+    /// <summary>
+    /// The memory-side operand of a step, resolved when the step is emitted (a home
+    /// gets its number then, so only the placement that is kept uses up homes).
+    /// </summary>
     private readonly record struct MemRef(MemKind Kind, long Number, Symbol? Symbol)
     {
         public static MemRef None => new(MemKind.None, 0, null);
@@ -742,7 +808,8 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
     private sealed class State
     {
-        public int[] R = [Empty, Empty, Empty];   // A, X, Y
+        /// <summary>A, X, Y</summary>
+        public int[] R = [Empty, Empty, Empty];
         public int C = Empty;
         public int Nz = Empty;
         public int PtrLo = Empty;
@@ -753,11 +820,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public State? Prev;
         public Step[] Steps = [];
         public (MirBlock Target, Snapshot Snapshot)[] Snaps = [];
-        // The code of the edges out of a cmp_br that need some (into a join).
+        /// <summary>The code of the edges out of a cmp_br that need some (into a join).</summary>
         public (MirInstruction Branch, int Operand, Step[] Steps)[] Edges = [];
-        // Identifies the registers handed to successors so far on this path: two
-        // states that agree on the locations but handed over different things are
-        // different choices, judged by what the successors then cost.
+        /// <summary>
+        /// Identifies the registers handed to successors so far on this path: two
+        /// states that agree on the locations but handed over different things are
+        /// different choices, judged by what the successors then cost.
+        /// </summary>
         public int SnapSig;
 
         public bool SameLocations(State other) =>
@@ -782,8 +851,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         public int GetHashCode(State s) => s.LocationHash();
     }
 
-    // The state at the start of the stretch [start, ...): registers empty, every
-    // value that is live there in its home.
+    /// <summary>
+    /// The state at the start of the stretch [start, ...): registers empty, every
+    /// value that is live there in its home.
+    /// </summary>
     private static State InitialState(BlockInfo info, int start)
     {
         var state = new State { H = new ulong[(info.Count + 63) / 64], F = new ulong[(info.Count + 63) / 64] };
@@ -800,11 +871,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         Replay(best);
     }
 
-    // The cheapest placement of the stretch [start, end). When the stretch ends in
-    // branches to blocks that inherit its registers, each candidate is also charged
-    // for placing the first stretch of those blocks from the registers it leaves
-    // them (`lookahead` levels deep), so the exit state is chosen for what comes
-    // next and not only for the stretch itself.
+    /// <summary>
+    /// The cheapest placement of the stretch [start, end). When the stretch ends in
+    /// branches to blocks that inherit its registers, each candidate is also charged
+    /// for placing the first stretch of those blocks from the registers it leaves
+    /// them (`lookahead` levels deep), so the exit state is chosen for what comes
+    /// next and not only for the stretch itself.
+    /// </summary>
     private State FindBest(BlockInfo info, int start, int end, State? entry, int lookahead)
     {
         var beam = new List<State> { entry ?? InitialState(info, start) };
@@ -845,10 +918,12 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         return best;
     }
 
-    // What the first stretch of each inheriting successor costs from the registers
-    // the placement leaves it.
+    /// <summary>
+    /// What the first stretch of each inheriting successor costs from the registers
+    /// the placement leaves it.
+    /// </summary>
     internal int _lookingAhead;
-    // The states being judged for blocks that do not have one yet.
+    /// <summary>The states being judged for blocks that do not have one yet.</summary>
     internal readonly Dictionary<MirBlock, Snapshot> _provisional = [];
 
     private long SuccessorCost(State last, int lookahead)
@@ -908,7 +983,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         }
     }
 
-    // The values live after the stretch have to be in their homes.
+    /// <summary>The values live after the stretch have to be in their homes.</summary>
     private State? Finish(State state, BlockInfo info, int end)
     {
         var work = new Work(this, info, state, end, end);
@@ -920,8 +995,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
     // Expanding one operation
     // ------------------------------------------------------------------
 
-    // Each operation is placed twice, once saving a value that is about to be
-    // overwritten by storing it and once by moving it to a free register.
+    /// <summary>
+    /// Each operation is placed twice, once saving a value that is about to be
+    /// overwritten by storing it and once by moving it to a free register.
+    /// </summary>
     private IEnumerable<State> Expand(State state, BlockInfo info, int pos, int itemEnd)
     {
         var results = new List<State>();
@@ -1069,11 +1146,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         public bool PreferMove { get; init; }
 
-        // How a branch hands over to a block that starts from a snapshot: 0 leaves the
-        // values where they are, 1 stores them first (and, into a join, hands over
-        // empty registers), 2 and 3 also load block parameters into free registers,
-        // in parameter order and in reverse; 4 and 5 do the same and store the live-in
-        // values as well; 6 only stores the live-in values.
+        /// <summary>
+        /// How a branch hands over to a block that starts from a snapshot: 0 leaves the
+        /// values where they are, 1 stores them first (and, into a join, hands over
+        /// empty registers), 2 and 3 also load block parameters into free registers,
+        /// in parameter order and in reverse; 4 and 5 do the same and store the live-in
+        /// values as well; 6 only stores the live-in values.
+        /// </summary>
         public int ExitMode { get; init; }
         public bool SettleExits => ExitMode == 1;
 
@@ -1111,7 +1190,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             };
         }
 
-        // A content that is still needed after the operation, else nothing.
+        /// <summary>A content that is still needed after the operation, else nothing.</summary>
         private int Live(int content) =>
             content >= 0 && content < ImmBase && _info.End(content) <= _normPos ? Empty : content;
 
@@ -1124,8 +1203,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         private int VregOf(int i) => _info.Vreg[i];
         private bool IsRemat(int i) => i >= 0 && i < ImmBase && _placer._remat.ContainsKey(VregOf(i));
 
-        // Whether the value is read by the current operation or later, or flows into
-        // a successor at a branch from here on.
+        /// <summary>
+        /// Whether the value is read by the current operation or later, or flows into
+        /// a successor at a branch from here on.
+        /// </summary>
         private bool Needed(int content, bool after)
         {
             if (content < 0 || content >= ImmBase) return false;
@@ -1136,14 +1217,18 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return read || _info.ExitUse[content] >= _pos;
         }
 
-        // While the zero-page and register moves of a run of copies are placed: the
-        // position after the run, and the values the moves still to come read. A value
-        // the run has already passed on is not needed any more.
+        /// <summary>
+        /// While the zero-page and register moves of a run of copies are placed: the
+        /// position after the run, and the values the moves still to come read. A value
+        /// the run has already passed on is not needed any more.
+        /// </summary>
         private int _runEnd = -1;
         private readonly HashSet<int> _pending = [];
 
-        // Values the current operation has already used up (a branch's arguments, once
-        // they are in the parameters' homes).
+        /// <summary>
+        /// Values the current operation has already used up (a branch's arguments, once
+        /// they are in the parameters' homes).
+        /// </summary>
         private readonly HashSet<int> _consumed = [];
 
         private int FindRegister(int content, int except = -1)
@@ -1180,8 +1265,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         // -- saving ---------------------------------------------------------
 
-        // Makes the content of a register safe to overwrite: stores it unless
-        // nothing needs it, a copy exists, or it can be rebuilt.
+        /// <summary>
+        /// Makes the content of a register safe to overwrite: stores it unless
+        /// nothing needs it, a copy exists, or it can be rebuilt.
+        /// </summary>
         private void SaveRegister(int register, bool after, int pinned = 0)
         {
             var content = _r[register];
@@ -1208,7 +1295,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             SetH(content);
         }
 
-        // Whether the register's content can be overwritten without being saved.
+        /// <summary>Whether the register's content can be overwritten without being saved.</summary>
         private bool IsFree(int register)
         {
             var content = _r[register];
@@ -1216,8 +1303,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 || InH(content) || InF(content) || IsRemat(content) || FindRegister(content, register) >= 0;
         }
 
-        // Stores a carry that something is about to overwrite, if anything still
-        // needs it.
+        /// <summary>
+        /// Stores a carry that something is about to overwrite, if anything still
+        /// needs it.
+        /// </summary>
         private bool SaveCarry(int consumedNow, int pinned)
         {
             var c = _c;
@@ -1225,8 +1314,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return StoreCarry(preserve: consumedNow == c, pinned);
         }
 
-        // LDA #0; ROL; STA home, and when the operation still reads the carry, LSR to
-        // put it back.
+        /// <summary>
+        /// LDA #0; ROL; STA home, and when the operation still reads the carry, LSR to
+        /// put it back.
+        /// </summary>
         private bool StoreCarry(bool preserve, int pinned)
         {
             var c = _c;
@@ -1246,8 +1337,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // The carry holds `want` (a known 0 / 1, or a value): a SEC / CLC, or the
-        // stored bit shifted back into C.
+        /// <summary>
+        /// The carry holds `want` (a known 0 / 1, or a value): a SEC / CLC, or the
+        /// stored bit shifted back into C.
+        /// </summary>
         private bool PrepareCarry(MirOperand carryIn)
         {
             var want = ContentOf(carryIn);
@@ -1275,7 +1368,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         // -- moves ----------------------------------------------------------
 
-        // Puts `want` (a value, or a known byte) in the register.
+        /// <summary>Puts `want` (a value, or a known byte) in the register.</summary>
         private bool PutIn(int register, int want, int pinned = 0)
         {
             if (_r[register] == want) return true;
@@ -1342,7 +1435,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // The value is in its home (stored from a register or rebuilt through one).
+        /// <summary>The value is in its home (stored from a register or rebuilt through one).</summary>
         private bool EnsureHome(int content, int pinned)
         {
             if (IsImm(content) || InH(content)) return true;
@@ -1378,7 +1471,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return false;
         }
 
-        // The register cheapest to overwrite that is not pinned.
+        /// <summary>The register cheapest to overwrite that is not pinned.</summary>
         private int PickScratch(int pinned, bool onlyAx = false)
         {
             var best = -1;
@@ -1401,8 +1494,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return best;
         }
 
-        // The operand of an ALU or compare variant that is not in a register: an
-        // immediate or a home.
+        /// <summary>
+        /// The operand of an ALU or compare variant that is not in a register: an
+        /// immediate or a home.
+        /// </summary>
         private bool MemorySide(int content, int pinned, out Place place, out MemRef mem)
         {
             if (IsImm(content))
@@ -1420,7 +1515,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return EnsureHome(content, pinned);
         }
 
-        // The carry flag after an operation that sets it as a result.
+        /// <summary>The carry flag after an operation that sets it as a result.</summary>
         private void SetCarryResult(MirOperand carryOut)
         {
             var content = ResultIndex(carryOut);
@@ -1429,8 +1524,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
 
         // -- the operations -------------------------------------------------
 
-        // %r [, %cout] = adc|sbc|and|ora|eor with the operand at `reg` in A and the
-        // one at `mem` in memory.
+        /// <summary>
+        /// %r [, %cout] = adc|sbc|and|ora|eor with the operand at `reg` in A and the
+        /// one at `mem` in memory.
+        /// </summary>
         public Work? Alu(MirInstruction instr, MOS6502Operation op, int reg, int mem, int carryIn)
         {
             var hasCarry = carryIn >= 0;
@@ -1451,7 +1548,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // %r = inc|dec %a with the byte in X, Y or A.
+        /// <summary>%r = inc|dec %a with the byte in X, Y or A.</summary>
         public Work? StepRegister(MirInstruction instr, int register, MOS6502Operation op)
         {
             var source = ContentOf(instr.Operands[1]);
@@ -1468,7 +1565,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // %r, %cout = shle|lshre %a, %cin, in A.
+        /// <summary>%r, %cout = shle|lshre %a, %cin, in A.</summary>
         public Work? Shift(MirInstruction instr, bool left)
         {
             var carryIn = instr.Operands[3];
@@ -1492,8 +1589,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // mos6502.cmp (the carry of a compare) and mos6502.cmp_br, comparing the
-        // register `reg` with an immediate or a home.
+        /// <summary>
+        /// mos6502.cmp (the carry of a compare) and mos6502.cmp_br, comparing the
+        /// register `reg` with an immediate or a home.
+        /// </summary>
         public Work? Compare(MirInstruction instr, int reg)
         {
             var isBranch = (MOS6502Op)instr.Opcode.Code == MOS6502Op.CmpBr;
@@ -1530,8 +1629,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // A compare with zero whose exits only look at N and Z can use the flags a
-        // load or transfer already left.
+        /// <summary>
+        /// A compare with zero whose exits only look at N and Z can use the flags a
+        /// load or transfer already left.
+        /// </summary>
         private static bool ZeroTestExits(MirInstruction instr)
         {
             for (var k = 2; k < instr.Operands.Length; k += 2)
@@ -1540,14 +1641,14 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // %v = load @sym+off, left in memory: its uses read the global itself.
+        /// <summary>%v = load @sym+off, left in memory: its uses read the global itself.</summary>
         public Work? LeaveInMemory(MirInstruction instr)
         {
             SetF(ResultIndex(instr.Operands[0]));
             return this;
         }
 
-        // %v = load @sym+off | %lo, %hi, off into the register.
+        /// <summary>%v = load @sym+off | %lo, %hi, off into the register.</summary>
         public Work? LoadByte(MirInstruction instr, int reg)
         {
             var result = ResultIndex(instr.Operands[0]);
@@ -1569,7 +1670,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // store %v, @sym+off | store %v, %lo, %hi, off from the register.
+        /// <summary>store %v, @sym+off | store %v, %lo, %hi, off from the register.</summary>
         public Work? StoreByte(MirInstruction instr, int reg)
         {
             var value = ContentOf(instr.Operands[0]);
@@ -1589,7 +1690,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // The pointer bytes into the scratch pair and the offset into Y.
+        /// <summary>The pointer bytes into the scratch pair and the offset into Y.</summary>
         private bool SetUpPointer(MirOperand lo, MirOperand hi, long offset, int pinned)
         {
             return SetPointerByte(lo, MOS6502Variants.PointerLo, ref _ptrLo, pinned)
@@ -1615,12 +1716,14 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // Set when the work could not be completed; the plan is dropped.
+        /// <summary>Set when the work could not be completed; the plan is dropped.</summary>
         public bool Failed { get; private set; }
 
-        // A result that is built in a fixed zero-page register may find a value still
-        // waiting there that arrived in that register: it goes to its own home first,
-        // as it would have to anyway before the register is written.
+        /// <summary>
+        /// A result that is built in a fixed zero-page register may find a value still
+        /// waiting there that arrived in that register: it goes to its own home first,
+        /// as it would have to anyway before the register is written.
+        /// </summary>
         public void EvictDestinations(MirInstruction instr)
         {
             foreach (var def in _placer.Defs(instr))
@@ -1635,9 +1738,11 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             }
         }
 
-        // Stores every value the rest of the block, or a successor, still needs;
-        // `needFrom` names the position from which a use counts (the barrier after a
-        // run of copies); `pinned` registers are left alone.
+        /// <summary>
+        /// Stores every value the rest of the block, or a successor, still needs;
+        /// `needFrom` names the position from which a use counts (the barrier after a
+        /// run of copies); `pinned` registers are left alone.
+        /// </summary>
         public bool StoreLive(int pinned = 0, int needFrom = int.MinValue, int defLimit = int.MinValue)
         {
             var limit = defLimit == int.MinValue ? _pos : defLimit;
@@ -1649,12 +1754,14 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return Store(live, pinned);
         }
 
-        // Stores what the targets of a branch need to find in memory: for a successor
-        // that starts from empty registers, every value live into it and the
-        // arguments it takes; for one that inherits the registers (its only
-        // incoming edge), only a value that lives in a zero-page argument register
-        // (it has no home to inherit). The other edges into a join do their own
-        // storing, after the branch (DefineEntry, SatisfyEntry).
+        /// <summary>
+        /// Stores what the targets of a branch need to find in memory: for a successor
+        /// that starts from empty registers, every value live into it and the
+        /// arguments it takes; for one that inherits the registers (its only
+        /// incoming edge), only a value that lives in a zero-page argument register
+        /// (it has no home to inherit). The other edges into a join do their own
+        /// storing, after the branch (DefineEntry, SatisfyEntry).
+        /// </summary>
         public bool StoreForExits(MirInstruction branch, int pinned = 0, bool includeArguments = true)
         {
             var live = new HashSet<int>();
@@ -1688,15 +1795,17 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return live.All(InH);
         }
 
-        // A block that is nothing but the jump disappears in branch folding; one
-        // with code before it keeps the JMP (3 bytes, 3 cycles) unless it falls through.
+        /// <summary>
+        /// A block that is nothing but the jump disappears in branch folding; one
+        /// with code before it keeps the JMP (3 bytes, 3 cycles) unless it falls through.
+        /// </summary>
         private void AddJumpCost()
         {
             if (_cost > 0)
                 _cost += 3L * _placer.Options.SizeWeight + 3L * _placer.Options.SpeedWeight * _info.Frequency;
         }
 
-        // What the registers hold on the way out to each successor that inherits them.
+        /// <summary>What the registers hold on the way out to each successor that inherits them.</summary>
         private readonly List<(MirBlock Target, Snapshot Snapshot)> _snaps = [];
         private readonly List<(MirInstruction Branch, int Operand, Step[] Steps)> _edges = [];
 
@@ -1713,7 +1822,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             _snapSig = hash.ToHashCode();
         }
 
-        // The registers as they are, for the only edge into a block.
+        /// <summary>The registers as they are, for the only edge into a block.</summary>
         private void CaptureExits(MirInstruction branch)
         {
             foreach (var operand in branch.Operands)
@@ -1730,8 +1839,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             }
         }
 
-        // A copy of this work to place the code of one edge in: it starts at zero
-        // cost and has steps of its own.
+        /// <summary>
+        /// A copy of this work to place the code of one edge in: it starts at zero
+        /// cost and has steps of its own.
+        /// </summary>
         private Work Fork()
         {
             var state = new State
@@ -1742,8 +1853,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return new Work(_placer, _info, state, _pos, _normPos) { PreferMove = PreferMove, ExitMode = ExitMode };
         }
 
-        // The exits of a cmp_br into joins: each is placed on a copy of the work, the
-        // steps going into a block on that edge, the cost counted here.
+        /// <summary>
+        /// The exits of a cmp_br into joins: each is placed on a copy of the work, the
+        /// steps going into a block on that edge, the cost counted here.
+        /// </summary>
         private bool PlaceJoinExits(MirInstruction branch)
         {
             for (var k = 2; k < branch.Operands.Length; k += 2)
@@ -1762,16 +1875,20 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // The values live into a join and the parameters it takes that are used, as
-        // block-local indices (-1 for an argument that is not a vreg of this block).
+        /// <summary>
+        /// The values live into a join and the parameters it takes that are used, as
+        /// block-local indices (-1 for an argument that is not a vreg of this block).
+        /// </summary>
         private IEnumerable<int> LiveInto(BlockTarget target) =>
             _placer._liveIn[target.Block].Where(_info.Index.ContainsKey).Select(v => _info.Index[v]).Order();
 
-        // The first edge into a join: its registers become the state the join starts
-        // from, after storing what has to be in memory. A block parameter whose
-        // argument is in a register (and is not itself live into the join) stays
-        // there under the parameter's name; the others are moved into their homes.
-        // `settle` stores everything and hands over empty registers instead.
+        /// <summary>
+        /// The first edge into a join: its registers become the state the join starts
+        /// from, after storing what has to be in memory. A block parameter whose
+        /// argument is in a register (and is not itself live into the join) stays
+        /// there under the parameter's name; the others are moved into their homes.
+        /// `settle` stores everything and hands over empty registers instead.
+        /// </summary>
         private bool DefineEntry(BlockTarget target, int mode)
         {
             var settle = mode == 1;
@@ -1901,7 +2018,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // Whether the register holds a value the join needs and that has no home.
+        /// <summary>Whether the register holds a value the join needs and that has no home.</summary>
         private bool LiveRegister(int register, BlockTarget target)
         {
             var content = _r[register];
@@ -1909,8 +2026,10 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 && _placer._liveIn[target.Block].Contains(_info.Vreg[content]);
         }
 
-        // A later edge into a join: the values it starts from, in the registers and
-        // the homes the first edge left them in.
+        /// <summary>
+        /// A later edge into a join: the values it starts from, in the registers and
+        /// the homes the first edge left them in.
+        /// </summary>
         private bool SatisfyEntry(BlockTarget target)
         {
             var contract = _placer.Contract(target.Block);
@@ -2051,7 +2170,7 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // The home of a parameter <- its argument, from wherever the argument is.
+        /// <summary>The home of a parameter &lt;- its argument, from wherever the argument is.</summary>
         private bool MoveToParameter(int parameter, MirOperand source, int held = 0)
         {
             var content = ContentOf(source);
@@ -2068,9 +2187,11 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return true;
         }
 
-        // cf.br: the arguments go straight from where they are into the parameters'
-        // homes. A branch whose moves read a parameter another move writes keeps the
-        // plain parallel move, from the arguments' homes.
+        /// <summary>
+        /// cf.br: the arguments go straight from where they are into the parameters'
+        /// homes. A branch whose moves read a parameter another move writes keeps the
+        /// plain parallel move, from the arguments' homes.
+        /// </summary>
         public Work? Jump(MirInstruction instr)
         {
             var target = (BlockTarget)instr.Operands[0];
@@ -2140,9 +2261,11 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return this;
         }
 
-        // The moves of a branch in an order where no move reads a home an earlier
-        // one wrote, or null if the moves form a cycle or a move that has to read a
-        // home would find every register holding the source of a later move.
+        /// <summary>
+        /// The moves of a branch in an order where no move reads a home an earlier
+        /// one wrote, or null if the moves form a cycle or a move that has to read a
+        /// home would find every register holding the source of a later move.
+        /// </summary>
         private List<(int Parameter, MirOperand Source)>? OrderEdgeMoves(List<(int Parameter, MirOperand Source)> moves)
         {
             // The home a move reads, if it reads one (-1: it reads a register or an immediate).
@@ -2177,15 +2300,17 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
             return result;
         }
 
-        // A run of consecutive copies, as a parallel move between values and the
-        // fixed registers of a calling convention:
-        //   1. bytes arriving in A, X, Y (an argument, a call's result) are values there;
-        //   2. bytes arriving in zero-page registers are values living there;
-        //   3. copies between values;
-        //   4. before a copy into a fixed register: what the barrier after the run
-        //      would lose is stored, and the zero-page arguments still needed move home;
-        //   5. values into zero-page registers, then Y, X, A.
-        // `nextPos` is the position of the instruction after the run.
+        /// <summary>
+        /// A run of consecutive copies, as a parallel move between values and the
+        /// fixed registers of a calling convention:
+        ///   1. bytes arriving in A, X, Y (an argument, a call's result) are values there;
+        ///   2. bytes arriving in zero-page registers are values living there;
+        ///   3. copies between values;
+        ///   4. before a copy into a fixed register: what the barrier after the run
+        ///      would lose is stored, and the zero-page arguments still needed move home;
+        ///   5. values into zero-page registers, then Y, X, A.
+        /// `nextPos` is the position of the instruction after the run.
+        /// </summary>
         public Work? CopyRun(List<MirInstruction> run, int nextPos)
         {
             var fromGpr = new List<MirInstruction>();
@@ -2355,11 +2480,13 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
         }
     }
 
-    // The branches of a cmp_br after its compare: one per exit, through a block of
-    // moves when the exit passes arguments.
+    /// <summary>
+    /// The branches of a cmp_br after its compare: one per exit, through a block of
+    /// moves when the exit passes arguments.
+    /// </summary>
     internal void EmitCompareBranches(MirInstruction instr) => EmitBranches(instr);
 
-    // The code of the edges out of the branch being replayed, by operand.
+    /// <summary>The code of the edges out of the branch being replayed, by operand.</summary>
     private Dictionary<(MirInstruction Branch, int Operand), Step[]> _edgeSteps = [];
 
     internal override BlockTarget ExitTarget(MirInstruction instr, int operandIndex, BlockTarget target)

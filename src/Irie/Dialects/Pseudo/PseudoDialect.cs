@@ -2,6 +2,16 @@ using Irie.Mir;
 
 namespace Irie.Dialects.Pseudo;
 
+/// <summary>
+/// Scaffolding ops that later passes lower or expand:
+///   - pseudo.copy: the universal copy. vreg -&gt; vreg before selection, mixed during
+///     selection, physreg -&gt; physreg after placement; PseudoExpansionPass turns it
+///     into target moves last.
+///   - pseudo.merge / pseudo.unmerge: artifact ops (join / split a wide value into
+///     bytes) folded by the legalizer's artifact combiner.
+///   - pseudo.return: the void return shell AbiLoweringPass emits; it survives to
+///     instruction selection, which lowers it to the target's return op.
+/// </summary>
 public sealed class PseudoDialect : Dialect
 {
     public static new DialectId Id { get; private set; }
@@ -61,9 +71,11 @@ public sealed class PseudoDialect : Dialect
         _ => false,
     };
 
-    // Legal inline immediates: structural attributes (bit offsets), not value
-    // literals. pseudo.extract's bit offset (use 1), pseudo.insert's bit offset
-    // (use 2).
+    /// <summary>
+    /// Legal inline immediates: structural attributes (bit offsets), not value
+    /// literals. pseudo.extract's bit offset (use 1), pseudo.insert's bit offset
+    /// (use 2).
+    /// </summary>
     public override bool IsLegalImmediateOperand(ushort code, int useIndex) =>
         (PseudoOp)code switch
         {

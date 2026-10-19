@@ -1,8 +1,10 @@
 
 namespace Irie.Mir;
 
-// A virtual register starts life as TypedVReg (pre-isel) and is overwritten
-// with ClassedVReg by instruction selection. There is never both at once.
+/// <summary>
+/// A virtual register starts life as TypedVReg (pre-isel) and is overwritten
+/// with ClassedVReg by instruction selection. There is never both at once.
+/// </summary>
 public abstract record VRegAnnotation;
 
 public sealed record TypedVReg(IRType Type) : VRegAnnotation;

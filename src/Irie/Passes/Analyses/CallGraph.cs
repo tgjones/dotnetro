@@ -3,42 +3,49 @@ using Irie.Mir;
 
 namespace Irie.Passes.Analyses;
 
-// The module's call graph, at any pipeline point: it recognises both the pre-isel
-// `call.func` / `call.indirect` forms and the lowered target forms (`mos6502.jsr.abs
-// @f`, and the indirect-call shim's `jsr.abs @__call_indirect_trampoline`).
-//
-// An edge i → j exists when function i directly calls function j. An INDIRECT call
-// (a `call.indirect`, a call with no symbol, or a call of the indirect-call
-// trampoline) may reach any ADDRESS-TAKEN function — one whose symbol is
-// referenced by something other than a call: a vtable or other global initializer
-// (`DataSymbolRef`), or an address materialisation (`mem.symbol @f`, an
-// `lda.imm.sym{lo,hi} @f`). A function whose address is never taken can only be
-// reached by a direct call, so it is not an indirect target. This is the closed
-// world the compiler sees; it is exact for DotNetro programs and conservative
-// (never unsound) otherwise.
+/// <summary>
+/// The module's call graph, at any pipeline point: it recognises both the pre-isel
+/// `call.func` / `call.indirect` forms and the lowered target forms (`mos6502.jsr.abs
+/// @f`, and the indirect-call shim's `jsr.abs @__call_indirect_trampoline`).
+/// </summary>
+/// <remarks>
+/// An edge i → j exists when function i directly calls function j. An INDIRECT call
+/// (a `call.indirect`, a call with no symbol, or a call of the indirect-call
+/// trampoline) may reach any ADDRESS-TAKEN function — one whose symbol is
+/// referenced by something other than a call: a vtable or other global initializer
+/// (`DataSymbolRef`), or an address materialisation (`mem.symbol @f`, an
+/// `lda.imm.sym{lo,hi} @f`). A function whose address is never taken can only be
+/// reached by a direct call, so it is not an indirect target. This is the closed
+/// world the compiler sees; it is exact for DotNetro programs and conservative
+/// (never unsound) otherwise.
+/// </remarks>
 public sealed class CallGraph
 {
-    // The symbol of the runtime's indirect-call trampoline. Lowering turns an
-    // indirect call into `jsr.abs @__call_indirect_trampoline`, which dispatches
-    // with `JMP (zp)`; to the call graph that jsr IS the indirect call.
+    /// <summary>
+    /// The symbol of the runtime's indirect-call trampoline. Lowering turns an
+    /// indirect call into `jsr.abs @__call_indirect_trampoline`, which dispatches
+    /// with `JMP (zp)`; to the call graph that jsr IS the indirect call.
+    /// </summary>
     public const string IndirectCallTrampoline = "__call_indirect_trampoline";
 
     public IReadOnlyList<MirFunction> Functions { get; }
     public IReadOnlyDictionary<string, int> IndexByName { get; }
 
-    // Direct callees only (indirect calls not expanded).
+    /// <summary>Direct callees only (indirect calls not expanded).</summary>
     public HashSet<int>[] DirectCallees { get; }
 
-    // Direct callees plus, for every indirect call site, all address-taken functions.
+    /// <summary>Direct callees plus, for every indirect call site, all address-taken functions.</summary>
     public HashSet<int>[] Callees { get; }
 
     public bool[] HasIndirectCall { get; }
     public bool[] SelfRecursive { get; }
     public bool[] AddressTaken { get; }
 
-    // Strongly connected components of `Callees`. Ids are assigned in Tarjan
-    // completion order, so every callee's SCC has a lower id than its caller's
-    // (unless they share one): ascending id is a bottom-up (callee-first) order.
+    /// <summary>
+    /// Strongly connected components of `Callees`. Ids are assigned in Tarjan
+    /// completion order, so every callee's SCC has a lower id than its caller's
+    /// (unless they share one): ascending id is a bottom-up (callee-first) order.
+    /// </summary>
     public int[] SccId { get; }
     public int[] SccSize { get; }
 
@@ -88,9 +95,11 @@ public sealed class CallGraph
 
     public static CallGraph Build(MirModule module) => new(module);
 
-    // True when `instr` is a call. `callee` is the named function, or null for an
-    // indirect dispatch (including a call of the indirect-call trampoline) and for
-    // a call to a fixed ROM address.
+    /// <summary>
+    /// True when `instr` is a call. `callee` is the named function, or null for an
+    /// indirect dispatch (including a call of the indirect-call trampoline) and for
+    /// a call to a fixed ROM address.
+    /// </summary>
     public static bool IsCall(MirInstruction instr, out string? callee)
     {
         callee = null;
@@ -143,9 +152,11 @@ public sealed class CallGraph
         return false;
     }
 
-    // Tarjan's strongly-connected-components algorithm. Returns an array mapping
-    // each function index to its SCC id, and (out) an array of SCC sizes indexed
-    // by SCC id. Iterative to avoid deep recursion on large modules.
+    /// <summary>
+    /// Tarjan's strongly-connected-components algorithm. Returns an array mapping
+    /// each function index to its SCC id, and (out) an array of SCC sizes indexed
+    /// by SCC id. Iterative to avoid deep recursion on large modules.
+    /// </summary>
     private static int[] TarjanSccs(HashSet<int>[] adjacency, out int[] sccSize)
     {
         var n = adjacency.Length;

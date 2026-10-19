@@ -4,10 +4,12 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Target.MOS6502;
 
-// Whole-program zero-page layout of function-local homes ($300, $301, …): blocks
-// stacked above the callees', shared inside call cycles, saved around calls that
-// re-enter the caller. The tests feed post-RA MIR (homes already assigned) through
-// the recursion-save and layout passes and read the addresses back from the code.
+/// <summary>
+/// Whole-program zero-page layout of function-local homes ($300, $301, …): blocks
+/// stacked above the callees', shared inside call cycles, saved around calls that
+/// re-enter the caller. The tests feed post-RA MIR (homes already assigned) through
+/// the recursion-save and layout passes and read the addresses back from the code.
+/// </summary>
 public sealed class ProgramLayoutTests
 {
     private const int WindowStart = 0x14;
@@ -19,8 +21,10 @@ public sealed class ProgramLayoutTests
 
     private static string Run(string mir, params Pass[] extra) => Run(mir, null, extra);
 
-    // The layout with absolute homes allowed (the naive placement's), in a window
-    // that ends at `windowEnd`.
+    /// <summary>
+    /// The layout with absolute homes allowed (the naive placement's), in a window
+    /// that ends at `windowEnd`.
+    /// </summary>
     private static string RunWithAbsoluteHomes(string mir, int windowEnd)
     {
         var module = MirModule.Parse(new StringReader(mir));
@@ -204,7 +208,7 @@ public sealed class ProgramLayoutTests
         await Assert.That(text).Contains("global");
     }
 
-    // A function with more homes live at the same time than the window has bytes.
+    /// <summary>A function with more homes live at the same time than the window has bytes.</summary>
     private static string TooManyLiveHomes()
     {
         const int homes = 130;

@@ -4,36 +4,39 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Generic mid-level arithmetic simplification on generic-dialect SSA MIR — the
-// scoped analogue of LLVM's InstCombine/Reassociate for the add/sub family.
-//
-// llvm-mos folds e.g. `(a + 1) + (b - 1)` to `a + b` in its target-independent
-// InstCombine pass, long before any 6502 lowering (see the inc-dec corpus .txt:
-// the whole win lands in InstCombinePass). Irie had no mid-level optimization
-// layer at all, so the `+1`/`-1` survived to isel as real ALU ops. This pass
-// closes that gap: it linearizes a tree of `arith.addi`/`arith.subi` into a flat
-// sum of signed leaves plus a net constant, then rebuilds the minimal form.
-//
-// The transferable lesson from InstCombine's monolithic design is the
-// worklist-to-fixpoint shape, not the grab-bag of rules: when a rewrite lands,
-// re-enqueue the instructions that now use the new value, so an enabled outer
-// fold runs in the same pass. There are two rules: add/sub reassociation and
-// power-of-two strength reduction (`muli x, 2^k` → `shl x, k`, `udivi x, 2^k` →
-// `lshr x, k`, `uremi x, 2^k` → `and x, 2^k-1`, and the `x * 1` / `x / 1`
-// identities — the InstCombine / DAGCombiner folds). Further rules slot into the same
-// worklist rather than a separate pass (so they share the traversal and a
-// consistent canonical form).
-//
-// Soundness: i8/i16/i32 two's-complement add/sub is associative and commutative
-// under modular wrap, and Irie's generic MIR carries no nsw/poison semantics, so
-// reassociating and constant-folding is unconditionally value-preserving. The
-// pass only ever rewrites when it strictly reduces the add/sub instruction count,
-// which also guarantees termination.
-//
-// Runs early, on generic SSA after the verifier (which guarantees value operands
-// are vregs, never inline immediates — constants are always `arith.constant`
-// defs) and before ABI lowering. It only touches the generic arith dialect, so it
-// is a no-op on hand-written target-dialect `--start-at` inputs.
+/// <summary>
+/// Generic mid-level arithmetic simplification on generic-dialect SSA MIR — the
+/// scoped analogue of LLVM's InstCombine/Reassociate for the add/sub family.
+/// </summary>
+/// <remarks>
+/// llvm-mos folds e.g. `(a + 1) + (b - 1)` to `a + b` in its target-independent
+/// InstCombine pass, long before any 6502 lowering (see the inc-dec corpus .txt:
+/// the whole win lands in InstCombinePass). Irie had no mid-level optimization
+/// layer at all, so the `+1`/`-1` survived to isel as real ALU ops. This pass
+/// closes that gap: it linearizes a tree of `arith.addi`/`arith.subi` into a flat
+/// sum of signed leaves plus a net constant, then rebuilds the minimal form.
+///
+/// The transferable lesson from InstCombine's monolithic design is the
+/// worklist-to-fixpoint shape, not the grab-bag of rules: when a rewrite lands,
+/// re-enqueue the instructions that now use the new value, so an enabled outer
+/// fold runs in the same pass. There are two rules: add/sub reassociation and
+/// power-of-two strength reduction (`muli x, 2^k` → `shl x, k`, `udivi x, 2^k` →
+/// `lshr x, k`, `uremi x, 2^k` → `and x, 2^k-1`, and the `x * 1` / `x / 1`
+/// identities — the InstCombine / DAGCombiner folds). Further rules slot into the same
+/// worklist rather than a separate pass (so they share the traversal and a
+/// consistent canonical form).
+///
+/// Soundness: i8/i16/i32 two's-complement add/sub is associative and commutative
+/// under modular wrap, and Irie's generic MIR carries no nsw/poison semantics, so
+/// reassociating and constant-folding is unconditionally value-preserving. The
+/// pass only ever rewrites when it strictly reduces the add/sub instruction count,
+/// which also guarantees termination.
+///
+/// Runs early, on generic SSA after the verifier (which guarantees value operands
+/// are vregs, never inline immediates — constants are always `arith.constant`
+/// defs) and before ABI lowering. It only touches the generic arith dialect, so it
+/// is a no-op on hand-written target-dialect `--start-at` inputs.
+/// </remarks>
 public sealed class ArithSimplifyPass : MirFunctionPass
 {
     public override string Name => "ArithSimplify";
@@ -74,14 +77,16 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         instr.Opcode.Dialect == ArithDialect.Id
         && (ArithOp)instr.Opcode.Code is ArithOp.MulI or ArithOp.UDivI or ArithOp.URemI;
 
-    // Multiply, unsigned divide or unsigned remainder by a constant power of two:
-    //   muli  x, 2^k → shl  x, k      (the constant may be either operand)
-    //   udivi x, 2^k → lshr x, k
-    //   uremi x, 2^k → and  x, 2^k-1
-    // and `x * 1` / `x / 1` → `x` (`x % 1` → 0). The shift amount is an i8
-    // constant, as the legalizer's shift lowering requires. Signed divide /
-    // remainder (which round toward zero) and any other factor are left alone for
-    // the legalizer, which turns them into a runtime-helper libcall.
+    /// <summary>
+    /// Multiply, unsigned divide or unsigned remainder by a constant power of two:
+    ///   muli  x, 2^k → shl  x, k      (the constant may be either operand)
+    ///   udivi x, 2^k → lshr x, k
+    ///   uremi x, 2^k → and  x, 2^k-1
+    /// and `x * 1` / `x / 1` → `x` (`x % 1` → 0). The shift amount is an i8
+    /// constant, as the legalizer's shift lowering requires. Signed divide /
+    /// remainder (which round toward zero) and any other factor are left alone for
+    /// the legalizer, which turns them into a runtime-helper libcall.
+    /// </summary>
     private static bool TrySimplifyPow2(MirFunction function, MirBuilder builder, MirInstruction instr, out int newResult)
     {
         newResult = -1;
@@ -130,10 +135,12 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         return true;
     }
 
-    // The value of an `arith.constant`, looking through `cast.trunc` of one (a
-    // front end narrowing an int32 constant to pointer width leaves exactly that).
-    // The caller masks the value to its own result width, which also applies the
-    // truncation.
+    /// <summary>
+    /// The value of an `arith.constant`, looking through `cast.trunc` of one (a
+    /// front end narrowing an int32 constant to pointer width leaves exactly that).
+    /// The caller masks the value to its own result width, which also applies the
+    /// truncation.
+    /// </summary>
     private static long? TryGetConstant(MirFunction function, int vreg)
     {
         var def = function.GetDefinition(vreg);
@@ -151,8 +158,10 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         instr.Opcode.Dialect == ArithDialect.Id &&
         ((ArithOp)instr.Opcode.Code is ArithOp.AddI or ArithOp.SubI);
 
-    // Linearize the add/sub tree rooted at `instr` and, if the rebuilt form uses
-    // strictly fewer add/sub ops, build it and redirect the root's uses to it.
+    /// <summary>
+    /// Linearize the add/sub tree rooted at `instr` and, if the rebuilt form uses
+    /// strictly fewer add/sub ops, build it and redirect the root's uses to it.
+    /// </summary>
     private bool TrySimplify(MirFunction function, MirBuilder builder, MirInstruction instr, out int newResult)
     {
         newResult = -1;
@@ -211,8 +220,10 @@ public sealed class ArithSimplifyPass : MirFunctionPass
         return true;
     }
 
-    // Walk the add/sub tree, absorbing single-use intermediate add/sub nodes and
-    // folding constant leaves into `constant`; everything else is a leaf term.
+    /// <summary>
+    /// Walk the add/sub tree, absorbing single-use intermediate add/sub nodes and
+    /// folding constant leaves into `constant`; everything else is a leaf term.
+    /// </summary>
     private static void Flatten(MirFunction function, int vreg, bool negated,
                                 List<Term> terms, ref long constant, ref int absorbed)
     {

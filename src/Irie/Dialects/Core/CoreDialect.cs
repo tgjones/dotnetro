@@ -2,6 +2,10 @@ using Irie.Mir;
 
 namespace Irie.Dialects.Core;
 
+/// <summary>
+/// Source-level ops carried until ABI lowering: core.return, which AbiLoweringPass
+/// rewrites to per-byte copies into the return registers plus pseudo.return.
+/// </summary>
 public sealed class CoreDialect : Dialect
 {
     public static new DialectId Id { get; private set; }

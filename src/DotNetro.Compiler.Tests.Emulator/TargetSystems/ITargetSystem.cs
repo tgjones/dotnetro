@@ -12,19 +12,23 @@ internal enum EmulationStatus { Completed, RunawayTimeout, Fault }
 
 internal static class HaltDetection
 {
-    // The program ends in `JMP *` (the compiler's entry function halts when Main returns).
-    // `address` is where an opcode is being fetched.
+    /// <summary>
+    /// The program ends in `JMP *` (the compiler's entry function halts when Main returns).
+    /// `address` is where an opcode is being fetched.
+    /// </summary>
     public static bool IsHalt(byte[] memory, ushort address) =>
         memory[address] == 0x4C
         && memory[(ushort)(address + 1)] == (byte)address
         && memory[(ushort)(address + 2)] == (byte)(address >> 8);
 }
 
-// Counts the cycles spent in one function: from the fetch of its first opcode to
-// the first fetch after it returns (the stack pointer is back above where the call
-// left it), summed over all calls. Every Tick of the CPU is one clock cycle, so
-// the tick count at an opcode fetch is the cycle count so far. A call made while
-// the function is already running (recursion) is part of the outer call.
+/// <summary>
+/// Counts the cycles spent in one function: from the fetch of its first opcode to
+/// the first fetch after it returns (the stack pointer is back above where the call
+/// left it), summed over all calls. Every Tick of the CPU is one clock cycle, so
+/// the tick count at an opcode fetch is the cycle count so far. A call made while
+/// the function is already running (recursion) is part of the outer call.
+/// </summary>
 internal sealed class CycleMeter(ushort entryAddress)
 {
     private int _startTick;
@@ -34,8 +38,10 @@ internal sealed class CycleMeter(ushort entryAddress)
     public long Cycles { get; private set; }
     public int Calls { get; private set; }
 
-    // The program stopped in its halt loop: a window that is still open (the program
-    // as a whole, measured from its entry) ends here.
+    /// <summary>
+    /// The program stopped in its halt loop: a window that is still open (the program
+    /// as a whole, measured from its entry) ends here.
+    /// </summary>
     public void Halt(int ticks)
     {
         if (!_inside) return;
@@ -43,7 +49,7 @@ internal sealed class CycleMeter(ushort entryAddress)
         _inside = false;
     }
 
-    // Called at every opcode fetch: `ticks` cycles have elapsed before it.
+    /// <summary>Called at every opcode fetch: `ticks` cycles have elapsed before it.</summary>
     public void Observe(ushort pc, byte sp, int ticks)
     {
         if (_inside)

@@ -5,38 +5,41 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// Lowers a materialized `arith.select` (a value select, i.e. result width > 1)
-// into a CFG diamond — the llvm-mos MOSLowerSelect analogue, and like it this
-// runs after the legalizer and before instruction selection (added via
-// Target.AddPreInstructionSelectionPasses). It is a target pass rather than a
-// generic one because the "leave i1 selects alone" policy below is specific to
-// this target's wide-compare re-fusion strategy.
-//
-// For `%r = arith.select %c, %a, %b` this produces:
-//
-//   block:     <instructions before the select>
-//              cf.cond_br %c, trueBB(), falseBB()
-//   trueBB:    cf.br sinkBB(%a)
-//   falseBB:   cf.br sinkBB(%b)
-//   sinkBB(%r): <the rest of `block`, with %r now a block parameter>
-//
-// The select's def vreg is reused as the sink block's parameter, so downstream
-// uses are unchanged; placement later writes the block parameter on
-// each incoming edge.
-//
-// Two optimizations match llvm-mos:
-//   * same-test merge — all value selects in a block sharing the same condition
-//     are collapsed into ONE diamond (one parameter / arm-arg per select), so a
-//     narrowed multi-byte select (legalized to N i8 selects sharing %c) emits a
-//     single diamond with all bytes set per arm.
-//   * arm sinking — a single-use value computation that feeds exactly one arm is
-//     moved out of `block` into that arm's block, so it runs only on the taken
-//     path.
-//
-// An i1 (width-1) select is NOT lowered here: it only ever arises from the
-// legalizer's wide-compare lexicographic lowering and feeds a `cf.cond_br`, where
-// the instruction selector re-fuses it into a CMP+branch ladder. Lowering it to a
-// diamond would needlessly materialize a boolean byte.
+/// <summary>
+/// Lowers a materialized `arith.select` (a value select, i.e. result width &gt; 1)
+/// into a CFG diamond — the llvm-mos MOSLowerSelect analogue, and like it this
+/// runs after the legalizer and before instruction selection (added via
+/// Target.AddPreInstructionSelectionPasses). It is a target pass rather than a
+/// generic one because the "leave i1 selects alone" policy below is specific to
+/// this target's wide-compare re-fusion strategy.
+/// </summary>
+/// <remarks>
+/// For `%r = arith.select %c, %a, %b` this produces:
+///
+///   block:     &lt;instructions before the select&gt;
+///              cf.cond_br %c, trueBB(), falseBB()
+///   trueBB:    cf.br sinkBB(%a)
+///   falseBB:   cf.br sinkBB(%b)
+///   sinkBB(%r): &lt;the rest of `block`, with %r now a block parameter&gt;
+///
+/// The select's def vreg is reused as the sink block's parameter, so downstream
+/// uses are unchanged; placement later writes the block parameter on
+/// each incoming edge.
+///
+/// Two optimizations match llvm-mos:
+///   * same-test merge — all value selects in a block sharing the same condition
+///     are collapsed into ONE diamond (one parameter / arm-arg per select), so a
+///     narrowed multi-byte select (legalized to N i8 selects sharing %c) emits a
+///     single diamond with all bytes set per arm.
+///   * arm sinking — a single-use value computation that feeds exactly one arm is
+///     moved out of `block` into that arm's block, so it runs only on the taken
+///     path.
+///
+/// An i1 (width-1) select is NOT lowered here: it only ever arises from the
+/// legalizer's wide-compare lexicographic lowering and feeds a `cf.cond_br`, where
+/// the instruction selector re-fuses it into a CMP+branch ladder. Lowering it to a
+/// diamond would needlessly materialize a boolean byte.
+/// </remarks>
 public sealed class MOS6502SelectLoweringPass : MirFunctionPass
 {
     public override string Name => "MOS6502SelectLowering";
@@ -58,7 +61,7 @@ public sealed class MOS6502SelectLoweringPass : MirFunctionPass
         }
     }
 
-    // The first `arith.select` in `block` whose result is a value (width > 1).
+    /// <summary>The first `arith.select` in `block` whose result is a value (width &gt; 1).</summary>
     private static MirInstruction? FindFirstValueSelect(MirFunction function, MirBlock block)
     {
         foreach (var instr in block.Instructions)
@@ -79,8 +82,10 @@ public sealed class MOS6502SelectLoweringPass : MirFunctionPass
     private static int ConditionOf(MirInstruction select) =>
         ((VirtualReg)select.Operands[1]).Id;
 
-    // Build the diamond for the group of value selects in `block` sharing
-    // `seed`'s condition. Returns the new sink block.
+    /// <summary>
+    /// Build the diamond for the group of value selects in `block` sharing
+    /// `seed`'s condition. Returns the new sink block.
+    /// </summary>
     private static MirBlock LowerSelectGroup(MirFunction function, MirBlock block, MirInstruction seed)
     {
         var builder = new MirBuilder(function);
@@ -151,12 +156,14 @@ public sealed class MOS6502SelectLoweringPass : MirFunctionPass
         return sinkBB;
     }
 
-    // Move the def of each arm argument into `armBlock` (immediately before its
-    // terminator `armTerm`) when that def lives in `block`, is side-effect-free,
-    // reads no physical register, and is used only by this arm (single use — the
-    // arm branch's argument is now its only use). The single-use check excludes
-    // values the condition also consumes (e.g. a min/max operand fed to both the
-    // cmpi and an arm), so those correctly stay in `block`.
+    /// <summary>
+    /// Move the def of each arm argument into `armBlock` (immediately before its
+    /// terminator `armTerm`) when that def lives in `block`, is side-effect-free,
+    /// reads no physical register, and is used only by this arm (single use — the
+    /// arm branch's argument is now its only use). The single-use check excludes
+    /// values the condition also consumes (e.g. a min/max operand fed to both the
+    /// cmpi and an arm), so those correctly stay in `block`.
+    /// </summary>
     private static void SinkArmValues(
         MirFunction function, MirBlock block, MirBlock armBlock, MirInstruction armTerm, List<MirOperand> args)
     {
@@ -188,8 +195,10 @@ public sealed class MOS6502SelectLoweringPass : MirFunctionPass
         return false;
     }
 
-    // Move `newBlocks` (just appended to the end of function.Blocks by
-    // CreateBlock) to sit immediately after `anchor`, preserving their order.
+    /// <summary>
+    /// Move `newBlocks` (just appended to the end of function.Blocks by
+    /// CreateBlock) to sit immediately after `anchor`, preserving their order.
+    /// </summary>
     private static void RepositionAfter(MirFunction function, MirBlock anchor, MirBlock[] newBlocks)
     {
         foreach (var b in newBlocks)

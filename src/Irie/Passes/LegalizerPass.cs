@@ -4,20 +4,21 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// Worklist-driven legalizer for the unified-MIR pipeline. Mirrors the old
-// Irie.CodeGen.Passes.LegalizerPass:
-//
-//   * Two worklists: instList (non-artifacts) and artifactList (pseudo.merge /
-//     pseudo.unmerge).
-//   * Initial population is bottom-up: instructions added top-down, popped LIFO.
-//   * Alternating drain: legalize each non-artifact (which may emit new
-//     artifacts), then run the artifact combiner over each artifact, repeating
-//     until instList is empty.
-//   * An IMirObserver wired into MirBuilder routes newly-created instructions
-//     into the right worklist and removes erased ones, so worklist coherency is
-//     maintained automatically across builder operations.
-//   * Bottom-up traversal + an IsTriviallyDead check at the top of each drain
-//     step gives DCE for free.
+/// <summary>
+/// Worklist-driven legalizer for the unified-MIR pipeline. Mirrors the old
+/// Irie.CodeGen.Passes.LegalizerPass:
+///   * Two worklists: instList (non-artifacts) and artifactList (pseudo.merge /
+///     pseudo.unmerge).
+///   * Initial population is bottom-up: instructions added top-down, popped LIFO.
+///   * Alternating drain: legalize each non-artifact (which may emit new
+///     artifacts), then run the artifact combiner over each artifact, repeating
+///     until instList is empty.
+///   * An IMirObserver wired into MirBuilder routes newly-created instructions
+///     into the right worklist and removes erased ones, so worklist coherency is
+///     maintained automatically across builder operations.
+///   * Bottom-up traversal + an IsTriviallyDead check at the top of each drain
+///     step gives DCE for free.
+/// </summary>
 public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : MirFunctionPass
 {
     public override string Name => "Legalizer";
@@ -92,9 +93,11 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         builder.SetObserver(null);
     }
 
-    // Erase a seed set of dead instructions, then propagate deadness through the
-    // producers of the vregs they used: removing a use can leave its producer
-    // trivially dead, so re-check and erase those too, repeating to a fixpoint.
+    /// <summary>
+    /// Erase a seed set of dead instructions, then propagate deadness through the
+    /// producers of the vregs they used: removing a use can leave its producer
+    /// trivially dead, so re-check and erase those too, repeating to a fixpoint.
+    /// </summary>
     private static void CascadeErase(
         IReadOnlyList<MirInstruction> seed, MirFunction function, MirBuilder builder)
     {
@@ -114,10 +117,12 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         }
     }
 
-    // Record the defining instruction of each vreg `instr` uses (its producers
-    // may become dead once this use is gone), then erase `instr`. Producers are
-    // collected before the erase so the subsequent IsTriviallyDead check sees
-    // the decremented use counts.
+    /// <summary>
+    /// Record the defining instruction of each vreg `instr` uses (its producers
+    /// may become dead once this use is gone), then erase `instr`. Producers are
+    /// collected before the erase so the subsequent IsTriviallyDead check sees
+    /// the decremented use counts.
+    /// </summary>
     private static void SaveUsesAndErase(
         MirInstruction instr, MirFunction function, MirBuilder builder, InstructionWorkList chain)
     {
@@ -135,18 +140,21 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         builder.Remove(instr);
     }
 
-    // Narrow every wide (>8-bit) block parameter into a run of i8 parameters.
-    // For each narrowed parameter:
-    //   * the block gains N i8 parameter vregs in place of the wide one;
-    //   * a `pseudo.merge` at the top of the block rebinds them into the
-    //     original wide vreg so in-block wide ops keep working (the worklist
-    //     legalizer then narrows those ops and folds the merge);
-    //   * every predecessor edge's matching wide argument is replaced by N i8
-    //     arguments produced by a `pseudo.unmerge` before that terminator (the
-    //     combiner folds unmerge-of-merge round trips away).
-    //
-    // The 8-bit element width matches the rest of the MOS6502 legalization;
-    // a non-byte-multiple parameter width would be a bug upstream.
+    /// <summary>
+    /// Narrow every wide (&gt;8-bit) block parameter into a run of i8 parameters.
+    /// For each narrowed parameter:
+    ///   * the block gains N i8 parameter vregs in place of the wide one;
+    ///   * a `pseudo.merge` at the top of the block rebinds them into the
+    ///     original wide vreg so in-block wide ops keep working (the worklist
+    ///     legalizer then narrows those ops and folds the merge);
+    ///   * every predecessor edge's matching wide argument is replaced by N i8
+    ///     arguments produced by a `pseudo.unmerge` before that terminator (the
+    ///     combiner folds unmerge-of-merge round trips away).
+    /// </summary>
+    /// <remarks>
+    /// The 8-bit element width matches the rest of the MOS6502 legalization;
+    /// a non-byte-multiple parameter width would be a bug upstream.
+    /// </remarks>
     private static void NarrowWideBlockParameters(MirFunction function, MirBuilder builder)
     {
         function.RebuildCfg();
@@ -217,9 +225,11 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         }
     }
 
-    // Replace each wide argument with the i8 bytes of a pseudo.unmerge emitted
-    // before `pred`'s terminator; narrow args pass through unchanged. slotWidths
-    // gives the narrow-slot count for each original argument position.
+    /// <summary>
+    /// Replace each wide argument with the i8 bytes of a pseudo.unmerge emitted
+    /// before `pred`'s terminator; narrow args pass through unchanged. slotWidths
+    /// gives the narrow-slot count for each original argument position.
+    /// </summary>
     private static MirOperand[] NarrowArgs(
         MirFunction function,
         MirBuilder builder,
@@ -320,11 +330,13 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         LegalizeNarrowScalar(instr, function, builder, typed.Type, narrowType);
     }
 
-    // Splits a wide arith.addi / arith.subi into a chain of narrow
-    // arith.addi_with_carry / arith.subi_with_borrow instructions. The
-    // pseudo.unmerge / pseudo.merge artifacts inserted here are folded by the
-    // artifact combiner whenever they meet matching upstream / downstream
-    // artifacts.
+    /// <summary>
+    /// Splits a wide arith.addi / arith.subi into a chain of narrow
+    /// arith.addi_with_carry / arith.subi_with_borrow instructions. The
+    /// pseudo.unmerge / pseudo.merge artifacts inserted here are folded by the
+    /// artifact combiner whenever they meet matching upstream / downstream
+    /// artifacts.
+    /// </summary>
     private static void LegalizeNarrowScalar(
         MirInstruction instr,
         MirFunction function,
@@ -412,9 +424,11 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         builder.Remove(instr);
     }
 
-    // %r : iN = arith.{and,or,xor} %a, %b  →  per-byte op on the unmerged
-    // operands + merge. Bitwise ops have no inter-byte dependency, so unlike
-    // addi/subi there is no carry chain.
+    /// <summary>
+    /// %r : iN = arith.{and,or,xor} %a, %b  →  per-byte op on the unmerged
+    /// operands + merge. Bitwise ops have no inter-byte dependency, so unlike
+    /// addi/subi there is no carry chain.
+    /// </summary>
     private static void LegalizeNarrowBitwise(
         MirInstruction instr,
         MirBuilder builder,
@@ -449,10 +463,12 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         builder.Remove(instr);
     }
 
-    // %r : iN = arith.select %cond, %a, %b  →  per-byte arith.select sharing the
-    // i1 %cond + merge. The condition is not narrowed (it stays a single i1); each
-    // byte-select picks the matching byte of %a / %b. The target's select-lowering
-    // pass then groups all selects sharing %cond into one diamond.
+    /// <summary>
+    /// %r : iN = arith.select %cond, %a, %b  →  per-byte arith.select sharing the
+    /// i1 %cond + merge. The condition is not narrowed (it stays a single i1); each
+    /// byte-select picks the matching byte of %a / %b. The target's select-lowering
+    /// pass then groups all selects sharing %cond into one diamond.
+    /// </summary>
     private static void LegalizeNarrowSelect(
         MirInstruction instr,
         MirFunction function,
@@ -482,10 +498,12 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         builder.Remove(instr);
     }
 
-    // %v : iN = arith.constant <value>  →  one arith.constant : i8 per byte
-    // (LSB-first) + pseudo.merge of all parts into the original def vreg. The
-    // artifact combiner collapses the merge whenever a downstream
-    // pseudo.unmerge consumes it per-byte.
+    /// <summary>
+    /// %v : iN = arith.constant &lt;value&gt;  →  one arith.constant : i8 per byte
+    /// (LSB-first) + pseudo.merge of all parts into the original def vreg. The
+    /// artifact combiner collapses the merge whenever a downstream
+    /// pseudo.unmerge consumes it per-byte.
+    /// </summary>
     private static void LegalizeNarrowConstant(
         MirInstruction instr,
         MirFunction function,
@@ -519,7 +537,7 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         builder.Remove(instr);
     }
 
-    // Routes builder-driven IR mutations into the appropriate worklist.
+    /// <summary>Routes builder-driven IR mutations into the appropriate worklist.</summary>
     private sealed class WorkListObserver(InstructionWorkList instList, InstructionWorkList artifactList)
         : IMirObserver
     {
@@ -539,8 +557,10 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         }
     }
 
-    // Ordered set of instructions, popped LIFO. Re-adding an existing entry is
-    // a no-op.
+    /// <summary>
+    /// Ordered set of instructions, popped LIFO. Re-adding an existing entry is
+    /// a no-op.
+    /// </summary>
     private sealed class InstructionWorkList
     {
         private readonly LinkedList<MirInstruction> _list = new();
@@ -573,15 +593,19 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
         }
     }
 
-    // Folds redundant pseudo.merge / pseudo.unmerge pairs introduced by
-    // legalization. The legalizer alternates this with per-instruction
-    // legalization: legalizing a wide op typically inserts unmerge/merge pairs
-    // around the narrowed body, which this combiner then collapses by RAUW-ing
-    // through the original components.
+    /// <summary>
+    /// Folds redundant pseudo.merge / pseudo.unmerge pairs introduced by
+    /// legalization. The legalizer alternates this with per-instruction
+    /// legalization: legalizing a wide op typically inserts unmerge/merge pairs
+    /// around the narrowed body, which this combiner then collapses by RAUW-ing
+    /// through the original components.
+    /// </summary>
     private sealed class LegalizationArtifactCombiner(MirFunction function)
     {
-        // Returns true if the instruction was combined. Adds any instructions
-        // observed dead by the combine into deadInstrs (the caller erases them).
+        /// <summary>
+        /// Returns true if the instruction was combined. Adds any instructions
+        /// observed dead by the combine into deadInstrs (the caller erases them).
+        /// </summary>
         public bool TryCombineInstruction(MirInstruction instr, List<MirInstruction> deadInstrs)
         {
             if (instr.Opcode.Dialect != Irie.Dialects.Pseudo.PseudoDialect.Id)
@@ -594,10 +618,13 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
             };
         }
 
-        // Pattern: Unmerge(Merge(p0..pN)) -> for each i: replace unmerge def_i with p_i
-        //
-        // Equal-arity, equal-element-type case only. The wider/narrower cases
-        // (NumMergeRegs != NumDefs) are not handled.
+        /// <summary>
+        /// Pattern: Unmerge(Merge(p0..pN)) -&gt; for each i: replace unmerge def_i with p_i
+        /// </summary>
+        /// <remarks>
+        /// Equal-arity, equal-element-type case only. The wider/narrower cases
+        /// (NumMergeRegs != NumDefs) are not handled.
+        /// </remarks>
         private bool TryCombineUnmerge(MirInstruction unmerge, List<MirInstruction> deadInstrs)
         {
             var defs = new List<VirtualReg>();
@@ -656,18 +683,21 @@ public sealed class LegalizerPass(Irie.Target.LegalizerInfo legalizerInfo) : Mir
             return true;
         }
 
-        // Pattern: Extract(Merge(p0..pN), bit_offset) → replace extract def with the
-        // matching part vreg when bit_offset aligns to a part boundary and the
-        // extracted width equals the part width.
-        //
-        // Operand layout for pseudo.extract:
-        //   [0] = def (the byte/slice vreg)
-        //   [1] = source wide vreg
-        //   [2] = Immediate bit offset
-        //
-        // Operand layout for pseudo.merge:
-        //   [0]    = def (wide vreg)
-        //   [1..N] = part vregs in low-to-high order
+        /// <summary>
+        /// Pattern: Extract(Merge(p0..pN), bit_offset) → replace extract def with the
+        /// matching part vreg when bit_offset aligns to a part boundary and the
+        /// extracted width equals the part width.
+        /// </summary>
+        /// <remarks>
+        /// Operand layout for pseudo.extract:
+        ///   [0] = def (the byte/slice vreg)
+        ///   [1] = source wide vreg
+        ///   [2] = Immediate bit offset
+        ///
+        /// Operand layout for pseudo.merge:
+        ///   [0]    = def (wide vreg)
+        ///   [1..N] = part vregs in low-to-high order
+        /// </remarks>
         private bool TryCombineExtract(MirInstruction extract, List<MirInstruction> deadInstrs)
         {
             if (extract.Operands.Length != 3) return false;

@@ -6,31 +6,34 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// The machinery shared by the placements of the unpinned operations
-// MOS6502ShapeSelector emits (today only MOS6502BeamPlacementPass).
-//
-// Every non-constant byte value, and every block parameter, gets a HOME: a
-// function-local zero-page byte ($h0, $h1, … until program layout gives each an
-// address, in zero page or in absolute memory). The base class places an
-// operation by reading its operands from their homes (or taking a constant as an
-// immediate), computing in A, and writing the result to the result's home,
-// choosing from MOS6502Variants the variant that does this with A as the only
-// scratch register. The beam placement reuses that for barriers and replaces how
-// the operations of a block are placed otherwise.
-//
-// One thing is not homed. A carry that is produced by one operation and consumed
-// by the very next one (the links of a multi-byte add or shift) stays in C; the
-// placer tracks that the flag still holds it. Any other carry is stored to its
-// home as 0 / 1 and reloaded into C when needed.
-//
-// Block parameters are not copies in the IR any more: a branch writes the
-// arguments to the parameters' homes (a parallel move, through temporary homes if
-// one argument is itself a parameter being written). A conditional exit that
-// passes arguments leaves through a new block that does the moves.
-//
-// The output is physreg-only MIR in the concrete, pinned ops, ready for the tail
-// of the pipeline (frame lowering, recursion saves, program layout, pseudo
-// expansion, …).
+/// <summary>
+/// The machinery shared by the placements of the unpinned operations
+/// MOS6502ShapeSelector emits (today only MOS6502BeamPlacementPass).
+/// </summary>
+/// <remarks>
+/// Every non-constant byte value, and every block parameter, gets a HOME: a
+/// function-local zero-page byte ($h0, $h1, … until program layout gives each an
+/// address, in zero page or in absolute memory). The base class places an
+/// operation by reading its operands from their homes (or taking a constant as an
+/// immediate), computing in A, and writing the result to the result's home,
+/// choosing from MOS6502Variants the variant that does this with A as the only
+/// scratch register. The beam placement reuses that for barriers and replaces how
+/// the operations of a block are placed otherwise.
+///
+/// One thing is not homed. A carry that is produced by one operation and consumed
+/// by the very next one (the links of a multi-byte add or shift) stays in C; the
+/// placer tracks that the flag still holds it. Any other carry is stored to its
+/// home as 0 / 1 and reloaded into C when needed.
+///
+/// Block parameters are not copies in the IR any more: a branch writes the
+/// arguments to the parameters' homes (a parallel move, through temporary homes if
+/// one argument is itself a parameter being written). A conditional exit that
+/// passes arguments leaves through a new block that does the moves.
+///
+/// The output is physreg-only MIR in the concrete, pinned ops, ready for the tail
+/// of the pipeline (frame lowering, recursion saves, program layout, pseudo
+/// expansion, …).
+/// </remarks>
 internal class MOS6502Placer(MirFunction function)
 {
     internal MirFunction Function => function;
@@ -44,16 +47,20 @@ internal class MOS6502Placer(MirFunction function)
     internal readonly Dictionary<int, int> _homes = [];
     internal int _nextHome;
 
-    // Address bytes (`const @sym, half`), which cost one load wherever they are
-    // needed; the vregs live into and out of each block; the blocks that only move
-    // a conditional exit's arguments.
+    /// <summary>
+    /// Address bytes (`const @sym, half`), which cost one load wherever they are
+    /// needed; the vregs live into and out of each block; the blocks that only move
+    /// a conditional exit's arguments.
+    /// </summary>
     internal readonly Dictionary<int, (Symbol Symbol, long Half)> _remat = [];
     internal readonly Dictionary<MirBlock, HashSet<int>> _liveIn = [];
     internal readonly Dictionary<MirBlock, HashSet<int>> _liveOut = [];
     internal readonly HashSet<MirBlock> _edgeBlocks = [];
 
-    // The instructions of the block being placed, and the vreg whose value the
-    // carry flag is known to hold right now (-1: none).
+    /// <summary>
+    /// The instructions of the block being placed, and the vreg whose value the
+    /// carry flag is known to hold right now (-1: none).
+    /// </summary>
     internal List<MirInstruction> _out = [];
     internal int _carryHolds = -1;
 
@@ -90,7 +97,7 @@ internal class MOS6502Placer(MirFunction function)
     // Liveness
     // ------------------------------------------------------------------
 
-    // Vregs that need a home: everything but the immediate constants.
+    /// <summary>Vregs that need a home: everything but the immediate constants.</summary>
     internal bool NeedsHome(int vreg) => !_constants.ContainsKey(vreg);
 
     internal IEnumerable<VirtualReg> Uses(MirInstruction instr)
@@ -155,24 +162,28 @@ internal class MOS6502Placer(MirFunction function)
         } while (changed);
     }
 
-    // Called once the constants and use counts are known, before any block is placed.
+    /// <summary>Called once the constants and use counts are known, before any block is placed.</summary>
     internal virtual void BeforePlacement() { }
 
-    // The order the blocks are placed in (not the order they are laid out in).
+    /// <summary>The order the blocks are placed in (not the order they are laid out in).</summary>
     internal virtual IReadOnlyList<MirBlock> PlacementOrder() => function.Blocks.ToList();
 
-    // Whether a block starts from the registers its only predecessor left, instead
-    // of from empty registers with every live value in its home.
+    /// <summary>
+    /// Whether a block starts from the registers its only predecessor left, instead
+    /// of from empty registers with every live value in its home.
+    /// </summary>
     internal virtual bool IsInheriting(MirBlock block) => false;
 
-    // How the edge between two blocks is placed (see ExitRole).
+    /// <summary>How the edge between two blocks is placed (see ExitRole).</summary>
     internal virtual ExitRole RoleOf(MirBlock from, MirBlock to) => ExitRole.Conventional;
 
-    // The state a block that starts from a snapshot starts from.
+    /// <summary>The state a block that starts from a snapshot starts from.</summary>
     internal virtual Snapshot? Contract(MirBlock block) => null;
 
-    // The target of the exit at `operandIndex` of a branch: the block itself, or a
-    // new block that does the moves the edge needs first.
+    /// <summary>
+    /// The target of the exit at `operandIndex` of a branch: the block itself, or a
+    /// new block that does the moves the edge needs first.
+    /// </summary>
     internal virtual BlockTarget ExitTarget(MirInstruction instr, int operandIndex, BlockTarget target) =>
         EdgeTarget(target);
 
@@ -213,8 +224,10 @@ internal class MOS6502Placer(MirFunction function)
         }
     }
 
-    // Whether the code placed for each block is checked against the block it came
-    // from (PlacementChecker); IRIE_NO_PLACEMENT_CHECK turns it off.
+    /// <summary>
+    /// Whether the code placed for each block is checked against the block it came
+    /// from (PlacementChecker); IRIE_NO_PLACEMENT_CHECK turns it off.
+    /// </summary>
     private PlacementChecker? _checker;
 
     internal static readonly bool CheckPlacement =
@@ -225,8 +238,10 @@ internal class MOS6502Placer(MirFunction function)
         if (CheckPlacement) (_checker ??= new PlacementChecker(this)).Check(block, before, _out);
     }
 
-    // Places instrs[i] (or the run of copies starting there); returns the index
-    // of the next instruction to place.
+    /// <summary>
+    /// Places instrs[i] (or the run of copies starting there); returns the index
+    /// of the next instruction to place.
+    /// </summary>
     internal int PlaceInstruction(List<MirInstruction> instrs, int i)
     {
         var instr = instrs[i];
@@ -331,8 +346,10 @@ internal class MOS6502Placer(MirFunction function)
             Emit((MOS6502Op)opcode.Code, operands);
     }
 
-    // Anything that may change C: the ALU and shift ops, compares, the flag ops
-    // and everything that calls out (a call, the expansion of a frame access).
+    /// <summary>
+    /// Anything that may change C: the ALU and shift ops, compares, the flag ops
+    /// and everything that calls out (a call, the expansion of a frame access).
+    /// </summary>
     internal static bool WritesCarry(MOS6502Op op) => op is
         MOS6502Op.AdcImm or MOS6502Op.AdcZp or MOS6502Op.AdcAbs
         or MOS6502Op.SbcImm or MOS6502Op.SbcZp or MOS6502Op.SbcAbs
@@ -361,9 +378,11 @@ internal class MOS6502Placer(MirFunction function)
         return false;
     }
 
-    // Which values share a home: the key a value's home is filed under. Every
-    // value has a home of its own here; the beam placement overrides this to
-    // let values that are never live together share one.
+    /// <summary>
+    /// Which values share a home: the key a value's home is filed under. Every
+    /// value has a home of its own here; the beam placement overrides this to
+    /// let values that are never live together share one.
+    /// </summary>
     internal virtual int HomeKey(int vreg) => vreg;
 
     internal virtual PhysicalReg Home(int vreg)
@@ -374,7 +393,7 @@ internal class MOS6502Placer(MirFunction function)
         return new PhysicalReg(MOS6502Registers.Home(n), IsDefinition: false);
     }
 
-    // The register of the home a value already has, without giving it one.
+    /// <summary>The register of the home a value already has, without giving it one.</summary>
     internal virtual bool TryGetHome(int vreg, out int register)
     {
         if (_homes.TryGetValue(HomeKey(vreg), out var n))
@@ -397,7 +416,7 @@ internal class MOS6502Placer(MirFunction function)
         _ => throw new ArgumentOutOfRangeException(nameof(reg)),
     };
 
-    // register <- the value of `operand` (an immediate, or its home).
+    /// <summary>register &lt;- the value of `operand` (an immediate, or its home).</summary>
     internal void LoadRegister(int reg, MirOperand operand)
     {
         if (TryConst(operand, out var value))
@@ -410,13 +429,13 @@ internal class MOS6502Placer(MirFunction function)
             throw new NotSupportedException($"MOS6502Placer: cannot load operand {operand}.");
     }
 
-    // The memory-side operand of an ALU or compare variant, and its place.
+    /// <summary>The memory-side operand of an ALU or compare variant, and its place.</summary>
     internal (Place Place, MirOperand Operand) MemorySide(MirOperand operand) =>
         TryConst(operand, out var value)
             ? (Place.Imm, new Immediate(value))
             : (Place.Home, Home(((VirtualReg)operand).Id));
 
-    // home of `def` <- register, unless nothing reads it.
+    /// <summary>home of `def` &lt;- register, unless nothing reads it.</summary>
     internal void StoreResult(MirOperand def, int reg)
     {
         var vreg = ((VirtualReg)def).Id;
@@ -428,7 +447,7 @@ internal class MOS6502Placer(MirFunction function)
     // The carry
     // ------------------------------------------------------------------
 
-    // Puts the carry-in operand into C.
+    /// <summary>Puts the carry-in operand into C.</summary>
     internal void EnsureCarry(MirOperand carryIn)
     {
         if (TryConst(carryIn, out var value))
@@ -445,9 +464,11 @@ internal class MOS6502Placer(MirFunction function)
         EmitVariant(MOS6502Variants.Require(MOS6502Operation.Lshr, Place.A, Place.None, "lsr"));
     }
 
-    // The carry an operation produced in C: left there when the next operation
-    // consumes it, else stored as 0 / 1. A is the operation's result (already
-    // stored) and is free to use.
+    /// <summary>
+    /// The carry an operation produced in C: left there when the next operation
+    /// consumes it, else stored as 0 / 1. A is the operation's result (already
+    /// stored) and is free to use.
+    /// </summary>
     internal void HandleCarryOut(MirOperand carryOut, List<MirInstruction> instrs, int index)
     {
         var vreg = ((VirtualReg)carryOut).Id;
@@ -465,8 +486,10 @@ internal class MOS6502Placer(MirFunction function)
         EmitVariant(MOS6502Variants.Require(MOS6502Operation.Spill, Place.A, Place.Home), Home(vreg));
     }
 
-    // Whether the next operation after instrs[index] (constants take no code)
-    // reads `vreg` as its carry in.
+    /// <summary>
+    /// Whether the next operation after instrs[index] (constants take no code)
+    /// reads `vreg` as its carry in.
+    /// </summary>
     internal static bool ConsumedByNext(List<MirInstruction> instrs, int index, int vreg)
     {
         for (var j = index + 1; j < instrs.Count; j++)
@@ -490,9 +513,11 @@ internal class MOS6502Placer(MirFunction function)
     // Operations
     // ------------------------------------------------------------------
 
-    // %v = const <imm>: nothing to emit, the value is an immediate wherever it
-    // is read. An address byte is not an immediate the ALU ops take, so it is
-    // materialised into its home.
+    /// <summary>
+    /// %v = const &lt;imm&gt;: nothing to emit, the value is an immediate wherever it
+    /// is read. An address byte is not an immediate the ALU ops take, so it is
+    /// materialised into its home.
+    /// </summary>
     internal void PlaceConst(MirInstruction instr)
     {
         if (instr.Operands[1] is Immediate) return;
@@ -505,7 +530,7 @@ internal class MOS6502Placer(MirFunction function)
         StoreResult(instr.Operands[0], A);
     }
 
-    // %r, %cout = adc|sbc %a, %b, %cin
+    /// <summary>%r, %cout = adc|sbc %a, %b, %cin</summary>
     internal void PlaceAddSub(MirInstruction instr, MOS6502Operation operation, List<MirInstruction> instrs, int index)
     {
         EnsureCarry(instr.Operands[4]);
@@ -516,7 +541,7 @@ internal class MOS6502Placer(MirFunction function)
         HandleCarryOut(instr.Operands[1], instrs, index);
     }
 
-    // %r = inc|dec %a: CLC; ADC #1 or SEC; SBC #1 (the base placer works in A).
+    /// <summary>%r = inc|dec %a: CLC; ADC #1 or SEC; SBC #1 (the base placer works in A).</summary>
     internal void PlaceStep(MirInstruction instr, MOS6502Operation operation, string carry)
     {
         EmitVariant(MOS6502Variants.Require(MOS6502Operation.Const, Place.Carry, Place.Imm, carry));
@@ -525,7 +550,7 @@ internal class MOS6502Placer(MirFunction function)
         StoreResult(instr.Operands[0], A);
     }
 
-    // %r = and|ora|eor %a, %b
+    /// <summary>%r = and|ora|eor %a, %b</summary>
     internal void PlaceLogic(MirInstruction instr, MOS6502Operation operation)
     {
         LoadRegister(A, instr.Operands[1]);
@@ -534,8 +559,10 @@ internal class MOS6502Placer(MirFunction function)
         StoreResult(instr.Operands[0], A);
     }
 
-    // %r, %cout = shle|lshre %a, %cin: asl / lsr for a zero carry in, else the
-    // rotate through the carry.
+    /// <summary>
+    /// %r, %cout = shle|lshre %a, %cin: asl / lsr for a zero carry in, else the
+    /// rotate through the carry.
+    /// </summary>
     internal void PlaceShift(MirInstruction instr, MOS6502Operation operation, List<MirInstruction> instrs, int index)
     {
         var carryIn = instr.Operands[3];
@@ -549,7 +576,7 @@ internal class MOS6502Placer(MirFunction function)
         HandleCarryOut(instr.Operands[1], instrs, index);
     }
 
-    // %c = cmp %a, %b: the carry of the compare.
+    /// <summary>%c = cmp %a, %b: the carry of the compare.</summary>
     internal void PlaceCmp(MirInstruction instr, List<MirInstruction> instrs, int index)
     {
         LoadRegister(A, instr.Operands[1]);
@@ -558,7 +585,7 @@ internal class MOS6502Placer(MirFunction function)
         HandleCarryOut(instr.Operands[0], instrs, index);
     }
 
-    // cmp_br %a, %b, cc, T [, cc, T2]: one compare, then a branch per exit.
+    /// <summary>cmp_br %a, %b, cc, T [, cc, T2]: one compare, then a branch per exit.</summary>
     internal void PlaceCmpBr(MirInstruction instr)
     {
         LoadRegister(A, instr.Operands[0]);
@@ -567,7 +594,7 @@ internal class MOS6502Placer(MirFunction function)
         EmitBranches(instr);
     }
 
-    // The branches of a cmp_br on the flags its compare left: one per exit.
+    /// <summary>The branches of a cmp_br on the flags its compare left: one per exit.</summary>
     internal void EmitBranches(MirInstruction instr)
     {
         for (var k = 2; k < instr.Operands.Length; k += 2)
@@ -594,7 +621,7 @@ internal class MOS6502Placer(MirFunction function)
 
     internal bool IsFrameSlot(string symbol) => function.FrameSlots.Any(s => s.SymbolName == symbol);
 
-    // %v = load @sym+off | %v = load %lo, %hi, off
+    /// <summary>%v = load @sym+off | %v = load %lo, %hi, off</summary>
     internal void PlaceLoad(MirInstruction instr)
     {
         var def = instr.Operands[0];
@@ -619,7 +646,7 @@ internal class MOS6502Placer(MirFunction function)
         StoreResult(def, A);
     }
 
-    // store %v, @sym+off | store %v, %lo, %hi, off
+    /// <summary>store %v, @sym+off | store %v, %lo, %hi, off</summary>
     internal void PlaceStore(MirInstruction instr)
     {
         var value = instr.Operands[0];
@@ -646,7 +673,7 @@ internal class MOS6502Placer(MirFunction function)
         }
     }
 
-    // The two bytes of a pointer into the scratch pair, and the offset into Y.
+    /// <summary>The two bytes of a pointer into the scratch pair, and the offset into Y.</summary>
     internal void SetUpPointer(MirOperand lo, MirOperand hi, long offset)
     {
         var spill = MOS6502Variants.Require(MOS6502Operation.Spill, Place.A, Place.Home);
@@ -657,8 +684,10 @@ internal class MOS6502Placer(MirFunction function)
         EmitVariant(MOS6502Variants.Require(MOS6502Operation.Const, Place.Y, Place.Imm, "imm"), new Immediate(offset));
     }
 
-    // The frame access ops the call lowering emitted for stack arguments: the
-    // byte moves through A.
+    /// <summary>
+    /// The frame access ops the call lowering emitted for stack arguments: the
+    /// byte moves through A.
+    /// </summary>
     internal void PlaceFrameLoad(MirInstruction instr)
     {
         var operands = (MirOperand[])instr.Operands.Clone();
@@ -680,13 +709,15 @@ internal class MOS6502Placer(MirFunction function)
     // Copies
     // ------------------------------------------------------------------
 
-    // A run of consecutive pseudo.copy ops. Copies to / from the fixed
-    // registers are the call and entry/return conventions; their order matters
-    // because loading a zero-page register goes through A:
-    //   1. bytes read out of A, X, Y into homes (before anything clobbers them),
-    //   2. bytes read out of zero-page registers into homes (through A),
-    //   3. home to home,
-    //   4. homes into zero-page registers (through A), then Y, X, and A last.
+    /// <summary>
+    /// A run of consecutive pseudo.copy ops. Copies to / from the fixed
+    /// registers are the call and entry/return conventions; their order matters
+    /// because loading a zero-page register goes through A:
+    ///   1. bytes read out of A, X, Y into homes (before anything clobbers them),
+    ///   2. bytes read out of zero-page registers into homes (through A),
+    ///   3. home to home,
+    ///   4. homes into zero-page registers (through A), then Y, X, and A last.
+    /// </summary>
     internal void PlaceCopies(List<MirInstruction> run)
     {
         var fromGpr = new List<MirInstruction>();
@@ -757,8 +788,10 @@ internal class MOS6502Placer(MirFunction function)
     // Edges
     // ------------------------------------------------------------------
 
-    // The target a conditional exit branches to: itself when it needs no moves,
-    // else a new block that moves the arguments into the parameters and jumps.
+    /// <summary>
+    /// The target a conditional exit branches to: itself when it needs no moves,
+    /// else a new block that moves the arguments into the parameters and jumps.
+    /// </summary>
     internal BlockTarget EdgeTarget(BlockTarget target)
     {
         if (target.Args.Length == 0 || EdgeMoves(target).Count == 0)
@@ -781,8 +814,10 @@ internal class MOS6502Placer(MirFunction function)
         return new BlockTarget(edge, []);
     }
 
-    // The moves a branch makes: each used parameter that does not already share
-    // its home with the argument it receives.
+    /// <summary>
+    /// The moves a branch makes: each used parameter that does not already share
+    /// its home with the argument it receives.
+    /// </summary>
     internal List<(int Parameter, MirOperand Source)> EdgeMoves(BlockTarget target)
     {
         var parameters = target.Block.Parameters;
@@ -801,8 +836,10 @@ internal class MOS6502Placer(MirFunction function)
         return moves;
     }
 
-    // Whether a move reads a home that another move of the same branch writes,
-    // so the moves cannot simply run one after the other.
+    /// <summary>
+    /// Whether a move reads a home that another move of the same branch writes,
+    /// so the moves cannot simply run one after the other.
+    /// </summary>
     internal bool HasMoveHazard(List<(int Parameter, MirOperand Source)> moves)
     {
         var written = moves.Select(m => HomeKey(m.Parameter)).ToHashSet();
@@ -810,7 +847,7 @@ internal class MOS6502Placer(MirFunction function)
             && !_constants.ContainsKey(v.Id) && written.Contains(HomeKey(v.Id)));
     }
 
-    // The parallel move of a branch's arguments into the target's parameters.
+    /// <summary>The parallel move of a branch's arguments into the target's parameters.</summary>
     internal void EmitEdgeMoves(BlockTarget target)
     {
         var moves = EdgeMoves(target);
@@ -845,10 +882,12 @@ internal class MOS6502Placer(MirFunction function)
     // Block live-ins
     // ------------------------------------------------------------------
 
-    // Live-in registers of every block, from the physical registers the code
-    // now reads and writes: A, X, Y, the zero-page registers and the homes (the
-    // flags and the fixed registers are not tracked). The entry block keeps the
-    // calling convention's declared live-ins.
+    /// <summary>
+    /// Live-in registers of every block, from the physical registers the code
+    /// now reads and writes: A, X, Y, the zero-page registers and the homes (the
+    /// flags and the fixed registers are not tracked). The entry block keeps the
+    /// calling convention's declared live-ins.
+    /// </summary>
     internal void RecomputeLiveIns()
     {
         static bool Tracked(int reg) =>

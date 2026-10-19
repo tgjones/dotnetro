@@ -2,13 +2,15 @@ using System.Runtime.CompilerServices;
 
 namespace System;
 
-// The public surface is identical for every target and has the same names and
-// signatures as the reference assembly. What differs per target is how bytes reach
-// the machine; that is the partial methods at the bottom, implemented in
-// Console.<Target>.cs (a target that forgets one fails to compile).
+/// <summary>
+/// The public surface is identical for every target and has the same names and
+/// signatures as the reference assembly. What differs per target is how bytes reach
+/// the machine; that is the partial methods at the bottom, implemented in
+/// Console.&lt;Target&gt;.cs (a target that forgets one fails to compile).
+/// </summary>
 public static partial class Console
 {
-    // PutChar expands CR to CR LF on the BBC Micro, so CR is the newline.
+    /// <summary>PutChar expands CR to CR LF on the BBC Micro, so CR is the newline.</summary>
     public static unsafe void WriteLine(string value)
     {
         if ((object)value != null)
@@ -41,11 +43,13 @@ public static partial class Console
         PutChar(13);
     }
 
-    // The decimal digits of `value`, most significant first: the quotient's digits
-    // come first, so recurse on it (at most ten deep) rather than buffer them. The
-    // division by ten is Hacker's Delight's divu10, shifts and adds only: a general
-    // 32-bit software division takes tens of thousands of cycles per number, and
-    // links in its own routine.
+    /// <summary>
+    /// The decimal digits of `value`, most significant first: the quotient's digits
+    /// come first, so recurse on it (at most ten deep) rather than buffer them. The
+    /// division by ten is Hacker's Delight's divu10, shifts and adds only: a general
+    /// 32-bit software division takes tens of thousands of cycles per number, and
+    /// links in its own routine.
+    /// </summary>
     private static void WriteDigits(uint value)
     {
         var quotient = (value >> 1) + (value >> 2);
@@ -85,8 +89,10 @@ public static partial class Console
 
     public static void Beep() => PlatformBeep();
 
-    // Platform half. Each name must be unique across the runtime: an InternalCall
-    // method is routed by name to the function of that name in the target's runtime.irie.
+    /// <summary>
+    /// Platform half. Each name must be unique across the runtime: an InternalCall
+    /// method is routed by name to the function of that name in the target's runtime.irie.
+    /// </summary>
     private static unsafe partial void PutChar(byte c);
 
     private static unsafe partial byte* PlatformReadLine();

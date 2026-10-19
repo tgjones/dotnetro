@@ -2,46 +2,55 @@ using Irie.Mir;
 
 namespace Irie.Target;
 
-// MIR-shaped calling-convention lowering. The target-specific implementation
-// rewrites a MirFunction's entry-block parameters into `pseudo.copy` from
-// live-in physregs (plus a `pseudo.merge` for multi-byte values), and each
-// `core.return` into per-byte `pseudo.copy` to result physregs followed by
-// `pseudo.return`. See AbiLoweringPass for the orchestration.
+/// <summary>
+/// MIR-shaped calling-convention lowering. The target-specific implementation
+/// rewrites a MirFunction's entry-block parameters into `pseudo.copy` from
+/// live-in physregs (plus a `pseudo.merge` for multi-byte values), and each
+/// `core.return` into per-byte `pseudo.copy` to result physregs followed by
+/// `pseudo.return`. See AbiLoweringPass for the orchestration.
+/// </summary>
 public abstract class CallLowering
 {
-    // Called once per function. `originalParameters` is the entry block's
-    // parameter vreg list captured before the block was cleared; the
-    // implementation should leave each parameter vreg fully defined (via copies
-    // from physregs, optionally merged) at the builder's current insertion
-    // point on the entry block.
+    /// <summary>
+    /// Called once per function. `originalParameters` is the entry block's
+    /// parameter vreg list captured before the block was cleared; the
+    /// implementation should leave each parameter vreg fully defined (via copies
+    /// from physregs, optionally merged) at the builder's current insertion
+    /// point on the entry block.
+    /// </summary>
     public abstract void LowerFormalArguments(
         MirFunction function,
         MirBlock entryBlock,
         int[] originalParameters,
         MirBuilder builder);
 
-    // Called for each `core.return`. The implementation should emit per-byte
-    // `pseudo.copy` to result physregs at the builder's current insertion
-    // point; the surrounding pass replaces the `core.return` with a
-    // `pseudo.return` after this method returns.
+    /// <summary>
+    /// Called for each `core.return`. The implementation should emit per-byte
+    /// `pseudo.copy` to result physregs at the builder's current insertion
+    /// point; the surrounding pass replaces the `core.return` with a
+    /// `pseudo.return` after this method returns.
+    /// </summary>
     public abstract void LowerReturn(
         IRType returnType,
         int? returnValueVreg,
         MirBuilder builder);
 
-    // Called for each `call.func` instruction. The implementation should
-    // replace the call.func with:
-    //   1. Per-arg-byte `pseudo.copy <argByteVreg> → <argPhysReg>` setup
-    //      (preceded by `pseudo.unmerge` for wide arg types).
-    //   2. A target-specific call instruction (e.g. `mos6502.jsr.abs @callee`)
-    //      with implicit-uses on arg physregs and implicit-defs on return
-    //      physregs + caller-saved scratch physregs.
-    //   3. Per-return-byte `pseudo.copy <returnPhysReg> → <returnByteVreg>`
-    //      teardown (followed by `pseudo.merge` for wide return types).
-    //
-    // The `call.func` is removed by the calling pass after this method
-    // returns. argVregs and returnVregs are the vreg IDs from the call.func
-    // operand list (in MIR text order).
+    /// <summary>
+    /// Called for each `call.func` instruction. The implementation should
+    /// replace the call.func with:
+    ///   1. Per-arg-byte `pseudo.copy &lt;argByteVreg&gt; → &lt;argPhysReg&gt;` setup
+    ///      (preceded by `pseudo.unmerge` for wide arg types).
+    ///   2. A target-specific call instruction (e.g. `mos6502.jsr.abs @callee`)
+    ///      with implicit-uses on arg physregs and implicit-defs on return
+    ///      physregs + caller-saved scratch physregs.
+    ///   3. Per-return-byte `pseudo.copy &lt;returnPhysReg&gt; → &lt;returnByteVreg&gt;`
+    ///      teardown (followed by `pseudo.merge` for wide return types).
+    /// </summary>
+    /// <remarks>
+    /// The `call.func` is removed by the calling pass after this method
+    /// returns. argVregs and returnVregs are the vreg IDs from the call.func
+    /// operand list (in MIR text order).
+    /// </remarks>
     public abstract void LowerCall(
         string calleeName,
         IRType[] argTypes,
@@ -50,11 +59,13 @@ public abstract class CallLowering
         int[] returnVregs,
         MirBuilder builder);
 
-    // Called for each `call.indirect` instruction. Same shape as LowerCall
-    // but the callee is an i16 function-pointer vreg instead of a Symbol.
-    // The target is responsible for getting control to that pointer — on
-    // MOS6502 by parking the pointer in fixed zero-page slots and jumping
-    // to a runtime trampoline that performs `JMP (zp)`.
+    /// <summary>
+    /// Called for each `call.indirect` instruction. Same shape as LowerCall
+    /// but the callee is an i16 function-pointer vreg instead of a Symbol.
+    /// The target is responsible for getting control to that pointer — on
+    /// MOS6502 by parking the pointer in fixed zero-page slots and jumping
+    /// to a runtime trampoline that performs `JMP (zp)`.
+    /// </summary>
     public virtual void LowerIndirectCall(
         int targetPtrVreg,
         IRType[] argTypes,
@@ -67,10 +78,12 @@ public abstract class CallLowering
             "CallLowering.LowerIndirectCall must be overridden by the target for call.indirect ops.");
     }
 
-    // Called for a `call.indirect` whose target is a known constant address (a
-    // ROM entry point reached through a function pointer built from an integer).
-    // A target that can call an absolute address directly emits that call and
-    // returns true; returning false falls back to LowerIndirectCall.
+    /// <summary>
+    /// Called for a `call.indirect` whose target is a known constant address (a
+    /// ROM entry point reached through a function pointer built from an integer).
+    /// A target that can call an absolute address directly emits that call and
+    /// returns true; returning false falls back to LowerIndirectCall.
+    /// </summary>
     public virtual bool TryLowerCallToAddress(
         long address,
         IRType[] argTypes,

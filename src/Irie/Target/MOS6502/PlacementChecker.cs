@@ -6,27 +6,35 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// Translation validation of one placed block, independent of how it was placed.
-//
-// Both the block as shape selection left it (unpinned byte operations on typed
-// vregs) and the code a placement emitted for it (registers, homes, concrete
-// opcodes) are run symbolically. Each value is a term over what the block starts
-// with (the inputs: the live-in vregs, read from their homes, and for the entry
-// block A, X, Y and the zero-page registers of the calling convention). The two
-// runs have to agree on everything the rest of the program can observe:
-//
-//   - the stores and calls, in order, with the addresses, values and arguments;
-//   - the conditional branches, with the flags they test;
-//   - on every exit (a jump, a taken branch, through a block of edge moves), the
-//     home of every vreg live into the successor, and of every parameter it
-//     takes, holds the value it should;
-//   - the return registers at an rts.
-//
-// A wrong register, a clobbered operand, a flag overwritten before its branch or
-// an edge move that reads a stale home all show up as terms that differ, whichever
-// pass produced the code. Terms are hash-consed, so equality is identity; the
-// commutative operations order their operands; `inc`/`dec` are an add / subtract
-// of one, and `asl`/`rol` are the same shift with a known or unknown carry in.
+/// <summary>
+/// Translation validation of one placed block, independent of how it was placed.
+/// </summary>
+/// <remarks>
+/// Both the block as shape selection left it (unpinned byte operations on typed
+/// vregs) and the code a placement emitted for it (registers, homes, concrete
+/// opcodes) are run symbolically. Each value is a term over what the block starts
+/// with (the inputs: the live-in vregs, read from their homes, and for the entry
+/// block A, X, Y and the zero-page registers of the calling convention). The two
+/// runs have to agree on everything the rest of the program can observe:
+///
+///   - the stores and calls, in order, with the addresses, values and arguments;
+///   - the conditional branches, with the flags they test;
+///   - on every exit (a jump, a taken branch, through a block of edge moves), the
+///     home of every vreg live into the successor, and of every parameter it
+///     takes, holds the value it should;
+///   - the return registers at an rts.
+///
+/// A wrong register, a clobbered operand, a flag overwritten before its branch or
+/// an edge move that reads a stale home all show up as terms that differ, whichever
+/// pass produced the code. Terms are hash-consed, so equality is identity; the
+/// commutative operations order their operands; `inc`/`dec` are an add / subtract
+/// of one, and `asl`/`rol` are the same shift with a known or unknown carry in.
+///
+/// Keep the checker's semantics in step when adding a variant to MOS6502Variants or an
+/// op to the dialect: an emitted op the checker does not model is a failure, a shape
+/// op it does not model makes it skip the block. It runs on every block unless
+/// IRIE_NO_PLACEMENT_CHECK is set.
+/// </remarks>
 internal sealed class PlacementChecker(MOS6502Placer placer)
 {
     private const int A = MOS6502Registers.A;
@@ -87,7 +95,7 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
     private Term CmpC(Term a, Term b) => T("cmpc", 0, null, a, b);
     private Term NzValue(Term t) => T("nzval", 0, null, t);
 
-    // A carry stored as a byte is 0 or 1; shifting that byte back recovers it.
+    /// <summary>A carry stored as a byte is 0 or 1; shifting that byte back recovers it.</summary>
     private Term Shl(Term a, Term cin)
     {
         if (IsConst(a, 0)) return cin.Kind == "c" ? Const(cin.Num) : T("tobyte", 0, null, cin);
@@ -111,7 +119,7 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
     private Term SymbolByte(string symbol, long half) => T("sym", half, symbol);
     private Term Returned(int call, int register) => T("ret", call, RegisterName(register));
 
-    // A call goes to a function or to a fixed address (an OS routine).
+    /// <summary>A call goes to a function or to a fixed address (an OS routine).</summary>
     private static string CalleeName(MirOperand operand) =>
         operand is Symbol symbol ? symbol.Name : $"${((Immediate)operand).Value:X}";
 
@@ -126,13 +134,20 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
     private sealed class Event
     {
         public required EventKind Kind;
-        public Term? Address, Value;                 // Store
-        public string? Callee;                       // Call
-        public Dictionary<int, Term> Registers = []; // Call arguments, Return values
-        public CmpBrCondition Condition;             // Branch
-        public Term? Left, Right;                    // Branch
-        public MirBlock? Target;                     // Branch, Jump
-        public Dictionary<int, Term> Homes = [];     // Branch, Jump: vreg -> term its home must hold
+        // Store
+        public Term? Address, Value;
+        // Call
+        public string? Callee;
+        // Call arguments, Return values
+        public Dictionary<int, Term> Registers = [];
+        // Branch
+        public CmpBrCondition Condition;
+        // Branch
+        public Term? Left, Right;
+        // Branch, Jump
+        public MirBlock? Target;
+        /// <summary>Branch, Jump: vreg -&gt; term its home must hold</summary>
+        public Dictionary<int, Term> Homes = [];
         public string Describe = string.Empty;
     }
 
@@ -168,8 +183,10 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
         throw new InvalidOperationException($"PlacementChecker: operand {operand}.");
     }
 
-    // The value a vreg has just before an exit: its definition in this block, else
-    // what it came in with.
+    /// <summary>
+    /// The value a vreg has just before an exit: its definition in this block, else
+    /// what it came in with.
+    /// </summary>
     private Dictionary<int, Term> HomesFor(MirBlock target, MirOperand[] args, Dictionary<int, Term> env)
     {
         var homes = new Dictionary<int, Term>();
@@ -184,7 +201,7 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
         return homes;
     }
 
-    // A block with an operation the checker does not model is left unchecked.
+    /// <summary>A block with an operation the checker does not model is left unchecked.</summary>
     private static bool Skip(MirInstruction instr) => false;
 
     private bool TryBuildExpectation(List<MirInstruction> before)
@@ -344,10 +361,12 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
 
     private sealed class State
     {
-        public Term[] R = new Term[3];                      // A, X, Y
+        /// <summary>A, X, Y</summary>
+        public Term[] R = new Term[3];
         public Term C = null!;
         public Term Nz = null!;
-        public Dictionary<int, Term> Memory = [];            // zero-page registers and homes
+        /// <summary>zero-page registers and homes</summary>
+        public Dictionary<int, Term> Memory = [];
         public int Version;
         public int Calls;
 
@@ -378,9 +397,11 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
             Fail($"the code leaves out {_events.Count - _next} of the block's effects, the first being a {_events[_next].Describe}.");
     }
 
-    // The state a block that starts from a snapshot starts in: the registers and the
-    // homes the snapshot names hold the inputs they are named for; the code of every
-    // edge into the block is checked to deliver exactly that (CheckContract).
+    /// <summary>
+    /// The state a block that starts from a snapshot starts in: the registers and the
+    /// homes the snapshot names hold the inputs they are named for; the code of every
+    /// edge into the block is checked to deliver exactly that (CheckContract).
+    /// </summary>
     private State Inherit(Snapshot contract)
     {
         const int ImmBase = Snapshot.ImmBase;
@@ -455,8 +476,10 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
 
     private static int Index(MirOperand operand) => ((PhysicalReg)operand).Id;
 
-    // Runs straight-line code; true if it ended in a jump or return. `edgeOf` is the
-    // branch event an edge block is the way out of.
+    /// <summary>
+    /// Runs straight-line code; true if it ended in a jump or return. `edgeOf` is the
+    /// branch event an edge block is the way out of.
+    /// </summary>
     private bool Execute(IEnumerable<MirInstruction> code, State s, Event? edgeOf)
     {
         foreach (var instr in code)
@@ -709,17 +732,20 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
         }
     }
 
-    // Whether `term` is the input value of a vreg that has the same home as `vreg`.
+    /// <summary>Whether `term` is the input value of a vreg that has the same home as `vreg`.</summary>
     private bool SharesHome(Term term, int vreg) =>
         term.Kind == "in" && term.Text is { Length: > 1 } text && text[0] == 'v'
         && int.TryParse(text.AsSpan(1), out var other) && placer.HomeKey(other) == placer.HomeKey(vreg);
 
-    // On an exit, the homes hold what the successor expects.
-    //
-    // A successor that starts from a snapshot (ExitRole) takes the registers as they
-    // are: the first edge into it records its state for the block's own check, and
-    // every edge into it, the first included, is checked against the snapshot the
-    // block starts from.
+    /// <summary>
+    /// On an exit, the homes hold what the successor expects.
+    /// </summary>
+    /// <remarks>
+    /// A successor that starts from a snapshot (ExitRole) takes the registers as they
+    /// are: the first edge into it records its state for the block's own check, and
+    /// every edge into it, the first included, is checked against the snapshot the
+    /// block starts from.
+    /// </remarks>
     private void CheckContract(State s, Event exit, Snapshot contract)
     {
         const int ImmBase = Snapshot.ImmBase;

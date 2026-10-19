@@ -5,24 +5,27 @@ using Irie.Passes.Analyses;
 
 namespace Irie.Target.MOS6502;
 
-// Calls that can re-enter the calling function: the one place a home is saved.
-//
-// Program layout (MOS6502ProgramLayoutPass) stacks every function's homes above
-// those of its callees, so a call normally cannot disturb a live home. That
-// guarantee ends inside a recursive cycle (self- or mutual recursion, or a
-// vtable/delegate call that leads back): the callee may be another activation of
-// the same function, with the very same homes. So around each call that stays in
-// the caller's strongly connected component, this pass saves the homes that are
-// live across the call on the hardware stack, `LDA home ; PHA` before and
-// `PLA ; STA home` after, in reverse order — exactly what the callee-saved scheme
-// paid on every function, now paid only where recursion makes it necessary.
-//
-// The accumulator is the only pushable register, so it is borrowed. $y is never
-// an argument or result register, so a live $a (an argument going into the call,
-// a result coming out) is parked in $y meanwhile, as a pseudo.copy that
-// CopyPropagation can clean up.
-//
-// Runs post-RA, while homes are still symbolic, before the layout pass.
+/// <summary>
+/// Calls that can re-enter the calling function: the one place a home is saved.
+/// </summary>
+/// <remarks>
+/// Program layout (MOS6502ProgramLayoutPass) stacks every function's homes above
+/// those of its callees, so a call normally cannot disturb a live home. That
+/// guarantee ends inside a recursive cycle (self- or mutual recursion, or a
+/// vtable/delegate call that leads back): the callee may be another activation of
+/// the same function, with the very same homes. So around each call that stays in
+/// the caller's strongly connected component, this pass saves the homes that are
+/// live across the call on the hardware stack, `LDA home ; PHA` before and
+/// `PLA ; STA home` after, in reverse order — exactly what the callee-saved scheme
+/// paid on every function, now paid only where recursion makes it necessary.
+///
+/// The accumulator is the only pushable register, so it is borrowed. $y is never
+/// an argument or result register, so a live $a (an argument going into the call,
+/// a result coming out) is parked in $y meanwhile, as a pseudo.copy that
+/// CopyPropagation can clean up.
+///
+/// Runs post-RA, while homes are still symbolic, before the layout pass.
+/// </remarks>
 public sealed class MOS6502RecursionSavePass : Pass
 {
     public override string Name => "MOS6502RecursionSave";
@@ -77,7 +80,7 @@ public sealed class MOS6502RecursionSavePass : Pass
         }
     }
 
-    // `live` is the set live immediately AFTER the call.
+    /// <summary>`live` is the set live immediately AFTER the call.</summary>
     private static void SaveAround(MirBlock block, int callIndex, List<int> homes, HashSet<int> liveAfter)
     {
         var call = block.Instructions[callIndex];

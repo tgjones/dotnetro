@@ -2,14 +2,16 @@ using System;
 
 namespace DotNetro.Runtime;
 
-// The run-time half of isinst / castclass / unbox.any. An object's header (at obj-2)
-// points at its type's vtable, whose first word is the vtable of the base type (0 at
-// System.Object), so "is a T" is "T's vtable is on the object's chain". A string or
-// array has a null header; a null `target` means System.String (arrays are not
-// testable yet).
+/// <summary>
+/// The run-time half of isinst / castclass / unbox.any. An object's header (at obj-2)
+/// points at its type's vtable, whose first word is the vtable of the base type (0 at
+/// System.Object), so "is a T" is "T's vtable is on the object's chain". A string or
+/// array has a null header; a null `target` means System.String (arrays are not
+/// testable yet).
+/// </summary>
 internal static class TypeCheck
 {
-    // The object if it is a `target`, else null.
+    /// <summary>The object if it is a `target`, else null.</summary>
     public static unsafe byte* IsInstance(byte* obj, void* target)
     {
         if (obj == null)
@@ -32,8 +34,10 @@ internal static class TypeCheck
         return null;
     }
 
-    // The object if it is null or a `target`; otherwise halts, there being no
-    // exceptions (InvalidCastException) yet.
+    /// <summary>
+    /// The object if it is null or a `target`; otherwise halts, there being no
+    /// exceptions (InvalidCastException) yet.
+    /// </summary>
     public static unsafe byte* CastClass(byte* obj, void* target)
     {
         if (obj == null || IsInstance(obj, target) != null)

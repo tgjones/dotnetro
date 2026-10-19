@@ -1,10 +1,12 @@
 namespace Irie.MachineCode;
 
-// Selects which byte of an ExternalRef the instruction encodes:
-// `Full` is the full multi-byte address (default; used by JSR/JMP and most
-// loads); `LowByte` and `HighByte` are the low/high half of the address,
-// emitted as a single immediate byte. The low/high forms are what MOS6502
-// assembly traditionally writes as `#<sym` and `#>sym`.
+/// <summary>
+/// Selects which byte of an ExternalRef the instruction encodes:
+/// `Full` is the full multi-byte address (default; used by JSR/JMP and most
+/// loads); `LowByte` and `HighByte` are the low/high half of the address,
+/// emitted as a single immediate byte. The low/high forms are what MOS6502
+/// assembly traditionally writes as `#&lt;sym` and `#&gt;sym`.
+/// </summary>
 public enum SymbolHalf
 {
     Full,

@@ -736,21 +736,25 @@ record CaseResult(string Category, string Name, string Status, int LlvmCount, in
     public double? Ratio => IrieCount is { } ic && LlvmCount > 0 ? (double)ic / LlvmCount : null;
 }
 
-// One dump in a pipeline. `Changed` is false for a pass that ran but left the IR
-// untouched (llvm: "omitted because no change"); its `Body` is carried forward
-// from the last pass that did change it, so every stage has a renderable body.
+/// <summary>
+/// One dump in a pipeline. `Changed` is false for a pass that ran but left the IR
+/// untouched (llvm: "omitted because no change"); its `Body` is carried forward
+/// from the last pass that did change it, so every stage has a renderable body.
+/// </summary>
 record Stage(string Id, string Display, bool Changed, string Body);
 
-// A row in the diff: either side may be null (no counterpart stage).
+/// <summary>A row in the diff: either side may be null (no counterpart stage).</summary>
 record DiffRow(Stage? Llvm, Stage? Irie);
 
 record Totals(int LlvmInstructions, int IrieInstructions, int? LlvmBytes, int? IrieBytes);
 
 record OscarTotals(int Cases, int OscarInstructions, int IrieInstructions, int OscarBytes, int? IrieBytes);
 
-// Measures code size by assembling with the llvm-mos toolchain and summing the
-// `.text*` sections. Both sides go through the same assembler, so the comparison
-// does not depend on a hand-written encoding-size table.
+/// <summary>
+/// Measures code size by assembling with the llvm-mos toolchain and summing the
+/// `.text*` sections. Both sides go through the same assembler, so the comparison
+/// does not depend on a hand-written encoding-size table.
+/// </summary>
 sealed class CodeSizer(string clang, string llvmSize)
 {
     public static CodeSizer? Locate(string? binDir)

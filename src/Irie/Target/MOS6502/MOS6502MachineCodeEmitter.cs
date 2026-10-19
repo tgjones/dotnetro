@@ -3,9 +3,11 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// Lowers a post-PseudoExpansion MirModule into a MachineCodeModule by
-// consulting MOS6502MachineCodeEmitTable for each instruction's opcode byte
-// and operand-encoding rule.
+/// <summary>
+/// Lowers a post-PseudoExpansion MirModule into a MachineCodeModule by
+/// consulting MOS6502MachineCodeEmitTable for each instruction's opcode byte
+/// and operand-encoding rule.
+/// </summary>
 public sealed class MOS6502MachineCodeEmitter(int zeroPageBase = 0) : Irie.Target.MachineCodeEmitter
 {
     public override MachineCodeModule Emit(MirModule module)

@@ -1,14 +1,17 @@
 namespace Irie.Mir;
 
-// Process-global table of registered dialects. IDs are dense ints assigned in
-// registration order; the registry never references a dialect class by name.
-//
-// Thread-safe: target dialects register lazily from their target's
-// constructor, so multiple threads can race to register the same prefix on
-// first use. All access is guarded by _lock, and
-// Register calls OnRegistered (which publishes the dialect's static Id) before
-// the dialect becomes observable via _byPrefix/_byId — so no thread can ever
-// see a dialect as "registered" while its static Id is still its default.
+/// <summary>
+/// Process-global table of registered dialects. IDs are dense ints assigned in
+/// registration order; the registry never references a dialect class by name.
+/// </summary>
+/// <remarks>
+/// Thread-safe: target dialects register lazily from their target's
+/// constructor, so multiple threads can race to register the same prefix on
+/// first use. All access is guarded by _lock, and
+/// Register calls OnRegistered (which publishes the dialect's static Id) before
+/// the dialect becomes observable via _byPrefix/_byId — so no thread can ever
+/// see a dialect as "registered" while its static Id is still its default.
+/// </remarks>
 public static class DialectRegistry
 {
     private static readonly List<Dialect> _byId = [];
@@ -27,9 +30,11 @@ public static class DialectRegistry
         }
     }
 
-    // Atomic check-and-register: returns the already-registered dialect for the
-    // prefix, or registers the one produced by factory. Used by target ctors,
-    // which can race to register their dialect on first construction.
+    /// <summary>
+    /// Atomic check-and-register: returns the already-registered dialect for the
+    /// prefix, or registers the one produced by factory. Used by target ctors,
+    /// which can race to register their dialect on first construction.
+    /// </summary>
     public static Dialect GetOrRegister(string prefix, Func<Dialect> factory)
     {
         lock (_lock)
@@ -47,9 +52,11 @@ public static class DialectRegistry
         }
     }
 
-    // Caller must hold _lock. Publishes the static Id (via OnRegistered) before
-    // adding to the lookup tables so the dialect is never visible as registered
-    // with a stale Id.
+    /// <summary>
+    /// Caller must hold _lock. Publishes the static Id (via OnRegistered) before
+    /// adding to the lookup tables so the dialect is never visible as registered
+    /// with a stale Id.
+    /// </summary>
     private static DialectId RegisterUnlocked(Dialect dialect)
     {
         var id = new DialectId(_byId.Count);

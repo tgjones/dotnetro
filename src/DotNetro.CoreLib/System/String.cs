@@ -4,13 +4,16 @@ using DotNetro.Runtime;
 
 namespace System;
 
-// A string is a heap object laid out like an array: a null vtable slot, a u16 length
-// (in characters), then one byte per character and a NUL. A reference points at the
-// length, so the two fields below are exactly that header; the characters start at
-// _firstChar and run on past the end of the declared object.
-//
-// Storage is one byte per character (Latin-1), although `char` is 16-bit: a character
-// above 0xFF cannot be stored, and `ldstr` replaces it with '?'.
+/// <summary>
+/// A string is a heap object laid out like an array: a null vtable slot, a u16 length
+/// (in characters), then one byte per character and a NUL. A reference points at the
+/// length, so the two fields below are exactly that header; the characters start at
+/// _firstChar and run on past the end of the declared object.
+/// </summary>
+/// <remarks>
+/// Storage is one byte per character (Latin-1), although `char` is 16-bit: a character
+/// above 0xFF cannot be stored, and `ldstr` replaces it with '?'.
+/// </remarks>
 public sealed class String
 {
     private ushort _length;
@@ -63,8 +66,10 @@ public sealed class String
 
     public override bool Equals(object obj) => obj is string other && Equals(this, other);
 
-    // A string cannot be dispatched through a vtable (it has none), so this and
-    // ToString are reached by direct calls on a string only.
+    /// <summary>
+    /// A string cannot be dispatched through a vtable (it has none), so this and
+    /// ToString are reached by direct calls on a string only.
+    /// </summary>
     public override unsafe int GetHashCode()
     {
         var hash = 0;
@@ -83,7 +88,7 @@ public sealed class String
 
     public static bool operator !=(string a, string b) => !Equals(a, b);
 
-    // A new string of `length` characters copied from `source`.
+    /// <summary>A new string of `length` characters copied from `source`.</summary>
     internal static unsafe string FromBytes(byte* source, nint length)
     {
         var result = AllocateString(length);
@@ -98,7 +103,7 @@ public sealed class String
         return result;
     }
 
-    // Address of the first character.
+    /// <summary>Address of the first character.</summary>
     internal unsafe byte* GetChars()
     {
         fixed (byte* p = &_firstChar)
@@ -107,7 +112,7 @@ public sealed class String
 
     private static nint LengthOf(string value) => (object)value == null ? 0 : value._length;
 
-    // Copies the characters of `value` (null is empty) to `destination`; returns the address after them.
+    /// <summary>Copies the characters of `value` (null is empty) to `destination`; returns the address after them.</summary>
     private static unsafe byte* Append(byte* start, string value)
     {
         var destination = start;
@@ -124,8 +129,10 @@ public sealed class String
         return destination;
     }
 
-    // A zeroed string of `length` characters (the NUL terminator comes from the
-    // zeroing). Implemented by the compiler, which allocates the string object.
+    /// <summary>
+    /// A zeroed string of `length` characters (the NUL terminator comes from the
+    /// zeroing). Implemented by the compiler, which allocates the string object.
+    /// </summary>
     [MethodImpl(MethodImplOptions.InternalCall)]
     internal static extern string AllocateString(nint length);
 }

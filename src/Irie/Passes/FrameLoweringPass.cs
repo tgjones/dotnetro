@@ -3,16 +3,19 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Target-agnostic pass that materialises each function's FrameSlots as
-// module-level MirGlobals and rewrites every `mem.frame_addr <i>` to a
-// `mem.symbol @<slot_name>` (where the slot's symbol name was assigned
-// at slot-creation time, conventionally `<func>_local<i>`).
-//
-// Runs before the legalizer so the rest of the pipeline only ever sees
-// mem.symbol — it may be positioned anywhere before instruction
-// selection, but running early simplifies the pipeline by collapsing the
-// frame-addr concept before legalization / instruction selection look at
-// the IR.
+/// <summary>
+/// Target-agnostic pass that materialises each function's FrameSlots as
+/// module-level MirGlobals and rewrites every `mem.frame_addr &lt;i&gt;` to a
+/// `mem.symbol @&lt;slot_name&gt;` (where the slot's symbol name was assigned
+/// at slot-creation time, conventionally `&lt;func&gt;_local&lt;i&gt;`).
+/// </summary>
+/// <remarks>
+/// Runs before the legalizer so the rest of the pipeline only ever sees
+/// mem.symbol — it may be positioned anywhere before instruction
+/// selection, but running early simplifies the pipeline by collapsing the
+/// frame-addr concept before legalization / instruction selection look at
+/// the IR.
+/// </remarks>
 public sealed class FrameLoweringPass : Pass
 {
     public override string Name => "FrameLowering";
@@ -50,9 +53,11 @@ public sealed class FrameLoweringPass : Pass
         }
     }
 
-    // Rewrites each `mem.frame_addr <slot_index>` in-place into the
-    // equivalent `mem.symbol @<slot_symbol_name>`. The def operand is
-    // preserved so downstream uses are untouched.
+    /// <summary>
+    /// Rewrites each `mem.frame_addr &lt;slot_index&gt;` in-place into the
+    /// equivalent `mem.symbol @&lt;slot_symbol_name&gt;`. The def operand is
+    /// preserved so downstream uses are untouched.
+    /// </summary>
     private static void RewriteFrameAddrs(MirFunction function)
     {
         var slotsByIndex = new Dictionary<int, FrameSlot>();

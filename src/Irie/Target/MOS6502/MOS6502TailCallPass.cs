@@ -3,16 +3,19 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// Tail-call folding: a `jsr.abs` immediately followed by `rts` becomes
-// `jmp.abs`, so the callee's own `rts` returns to our caller (llvm-mos reaches
-// the same code by lowering a call in tail position to a jump in ISel; here it is
-// a peephole on the final stream, which also catches the `jsr; rts` pairs that
-// ReturnMerge / TailDuplication leave adjacent).
-//
-// Adjacency is the whole safety condition: any epilogue work (callee-saved
-// restores, a stack-pointer fix-up) sits between the call and the `rts` and
-// blocks the fold. The `jsr`'s implicit argument uses and clobber defs are
-// dropped with it — the verifier has already run and nothing reads them after.
+/// <summary>
+/// Tail-call folding: a `jsr.abs` immediately followed by `rts` becomes
+/// `jmp.abs`, so the callee's own `rts` returns to our caller (llvm-mos reaches
+/// the same code by lowering a call in tail position to a jump in ISel; here it is
+/// a peephole on the final stream, which also catches the `jsr; rts` pairs that
+/// ReturnMerge / TailDuplication leave adjacent).
+/// </summary>
+/// <remarks>
+/// Adjacency is the whole safety condition: any epilogue work (callee-saved
+/// restores, a stack-pointer fix-up) sits between the call and the `rts` and
+/// blocks the fold. The `jsr`'s implicit argument uses and clobber defs are
+/// dropped with it — the verifier has already run and nothing reads them after.
+/// </remarks>
 public sealed class MOS6502TailCallPass : MirFunctionPass
 {
     public override string Name => "MOS6502TailCall";

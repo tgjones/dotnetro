@@ -18,13 +18,16 @@ using IRPointerType = Irie.Mir.PointerType;
 
 namespace DotNetro.Compiler;
 
-// Walks the same IL as DotNetCompiler but, instead of emitting 6502 assembly
-// text, builds an Irie MirModule via MirBuilder. The module is then handed to
-// the Irie MOS6502 pass pipeline (see CompilerDriver) to produce program bytes.
-//
-// This is the step-7/8 skeleton: only the IL ops required for Print42 and
-// AddInt32 are implemented. Unimplemented ops throw NotSupportedException so the
-// gaps are visible as the translator grows (plan step 9).
+/// <summary>
+/// Walks the same IL as DotNetCompiler but, instead of emitting 6502 assembly
+/// text, builds an Irie MirModule via MirBuilder. The module is then handed to
+/// the Irie MOS6502 pass pipeline (see CompilerDriver) to produce program bytes.
+/// </summary>
+/// <remarks>
+/// This is the step-7/8 skeleton: only the IL ops required for Print42 and
+/// AddInt32 are implemented. Unimplemented ops throw NotSupportedException so the
+/// gaps are visible as the translator grows (plan step 9).
+/// </remarks>
 internal sealed class IlToMirTranslator : IDisposable
 {
     private readonly TypeSystemContext _typeSystemContext;
@@ -33,37 +36,47 @@ internal sealed class IlToMirTranslator : IDisposable
     private readonly HashSet<EcmaMethod> _visitedMethods = [];
     private readonly Queue<EcmaMethod> _methodsToVisit = new();
 
-    // Names of functions supplied by the hand-written runtime; the BFS walk must
-    // not try to translate (or recurse into) these — they already exist as MIR.
+    /// <summary>
+    /// Names of functions supplied by the hand-written runtime; the BFS walk must
+    /// not try to translate (or recurse into) these — they already exist as MIR.
+    /// </summary>
     private readonly HashSet<string> _runtimeFunctionNames = [];
 
     private readonly string _runtimeText;
 
-    // Module-level globals (string constants, static fields) collected during
-    // the IL walk and appended to the module once translation completes. Keyed
-    // by symbol name so the same string / static field is registered only once.
+    /// <summary>
+    /// Module-level globals (string constants, static fields) collected during
+    /// the IL walk and appended to the module once translation completes. Keyed
+    /// by symbol name so the same string / static field is registered only once.
+    /// </summary>
     private readonly Dictionary<string, MirGlobal> _globals = [];
 
-    // Reference types newobj'd by the program. Each gets a `Vtable_<type>`
-    // global; the object header (at obj-2) points at it.
+    /// <summary>
+    /// Reference types newobj'd by the program. Each gets a `Vtable_&lt;type&gt;`
+    /// global; the object header (at obj-2) points at it.
+    /// </summary>
     private readonly HashSet<EcmaType> _usedTypes = [];
 
-    // Cached vtable layouts (slot index → method to dispatch). See GetVtableLayout.
+    /// <summary>Cached vtable layouts (slot index → method to dispatch). See GetVtableLayout.</summary>
     private readonly Dictionary<EcmaType, List<EcmaMethod>> _vtableLayouts = [];
 
-    // Types whose static fields are touched (ldsfld/stsfld); their `.cctor`
-    // must run at startup so the field has its initial value (e.g. ManagedHeap's
-    // s_heapPtr = 0x1000). Static constructors discovered, in call order.
+    /// <summary>
+    /// Types whose static fields are touched (ldsfld/stsfld); their `.cctor`
+    /// must run at startup so the field has its initial value (e.g. ManagedHeap's
+    /// s_heapPtr = 0x1000). Static constructors discovered, in call order.
+    /// </summary>
     private readonly HashSet<EcmaType> _staticFieldOwners = [];
     private readonly List<EcmaMethod> _staticConstructors = [];
 
-    // Lazily-resolved ManagedHeap.Alloc(IntPtr size, IntPtr vtablePtr) → IntPtr,
-    // the runtime allocator newobj calls. Kept in C# and translated like any
-    // other method (plan open-question 3 — the translated path).
+    /// <summary>
+    /// Lazily-resolved ManagedHeap.Alloc(IntPtr size, IntPtr vtablePtr) → IntPtr,
+    /// the runtime allocator newobj calls. Kept in C# and translated like any
+    /// other method (plan open-question 3 — the translated path).
+    /// </summary>
     private EcmaMethod? _allocMethod;
     private EcmaMethod? _allocArrayMethod;
 
-    // Pointer size is 16-bit on the 6502.
+    /// <summary>Pointer size is 16-bit on the 6502.</summary>
     private const int PointerSize = 2;
 
     public IlToMirTranslator(string rootAssemblyPath, string runtimeText, string targetId = TargetRegistry.BbcMicroId)
@@ -135,8 +148,10 @@ internal sealed class IlToMirTranslator : IDisposable
 
     internal void MarkTypeUsed(EcmaType type) => _usedTypes.Add(type);
 
-    // ManagedHeap.Alloc(IntPtr size, IntPtr vtablePtr) → IntPtr. Resolved on
-    // first newobj; kept in C# and translated through the pipeline.
+    /// <summary>
+    /// ManagedHeap.Alloc(IntPtr size, IntPtr vtablePtr) → IntPtr. Resolved on
+    /// first newobj; kept in C# and translated through the pipeline.
+    /// </summary>
     internal EcmaMethod GetAllocMethod()
     {
         if (_allocMethod != null)
@@ -152,8 +167,10 @@ internal sealed class IlToMirTranslator : IDisposable
         return _allocMethod;
     }
 
-    // ManagedHeap.AllocArray(IntPtr length, IntPtr contentSize) → IntPtr. Resolved
-    // on first newarr.
+    /// <summary>
+    /// ManagedHeap.AllocArray(IntPtr length, IntPtr contentSize) → IntPtr. Resolved
+    /// on first newarr.
+    /// </summary>
     internal EcmaMethod GetAllocArrayMethod()
     {
         if (_allocArrayMethod != null)
@@ -168,28 +185,35 @@ internal sealed class IlToMirTranslator : IDisposable
         return _allocArrayMethod;
     }
 
-    // DotNetro.Runtime.TypeCheck.<name>(object, vtable) → object, the run-time half of
-    // isinst / castclass / unbox.any. Resolved on first use.
+    /// <summary>
+    /// DotNetro.Runtime.TypeCheck.&lt;name&gt;(object, vtable) → object, the run-time half of
+    /// isinst / castclass / unbox.any. Resolved on first use.
+    /// </summary>
     internal EcmaMethod GetTypeCheckMethod(string name)
     {
         var type = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "TypeCheck");
         return type.GetMethod(name);
     }
 
-    // True if `name` matches a function supplied by the hand-written runtime
-    // (the indirect-call trampoline, …). Used to validate InternalCall routing.
+    /// <summary>
+    /// True if `name` matches a function supplied by the hand-written runtime
+    /// (the indirect-call trampoline, …). Used to validate InternalCall routing.
+    /// </summary>
     internal bool IsRuntimeFunction(string name) => _runtimeFunctionNames.Contains(name);
 
-    // The dispatch table for `type`: slot index → the method that index resolves
-    // to for an instance of `type`. Built base-first (so inherited slots keep
-    // their index) then extended with `type`'s own NewSlot virtuals; overrides
-    // replace the inherited slot in place.
-    //
-    // Recursion stops at System.Object, which has no base and contributes its own
-    // virtuals (Equals/GetHashCode/ToString) as slots 0..2. Slot indices are a pure
-    // function of metadata, independent of which methods turn out to be "used", so
-    // the translator can emit the right offset at each callvirt without a whole-
-    // program fixpoint over the used set.
+    /// <summary>
+    /// The dispatch table for `type`: slot index → the method that index resolves
+    /// to for an instance of `type`. Built base-first (so inherited slots keep
+    /// their index) then extended with `type`'s own NewSlot virtuals; overrides
+    /// replace the inherited slot in place.
+    /// </summary>
+    /// <remarks>
+    /// Recursion stops at System.Object, which has no base and contributes its own
+    /// virtuals (Equals/GetHashCode/ToString) as slots 0..2. Slot indices are a pure
+    /// function of metadata, independent of which methods turn out to be "used", so
+    /// the translator can emit the right offset at each callvirt without a whole-
+    /// program fixpoint over the used set.
+    /// </remarks>
     private List<EcmaMethod> GetVtableLayout(EcmaType type)
     {
         if (_vtableLayouts.TryGetValue(type, out var cached))
@@ -225,7 +249,7 @@ internal sealed class IlToMirTranslator : IDisposable
         return slots;
     }
 
-    // The slot index a callvirt of `callee` reads from the object's vtable.
+    /// <summary>The slot index a callvirt of `callee` reads from the object's vtable.</summary>
     internal int GetVtableSlotIndex(EcmaMethod callee)
     {
         var index = GetVtableLayout(callee.DeclaringType).IndexOf(callee);
@@ -248,9 +272,11 @@ internal sealed class IlToMirTranslator : IDisposable
             $"IL→MIR: could not find the method overridden by {method.UniqueName}.");
     }
 
-    // Enqueue every dispatch target reachable through a used type's vtable so the
-    // override bodies (e.g. Derived.MyMethod) are translated, not just the
-    // statically-resolved callvirt callee.
+    /// <summary>
+    /// Enqueue every dispatch target reachable through a used type's vtable so the
+    /// override bodies (e.g. Derived.MyMethod) are translated, not just the
+    /// statically-resolved callvirt callee.
+    /// </summary>
     private void EnqueueVtableSlotMethods()
     {
         foreach (var type in _usedTypes.ToArray())
@@ -258,8 +284,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 EnqueueMethod(method);
     }
 
-    // Enqueue the `.cctor` of each type whose static fields were touched, and
-    // record it (in discovery order) so __entry can call them before Main.
+    /// <summary>
+    /// Enqueue the `.cctor` of each type whose static fields were touched, and
+    /// record it (in discovery order) so __entry can call them before Main.
+    /// </summary>
     private void EnqueueStaticConstructors()
     {
         foreach (var owner in _staticFieldOwners.ToArray())
@@ -272,23 +300,27 @@ internal sealed class IlToMirTranslator : IDisposable
         }
     }
 
-    // A vtable is a packed array of 2-byte little-endian pointers (plain pointers —
-    // no RTS-trick offset; the indirect-call trampoline does JMP (zp)):
-    //   word 0         the base type's vtable (0 for System.Object); a type test
-    //                  walks this chain
-    //   word 1 + slot  the dispatch targets, one per vtable slot
-    // An object's header (at obj-2) points at its vtable. Strings and arrays have
-    // no vtable (a null header).
+    /// <summary>
+    /// A vtable is a packed array of 2-byte little-endian pointers (plain pointers —
+    /// no RTS-trick offset; the indirect-call trampoline does JMP (zp)):
+    ///   word 0         the base type's vtable (0 for System.Object); a type test
+    ///                  walks this chain
+    ///   word 1 + slot  the dispatch targets, one per vtable slot
+    /// An object's header (at obj-2) points at its vtable. Strings and arrays have
+    /// no vtable (a null header).
+    /// </summary>
     private const int VtableHeaderSize = PointerSize;
 
-    // Symbol name for a type's vtable global.
+    /// <summary>Symbol name for a type's vtable global.</summary>
     private static string VtableName(EcmaType type) => $"Vtable_{type.EncodedName}";
 
-    // Types whose vtable global is needed: those instances are made of (_usedTypes), the
-    // targets of a type test, and every base of those (the chain is walked at run time).
+    /// <summary>
+    /// Types whose vtable global is needed: those instances are made of (_usedTypes), the
+    /// targets of a type test, and every base of those (the chain is walked at run time).
+    /// </summary>
     private readonly HashSet<EcmaType> _vtableTypes = [];
 
-    // Make sure `type` (and its bases) have a vtable global, e.g. as the target of isinst.
+    /// <summary>Make sure `type` (and its bases) have a vtable global, e.g. as the target of isinst.</summary>
     internal void RequireVtable(EcmaType type)
     {
         for (var t = type; t != null && _vtableTypes.Add(t); t = t.BaseType)
@@ -334,13 +366,15 @@ internal sealed class IlToMirTranslator : IDisposable
         }
     }
 
-    // Intern a string constant as a module-level MirGlobal and return its symbol
-    // name (`string{n:X4}`, numbered in order of first use; equal text shares one
-    // global, and tokens are per-assembly so they can't name it). The global is a complete string object,
-    // laid out like an array: a null vtable slot, the u16 length (in characters), one
-    // byte per character, then a NUL. A string reference points at the length, so
-    // the symbol's address plus StringObjectHeaderSize is the reference (see
-    // TranslateLdstr). A character above 0xFF cannot be stored and becomes '?'.
+    /// <summary>
+    /// Intern a string constant as a module-level MirGlobal and return its symbol
+    /// name (`string{n:X4}`, numbered in order of first use; equal text shares one
+    /// global, and tokens are per-assembly so they can't name it). The global is a complete string object,
+    /// laid out like an array: a null vtable slot, the u16 length (in characters), one
+    /// byte per character, then a NUL. A string reference points at the length, so
+    /// the symbol's address plus StringObjectHeaderSize is the reference (see
+    /// TranslateLdstr). A character above 0xFF cannot be stored and becomes '?'.
+    /// </summary>
     private string RegisterStringGlobal(string value)
     {
         if (!_stringSymbols.TryGetValue(value, out var stringKey))
@@ -366,13 +400,15 @@ internal sealed class IlToMirTranslator : IDisposable
 
     private readonly Dictionary<string, string> _stringSymbols = [];
 
-    // The vtable slot below an object reference.
+    /// <summary>The vtable slot below an object reference.</summary>
     private const int StringObjectHeaderSize = PointerSize;
     private const int ArrayLengthSize = 2;
 
-    // Register a static field as a zero-initialized (.bss-style) MirGlobal and
-    // return its symbol name. Mirrors DotNetCompiler's GetStaticFieldName:
-    // `{field.Owner.EncodedName}_{field.Name}`.
+    /// <summary>
+    /// Register a static field as a zero-initialized (.bss-style) MirGlobal and
+    /// return its symbol name. Mirrors DotNetCompiler's GetStaticFieldName:
+    /// `{field.Owner.EncodedName}_{field.Name}`.
+    /// </summary>
     private string RegisterStaticFieldGlobal(EcmaField field)
     {
         // Remember the owner so its static constructor runs at startup.
@@ -411,13 +447,15 @@ internal sealed class IlToMirTranslator : IDisposable
             _methodsToVisit.Enqueue(method);
     }
 
-    // Synthesize the program entry point:
-    //   func @__entry : () -> void {
-    //     call.func @DotNetro_Runtime_Startup_Initialize()   ; the target's setup (BBC: MODE 7)
-    //     call.func @<static constructors>()
-    //     call.func @<Main>()
-    //     core.return
-    //   }
+    /// <summary>
+    /// Synthesize the program entry point:
+    ///   func @__entry : () -&gt; void {
+    ///     call.func @DotNetro_Runtime_Startup_Initialize()   ; the target's setup (BBC: MODE 7)
+    ///     call.func @&lt;static constructors&gt;()
+    ///     call.func @&lt;Main&gt;()
+    ///     core.return
+    ///   }
+    /// </summary>
     private MirFunction BuildEntryFunction(EcmaMethod entryPointMethod, EcmaMethod startupMethod)
     {
         var function = new MirFunction("__entry", [], IRType.Void);
@@ -466,9 +504,11 @@ internal sealed class IlToMirTranslator : IDisposable
         return function;
     }
 
-    // Whether a CLR type is a signed integer (so a value of it sign-extends when
-    // widened). Native int / pointers are deliberately treated as unsigned:
-    // they hold addresses.
+    /// <summary>
+    /// Whether a CLR type is a signed integer (so a value of it sign-extends when
+    /// widened). Native int / pointers are deliberately treated as unsigned:
+    /// they hold addresses.
+    /// </summary>
     private static bool IsSignedClr(TypeDescription type) =>
         type is PrimitiveType
         {
@@ -476,8 +516,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 or PrimitiveTypeCode.Int32 or PrimitiveTypeCode.Int64
         };
 
-    // The zero value of `type`: arith.constant 0, or for a ptr the null pointer
-    // (`inttoptr (arith.constant i16 0)`, as no arith op takes a ptr).
+    /// <summary>
+    /// The zero value of `type`: arith.constant 0, or for a ptr the null pointer
+    /// (`inttoptr (arith.constant i16 0)`, as no arith op takes a ptr).
+    /// </summary>
     private static int BuildZero(MirBuilder builder, IRType type)
     {
         if (type is not IRPointerType)
@@ -505,8 +547,10 @@ internal sealed class IlToMirTranslator : IDisposable
         return result;
     }
 
-    // Whether values of a type are addresses (ptr): arrays, `T*`, `ref T` and
-    // class instances.
+    /// <summary>
+    /// Whether values of a type are addresses (ptr): arrays, `T*`, `ref T` and
+    /// class instances.
+    /// </summary>
     private static bool IsReferenceLike(TypeDescription type) =>
         type is SZArrayType or TypeSystem.PointerType or ByReferenceType
         || type is EcmaType { IsValueType: false };
@@ -544,8 +588,10 @@ internal sealed class IlToMirTranslator : IDisposable
             $"IL→MIR: type {type} is not supported yet.");
     }
 
-    // Translates a single method body. One instance per method so the eval stack
-    // and local SSA-name maps are per-method.
+    /// <summary>
+    /// Translates a single method body. One instance per method so the eval stack
+    /// and local SSA-name maps are per-method.
+    /// </summary>
     private sealed class MethodTranslator
     {
         private readonly IlToMirTranslator _parent;
@@ -553,49 +599,65 @@ internal sealed class IlToMirTranslator : IDisposable
         private readonly MirFunction _function;
         private readonly MirBuilder _builder;
 
-        // Mirrors the IL evaluation stack: vreg IDs (paired with their type so
-        // we can size arith ops). Runs alongside the IL semantics. Values still
-        // on the stack at a block boundary (e.g. the arms of `c ? a : b`) travel
-        // as extra block parameters; see _blockStackParams.
+        /// <summary>
+        /// Mirrors the IL evaluation stack: vreg IDs (paired with their type so
+        /// we can size arith ops). Runs alongside the IL semantics. Values still
+        /// on the stack at a block boundary (e.g. the arms of `c ? a : b`) travel
+        /// as extra block parameters; see _blockStackParams.
+        /// </summary>
         private readonly Stack<StackValue> _stack = new();
 
-        // Block → the block parameters carrying the eval stack on entry
-        // (bottom of stack first). Created by the first edge into the block, so
-        // they follow the local parameters in the block's parameter list; every
-        // later edge must supply the same number of values (IL guarantees a
-        // consistent stack depth at a join).
+        /// <summary>
+        /// Block → the block parameters carrying the eval stack on entry
+        /// (bottom of stack first). Created by the first edge into the block, so
+        /// they follow the local parameters in the block's parameter list; every
+        /// later edge must supply the same number of values (IL guarantees a
+        /// consistent stack depth at a join).
+        /// </summary>
         private readonly Dictionary<MirBlock, StackValue[]> _blockStackParams = [];
 
-        // Primitive SSA locals: local index → current vreg ID (and its type).
-        // Re-seeded to the current block's local parameter vregs at each block
-        // entry so reads observe the merged value flowing in along every edge.
+        /// <summary>
+        /// Primitive SSA locals: local index → current vreg ID (and its type).
+        /// Re-seeded to the current block's local parameter vregs at each block
+        /// entry so reads observe the merged value flowing in along every edge.
+        /// </summary>
         private readonly Dictionary<int, StackValue> _locals = [];
 
-        // IL has no basic blocks; we discover them by pre-scanning for branch
-        // targets and fall-through-after-branch points (see DiscoverBlocks).
-        // Maps an IL offset that starts a block → the MirBlock for it.
+        /// <summary>
+        /// IL has no basic blocks; we discover them by pre-scanning for branch
+        /// targets and fall-through-after-branch points (see DiscoverBlocks).
+        /// Maps an IL offset that starts a block → the MirBlock for it.
+        /// </summary>
         private readonly Dictionary<int, MirBlock> _ilOffsetToBlock = [];
 
-        // The IL offsets that start a block, in ascending order. Used to find
-        // the next block when emitting a fall-through terminator.
+        /// <summary>
+        /// The IL offsets that start a block, in ascending order. Used to find
+        /// the next block when emitting a fall-through terminator.
+        /// </summary>
         private int[] _blockStartOffsets = [];
 
-        // Per-local IRType (local index → type), used to size the per-block
-        // local parameters and the entry zero-init constants. Only meaningful
-        // for SSA (non-FrameSlot) locals; FrameSlot locals carry a placeholder.
+        /// <summary>
+        /// Per-local IRType (local index → type), used to size the per-block
+        /// local parameters and the entry zero-init constants. Only meaningful
+        /// for SSA (non-FrameSlot) locals; FrameSlot locals carry a placeholder.
+        /// </summary>
         private IRType[] _localTypes = [];
 
-        // Per-local CLR type and FrameSlot classification. A local is FrameSlot-
-        // bound (lives in a .bss-style MirGlobal rather than an SSA vreg) when it
-        // is a value-type struct or is address-taken via ldloca. Its FrameSlot's
-        // Index equals the local index; ldloc/stloc/ldloca on it go through
-        // memory (mem.frame_addr + mem.load/store, or a struct byte copy).
+        /// <summary>
+        /// Per-local CLR type and FrameSlot classification. A local is FrameSlot-
+        /// bound (lives in a .bss-style MirGlobal rather than an SSA vreg) when it
+        /// is a value-type struct or is address-taken via ldloca. Its FrameSlot's
+        /// Index equals the local index; ldloc/stloc/ldloca on it go through
+        /// memory (mem.frame_addr + mem.load/store, or a struct byte copy).
+        /// </summary>
         private TypeDescription[] _localClrTypes = [];
         private bool[] _localIsFrameSlot = [];
 
-        // Non-entry blocks carry one parameter vreg per local (in local-index
-        // order) so the loop variable flows across edges as a block argument
-        // (MIR's PHI substitute). Maps a block → its local parameter vregs.
+        /// <summary>
+        /// Non-entry blocks carry one parameter vreg per local (in local-index
+        /// order) so the loop variable flows across edges as a block argument
+        /// (MIR's PHI substitute). Maps a block → its local parameter vregs.
+        /// </summary>
         private readonly Dictionary<MirBlock, int[]> _blockLocalParams = [];
 
         public MethodTranslator(IlToMirTranslator parent, EcmaMethod method, MirFunction function)
@@ -996,10 +1058,12 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // Pre-scan the IL once to find every basic-block leader: offset 0, every
-        // branch target, and every instruction immediately following a branch
-        // (the not-taken fall-through). A MirBlock is created per leader; the
-        // map lets branch ops resolve targets, including forward references.
+        /// <summary>
+        /// Pre-scan the IL once to find every basic-block leader: offset 0, every
+        /// branch target, and every instruction immediately following a branch
+        /// (the not-taken fall-through). A MirBlock is created per leader; the
+        /// map lets branch ops resolve targets, including forward references.
+        /// </summary>
         private void DiscoverBlocks()
         {
             _blockStartOffsets = ComputeBlockLeaders();
@@ -1009,11 +1073,13 @@ internal sealed class IlToMirTranslator : IDisposable
             DiscoverBlocksLocalParams();
         }
 
-        // The set of basic-block leader IL offsets (offset 0, every branch
-        // target, and every instruction immediately after a branch), ascending.
-        // Used both by DiscoverBlocks (to create MirBlocks) and by the cross-call
-        // liveness analysis, which runs before classification (hence before the
-        // MirBlocks exist).
+        /// <summary>
+        /// The set of basic-block leader IL offsets (offset 0, every branch
+        /// target, and every instruction immediately after a branch), ascending.
+        /// Used both by DiscoverBlocks (to create MirBlocks) and by the cross-call
+        /// liveness analysis, which runs before classification (hence before the
+        /// MirBlocks exist).
+        /// </summary>
         private int[] ComputeBlockLeaders()
         {
             var leaders = new SortedSet<int> { 0 };
@@ -1063,9 +1129,11 @@ internal sealed class IlToMirTranslator : IDisposable
             return [.. leaders];
         }
 
-        // Wire up the per-block local parameter vregs (the SSA/PHI substitute),
-        // computed from local liveness. Split out of DiscoverBlocks so the
-        // leader/block creation can be read on its own.
+        /// <summary>
+        /// Wire up the per-block local parameter vregs (the SSA/PHI substitute),
+        /// computed from local liveness. Split out of DiscoverBlocks so the
+        /// leader/block creation can be read on its own.
+        /// </summary>
         private void DiscoverBlocksLocalParams()
         {
             // Compute which locals are live-in to each block; only those become
@@ -1098,10 +1166,12 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // Classic backwards local-liveness fixpoint over the discovered blocks.
-        // Returns, per block-start offset, the set of local indices that are
-        // live on entry (read along some path before being overwritten). Used
-        // to decide which locals each block carries as parameters.
+        /// <summary>
+        /// Classic backwards local-liveness fixpoint over the discovered blocks.
+        /// Returns, per block-start offset, the set of local indices that are
+        /// live on entry (read along some path before being overwritten). Used
+        /// to decide which locals each block carries as parameters.
+        /// </summary>
         private Dictionary<int, SortedSet<int>> ComputeLocalLiveness()
         {
             // Per block: upward-exposed uses (read before any def in the block),
@@ -1240,7 +1310,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 useBeforeDef.Add(local);
         }
 
-        // Advance an IL reader to a given offset (block discovery helper).
+        /// <summary>Advance an IL reader to a given offset (block discovery helper).</summary>
         private static void AdvanceTo(ref BlobReader reader, int offset)
         {
             while (reader.Offset < offset && reader.RemainingBytes > 0)
@@ -1250,8 +1320,10 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // Like SkipOperand but also consumes branch displacement bytes (used
-        // when fast-forwarding to a block start, where branches are just bytes).
+        /// <summary>
+        /// Like SkipOperand but also consumes branch displacement bytes (used
+        /// when fast-forwarding to a block start, where branches are just bytes).
+        /// </summary>
         private static void SkipBranchOrOperand(ref BlobReader reader, ILOpCode opCode)
         {
             switch (opCode)
@@ -1271,10 +1343,12 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // On entering a discovered block, rebind every local to that block's
-        // parameter vreg (the merged value) and set the builder's insertion
-        // point. The eval stack becomes the block's stack parameters, if any
-        // (whatever the previous block left behind has been passed on its edges).
+        /// <summary>
+        /// On entering a discovered block, rebind every local to that block's
+        /// parameter vreg (the merged value) and set the builder's insertion
+        /// point. The eval stack becomes the block's stack parameters, if any
+        /// (whatever the previous block left behind has been passed on its edges).
+        /// </summary>
         private void EnterBlock(MirBlock block)
         {
             _stack.Clear();
@@ -1291,8 +1365,10 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.SetInsertionPointAtEnd(block);
         }
 
-        // Emit `cf.br target(localArgs)` passing the current SSA value of every
-        // local as a block argument, in local-index order.
+        /// <summary>
+        /// Emit `cf.br target(localArgs)` passing the current SSA value of every
+        /// local as a block argument, in local-index order.
+        /// </summary>
         private void EmitBranchTo(MirBlock from, MirBlock target)
         {
             if (MaterialiseStackCompares()) from = _currentBlock;
@@ -1302,10 +1378,12 @@ internal sealed class IlToMirTranslator : IDisposable
                 new BlockTarget(target, EdgeArgsFor(target)));
         }
 
-        // A compare still pending on the eval stack (`a && b` used as a value leaves
-        // one across the branch) travels as a block argument, which needs a concrete
-        // 0/1 byte. Materialise each one in place; that splits the current block, so
-        // the branch must then be emitted from `_currentBlock`. Returns whether it did.
+        /// <summary>
+        /// A compare still pending on the eval stack (`a &amp;&amp; b` used as a value leaves
+        /// one across the branch) travels as a block argument, which needs a concrete
+        /// 0/1 byte. Materialise each one in place; that splits the current block, so
+        /// the branch must then be emitted from `_currentBlock`. Returns whether it did.
+        /// </summary>
         private bool MaterialiseStackCompares()
         {
             if (!_stack.Any(static v => v.Type.Equals(IRType.I1)))
@@ -1320,14 +1398,16 @@ internal sealed class IlToMirTranslator : IDisposable
             return true;
         }
 
-        // Block arguments for an edge to `target`: locals, then the eval stack.
+        /// <summary>Block arguments for an edge to `target`: locals, then the eval stack.</summary>
         private MirOperand[] EdgeArgsFor(MirBlock target) =>
             [.. LocalArgsFor(target), .. StackArgsFor(target)];
 
-        // The values left on the eval stack (bottom first), as block arguments
-        // for `target`. The first edge into a block fixes its stack parameters'
-        // types; a later edge with a different width is resized to match. Emits
-        // any resize at the builder's insertion point, i.e. before the branch.
+        /// <summary>
+        /// The values left on the eval stack (bottom first), as block arguments
+        /// for `target`. The first edge into a block fixes its stack parameters'
+        /// types; a later edge with a different width is resized to match. Emits
+        /// any resize at the builder's insertion point, i.e. before the branch.
+        /// </summary>
         private MirOperand[] StackArgsFor(MirBlock target)
         {
             var onStack = _stack.Reverse().ToArray();
@@ -1358,9 +1438,11 @@ internal sealed class IlToMirTranslator : IDisposable
             return args;
         }
 
-        // Block arguments for an edge to `target`: the current value of each
-        // live-in local, in ascending local-index order (matching the order
-        // the target declared its parameters in DiscoverBlocks).
+        /// <summary>
+        /// Block arguments for an edge to `target`: the current value of each
+        /// live-in local, in ascending local-index order (matching the order
+        /// the target declared its parameters in DiscoverBlocks).
+        /// </summary>
         private MirOperand[] LocalArgsFor(MirBlock target)
         {
             if (!_blockLocalParams.TryGetValue(target, out var localParams))
@@ -1387,8 +1469,10 @@ internal sealed class IlToMirTranslator : IDisposable
                     $"IL→MIR: branch target IL_{ilOffset:X4} is not a block leader " +
                     $"(method {_method.UniqueName}).");
 
-        // Advance a scanning reader past an opcode's inline operand bytes during
-        // block discovery (we only care about branch displacements there).
+        /// <summary>
+        /// Advance a scanning reader past an opcode's inline operand bytes during
+        /// block discovery (we only care about branch displacements there).
+        /// </summary>
         private static void SkipOperand(ref BlobReader reader, ILOpCode opCode)
         {
             switch (opCode)
@@ -1429,16 +1513,20 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private int[] _parameterVregs = [];
 
-        // The block currently being emitted into. Normally tracks the IL
-        // basic-block leader, but a value-used compare (TranslateCompare's diamond)
-        // splits the current block and redirects this to the merge block so
-        // subsequent IL emits after the materialised 0/1 result.
+        /// <summary>
+        /// The block currently being emitted into. Normally tracks the IL
+        /// basic-block leader, but a value-used compare (TranslateCompare's diamond)
+        /// splits the current block and redirects this to the merge block so
+        /// subsequent IL emits after the materialised 0/1 result.
+        /// </summary>
         private MirBlock _currentBlock = null!;
 
-        // The IL basic block being translated (the block that starts at a leader
-        // offset). Unlike _currentBlock it is never one of the synthetic blocks
-        // (compare diamonds, switch tests), so it is what a conditional branch's
-        // fall-through successor is found from.
+        /// <summary>
+        /// The IL basic block being translated (the block that starts at a leader
+        /// offset). Unlike _currentBlock it is never one of the synthetic blocks
+        /// (compare diamonds, switch tests), so it is what a conditional branch's
+        /// fall-through successor is found from.
+        /// </summary>
         private MirBlock _ilBlock = null!;
 
         private void PushConstant(int value)
@@ -1454,11 +1542,13 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(vreg, IRType.I64, IsSigned: true));
         }
 
-        // add / sub / mul / div / rem: the integer binary ops whose result depends on
-        // the bits above the operands' width (see the byte promotion below). Irie
-        // strength-reduces a multiply (and unsigned divide / remainder) by a
-        // constant power of two and legalizes the rest as a call to a libcall, which
-        // Irie's own library supplies.
+        /// <summary>
+        /// add / sub / mul / div / rem: the integer binary ops whose result depends on
+        /// the bits above the operands' width (see the byte promotion below). Irie
+        /// strength-reduces a multiply (and unsigned divide / remainder) by a
+        /// constant power of two and legalizes the rest as a call to a libcall, which
+        /// Irie's own library supplies.
+        /// </summary>
         private void TranslateIntegerBinary(ArithOp op)
         {
             // ECMA-335 keeps bytes and 16-bit integers on the stack as int32, so
@@ -1486,12 +1576,14 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, left.Type));
         }
 
-        // add / sub with a pointer operand. ptr + int (either order) and ptr - int
-        // are mem.ptradd with the integer resized to the pointer's i16 width — IL
-        // leaves the index as i32 (no conv), e.g. `q++` on a byte* emits
-        // `ldloc q; ldc.i4.1; add`; ptr - int adds the negated offset. ptr - ptr is
-        // the i16 difference of the two addresses. Every other combination is
-        // invalid IL, or not an add/sub at all.
+        /// <summary>
+        /// add / sub with a pointer operand. ptr + int (either order) and ptr - int
+        /// are mem.ptradd with the integer resized to the pointer's i16 width — IL
+        /// leaves the index as i32 (no conv), e.g. `q++` on a byte* emits
+        /// `ldloc q; ldc.i4.1; add`; ptr - int adds the negated offset. ptr - ptr is
+        /// the i16 difference of the two addresses. Every other combination is
+        /// invalid IL, or not an add/sub at all.
+        /// </summary>
         private void TranslatePointerArithmetic(ArithOp op, StackValue left, StackValue right)
         {
             if (op is ArithOp.AddI && left.IsPointer != right.IsPointer)
@@ -1529,7 +1621,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 $"IL→MIR: {op} with a pointer operand is not supported (method {_method.UniqueName}).");
         }
 
-        // %q : ptr = mem.ptradd %p, %offset (a byte offset, i16).
+        /// <summary>%q : ptr = mem.ptradd %p, %offset (a byte offset, i16).</summary>
         private int EmitPtrAdd(int pointerVreg, int offsetVreg)
         {
             var result = _function.CreateVirtualRegister(IRType.Pointer);
@@ -1540,15 +1632,17 @@ internal sealed class IlToMirTranslator : IDisposable
             return result;
         }
 
-        // ptr → its address as an i16 integer; anything else is returned as is.
+        /// <summary>ptr → its address as an i16 integer; anything else is returned as is.</summary>
         private StackValue AsInteger(StackValue value) =>
             value.IsPointer
                 ? new StackValue(BuildPtrToInt(_builder, value.Vreg), IRType.I16)
                 : value;
 
-        // The value as an address operand: a ptr is returned as is; an integer
-        // (native int, or an i32 holding an address) is brought to i16 and
-        // converted with inttoptr.
+        /// <summary>
+        /// The value as an address operand: a ptr is returned as is; an integer
+        /// (native int, or an i32 holding an address) is brought to i16 and
+        /// converted with inttoptr.
+        /// </summary>
         private StackValue AsAddress(StackValue value)
         {
             if (value.IsPointer) return value;
@@ -1556,8 +1650,10 @@ internal sealed class IlToMirTranslator : IDisposable
             return new StackValue(BuildIntToPtr(_builder, integer.Vreg), IRType.Pointer);
         }
 
-        // A pop for operations that are defined on integers only: a ptr operand
-        // (invalid IL, or something that needs an explicit conv.i first) is rejected.
+        /// <summary>
+        /// A pop for operations that are defined on integers only: a ptr operand
+        /// (invalid IL, or something that needs an explicit conv.i first) is rejected.
+        /// </summary>
         private StackValue PopInteger(string operation)
         {
             var value = PopMaterialised();
@@ -1567,8 +1663,10 @@ internal sealed class IlToMirTranslator : IDisposable
             return value;
         }
 
-        // Whether local `index` is a block parameter of any block, i.e. its value
-        // flows across a block boundary rather than dying in the block that set it.
+        /// <summary>
+        /// Whether local `index` is a block parameter of any block, i.e. its value
+        /// flows across a block boundary rather than dying in the block that set it.
+        /// </summary>
         private bool IsLocalLiveAcrossBlocks(int index) =>
             _blockLocalParams.Values.Any(localParams => index < localParams.Length && localParams[index] >= 0);
 
@@ -1612,7 +1710,7 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // Push a value loaded from storage of CLR type `clr`.
+        /// <summary>Push a value loaded from storage of CLR type `clr`.</summary>
         private void PushTyped(int vreg, IRType type, TypeDescription clr) =>
             _stack.Push(new StackValue(vreg, type, IsSignedClr(clr)));
 
@@ -1645,8 +1743,10 @@ internal sealed class IlToMirTranslator : IDisposable
             PushTyped(ssaValue.Vreg, ssaValue.Type, _localClrTypes[index]);
         }
 
-        // ldloca.N → push the address of the local's frame slot (a managed
-        // pointer). The local was forced FrameSlot-bound during classification.
+        /// <summary>
+        /// ldloca.N → push the address of the local's frame slot (a managed
+        /// pointer). The local was forced FrameSlot-bound during classification.
+        /// </summary>
         private void TranslateLdloca(int index)
         {
             if (!_localIsFrameSlot[index])
@@ -1656,7 +1756,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(addr, IRType.Pointer));
         }
 
-        // Local that shadows each parameter assigned by `starg` (-1: never assigned).
+        /// <summary>Local that shadows each parameter assigned by `starg` (-1: never assigned).</summary>
         private int[] _argLocal = [];
 
         private void TranslateStarg(int index)
@@ -1682,15 +1782,17 @@ internal sealed class IlToMirTranslator : IDisposable
             PushTyped(_parameterVregs[index], type, _method.Parameters[index].Type);
         }
 
-        // br / br.s → cf.br to the target block, passing current locals as args.
+        /// <summary>br / br.s → cf.br to the target block, passing current locals as args.</summary>
         private void TranslateBr(MirBlock from, int target)
         {
             EmitBranchTo(from, BlockAt(target));
         }
 
-        // and / or / xor: both operands must have the same integer width. A
-        // value-used compare (i1) is first materialised to its 0/1 i8, so
-        // `(a < b) & (c < d)` combines two bytes.
+        /// <summary>
+        /// and / or / xor: both operands must have the same integer width. A
+        /// value-used compare (i1) is first materialised to its 0/1 i8, so
+        /// `(a &lt; b) &amp; (c &lt; d)` combines two bytes.
+        /// </summary>
         private void TranslateBitwise(ArithOp op)
         {
             var right = PopInteger("bitwise op");
@@ -1712,11 +1814,13 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, left.Type, left.IsSigned && right.IsSigned));
         }
 
-        // shl / shr / shr.un: shift the value by an int32 amount. A byte operand is
-        // first widened to int32, as ECMA-335's stack promotion would. The amount
-        // becomes an i8 vreg: a constant is re-emitted as an i8 constant so the
-        // legalizer can read it; anything else is truncated, and the legalizer turns
-        // the shift into a libcall.
+        /// <summary>
+        /// shl / shr / shr.un: shift the value by an int32 amount. A byte operand is
+        /// first widened to int32, as ECMA-335's stack promotion would. The amount
+        /// becomes an i8 vreg: a constant is re-emitted as an i8 constant so the
+        /// legalizer can read it; anything else is truncated, and the legalizer turns
+        /// the shift into a libcall.
+        /// </summary>
         private void TranslateShift(ArithOp op)
         {
             var amount = PopInteger("shift");
@@ -1743,7 +1847,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(value with { Vreg = result });
         }
 
-        // not: bitwise complement, `x ^ -1` at the operand's width.
+        /// <summary>not: bitwise complement, `x ^ -1` at the operand's width.</summary>
         private void TranslateNot()
         {
             var value = PromoteNarrow(PopInteger("not"));
@@ -1756,7 +1860,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, value.Type));
         }
 
-        // neg: two's-complement negation, `0 - x` at the operand's width.
+        /// <summary>neg: two's-complement negation, `0 - x` at the operand's width.</summary>
         private void TranslateNeg()
         {
             var value = PromoteNarrow(PopInteger("neg"));
@@ -1769,24 +1873,29 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, value.Type));
         }
 
-        // A byte or 16-bit integer on the IL evaluation stack is an int32
-        // (ECMA-335 §III.1.1): widen an i8 / i16 integer to i32 by its signedness
-        // before an operation whose result depends on the bits above its width
-        // (neg, not, add, sub, shifts, compares). Callers have already ruled out
-        // a ptr operand (PopInteger / AsInteger).
+        /// <summary>
+        /// A byte or 16-bit integer on the IL evaluation stack is an int32
+        /// (ECMA-335 §III.1.1): widen an i8 / i16 integer to i32 by its signedness
+        /// before an operation whose result depends on the bits above its width
+        /// (neg, not, add, sub, shifts, compares). Callers have already ruled out
+        /// a ptr operand (PopInteger / AsInteger).
+        /// </summary>
         private StackValue PromoteNarrow(StackValue value) =>
             value.Type.SizeInBits is 8 or 16
                 ? Resize(value, IRType.I32)
                 : value;
 
-        // Convert an integer stack value to `to`'s width: truncate when narrowing,
-        // otherwise zero- or sign-extend according to the value's signedness. A
-        // same-width value is returned as is. (i1 never reaches here — callers
-        // materialise a pending compare first, see PopMaterialised.)
-        //
-        // A ptr operand or target goes through inttoptr / ptrtoint: Resize to a
-        // ptr type yields an address (AsAddress), and a ptr source is first read
-        // as its i16 address (AsInteger).
+        /// <summary>
+        /// Convert an integer stack value to `to`'s width: truncate when narrowing,
+        /// otherwise zero- or sign-extend according to the value's signedness. A
+        /// same-width value is returned as is. (i1 never reaches here — callers
+        /// materialise a pending compare first, see PopMaterialised.)
+        /// </summary>
+        /// <remarks>
+        /// A ptr operand or target goes through inttoptr / ptrtoint: Resize to a
+        /// ptr type yields an address (AsAddress), and a ptr source is first read
+        /// as its i16 address (AsInteger).
+        /// </remarks>
         private StackValue Resize(StackValue value, IRType to)
         {
             if (to is IRPointerType) return AsAddress(value);
@@ -1807,31 +1916,37 @@ internal sealed class IlToMirTranslator : IDisposable
             return value with { Vreg = result, Type = to };
         }
 
-        // Binary operands of different widths (an i8 byte against an i32 constant)
-        // are widened to the wider one, as ECMA-335's implicit int32 promotion
-        // would, each side extending by its own signedness.
+        /// <summary>
+        /// Binary operands of different widths (an i8 byte against an i32 constant)
+        /// are widened to the wider one, as ECMA-335's implicit int32 promotion
+        /// would, each side extending by its own signedness.
+        /// </summary>
         private void UnifyWidths(ref StackValue left, ref StackValue right)
         {
             if (left.Type.SizeInBits < right.Type.SizeInBits) left = Resize(left, right.Type);
             else if (right.Type.SizeInBits < left.Type.SizeInBits) right = Resize(right, left.Type);
         }
 
-        // conv.i1 / conv.u1 / conv.i4 / conv.u4 / conv.i / conv.u: convert to the
-        // target width (truncating or extending by the source's signedness).
-        // `signed` is the result's signedness for narrow results: conv.i1 yields
-        // a sign-carrying byte, conv.u1 a zero-extending one.
-        // conv.i / conv.u produce a native int, an i16 integer (a ptr operand is
-        // read as its address first).
+        /// <summary>
+        /// conv.i1 / conv.u1 / conv.i4 / conv.u4 / conv.i / conv.u: convert to the
+        /// target width (truncating or extending by the source's signedness).
+        /// `signed` is the result's signedness for narrow results: conv.i1 yields
+        /// a sign-carrying byte, conv.u1 a zero-extending one.
+        /// conv.i / conv.u produce a native int, an i16 integer (a ptr operand is
+        /// read as its address first).
+        /// </summary>
         private void TranslateConv(IRType to, bool signed)
         {
             var result = Resize(PopMaterialised(), to);
             _stack.Push(result with { IsSigned = signed });
         }
 
-        // conv.i8 / conv.u8: widen to 64 bits. The *opcode* picks the extension of
-        // an int32 (conv.i8 sign-extends, conv.u8 zero-extends), whatever the
-        // value's own signedness; a byte or 16-bit value is first widened to the
-        // int32 it already is on the IL stack, by its own signedness.
+        /// <summary>
+        /// conv.i8 / conv.u8: widen to 64 bits. The *opcode* picks the extension of
+        /// an int32 (conv.i8 sign-extends, conv.u8 zero-extends), whatever the
+        /// value's own signedness; a byte or 16-bit value is first widened to the
+        /// int32 it already is on the IL stack, by its own signedness.
+        /// </summary>
         private void TranslateConvToI64(bool signed)
         {
             var value = AsInteger(PopMaterialised());
@@ -1840,7 +1955,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(result with { IsSigned = signed });
         }
 
-        // Pops the stack, turning a pending i1 compare into a concrete 0/1 i8.
+        /// <summary>Pops the stack, turning a pending i1 compare into a concrete 0/1 i8.</summary>
         private StackValue PopMaterialised()
         {
             var value = _stack.Pop();
@@ -1849,16 +1964,19 @@ internal sealed class IlToMirTranslator : IDisposable
                 : value;
         }
 
-        // ceq/cgt/cgt.un/clt/clt.un → arith.cmpi <pred>, %a, %b → i1, pushed onto
-        // the eval stack.
-        //
-        // The cmpi is left unmaterialised: if an immediately-following
-        // brtrue/brfalse consumes it, TranslateCondBranch builds a cf.cond_br on
-        // it and Irie's isel fuses the pair (loop-condition path). If instead the
-        // i1 is consumed as a *value* (e.g. passed to Console.WriteLine(bool)),
-        // TranslateCall materialises it into a concrete 0/1 i8 via a cond_br
-        // diamond (see MaterialiseCompare). An i1 *operand* (comparing two
-        // compares) is materialised to its 0/1 i8 first.
+        /// <summary>
+        /// ceq/cgt/cgt.un/clt/clt.un → arith.cmpi &lt;pred&gt;, %a, %b → i1, pushed onto
+        /// the eval stack.
+        /// </summary>
+        /// <remarks>
+        /// The cmpi is left unmaterialised: if an immediately-following
+        /// brtrue/brfalse consumes it, TranslateCondBranch builds a cf.cond_br on
+        /// it and Irie's isel fuses the pair (loop-condition path). If instead the
+        /// i1 is consumed as a *value* (e.g. passed to Console.WriteLine(bool)),
+        /// TranslateCall materialises it into a concrete 0/1 i8 via a cond_br
+        /// diamond (see MaterialiseCompare). An i1 *operand* (comparing two
+        /// compares) is materialised to its 0/1 i8 first.
+        /// </remarks>
         private void TranslateCompare(ArithCmpPredicate predicate)
         {
             // Roslyn lowers `a != b`, `a <= b`, `a >= b` (and `!(a < b)`) as
@@ -1886,8 +2004,10 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, IRType.I1));
         }
 
-        // `i1 == 0` → not(i1), `i1 == 1` → i1 (in either operand order); null when
-        // the operands are not an i1 and a constant 0/1.
+        /// <summary>
+        /// `i1 == 0` → not(i1), `i1 == 1` → i1 (in either operand order); null when
+        /// the operands are not an i1 and a constant 0/1.
+        /// </summary>
         private StackValue? TryFoldBoolCompare(IRType leftType, int leftVreg, IRType rightType, int rightVreg)
         {
             if (rightType.Equals(IRType.I1)) (leftType, leftVreg, rightType, rightVreg) = (rightType, rightVreg, leftType, leftVreg);
@@ -1906,10 +2026,12 @@ internal sealed class IlToMirTranslator : IDisposable
             return new StackValue(negated, IRType.I1);
         }
 
-        // The ECMA-335 compare-and-branch family (beq, bge, bgt, ble, blt, bne.un,
-        // bge.un, bgt.un, ble.un, blt.un, each with a short form): the signed /
-        // unsigned / equality predicate the fused compare tests. Float
-        // unordered semantics of the `.un` forms are not modelled (no floats).
+        /// <summary>
+        /// The ECMA-335 compare-and-branch family (beq, bge, bgt, ble, blt, bne.un,
+        /// bge.un, bgt.un, ble.un, blt.un, each with a short form): the signed /
+        /// unsigned / equality predicate the fused compare tests. Float
+        /// unordered semantics of the `.un` forms are not modelled (no floats).
+        /// </summary>
         private static bool TryGetCompareBranch(
             ILOpCode opCode, out ArithCmpPredicate predicate, out bool isShort)
         {
@@ -1934,13 +2056,17 @@ internal sealed class IlToMirTranslator : IDisposable
             return false;
         }
 
-        // Displacement of a branch whose operand is a 1-byte (short) or 4-byte
-        // offset from the end of the instruction.
+        /// <summary>
+        /// Displacement of a branch whose operand is a 1-byte (short) or 4-byte
+        /// offset from the end of the instruction.
+        /// </summary>
         private static int ReadBranchTarget(ref BlobReader reader, bool isShort)
             => isShort ? reader.ReadSByte() + reader.Offset : reader.ReadInt32() + reader.Offset;
 
-        // A switch's jump table as absolute IL offsets. The displacements are
-        // relative to the end of the whole instruction (after the last entry).
+        /// <summary>
+        /// A switch's jump table as absolute IL offsets. The displacements are
+        /// relative to the end of the whole instruction (after the last entry).
+        /// </summary>
         private static int[] ReadSwitchTargets(ref BlobReader reader)
         {
             var count = reader.ReadUInt32();
@@ -1950,17 +2076,19 @@ internal sealed class IlToMirTranslator : IDisposable
             return targets;
         }
 
-        // switch: Irie has no multiway branch, so lower the jump table to a chain
-        // of equality tests (llvm-mos does likewise for small tables; it has no
-        // indirect-jump table lowering either):
-        //
-        //   <from>:  %c0 = cmpi eq %v, 0 ; cond_br %c0, case0, test1
-        //   test1:   %c1 = cmpi eq %v, 1 ; cond_br %c1, case1, test2
-        //   ...
-        //   testN:   cond_br %cN, caseN, <fall-through>
-        //
-        // A value outside 0..N-1 (as unsigned) matches no test and falls through.
-        // Cases that already target the fall-through block need no test.
+        /// <summary>
+        /// switch: Irie has no multiway branch, so lower the jump table to a chain
+        /// of equality tests (llvm-mos does likewise for small tables; it has no
+        /// indirect-jump table lowering either):
+        ///   &lt;from&gt;:  %c0 = cmpi eq %v, 0 ; cond_br %c0, case0, test1
+        ///   test1:   %c1 = cmpi eq %v, 1 ; cond_br %c1, case1, test2
+        ///   ...
+        ///   testN:   cond_br %cN, caseN, &lt;fall-through&gt;
+        /// </summary>
+        /// <remarks>
+        /// A value outside 0..N-1 (as unsigned) matches no test and falls through.
+        /// Cases that already target the fall-through block need no test.
+        /// </remarks>
         private void TranslateSwitch(MirBlock from, int[] targets)
         {
             var fallThrough = NextBlockAfterIlBlock();
@@ -1998,10 +2126,12 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // beq/bge/…: pop two values, compare with `predicate`, branch to `target`
-        // when it holds, else fall through. The cmpi is built directly at the end
-        // of the block so isel fuses it with the cf.cond_br (no i1 is
-        // materialised), exactly as for `clt; brtrue`.
+        /// <summary>
+        /// beq/bge/…: pop two values, compare with `predicate`, branch to `target`
+        /// when it holds, else fall through. The cmpi is built directly at the end
+        /// of the block so isel fuses it with the cf.cond_br (no i1 is
+        /// materialised), exactly as for `clt; brtrue`.
+        /// </summary>
         private void TranslateCompareBranch(MirBlock from, int target, ArithCmpPredicate predicate)
         {
             // Resolve the fall-through from the block the branch started in: an
@@ -2020,19 +2150,21 @@ internal sealed class IlToMirTranslator : IDisposable
             EmitCondBr(cond.Vreg, BlockAt(target), fallThrough);
         }
 
-        // Build the cond_br diamond that turns an i1 compare result (defined by a
-        // preceding arith.cmpi at the end of the current block) into a concrete
-        // 0/1 i8:
-        //
-        //   <current>:                              ; cmpi already emitted here
-        //       %c : i1 = arith.cmpi <pred>, %a, %b
-        //       cf.cond_br %c, trueLeg, falseLeg     ; appended here
-        //   trueLeg:  cf.br merge(1 : i8)
-        //   falseLeg: cf.br merge(0 : i8)
-        //   merge(%r : i8):                         ; becomes the new current block
-        //
-        // The cmpi+cond_br pair is selected by isel exactly as the fused branch
-        // path. Returns the merge block's i8 parameter vreg (the 0/1 result).
+        /// <summary>
+        /// Build the cond_br diamond that turns an i1 compare result (defined by a
+        /// preceding arith.cmpi at the end of the current block) into a concrete
+        /// 0/1 i8:
+        ///   &lt;current&gt;:                              ; cmpi already emitted here
+        ///       %c : i1 = arith.cmpi &lt;pred&gt;, %a, %b
+        ///       cf.cond_br %c, trueLeg, falseLeg     ; appended here
+        ///   trueLeg:  cf.br merge(1 : i8)
+        ///   falseLeg: cf.br merge(0 : i8)
+        ///   merge(%r : i8):                         ; becomes the new current block
+        /// </summary>
+        /// <remarks>
+        /// The cmpi+cond_br pair is selected by isel exactly as the fused branch
+        /// path. Returns the merge block's i8 parameter vreg (the 0/1 result).
+        /// </remarks>
         private int MaterialiseCompare(int condVreg)
         {
             var trueLeg = _function.CreateBlock();
@@ -2070,10 +2202,12 @@ internal sealed class IlToMirTranslator : IDisposable
             return resultVreg;
         }
 
-        // brtrue/brfalse → cf.cond_br on the i1 condition. The taken edge goes
-        // to the branch target; the not-taken edge falls through to the next
-        // block (the instruction immediately after the branch — a discovered
-        // leader). Irie's isel fuses a preceding arith.cmpi into the cond_br.
+        /// <summary>
+        /// brtrue/brfalse → cf.cond_br on the i1 condition. The taken edge goes
+        /// to the branch target; the not-taken edge falls through to the next
+        /// block (the instruction immediately after the branch — a discovered
+        /// leader). Irie's isel fuses a preceding arith.cmpi into the cond_br.
+        /// </summary>
         private void TranslateCondBranch(MirBlock from, int target, bool branchIfTrue)
         {
             var cond = _stack.Pop();
@@ -2114,8 +2248,10 @@ internal sealed class IlToMirTranslator : IDisposable
             EmitCondBr(condVreg, trueEdge, falseEdge);
         }
 
-        // cf.cond_br %cond, trueEdge(locals), falseEdge(locals) at the builder's
-        // insertion point, threading the current locals as block arguments.
+        /// <summary>
+        /// cf.cond_br %cond, trueEdge(locals), falseEdge(locals) at the builder's
+        /// insertion point, threading the current locals as block arguments.
+        /// </summary>
         private void EmitCondBr(int condVreg, MirBlock trueEdge, MirBlock falseEdge)
         {
             _builder.BuildInstruction(
@@ -2125,8 +2261,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 new BlockTarget(falseEdge, EdgeArgsFor(falseEdge)));
         }
 
-        // The block that starts at the next leader offset after the current IL
-        // basic block — the fall-through successor of a conditional branch.
+        /// <summary>
+        /// The block that starts at the next leader offset after the current IL
+        /// basic block — the fall-through successor of a conditional branch.
+        /// </summary>
         private MirBlock NextBlockAfterIlBlock()
         {
             foreach (var (offset, b) in _ilOffsetToBlock)
@@ -2142,9 +2280,11 @@ internal sealed class IlToMirTranslator : IDisposable
                 $"(method {_method.UniqueName}).");
         }
 
-        // ldstr "..." → intern the string as a MirGlobal holding a whole string
-        // object and push a reference to it: the symbol plus the header size, i.e.
-        // the address of its length.
+        /// <summary>
+        /// ldstr "..." → intern the string as a MirGlobal holding a whole string
+        /// object and push a reference to it: the symbol plus the header size, i.e.
+        /// the address of its length.
+        /// </summary>
         private void TranslateLdstr(int token)
         {
             var value = _method.MetadataReader.GetUserString(
@@ -2155,8 +2295,10 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(EmitFieldAddress(symbol, StringObjectHeaderSize), IRType.Pointer));
         }
 
-        // ldsfld <field> → load the static field's value via its symbolic
-        // address: %p = mem.symbol @<owner>_<field>; %v = mem.load.iN %p.
+        /// <summary>
+        /// ldsfld &lt;field&gt; → load the static field's value via its symbolic
+        /// address: %p = mem.symbol @&lt;owner&gt;_&lt;field&gt;; %v = mem.load.iN %p.
+        /// </summary>
         private void TranslateLdsfld(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.GetField(
@@ -2172,8 +2314,10 @@ internal sealed class IlToMirTranslator : IDisposable
             PushTyped(value, type, field.Type);
         }
 
-        // stsfld <field> → store the top of stack into the static field's
-        // symbolic address: %p = mem.symbol @<owner>_<field>; mem.store.iN %p, %v.
+        /// <summary>
+        /// stsfld &lt;field&gt; → store the top of stack into the static field's
+        /// symbolic address: %p = mem.symbol @&lt;owner&gt;_&lt;field&gt;; mem.store.iN %p, %v.
+        /// </summary>
         private void TranslateStsfld(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.GetField(
@@ -2188,8 +2332,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(value.Vreg, IsDefinition: false));
         }
 
-        // ldfld <field> → load the field from base + offset. The base (top of
-        // stack) is a pointer / managed reference / struct address.
+        /// <summary>
+        /// ldfld &lt;field&gt; → load the field from base + offset. The base (top of
+        /// stack) is a pointer / managed reference / struct address.
+        /// </summary>
         private void TranslateLdfld(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.GetField(
@@ -2205,8 +2351,10 @@ internal sealed class IlToMirTranslator : IDisposable
             PushTyped(value, type, field.Type);
         }
 
-        // ldflda <field> → push the address of the field: the object pointer (or
-        // struct address) plus the field's offset.
+        /// <summary>
+        /// ldflda &lt;field&gt; → push the address of the field: the object pointer (or
+        /// struct address) plus the field's offset.
+        /// </summary>
         private void TranslateLdflda(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.GetField(
@@ -2217,8 +2365,10 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(addr, IRType.Pointer));
         }
 
-        // stfld <field> → store top-of-stack into (base + offset). Stack layout
-        // (top first): value, then the object pointer / struct address.
+        /// <summary>
+        /// stfld &lt;field&gt; → store top-of-stack into (base + offset). Stack layout
+        /// (top first): value, then the object pointer / struct address.
+        /// </summary>
         private void TranslateStfld(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.GetField(
@@ -2233,7 +2383,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(value.Vreg, IsDefinition: false));
         }
 
-        // initobj <type> → zero the <size> bytes at the pointer on top of stack.
+        /// <summary>initobj &lt;type&gt; → zero the &lt;size&gt; bytes at the pointer on top of stack.</summary>
         private void TranslateInitobj(EntityHandle typeHandle)
         {
             var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
@@ -2245,18 +2395,22 @@ internal sealed class IlToMirTranslator : IDisposable
                 new Immediate(type.InstanceSize));
         }
 
-        // Address of a field at `offset` bytes from `baseVreg` (a ptr). Offset 0
-        // reuses the base directly; otherwise emit a mem.ptradd of a constant
-        // offset (the legalizer narrows it to byte-wise arithmetic).
+        /// <summary>
+        /// Address of a field at `offset` bytes from `baseVreg` (a ptr). Offset 0
+        /// reuses the base directly; otherwise emit a mem.ptradd of a constant
+        /// offset (the legalizer narrows it to byte-wise arithmetic).
+        /// </summary>
         private int EmitFieldAddress(int baseVreg, int offset)
         {
             if (offset == 0) return baseVreg;
             return EmitPtrAdd(baseVreg, _builder.BuildConstant(IRType.I16, offset));
         }
 
-        // Copy `size` bytes from the struct at `srcAddr` to the struct at
-        // `destAddr` (both pointers), one byte at a time. Used by stloc of a
-        // value-type local (an IL struct assignment / copy).
+        /// <summary>
+        /// Copy `size` bytes from the struct at `srcAddr` to the struct at
+        /// `destAddr` (both pointers), one byte at a time. Used by stloc of a
+        /// value-type local (an IL struct assignment / copy).
+        /// </summary>
         private void EmitStructCopy(int destAddr, int srcAddr, int size)
         {
             for (var offset = 0; offset < size; offset++)
@@ -2273,7 +2427,7 @@ internal sealed class IlToMirTranslator : IDisposable
             }
         }
 
-        // Pre-scan the IL for the parameters assigned with `starg`.
+        /// <summary>Pre-scan the IL for the parameters assigned with `starg`.</summary>
         private HashSet<int> ScanStargParameters()
         {
             var result = new HashSet<int>();
@@ -2289,9 +2443,11 @@ internal sealed class IlToMirTranslator : IDisposable
             return result;
         }
 
-        // Pre-scan the IL once for the set of locals that are address-taken
-        // (have an `ldloca`). Those are forced FrameSlot-bound regardless of
-        // type, alongside the value-type locals.
+        /// <summary>
+        /// Pre-scan the IL once for the set of locals that are address-taken
+        /// (have an `ldloca`). Those are forced FrameSlot-bound regardless of
+        /// type, alongside the value-type locals.
+        /// </summary>
         private HashSet<int> ScanAddressTakenLocals()
         {
             var result = new HashSet<int>();
@@ -2330,8 +2486,10 @@ internal sealed class IlToMirTranslator : IDisposable
         private void TranslateCall(Handle methodHandle) =>
             TranslateDirectCall(_method.DeclaringType.Assembly.ResolveMethod(methodHandle));
 
-        // A direct (non-virtual) call: pop the args (including `this` for instance
-        // methods), emit call.func, push the return value.
+        /// <summary>
+        /// A direct (non-virtual) call: pop the args (including `this` for instance
+        /// methods), emit call.func, push the return value.
+        /// </summary>
         private void TranslateDirectCall(EcmaMethod callee)
         {
             // [MethodImpl(InternalCall)] methods (e.g. PutChar) have no IL body —
@@ -2357,9 +2515,11 @@ internal sealed class IlToMirTranslator : IDisposable
             EmitDirectCall(callee, callee.UniqueName);
         }
 
-        // Pop one vreg per callee parameter, emit `call.func <symbolName>`, and
-        // push the return value (if any). The symbol may differ from the callee's
-        // UniqueName (special-cased BCL methods, InternalCall runtime wrappers).
+        /// <summary>
+        /// Pop one vreg per callee parameter, emit `call.func &lt;symbolName&gt;`, and
+        /// push the return value (if any). The symbol may differ from the callee's
+        /// UniqueName (special-cased BCL methods, InternalCall runtime wrappers).
+        /// </summary>
         private void EmitDirectCall(EcmaMethod callee, string symbolName)
         {
             var argVregs = PopCallArgs(callee);
@@ -2371,8 +2531,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 PushTyped(defs[0], returnType, callee.MethodSignature.ReturnType);
         }
 
-        // Pop one vreg per callee parameter (Parameters[0] is `this` for instance
-        // methods), in reverse so the deepest stack entry maps to parameter 0.
+        /// <summary>
+        /// Pop one vreg per callee parameter (Parameters[0] is `this` for instance
+        /// methods), in reverse so the deepest stack entry maps to parameter 0.
+        /// </summary>
         private int[] PopCallArgs(EcmaMethod callee) =>
             PopCallArgs([.. callee.Parameters.Select(p => ToIRType(p.Type))]);
 
@@ -2392,10 +2554,12 @@ internal sealed class IlToMirTranslator : IDisposable
             return argVregs;
         }
 
-        // ldftn <method> → push the address of the method's code as a ptr (the
-        // symbol the direct-call path would call). The method is enqueued so it is
-        // compiled; ldftn'd methods follow the same ABI as vtable slots, so they
-        // are valid call.indirect targets as they stand.
+        /// <summary>
+        /// ldftn &lt;method&gt; → push the address of the method's code as a ptr (the
+        /// symbol the direct-call path would call). The method is enqueued so it is
+        /// compiled; ldftn'd methods follow the same ABI as vtable slots, so they
+        /// are valid call.indirect targets as they stand.
+        /// </summary>
         private void TranslateLdftn(Handle methodHandle)
         {
             var method = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
@@ -2416,14 +2580,16 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(_builder.BuildMemSymbol(symbol), IRType.Pointer));
         }
 
-        // calli <signature> → an indirect call through the function pointer on top
-        // of the stack, args below it. The call uses CC_MOS whatever standard
-        // convention the signature names: the target has a single ABI, so cdecl /
-        // stdcall / fastcall / thiscall / managed all collapse to it (as on x64 /
-        // arm64, and as clang does for MOS). A target-specific convention is named by
-        // a `System.Runtime.CompilerServices.CallConv<Name>` modifier on the return
-        // type (C# `delegate* unmanaged[<Name>]<…>`). Varargs and generic signatures
-        // are rejected.
+        /// <summary>
+        /// calli &lt;signature&gt; → an indirect call through the function pointer on top
+        /// of the stack, args below it. The call uses CC_MOS whatever standard
+        /// convention the signature names: the target has a single ABI, so cdecl /
+        /// stdcall / fastcall / thiscall / managed all collapse to it (as on x64 /
+        /// arm64, and as clang does for MOS). A target-specific convention is named by
+        /// a `System.Runtime.CompilerServices.CallConv&lt;Name&gt;` modifier on the return
+        /// type (C# `delegate* unmanaged[&lt;Name&gt;]&lt;…&gt;`). Varargs and generic signatures
+        /// are rejected.
+        /// </summary>
         private void TranslateCalli(EntityHandle signatureHandle)
         {
             var assembly = _method.DeclaringType.Assembly;
@@ -2456,8 +2622,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 PushTyped(defs[0], returnType, signature.ReturnType);
         }
 
-        // The Irie calling convention a calli signature asks for: the first return
-        // type modifier named CallConv<Name> that Irie knows, else the default.
+        /// <summary>
+        /// The Irie calling convention a calli signature asks for: the first return
+        /// type modifier named CallConv&lt;Name&gt; that Irie knows, else the default.
+        /// </summary>
         private static int GetCalliConvention(EcmaAssembly assembly, EntityHandle signatureHandle)
         {
             var reader = assembly.MetadataReader;
@@ -2485,12 +2653,14 @@ internal sealed class IlToMirTranslator : IDisposable
             return CallConvention.Default;
         }
 
-        // callvirt → a direct call when the target is non-virtual (C# emits
-        // callvirt for every instance call, including non-virtual ones, for its
-        // null-check semantics); otherwise a vtable dispatch:
-        //   %vtable : ptr = mem.load.ptr (this - 2)     ; header holds vtable ptr
-        //   %fptr   : ptr = mem.load.ptr (%vtable + slot*2)
-        //   call.indirect %fptr, this, args…
+        /// <summary>
+        /// callvirt → a direct call when the target is non-virtual (C# emits
+        /// callvirt for every instance call, including non-virtual ones, for its
+        /// null-check semantics); otherwise a vtable dispatch:
+        ///   %vtable : ptr = mem.load.ptr (this - 2)     ; header holds vtable ptr
+        ///   %fptr   : ptr = mem.load.ptr (%vtable + slot*2)
+        ///   call.indirect %fptr, this, args…
+        /// </summary>
         private void TranslateCallvirt(Handle methodHandle)
         {
             var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
@@ -2529,11 +2699,13 @@ internal sealed class IlToMirTranslator : IDisposable
                 PushTyped(defs[0], returnType, callee.MethodSignature.ReturnType);
         }
 
-        // newobj <ctor> → allocate the object then run its constructor:
-        //   %ptr = call.func @ManagedHeap_Alloc(<instanceSize>, &Vtable_<type>)
-        //   call.func @<ctor>(%ptr, args…)
-        // and push %ptr. ManagedHeap.Alloc reserves a 2-byte header (the vtable
-        // pointer) and returns a pointer to the object contents.
+        /// <summary>
+        /// newobj &lt;ctor&gt; → allocate the object then run its constructor:
+        ///   %ptr = call.func @ManagedHeap_Alloc(&lt;instanceSize&gt;, &amp;Vtable_&lt;type&gt;)
+        ///   call.func @&lt;ctor&gt;(%ptr, args…)
+        /// and push %ptr. ManagedHeap.Alloc reserves a 2-byte header (the vtable
+        /// pointer) and returns a pointer to the object contents.
+        /// </summary>
         private void TranslateNewobj(EntityHandle methodHandle)
         {
             var constructor = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
@@ -2566,10 +2738,12 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(ptr, IRType.Pointer));
         }
 
-        // The IR type and signedness of a value type that lives in a register: a
-        // primitive (a struct in DotNetro.CoreLib, named for it) or an enum (its
-        // underlying integer). Any other value type is a struct, which on the eval
-        // stack is the address of its bytes.
+        /// <summary>
+        /// The IR type and signedness of a value type that lives in a register: a
+        /// primitive (a struct in DotNetro.CoreLib, named for it) or an enum (its
+        /// underlying integer). Any other value type is a struct, which on the eval
+        /// stack is the address of its bytes.
+        /// </summary>
         private static bool TryGetScalar(EcmaType type, out IRType irType, out bool signed)
         {
             irType = IRType.Void;
@@ -2594,10 +2768,12 @@ internal sealed class IlToMirTranslator : IDisposable
             return true;
         }
 
-        // box <T> → a heap object holding a copy of the value: the vtable of T in the
-        // header, the value as the contents. Boxing a reference type does nothing.
-        //   %obj = call.func @ManagedHeap_Alloc(sizeof(T), &Vtable_<T>)
-        //   store the value (or copy the struct) into %obj
+        /// <summary>
+        /// box &lt;T&gt; → a heap object holding a copy of the value: the vtable of T in the
+        /// header, the value as the contents. Boxing a reference type does nothing.
+        ///   %obj = call.func @ManagedHeap_Alloc(sizeof(T), &amp;Vtable_&lt;T&gt;)
+        ///   store the value (or copy the struct) into %obj
+        /// </summary>
         private void TranslateBox(EntityHandle typeHandle)
         {
             var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
@@ -2628,9 +2804,11 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(ptr, IRType.Pointer));
         }
 
-        // unbox.any <T> → for a reference type a castclass; for a value type, check that
-        // the object is a boxed T and read the value out (a struct stays in the box and
-        // is pushed as its address, like any struct on the stack).
+        /// <summary>
+        /// unbox.any &lt;T&gt; → for a reference type a castclass; for a value type, check that
+        /// the object is a boxed T and read the value out (a struct stays in the box and
+        /// is pushed as its address, like any struct on the stack).
+        /// </summary>
         private void TranslateUnboxAny(EntityHandle typeHandle)
         {
             var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
@@ -2649,11 +2827,13 @@ internal sealed class IlToMirTranslator : IDisposable
         private void TranslateTypeTest(EntityHandle typeHandle, string helperName) =>
             TranslateTypeTest(_method.DeclaringType.Assembly.ResolveType(typeHandle), helperName);
 
-        // isinst / castclass <T>: the object (or null) if it is a T, else null (isinst) or
-        // a halt (castclass; there are no exceptions yet). The test is TypeCheck's walk
-        // of the object's vtable chain looking for T's vtable. Everything is a
-        // System.Object, so that needs no test; a string has no vtable, which the
-        // helper takes a null target to mean.
+        /// <summary>
+        /// isinst / castclass &lt;T&gt;: the object (or null) if it is a T, else null (isinst) or
+        /// a halt (castclass; there are no exceptions yet). The test is TypeCheck's walk
+        /// of the object's vtable chain looking for T's vtable. Everything is a
+        /// System.Object, so that needs no test; a string has no vtable, which the
+        /// helper takes a null target to mean.
+        /// </summary>
         private void TranslateTypeTest(EcmaType type, string helperName)
         {
             if (type.IsInterface)
@@ -2682,11 +2862,13 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(result, IRType.Pointer));
         }
 
-        // dup → re-push the top stack value (same vreg).
+        /// <summary>dup → re-push the top stack value (same vreg).</summary>
         private void TranslateDup() => _stack.Push(_stack.Peek());
 
-        // sizeof <type> → push the type's size as an i32 constant (matches the
-        // IL `sizeof` result type). For IntPtr this is the 16-bit pointer size.
+        /// <summary>
+        /// sizeof &lt;type&gt; → push the type's size as an i32 constant (matches the
+        /// IL `sizeof` result type). For IntPtr this is the 16-bit pointer size.
+        /// </summary>
         private void TranslateSizeof(EntityHandle typeHandle)
         {
             var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
@@ -2694,19 +2876,22 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(vreg, IRType.I32));
         }
 
-        // ldind.* → load a value from the address on top of stack.
-        //
-        // Stack-type note: real IL zero-extends the loaded byte to i32 on the
-        // evaluation stack. We deliberately model the result as i8, not i32, so
-        // the value flows to consumers like PutChar(byte) as a single CC_MOS byte
-        // rather than a 4-byte value. Don't be surprised by the i8 stack type —
-        // it is intentional, and matches how every current caller uses the byte
-        // (compare-to-zero, pass to an i8 parameter). Revisit only if a future
-        // caller actually needs the zero-extended i32 semantics.
-        //
-        // ldind.i1/u1 → i8, ldind.i4/u4 → i32, ldind.i → i16 (a native int),
-        // ldind.ref → ptr. `signed` is the loaded value's signedness (how an i8
-        // widens later). The address may be a native int (AsAddress).
+        /// <summary>
+        /// ldind.* → load a value from the address on top of stack.
+        /// </summary>
+        /// <remarks>
+        /// Stack-type note: real IL zero-extends the loaded byte to i32 on the
+        /// evaluation stack. We deliberately model the result as i8, not i32, so
+        /// the value flows to consumers like PutChar(byte) as a single CC_MOS byte
+        /// rather than a 4-byte value. Don't be surprised by the i8 stack type —
+        /// it is intentional, and matches how every current caller uses the byte
+        /// (compare-to-zero, pass to an i8 parameter). Revisit only if a future
+        /// caller actually needs the zero-extended i32 semantics.
+        ///
+        /// ldind.i1/u1 → i8, ldind.i4/u4 → i32, ldind.i → i16 (a native int),
+        /// ldind.ref → ptr. `signed` is the loaded value's signedness (how an i8
+        /// widens later). The address may be a native int (AsAddress).
+        /// </remarks>
         private void TranslateLdind(IRType type, bool signed)
         {
             var addr = AsAddress(_stack.Pop());
@@ -2717,9 +2902,11 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(value, type, signed));
         }
 
-        // stind.i1/i4/i/ref → store the value into the pointer, truncated to the
-        // store width (the IL stack holds an int32 for stind.i1). Stack layout
-        // (top first): value, then the destination pointer.
+        /// <summary>
+        /// stind.i1/i4/i/ref → store the value into the pointer, truncated to the
+        /// store width (the IL stack holds an int32 for stind.i1). Stack layout
+        /// (top first): value, then the destination pointer.
+        /// </summary>
         private void TranslateStind(IRType type)
         {
             var value = Resize(PopMaterialised(), type);
@@ -2734,13 +2921,15 @@ internal sealed class IlToMirTranslator : IDisposable
         // object header. No bounds checks are emitted. (ArrayLengthSize is shared
         // with string objects, which have the same layout.)
 
-        // Size in bytes of an array element of the type named by an IL token. The
-        // primitive element types resolve to the structs in DotNetro.CoreLib, whose
-        // single value field gives them their size; reference types are pointers.
+        /// <summary>
+        /// Size in bytes of an array element of the type named by an IL token. The
+        /// primitive element types resolve to the structs in DotNetro.CoreLib, whose
+        /// single value field gives them their size; reference types are pointers.
+        /// </summary>
         private int ElementSize(EntityHandle typeHandle) =>
             _method.DeclaringType.Assembly.ResolveType(typeHandle).Size;
 
-        // newarr <T> → %arr = call @ManagedHeap_AllocArray(length, length * sizeof(T))
+        /// <summary>newarr &lt;T&gt; → %arr = call @ManagedHeap_AllocArray(length, length * sizeof(T))</summary>
         private void TranslateNewarr(EntityHandle typeHandle)
         {
             var elementSize = ElementSize(typeHandle);
@@ -2748,9 +2937,11 @@ internal sealed class IlToMirTranslator : IDisposable
             EmitAllocArray(length, EmitScaledIndex(length, elementSize));
         }
 
-        // String.AllocateString(length) (an InternalCall implemented here, like
-        // CoreCLR's FastAllocateString): a string is an array of `length` bytes plus
-        // a NUL terminator, and its reference is the pointer AllocArray returns.
+        /// <summary>
+        /// String.AllocateString(length) (an InternalCall implemented here, like
+        /// CoreCLR's FastAllocateString): a string is an array of `length` bytes plus
+        /// a NUL terminator, and its reference is the pointer AllocArray returns.
+        /// </summary>
         private void TranslateAllocateString()
         {
             var length = Resize(PopMaterialised(), IRType.I16).Vreg;
@@ -2763,7 +2954,7 @@ internal sealed class IlToMirTranslator : IDisposable
             EmitAllocArray(length, contentSize);
         }
 
-        // Call ManagedHeap.AllocArray and push the resulting reference.
+        /// <summary>Call ManagedHeap.AllocArray and push the resulting reference.</summary>
         private void EmitAllocArray(int length, int contentSize)
         {
             var allocArray = _parent.GetAllocArrayMethod();
@@ -2772,8 +2963,10 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(ptr, IRType.Pointer));
         }
 
-        // ldlen → the i16 length stored at the array reference (a native unsigned
-        // int; the usual following conv.i4 zero-extends it).
+        /// <summary>
+        /// ldlen → the i16 length stored at the array reference (a native unsigned
+        /// int; the usual following conv.i4 zero-extends it).
+        /// </summary>
         private void TranslateLdlen()
         {
             var array = AsAddress(_stack.Pop());
@@ -2784,9 +2977,11 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(length, IRType.I16));
         }
 
-        // index * elementSize as an i16 (1 reuses the index; a power of two is
-        // strength-reduced to a shift by ArithSimplify, anything else is a
-        // multiply).
+        /// <summary>
+        /// index * elementSize as an i16 (1 reuses the index; a power of two is
+        /// strength-reduced to a shift by ArithSimplify, anything else is a
+        /// multiply).
+        /// </summary>
         private int EmitScaledIndex(int indexVreg, int elementSize)
         {
             if (elementSize == 1) return indexVreg;
@@ -2799,8 +2994,10 @@ internal sealed class IlToMirTranslator : IDisposable
             return scaled;
         }
 
-        // Pops the index and array reference (top first) and returns the address
-        // of that element: array + ArrayLengthSize + index * elementSize.
+        /// <summary>
+        /// Pops the index and array reference (top first) and returns the address
+        /// of that element: array + ArrayLengthSize + index * elementSize.
+        /// </summary>
         private int PopElementAddress(int elementSize)
         {
             var index = Resize(PopMaterialised(), IRType.I16).Vreg;
@@ -2823,8 +3020,10 @@ internal sealed class IlToMirTranslator : IDisposable
             TranslateLdind(type, signed);
         }
 
-        // ldelem <T>: only primitive and reference element types (whose size is
-        // 1, 2 or 4 bytes) can be loaded as a single value.
+        /// <summary>
+        /// ldelem &lt;T&gt;: only primitive and reference element types (whose size is
+        /// 1, 2 or 4 bytes) can be loaded as a single value.
+        /// </summary>
         private void TranslateLdelem(EntityHandle typeHandle)
         {
             var elementType = _method.DeclaringType.Assembly.ResolveType(typeHandle);
@@ -2834,9 +3033,11 @@ internal sealed class IlToMirTranslator : IDisposable
             TranslateLdelem(type, signed);
         }
 
-        // The IR type an `ldelem <T>` / `stelem <T>` token moves: a ptr for a
-        // reference-type element, otherwise the integer of the element's size.
-        // Only elements of 1, 2, 4 or 8 bytes can be moved as a single value.
+        /// <summary>
+        /// The IR type an `ldelem &lt;T&gt;` / `stelem &lt;T&gt;` token moves: a ptr for a
+        /// reference-type element, otherwise the integer of the element's size.
+        /// Only elements of 1, 2, 4 or 8 bytes can be moved as a single value.
+        /// </summary>
         private IRType ElementIRType(EcmaType elementType, string opName)
         {
             if (IsReferenceLike(elementType)) return IRType.Pointer;
@@ -2852,7 +3053,7 @@ internal sealed class IlToMirTranslator : IDisposable
             };
         }
 
-        // stelem.*: stack (top first) is value, index, array.
+        /// <summary>stelem.*: stack (top first) is value, index, array.</summary>
         private void TranslateStelem(IRType type)
         {
             var value = _stack.Pop();
@@ -2867,8 +3068,10 @@ internal sealed class IlToMirTranslator : IDisposable
             TranslateStelem(ElementIRType(_method.DeclaringType.Assembly.ResolveType(typeHandle), "stelem"));
         }
 
-        // Address `offset` bytes *below* a pointer (e.g. the object header at
-        // this-2): a mem.ptradd of the negated constant offset.
+        /// <summary>
+        /// Address `offset` bytes *below* a pointer (e.g. the object header at
+        /// this-2): a mem.ptradd of the negated constant offset.
+        /// </summary>
         private int EmitPointerSub(int baseVreg, int offset) =>
             EmitFieldAddress(baseVreg, -offset);
 
@@ -2894,15 +3097,18 @@ internal sealed class IlToMirTranslator : IDisposable
         }
     }
 
-    // A value on the IL evaluation stack. Narrow integers stay narrow (a byte is
-    // i8, not the int32 ECMA-335 would widen it to), so byte-sized code stays
-    // byte-sized; IsSigned records whether an i8 came from a signed source
-    // (sbyte, int, conv.i1, conv.i4), which decides sign- vs zero-extension when it
-    // later meets a wider operand (see Resize / UnifyWidths).
-    //
-    // A heap reference, `T*` or `ref T` has the ptr type; native int (IntPtr,
-    // conv.i) is an i16 integer, converted to / from ptr where IL uses it as an
-    // address (see AsAddress / AsInteger).
+    /// <summary>
+    /// A value on the IL evaluation stack. Narrow integers stay narrow (a byte is
+    /// i8, not the int32 ECMA-335 would widen it to), so byte-sized code stays
+    /// byte-sized; IsSigned records whether an i8 came from a signed source
+    /// (sbyte, int, conv.i1, conv.i4), which decides sign- vs zero-extension when it
+    /// later meets a wider operand (see Resize / UnifyWidths).
+    /// </summary>
+    /// <remarks>
+    /// A heap reference, `T*` or `ref T` has the ptr type; native int (IntPtr,
+    /// conv.i) is an i16 integer, converted to / from ptr where IL uses it as an
+    /// address (see AsAddress / AsInteger).
+    /// </remarks>
     private readonly record struct StackValue(
         int Vreg, IRType Type, bool IsSigned = false)
     {

@@ -1,23 +1,27 @@
 namespace Irie.Mir;
 
-// A reservation for a per-function stack-substitute region in static memory.
-// The unified-MIR pipeline places address-taken locals (and value-type locals)
-// into named .bss-style globals rather than a real call stack.
-// `FrameLoweringPass` materialises each FrameSlot as a MirGlobal once the
-// function is fully built.
+/// <summary>
+/// A reservation for a per-function stack-substitute region in static memory.
+/// The unified-MIR pipeline places address-taken locals (and value-type locals)
+/// into named .bss-style globals rather than a real call stack.
+/// `FrameLoweringPass` materialises each FrameSlot as a MirGlobal once the
+/// function is fully built.
+/// </summary>
 public sealed record FrameSlot(int Index, IRType Type, string SymbolName)
 {
-    // The slot's target stack id (the llvm-mos `TargetStackID` analogue) and its
-    // offset within that stack (the `getObjectOffset` analogue). Both are opaque
-    // integers decided by the frame-placement pass; generic code never interprets
-    // a non-default StackId — only the owning target knows what a given id means.
-    // `DefaultStackId` (0) is the universal default: an absolute-memory global.
-    // A non-default placement is serialised in MIR text (`… stackid N offset M`)
-    // so the decision is visible in post-pass dumps; the binary format omits it
-    // (a pass recomputes placement before lowering).
+    /// <summary>
+    /// The slot's target stack id (the llvm-mos `TargetStackID` analogue) and its
+    /// offset within that stack (the `getObjectOffset` analogue). Both are opaque
+    /// integers decided by the frame-placement pass; generic code never interprets
+    /// a non-default StackId — only the owning target knows what a given id means.
+    /// `DefaultStackId` (0) is the universal default: an absolute-memory global.
+    /// A non-default placement is serialised in MIR text (`… stackid N offset M`)
+    /// so the decision is visible in post-pass dumps; the binary format omits it
+    /// (a pass recomputes placement before lowering).
+    /// </summary>
     public int StackId { get; set; } = DefaultStackId;
     public int Offset { get; set; }
 
-    // The default stack id: the slot lives in an absolute-memory .bss-style global.
+    /// <summary>The default stack id: the slot lives in an absolute-memory .bss-style global.</summary>
     public const int DefaultStackId = 0;
 }

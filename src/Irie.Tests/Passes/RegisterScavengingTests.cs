@@ -5,14 +5,17 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Passes;
 
-// Tests for the post-RA RegisterScavengingPass. The pass assigns a
-// physical GPR to each copy-scratch vreg that pseudo expansion left behind (the
-// 3-operand "scratch form" pseudo.copy), preferring a GPR that is DEAD at the
-// copy's point, then drives the target's final lowering.
-//
-// We build the scratch form directly (as MOS6502PseudoExpander would emit it for
-// an immediate→zero-page copy) and assert which GPR the scavenger picks by
-// reading the load opcode it lowers to (LdaImm⇒$a, LdxImm⇒$x, LdyImm⇒$y).
+/// <summary>
+/// Tests for the post-RA RegisterScavengingPass. The pass assigns a
+/// physical GPR to each copy-scratch vreg that pseudo expansion left behind (the
+/// 3-operand "scratch form" pseudo.copy), preferring a GPR that is DEAD at the
+/// copy's point, then drives the target's final lowering.
+/// </summary>
+/// <remarks>
+/// We build the scratch form directly (as MOS6502PseudoExpander would emit it for
+/// an immediate→zero-page copy) and assert which GPR the scavenger picks by
+/// reading the load opcode it lowers to (LdaImm⇒$a, LdxImm⇒$x, LdyImm⇒$y).
+/// </remarks>
 public sealed class RegisterScavengingTests
 {
     private static readonly RegisterScavengingPass Pass;
@@ -25,8 +28,10 @@ public sealed class RegisterScavengingTests
 
     private static MirFunction NewFunction(string name) => new(name, [], IRType.Void);
 
-    // Build an immediate→zp scratch-form copy: $zpDst = pseudo.copy <imm> using
-    // a fresh scratch vreg (third operand). Returns the instruction.
+    /// <summary>
+    /// Build an immediate→zp scratch-form copy: $zpDst = pseudo.copy &lt;imm&gt; using
+    /// a fresh scratch vreg (third operand). Returns the instruction.
+    /// </summary>
     private static MirInstruction AddScratchCopy(MirFunction fn, MirBlock block, int zpDst, long imm)
     {
         var scratch = fn.CreateVirtualRegister(IRType.I8);
@@ -36,8 +41,10 @@ public sealed class RegisterScavengingTests
             new VirtualReg(scratch, IsDefinition: true));
     }
 
-    // Build a physreg→physreg scratch-form copy: $dst = pseudo.copy $src using a
-    // fresh scratch vreg. Used for the $x↔$y and zp→zp shapes.
+    /// <summary>
+    /// Build a physreg→physreg scratch-form copy: $dst = pseudo.copy $src using a
+    /// fresh scratch vreg. Used for the $x↔$y and zp→zp shapes.
+    /// </summary>
     private static MirInstruction AddRegScratchCopy(MirFunction fn, MirBlock block, int dst, int src)
     {
         var scratch = fn.CreateVirtualRegister(IRType.I8);
@@ -47,14 +54,14 @@ public sealed class RegisterScavengingTests
             new VirtualReg(scratch, IsDefinition: true));
     }
 
-    // The opcode of the (first) load the scratch form lowered to.
+    /// <summary>The opcode of the (first) load the scratch form lowered to.</summary>
     private static MOS6502Op LoweredLoadOp(MirBlock block, int instrIndex) =>
         (MOS6502Op)block.Instructions[instrIndex].Opcode.Code;
 
-    // -------------------------------------------------------------------------
-    // 1. No surrounding pressure: the scavenger picks the first candidate ($a).
-    //    The lowered form is `LDA #imm ; STA $zp`.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 1. No surrounding pressure: the scavenger picks the first candidate ($a).
+    ///    The lowered form is `LDA #imm ; STA $zp`.
+    /// </summary>
     [Test]
     public async Task NoPressure_PicksFirstCandidateA()
     {
@@ -71,14 +78,15 @@ public sealed class RegisterScavengingTests
             .SelectMany(i => i.Operands).OfType<VirtualReg>().Any()).IsFalse();
     }
 
-    // -------------------------------------------------------------------------
-    // 2. $a is live across the copy (a value defined before and used after):
-    //    the scavenger must avoid $a and pick the next dead GPR, $x.
-    //
-    //   $a = mos6502.ldx.imm? ... (we need $a defined-then-used around the copy)
-    // We model $a's liveness with two explicit-physreg instructions that the
-    // scratch copy sits between: a def of $a before, a use of $a after.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 2. $a is live across the copy (a value defined before and used after):
+    ///    the scavenger must avoid $a and pick the next dead GPR, $x.
+    /// </summary>
+    /// <remarks>
+    ///   $a = mos6502.ldx.imm? ... (we need $a defined-then-used around the copy)
+    /// We model $a's liveness with two explicit-physreg instructions that the
+    /// scratch copy sits between: a def of $a before, a use of $a after.
+    /// </remarks>
     [Test]
     public async Task ALiveAcrossCopy_PicksX()
     {
@@ -104,9 +112,7 @@ public sealed class RegisterScavengingTests
         await Assert.That(LoweredLoadOp(bb0, 2)).IsEqualTo(MOS6502Op.StxZp);
     }
 
-    // -------------------------------------------------------------------------
-    // 3. $a and $x are both live across the copy: the scavenger falls to $y.
-    // -------------------------------------------------------------------------
+    /// <summary>3. $a and $x are both live across the copy: the scavenger falls to $y.</summary>
     [Test]
     public async Task AAndXLiveAcrossCopy_PicksY()
     {
@@ -133,11 +139,11 @@ public sealed class RegisterScavengingTests
         await Assert.That(LoweredLoadOp(bb0, 3)).IsEqualTo(MOS6502Op.StyZp);
     }
 
-    // -------------------------------------------------------------------------
-    // 4. All three GPRs live across the copy → no scratch is free → the emergency
-    //    save/restore path saves a GPR into a dead zero-page slot
-    //    around the copy: `STA $save ; LDA #imm ; STA $dst ; LDA $save`.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 4. All three GPRs live across the copy → no scratch is free → the emergency
+    ///    save/restore path saves a GPR into a dead zero-page slot
+    ///    around the copy: `STA $save ; LDA #imm ; STA $dst ; LDA $save`.
+    /// </summary>
     [Test]
     public async Task AllGprsLive_EmergencySavesGprToZeroPage()
     {
@@ -172,10 +178,10 @@ public sealed class RegisterScavengingTests
         await Assert.That(LoweredLoadOp(bb0, 6)).IsEqualTo(MOS6502Op.LdaZp);  // restore $a
     }
 
-    // -------------------------------------------------------------------------
-    // 6. An $x↔$y copy with $a dead routes through $a: TXA ; TAY. ($a is the first
-    //    candidate and the cheap path — T-transfers, no memory traffic.)
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 6. An $x↔$y copy with $a dead routes through $a: TXA ; TAY. ($a is the first
+    ///    candidate and the cheap path — T-transfers, no memory traffic.)
+    /// </summary>
     [Test]
     public async Task XyCopy_ADead_RoutesThroughA()
     {
@@ -193,11 +199,11 @@ public sealed class RegisterScavengingTests
         await Assert.That(LoweredLoadOp(bb0, 2)).IsEqualTo(MOS6502Op.Tay);
     }
 
-    // -------------------------------------------------------------------------
-    // 7. An $x↔$y copy with $a LIVE across it bounces through a dead zero-page
-    //    slot — STX $zp ; LDY $zp — touching no GPR, so the live $a survives.
-    //    This is the field-access hazard: the low pointer byte stays in $a.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 7. An $x↔$y copy with $a LIVE across it bounces through a dead zero-page
+    ///    slot — STX $zp ; LDY $zp — touching no GPR, so the live $a survives.
+    ///    This is the field-access hazard: the low pointer byte stays in $a.
+    /// </summary>
     [Test]
     public async Task XyCopy_ALive_BouncesThroughZp()
     {
@@ -221,10 +227,10 @@ public sealed class RegisterScavengingTests
         await Assert.That(LoweredLoadOp(bb0, 3)).IsEqualTo(MOS6502Op.LdyZp);
     }
 
-    // -------------------------------------------------------------------------
-    // 8. A zp→zp copy needs a GPR (no zp-to-zp move on the 6502); with all GPRs
-    //    free it picks $a: LDA $src ; STA $dst.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 8. A zp→zp copy needs a GPR (no zp-to-zp move on the 6502); with all GPRs
+    ///    free it picks $a: LDA $src ; STA $dst.
+    /// </summary>
     [Test]
     public async Task ZpToZpCopy_PicksGpr()
     {
@@ -239,9 +245,7 @@ public sealed class RegisterScavengingTests
         await Assert.That(LoweredLoadOp(bb0, 1)).IsEqualTo(MOS6502Op.StaZp);
     }
 
-    // -------------------------------------------------------------------------
-    // 5. A function with no scratch-form copies is left untouched (fast path).
-    // -------------------------------------------------------------------------
+    /// <summary>5. A function with no scratch-form copies is left untouched (fast path).</summary>
     [Test]
     public async Task NoScratchCopies_NoOp()
     {

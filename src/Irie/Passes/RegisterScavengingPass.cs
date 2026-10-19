@@ -5,47 +5,48 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// =============================================================================
-// RegisterScavengingPass — assigns physical registers to copy-scratch vregs
-// left behind by pseudo expansion, then drives their final lowering.
-// =============================================================================
-//
-// Why this pass exists:
-// Some target moves need a temporary register to lower — on the MOS6502 an
-// immediate-into-zero-page copy expands to `LD? #imm ; ST? $zp`, which needs a
-// GPR. WHICH GPR is free is a post-allocation fact: it depends on what the
-// surrounding code is keeping in $a/$x/$y at that exact point. So the register
-// allocator does NOT reserve scratch (that was the old, deleted
-// GetPseudoCopyScratchClobbers hack, which forced $a free for every such copy).
-// Instead the pseudo expander re-emits a scratch-needing copy as a 3-operand
-// "scratch form" `pseudo.copy %dst, %src, %scratch` whose third operand is a
-// fresh virtual register, and THIS pass:
-//
-//   1. computes exact post-RA live intervals (every physreg's busy windows are
-//      already explicit in the operand array by now);
-//   2. for each scratch vreg, picks the cheapest target scratch GPR that is
-//      DEAD across the copy's program point — preferring $a, then $x, then $y,
-//      so a copy emitted while $a holds a live value gets $x or $y instead of
-//      evicting anything;
-//   3. rewrites the scratch operand to that physreg and asks the target's
-//      PseudoExpander to lower the now-physreg-only scratch form to its final
-//      machine instructions.
-//
-// This is a real pass with its own tests, NOT a shortcut: it produces strictly
-// better code than the old $a-reservation (it can use $x/$y as scratch) and
-// removes a whole class of constraint from the allocator.
-//
-// Pipeline position: it runs AFTER PseudoExpansionPass (which mints the scratch
-// vregs) and is the final pass, so no vregs survive into machine-code emission.
-// This matches llvm-mos's order (RA → pseudo expansion → scavenging).
-//
-// Spilling note: if no scratch GPR is ever dead at a copy's point, the
-// scavenger would need to save/restore one through an emergency frame slot. Real
-// spilling is Phase 4; per the plan it is acceptable for that emergency path to
-// throw a clear NotImplementedException so long as the test corpus never hits it
-// (verified — there is always a dead GPR for the immediate→zp copies the corpus
-// produces). The exception, if ever raised, is the explicit signal to implement
-// the minimal save/restore.
+/// <summary>
+/// RegisterScavengingPass — assigns physical registers to copy-scratch vregs
+/// left behind by pseudo expansion, then drives their final lowering.
+/// </summary>
+/// <remarks>
+/// Why this pass exists:
+/// Some target moves need a temporary register to lower — on the MOS6502 an
+/// immediate-into-zero-page copy expands to `LD? #imm ; ST? $zp`, which needs a
+/// GPR. WHICH GPR is free is a post-allocation fact: it depends on what the
+/// surrounding code is keeping in $a/$x/$y at that exact point. So the register
+/// allocator does NOT reserve scratch (that was the old, deleted
+/// GetPseudoCopyScratchClobbers hack, which forced $a free for every such copy).
+/// Instead the pseudo expander re-emits a scratch-needing copy as a 3-operand
+/// "scratch form" `pseudo.copy %dst, %src, %scratch` whose third operand is a
+/// fresh virtual register, and THIS pass:
+///
+///   1. computes exact post-RA live intervals (every physreg's busy windows are
+///      already explicit in the operand array by now);
+///   2. for each scratch vreg, picks the cheapest target scratch GPR that is
+///      DEAD across the copy's program point — preferring $a, then $x, then $y,
+///      so a copy emitted while $a holds a live value gets $x or $y instead of
+///      evicting anything;
+///   3. rewrites the scratch operand to that physreg and asks the target's
+///      PseudoExpander to lower the now-physreg-only scratch form to its final
+///      machine instructions.
+///
+/// This is a real pass with its own tests, NOT a shortcut: it produces strictly
+/// better code than the old $a-reservation (it can use $x/$y as scratch) and
+/// removes a whole class of constraint from the allocator.
+///
+/// Pipeline position: it runs AFTER PseudoExpansionPass (which mints the scratch
+/// vregs) and is the final pass, so no vregs survive into machine-code emission.
+/// This matches llvm-mos's order (RA → pseudo expansion → scavenging).
+///
+/// Spilling note: if no scratch GPR is ever dead at a copy's point, the
+/// scavenger would need to save/restore one through an emergency frame slot. Real
+/// spilling is Phase 4; per the plan it is acceptable for that emergency path to
+/// throw a clear NotImplementedException so long as the test corpus never hits it
+/// (verified — there is always a dead GPR for the immediate→zp copies the corpus
+/// produces). The exception, if ever raised, is the explicit signal to implement
+/// the minimal save/restore.
+/// </remarks>
 public sealed class RegisterScavengingPass(
     TargetRegisterInfo registerInfo, PseudoExpander expander) : MirFunctionPass
 {
@@ -112,18 +113,21 @@ public sealed class RegisterScavengingPass(
         function.ClearVRegAnnotations();
     }
 
-    // Choose the cheapest scratch location dead across the copy's whole program
-    // point, from the target-supplied candidate list (GPRs, and for shapes that
-    // allow it — e.g. an $x↔$y copy — zero-page bounce slots). "Dead across the
-    // copy" = the candidate's precolored busy interval does not overlap the
-    // [use point, def point] span of the copy instruction, and the candidate is
-    // not itself the copy's source or destination physreg (it must be free to
-    // scribble in).
-    //
-    // We test the full instruction span (use point through def point) rather
-    // than a single point so a register whose value is live INTO the copy (read
-    // by it) or OUT of the copy (read after it) is excluded — the scratch must
-    // be free for the entire load+store the copy expands to.
+    /// <summary>
+    /// Choose the cheapest scratch location dead across the copy's whole program
+    /// point, from the target-supplied candidate list (GPRs, and for shapes that
+    /// allow it — e.g. an $x↔$y copy — zero-page bounce slots). "Dead across the
+    /// copy" = the candidate's precolored busy interval does not overlap the
+    /// [use point, def point] span of the copy instruction, and the candidate is
+    /// not itself the copy's source or destination physreg (it must be free to
+    /// scribble in).
+    /// </summary>
+    /// <remarks>
+    /// We test the full instruction span (use point through def point) rather
+    /// than a single point so a register whose value is live INTO the copy (read
+    /// by it) or OUT of the copy (read after it) is excluded — the scratch must
+    /// be free for the entire load+store the copy expands to.
+    /// </remarks>
     private int PickScratch(
         MirInstruction copy, LiveIntervals intervals, ReadOnlySpan<int> candidates)
     {
@@ -157,11 +161,13 @@ public sealed class RegisterScavengingPass(
         return -1;
     }
 
-    // Emergency save/restore: no scratch location is free across the copy, so pick
-    // the first candidate GPR, save it into a zero-page slot that IS dead here, do
-    // the copy using that GPR, then restore it. The save (`ST? $zp`) and restore
-    // (`LD? $zp`) are themselves register↔zero-page copies that need no further
-    // scratch, so they bottom out cleanly.
+    /// <summary>
+    /// Emergency save/restore: no scratch location is free across the copy, so pick
+    /// the first candidate GPR, save it into a zero-page slot that IS dead here, do
+    /// the copy using that GPR, then restore it. The save (`ST? $zp`) and restore
+    /// (`LD? $zp`) are themselves register↔zero-page copies that need no further
+    /// scratch, so they bottom out cleanly.
+    /// </summary>
     private void EmergencyExpand(
         MirInstruction copy, int scratchOperandIndex, bool scratchIsDef,
         ReadOnlySpan<int> candidates, LiveIntervals intervals, MirBuilder builder)
@@ -231,9 +237,11 @@ public sealed class RegisterScavengingPass(
         builder.Remove(copy);
     }
 
-    // True if `physReg`'s precolored busy interval overlaps the given span — i.e.
-    // it holds a live value somewhere across the copy. An untracked physreg
-    // (never appears as an operand) has no interval and is free.
+    /// <summary>
+    /// True if `physReg`'s precolored busy interval overlaps the given span — i.e.
+    /// it holds a live value somewhere across the copy. An untracked physreg
+    /// (never appears as an operand) has no interval and is free.
+    /// </summary>
     private static bool PhysRegBusyDuring(LiveIntervals intervals, int physReg, LiveSegment span)
     {
         foreach (var seg in intervals.PhysIntervalOf(physReg).Segments)
@@ -242,9 +250,11 @@ public sealed class RegisterScavengingPass(
         return false;
     }
 
-    // The physical registers the copy reads or writes directly (excludes the
-    // scratch operand, which is what we are choosing). Used so the scavenger
-    // never picks the copy's own dst/src as its scratch.
+    /// <summary>
+    /// The physical registers the copy reads or writes directly (excludes the
+    /// scratch operand, which is what we are choosing). Used so the scavenger
+    /// never picks the copy's own dst/src as its scratch.
+    /// </summary>
     private static HashSet<int> TouchedPhysRegs(MirInstruction copy)
     {
         var touched = new HashSet<int>();
@@ -258,9 +268,11 @@ public sealed class RegisterScavengingPass(
         return touched;
     }
 
-    // A scratch-form copy is a `pseudo.copy` with exactly 3 operands whose
-    // scratch (third) operand is still a virtual register. (Once the scavenger
-    // has bound and lowered it, it no longer exists.)
+    /// <summary>
+    /// A scratch-form copy is a `pseudo.copy` with exactly 3 operands whose
+    /// scratch (third) operand is still a virtual register. (Once the scavenger
+    /// has bound and lowered it, it no longer exists.)
+    /// </summary>
     private static bool IsScratchForm(MirInstruction instr)
     {
         if (instr.Opcode.Dialect != PseudoDialect.Id) return false;
@@ -269,8 +281,10 @@ public sealed class RegisterScavengingPass(
         return instr.Operands[2] is VirtualReg;
     }
 
-    // The operand index holding the scratch vreg (by construction the third
-    // operand of a scratch-form copy).
+    /// <summary>
+    /// The operand index holding the scratch vreg (by construction the third
+    /// operand of a scratch-form copy).
+    /// </summary>
     private static int FindScratchOperandIndex(MirInstruction copy)
     {
         for (var i = 0; i < copy.Operands.Length; i++)

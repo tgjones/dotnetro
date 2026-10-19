@@ -1,32 +1,47 @@
 namespace Irie.Target.MOS6502;
 
-// MOS6502 register class IDs. 0 means "no class assigned"; all real classes are >= 1.
-//
-// - Ac, Xc, Yc, Cc, Vc, Nc, Zc, Ic, Dc, Bc: single architectural registers
-// - Imag8: imaginary 8-bit zero-page registers (RC0..RCn)
-// - Anyi8: any 8-bit register (A, X, Y, or Imag8). Used for values that can be
-//   stored in any 8-bit location but aren't constrained to a specific one. $y was
-//   added to this class because the
-//   llvm-mos references use $a/$x/$y freely for data, whereas Irie previously
-//   parked everything in the zero-page pool and never touched $y.
+/// <summary>
+/// MOS6502 register class IDs. 0 means "no class assigned"; all real classes are &gt;= 1.
+/// </summary>
+/// <remarks>
+/// - Ac, Xc, Yc, Cc, Vc, Nc, Zc, Ic, Dc, Bc: single architectural registers
+/// - Imag8: imaginary 8-bit zero-page registers (RC0..RCn)
+/// - Anyi8: any 8-bit register (A, X, Y, or Imag8). Used for values that can be
+///   stored in any 8-bit location but aren't constrained to a specific one. $y was
+///   added to this class because the
+///   llvm-mos references use $a/$x/$y freely for data, whereas Irie previously
+///   parked everything in the zero-page pool and never touched $y.
+/// </remarks>
 public static class MOS6502RegisterClass
 {
     public const int None  = 0;
-    public const int Ac    = 1; // accumulator (A)
-    public const int Xc    = 2; // X index register
-    public const int Yc    = 3; // Y index register
-    public const int Cc    = 4; // C flag (single bit)
-    public const int Vc    = 5; // V flag (single bit)
-    public const int Imag8 = 6; // imaginary 8-bit zero-page registers (RC0..RCn)
+    /// <summary>accumulator (A)</summary>
+    public const int Ac    = 1;
+    /// <summary>X index register</summary>
+    public const int Xc    = 2;
+    /// <summary>Y index register</summary>
+    public const int Yc    = 3;
+    /// <summary>C flag (single bit)</summary>
+    public const int Cc    = 4;
+    /// <summary>V flag (single bit)</summary>
+    public const int Vc    = 5;
+    /// <summary>imaginary 8-bit zero-page registers (RC0..RCn)</summary>
+    public const int Imag8 = 6;
     public const int Anyi8 = 7; // any 8-bit register (A, X, Y, or Imag8)
-    // Status-flag classes for the new MIR dialect (one class per flag is the
-    // first-cut layout; can be unified
-    // later if RA freedom is never needed).
+    /// <summary>
+    /// Status-flag classes for the new MIR dialect (one class per flag is the
+    /// first-cut layout; can be unified
+    /// later if RA freedom is never needed).
+    /// </summary>
     public const int Nc    = 8;  // N flag
-    public const int Zc    = 9;  // Z flag
-    public const int Ic    = 10; // I flag (interrupt disable)
-    public const int Dc    = 11; // D flag (decimal mode)
-    public const int Bc    = 12; // B flag (break)
+    /// <summary>Z flag</summary>
+    public const int Zc    = 9;
+    /// <summary>I flag (interrupt disable)</summary>
+    public const int Ic    = 10;
+    /// <summary>D flag (decimal mode)</summary>
+    public const int Dc    = 11;
+    /// <summary>B flag (break)</summary>
+    public const int Bc    = 12;
 
     public static string? GetName(int classId) => classId switch
     {
@@ -66,8 +81,10 @@ public static class MOS6502RegisterClass
         return classId != None;
     }
 
-    // Returns the class that a value held in the given physical register belongs to.
-    // Used by selectors to constrain a vreg's class when copying from / to a phys reg.
+    /// <summary>
+    /// Returns the class that a value held in the given physical register belongs to.
+    /// Used by selectors to constrain a vreg's class when copying from / to a phys reg.
+    /// </summary>
     public static int OfPhysicalRegister(int physReg) => physReg switch
     {
         MOS6502Registers.A => Ac,

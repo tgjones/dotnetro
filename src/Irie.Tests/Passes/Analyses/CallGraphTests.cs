@@ -10,8 +10,10 @@ public sealed class CallGraphTests
 
     static CallGraphTests() => Target = new MOS6502Target();
 
-    // A function whose address bytes are loaded (a delegate, a function pointer) is
-    // address-taken, not called: an indirect call can then reach it.
+    /// <summary>
+    /// A function whose address bytes are loaded (a delegate, a function pointer) is
+    /// address-taken, not called: an indirect call can then reach it.
+    /// </summary>
     [Test]
     public async Task LoadingTheAddressBytesOfAFunctionTakesItsAddress()
     {

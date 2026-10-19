@@ -20,9 +20,11 @@ public sealed class GenericMirVerifierTests
     private static MirFunction NewFunction(string name) =>
         new(name, [], IRType.Void);
 
-    // arith.addi with an inline value literal as its second operand violates the
-    // invariant — the literal must be an arith.constant def, not an inline
-    // Immediate — so the verifier throws.
+    /// <summary>
+    /// arith.addi with an inline value literal as its second operand violates the
+    /// invariant — the literal must be an arith.constant def, not an inline
+    /// Immediate — so the verifier throws.
+    /// </summary>
     [Test]
     public async Task InlineValueImmediateInAddI_Throws()
     {
@@ -40,9 +42,11 @@ public sealed class GenericMirVerifierTests
         await Assert.That(() => Pass.Run(fn)).Throws<MirVerificationException>();
     }
 
-    // The cmpi predicate immediate, the mem.fill count immediate, and
-    // arith.constant's own value immediate are all legal structural / constant
-    // attributes — the verifier accepts them.
+    /// <summary>
+    /// The cmpi predicate immediate, the mem.fill count immediate, and
+    /// arith.constant's own value immediate are all legal structural / constant
+    /// attributes — the verifier accepts them.
+    /// </summary>
     [Test]
     public async Task LegalStructuralImmediates_DoNotThrow()
     {

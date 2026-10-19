@@ -1,8 +1,8 @@
 namespace System.Runtime.CompilerServices;
 
-// Roslyn looks for these fields to learn what the target runtime supports.
+/// <summary>Roslyn looks for these fields to learn what the target runtime supports.</summary>
 public static class RuntimeFeature
 {
-    // `delegate* unmanaged[Conv]<…>` with an extensible calling convention.
+    /// <summary>`delegate* unmanaged[Conv]&lt;…&gt;` with an extensible calling convention.</summary>
     public const string UnmanagedSignatureCallingConvention = nameof(UnmanagedSignatureCallingConvention);
 }

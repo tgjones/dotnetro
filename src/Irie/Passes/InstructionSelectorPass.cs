@@ -3,12 +3,15 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// Walks each function's instructions in order, asking the target's selector
-// to lower each one. Mirrors the old Irie.CodeGen.Passes.InstructionSelectorPass.
-//
-// Selection commits each vreg to a register class:
-// new defs are created via CreateVirtualRegisterInClass and existing vreg uses
-// are converted from TypedVReg to ClassedVReg via ReclassifyVirtualRegister.
+/// <summary>
+/// Walks each function's instructions in order, asking the target's selector
+/// to lower each one. Mirrors the old Irie.CodeGen.Passes.InstructionSelectorPass.
+/// </summary>
+/// <remarks>
+/// Selection commits each vreg to a register class:
+/// new defs are created via CreateVirtualRegisterInClass and existing vreg uses
+/// are converted from TypedVReg to ClassedVReg via ReclassifyVirtualRegister.
+/// </remarks>
 public sealed class InstructionSelectorPass(Irie.Target.InstructionSelector selector) : MirFunctionPass
 {
     public override string Name => "InstructionSelector";

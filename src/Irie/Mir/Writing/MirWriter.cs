@@ -1,12 +1,19 @@
 
 namespace Irie.Mir.Writing;
 
+/// <summary>
+/// Prints MIR text: `func @name : (…) -&gt; T` headers, vregs annotated at their def
+/// site (type before instruction selection, class after), and `[liveins: $a, $x]`
+/// lines on blocks with non-empty live-ins.
+/// </summary>
 internal sealed class MirWriter
 {
-    // Optional lookup from physical-register ID to a printable name. When null
-    // (the default), physregs print as raw numeric IDs (`$8`). When supplied
-    // (e.g. by iriec wiring in the target's RegisterInfo), they print under
-    // their target-specific names (`$RC2`).
+    /// <summary>
+    /// Optional lookup from physical-register ID to a printable name. When null
+    /// (the default), physregs print as raw numeric IDs (`$8`). When supplied
+    /// (e.g. by iriec wiring in the target's RegisterInfo), they print under
+    /// their target-specific names (`$RC2`).
+    /// </summary>
     private readonly Func<int, string>? _physRegNamer;
 
     private MirWriter(Func<int, string>? physRegNamer) => _physRegNamer = physRegNamer;
@@ -29,8 +36,10 @@ internal sealed class MirWriter
         }
     }
 
-    // Module-level globals: `global @name : <type> [= <initializer>]`.
-    // Initializer is omitted for zero-init (`.bss`-style) globals.
+    /// <summary>
+    /// Module-level globals: `global @name : &lt;type&gt; [= &lt;initializer&gt;]`.
+    /// Initializer is omitted for zero-init (`.bss`-style) globals.
+    /// </summary>
     private static void WriteGlobal(MirGlobal global, TextWriter writer)
     {
         writer.Write($"global @{global.SymbolName} : {global.Type.DisplayName}");
@@ -201,10 +210,12 @@ internal sealed class MirWriter
         _ => throw new InvalidOperationException($"Not a definition operand: {operand.GetType().Name}"),
     };
 
-    // Uses print unannotated per the format spec — the annotation is taken from
-    // the def site. The one exception is `(tied-def N)`, pulled from the
-    // dialect's TiedOperands metadata. Immediate uses can opt into symbolic
-    // rendering via Dialect.TryFormatImmediateUse (e.g. arith.cmpi's predicate).
+    /// <summary>
+    /// Uses print unannotated per the format spec — the annotation is taken from
+    /// the def site. The one exception is `(tied-def N)`, pulled from the
+    /// dialect's TiedOperands metadata. Immediate uses can opt into symbolic
+    /// rendering via Dialect.TryFormatImmediateUse (e.g. arith.cmpi's predicate).
+    /// </summary>
     private string FormatUseOperand(
         MirOperand operand,
         MirFunction function,

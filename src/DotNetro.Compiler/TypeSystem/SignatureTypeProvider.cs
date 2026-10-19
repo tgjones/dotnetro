@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection.Metadata;
 
@@ -38,8 +38,10 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
         // signature) don't change the representation.
         unmodifiedType;
 
-    // Pinning keeps the garbage collector from moving the target; there is no GC here,
-    // so a pinned local is just a local of the underlying type.
+    /// <summary>
+    /// Pinning keeps the garbage collector from moving the target; there is no GC here,
+    /// so a pinned local is just a local of the underlying type.
+    /// </summary>
     public TypeDescription GetPinnedType(TypeDescription elementType) => elementType;
 
     public TypeDescription GetPointerType(TypeDescription elementType) => elementType.MakePointerType();
@@ -60,9 +62,11 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
         return Underlying(assembly.ResolveType(handle));
     }
 
-    // An enum is represented by its underlying integer type everywhere a signature
-    // names it (locals, fields, parameters, arrays); the enum type itself is only
-    // needed by `box` & co, which take a type token and so never come through here.
+    /// <summary>
+    /// An enum is represented by its underlying integer type everywhere a signature
+    /// names it (locals, fields, parameters, arrays); the enum type itself is only
+    /// needed by `box` &amp; co, which take a type token and so never come through here.
+    /// </summary>
     private static TypeDescription Underlying(EcmaType type) =>
         type.IsEnum ? type.EnumUnderlyingType : type;
 

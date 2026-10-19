@@ -2,65 +2,62 @@ using Irie.Mir;
 
 namespace Irie.Passes.Analyses;
 
-// =============================================================================
-// LiveIntervals — physreg-aware live-interval analysis with holes.
-// =============================================================================
-//
-// This is the *result* type produced by LiveIntervalsAnalysis. It is the
-// foundation the register allocator builds on. Appel, *Modern
-// Compiler Implementation* ch. 11, is the reference for the terminology
-// ("live range", "interference", "interval"); this file follows it.
-//
-// What "live interval" means
-// ---------------------------
-// A *value* (a vreg, or a value sitting in a physreg) is *live* at a program
-// point if it has already been defined and will still be read in the future.
-// The set of points where a value is live, taken together, is its *live range*.
-// We represent that range as a *list of segments* — half-open [start, end)
-// windows over the global instruction numbering — rather than a single
-// [start, end] pair. The list form is what lets us model *holes*: a value can
-// be live, go dead (its last use passes), then become live again at a later
-// re-definition. Tracking holes is what makes interference *exact*: two values
-// that are each live in disjoint windows do not actually interfere even if
-// their outermost [min,max] ranges overlap.
-//
-// Interference
-// ------------
-// Two intervals *interfere* iff any segment of one overlaps any segment of the
-// other. Overlap is the half-open test `a.Start < b.End && b.Start < a.End`.
-// A precoloured physreg interval interfering with a vreg interval means the
-// vreg cannot be assigned that physreg.
-//
-// -----------------------------------------------------------------------------
-// Instruction numbering — def/use sub-slots (a Phase-1 design decision)
-// -----------------------------------------------------------------------------
-// The old LivenessAnalysis numbered one slot per instruction. That is too
-// coarse to express the most valuable sharing on this target: a value and its
-// single consumer occupying the *same* physreg (e.g. a value computed in $a and
-// immediately added in $a). With one slot per instruction, the producer's range
-// ends at slot N and the consumer's range starts at slot N, so a half-open
-// overlap test cannot tell "consumer reads exactly where producer dies" apart
-// from "both genuinely overlap".
-//
-// We therefore split each instruction into TWO sub-slots, mirroring LLVM's
-// SlotIndexes (which uses register/dead/early-clobber sub-slots):
-//
-//     base = SlotsPerInstruction * instructionIndex
-//     UsePoint(base) = base            // operands are READ here ("early")
-//     DefPoint(base) = base + 1        // results are WRITTEN here ("late")
-//
-// A use's live segment ends at the instruction's *use point*; a def's live
-// segment starts at the instruction's *def point*. So a value used at
-// instruction N (segment ending at base_N) and a fresh value defined at the same
-// instruction N (segment starting at base_N + 1) do NOT overlap — the half-open
-// windows [.., base_N) and [base_N+1, ..) are disjoint. That is exactly the
-// def/use sharing the single-slot scheme could not express.
-//
-// A value that is BOTH used and re-defined by the same instruction (a tied
-// operand: read at the use point, written back at the def point) has a segment
-// that runs *through* the instruction — it ends at the def point of the
-// re-defining instruction, not the use point — so a tied def/use is one
-// continuous live segment, as it must be.
+/// <summary>
+/// LiveIntervals — physreg-aware live-interval analysis with holes.
+/// </summary>
+/// <remarks>
+/// This is the *result* type produced by LiveIntervalsAnalysis. It is the
+/// foundation the register allocator builds on. Appel, *Modern
+/// Compiler Implementation* ch. 11, is the reference for the terminology
+/// ("live range", "interference", "interval"); this file follows it.
+///
+/// What "live interval" means
+/// A *value* (a vreg, or a value sitting in a physreg) is *live* at a program
+/// point if it has already been defined and will still be read in the future.
+/// The set of points where a value is live, taken together, is its *live range*.
+/// We represent that range as a *list of segments* — half-open [start, end)
+/// windows over the global instruction numbering — rather than a single
+/// [start, end] pair. The list form is what lets us model *holes*: a value can
+/// be live, go dead (its last use passes), then become live again at a later
+/// re-definition. Tracking holes is what makes interference *exact*: two values
+/// that are each live in disjoint windows do not actually interfere even if
+/// their outermost [min,max] ranges overlap.
+///
+/// Interference
+/// Two intervals *interfere* iff any segment of one overlaps any segment of the
+/// other. Overlap is the half-open test `a.Start &lt; b.End &amp;&amp; b.Start &lt; a.End`.
+/// A precoloured physreg interval interfering with a vreg interval means the
+/// vreg cannot be assigned that physreg.
+///
+/// Instruction numbering — def/use sub-slots (a Phase-1 design decision)
+/// The old LivenessAnalysis numbered one slot per instruction. That is too
+/// coarse to express the most valuable sharing on this target: a value and its
+/// single consumer occupying the *same* physreg (e.g. a value computed in $a and
+/// immediately added in $a). With one slot per instruction, the producer's range
+/// ends at slot N and the consumer's range starts at slot N, so a half-open
+/// overlap test cannot tell "consumer reads exactly where producer dies" apart
+/// from "both genuinely overlap".
+///
+/// We therefore split each instruction into TWO sub-slots, mirroring LLVM's
+/// SlotIndexes (which uses register/dead/early-clobber sub-slots):
+///
+///     base = SlotsPerInstruction * instructionIndex
+///     UsePoint(base) = base            // operands are READ here ("early")
+///     DefPoint(base) = base + 1        // results are WRITTEN here ("late")
+///
+/// A use's live segment ends at the instruction's *use point*; a def's live
+/// segment starts at the instruction's *def point*. So a value used at
+/// instruction N (segment ending at base_N) and a fresh value defined at the same
+/// instruction N (segment starting at base_N + 1) do NOT overlap — the half-open
+/// windows [.., base_N) and [base_N+1, ..) are disjoint. That is exactly the
+/// def/use sharing the single-slot scheme could not express.
+///
+/// A value that is BOTH used and re-defined by the same instruction (a tied
+/// operand: read at the use point, written back at the def point) has a segment
+/// that runs *through* the instruction — it ends at the def point of the
+/// re-defining instruction, not the use point — so a tied def/use is one
+/// continuous live segment, as it must be.
+/// </remarks>
 public sealed record LiveIntervals(
     // Sub-slot numbering. Each instruction owns SlotsPerInstruction consecutive
     // integer points; UseSlotOf / DefSlotOf below derive the two sub-slots.
@@ -74,23 +71,27 @@ public sealed record LiveIntervals(
     // defs). Keyed by physical-register id.
     IReadOnlyDictionary<int, LiveInterval> PhysRegIntervals)
 {
-    // Two sub-slots per instruction: the use ("early") point and the def
-    // ("late") point. See the header comment for why.
+    /// <summary>
+    /// Two sub-slots per instruction: the use ("early") point and the def
+    /// ("late") point. See the header comment for why.
+    /// </summary>
     public const int SlotsPerInstruction = 2;
 
-    // The point at which an instruction READS its use operands.
+    /// <summary>The point at which an instruction READS its use operands.</summary>
     public static int UseSlot(int baseSlot) => baseSlot;
 
-    // The point at which an instruction WRITES its def operands.
+    /// <summary>The point at which an instruction WRITES its def operands.</summary>
     public static int DefSlot(int baseSlot) => baseSlot + 1;
 
     // ---- Query API (consumed by RegisterScavengingPass) ----------
 
-    // Does this vreg's interval overlap this physreg's busy interval? True =>
-    // the vreg cannot be placed on that physreg. Subsumes the old pass's
-    // IsClobberFree / IsReservationFree (a clobber or reservation is just a
-    // segment of the physreg's interval). Returns false when either side has no
-    // interval (an untracked vreg/physreg is never busy).
+    /// <summary>
+    /// Does this vreg's interval overlap this physreg's busy interval? True =&gt;
+    /// the vreg cannot be placed on that physreg. Subsumes the old pass's
+    /// IsClobberFree / IsReservationFree (a clobber or reservation is just a
+    /// segment of the physreg's interval). Returns false when either side has no
+    /// interval (an untracked vreg/physreg is never busy).
+    /// </summary>
     public bool Overlaps(int vreg, int physReg)
     {
         if (!VRegIntervals.TryGetValue(vreg, out var v)) return false;
@@ -98,8 +99,10 @@ public sealed record LiveIntervals(
         return v.Overlaps(p);
     }
 
-    // Do two vregs interfere (any segment overlaps)? This is the edge test of
-    // the interference graph the Phase-3 coalescer/colourer will build.
+    /// <summary>
+    /// Do two vregs interfere (any segment overlaps)? This is the edge test of
+    /// the interference graph the Phase-3 coalescer/colourer will build.
+    /// </summary>
     public bool Interfere(int vregA, int vregB)
     {
         if (vregA == vregB) return false;
@@ -108,18 +111,20 @@ public sealed record LiveIntervals(
         return a.Overlaps(b);
     }
 
-    // The segments of a vreg's interval, or an empty interval if untracked.
+    /// <summary>The segments of a vreg's interval, or an empty interval if untracked.</summary>
     public LiveInterval IntervalOf(int vreg) =>
         VRegIntervals.TryGetValue(vreg, out var v) ? v : LiveInterval.Empty;
 
-    // The segments of a physreg's interval, or an empty interval if untracked.
+    /// <summary>The segments of a physreg's interval, or an empty interval if untracked.</summary>
     public LiveInterval PhysIntervalOf(int physReg) =>
         PhysRegIntervals.TryGetValue(physReg, out var p) ? p : LiveInterval.Empty;
 
-    // The value number of the segment of `vreg` that COVERS `slot`, or null if no
-    // segment covers it (the vreg is not live across that point). SplitKit (S2)
-    // uses this to identify which value of a vreg is live at a split point — the
-    // value the split relocates. See LiveSegment's ValNo doc.
+    /// <summary>
+    /// The value number of the segment of `vreg` that COVERS `slot`, or null if no
+    /// segment covers it (the vreg is not live across that point). SplitKit (S2)
+    /// uses this to identify which value of a vreg is live at a split point — the
+    /// value the split relocates. See LiveSegment's ValNo doc.
+    /// </summary>
     public int? ValNoAt(int vreg, int slot)
     {
         if (!VRegIntervals.TryGetValue(vreg, out var v)) return null;
@@ -129,30 +134,32 @@ public sealed record LiveIntervals(
     }
 }
 
-// A half-open live window [Start, End) over the global sub-slot numbering.
-// Half-open is deliberate: it makes "ends exactly where the next thing starts"
-// (def/use sharing) a non-overlap, which is the whole point of the sub-slot
-// scheme. Start == End is an empty segment (never stored).
-//
-// ValNo — value number (SplitKit foundation, S1)
-// ----------------------------------------------
-// A *value number* identifies the maximal set of segments of one vreg that carry
-// the SAME value: segments connected through the CFG with no intervening def of
-// that vreg. A def starts a new value number; at a CFG join the value numbers
-// flowing in from each predecessor are unified into one (non-SSA MIR
-// is allowed, so a vreg can legitimately have multiple defs reaching a join — the
-// join's live-in is genuinely one merged value). Computed by
-// LiveIntervalsValueNumbering (a reaching-definition union-find) and threaded
-// onto each emitted segment. ValNo is NOT involved in interference: Overlaps /
-// Interfere / Covers test slot overlap only, never ValNo. Later SplitKit stages
-// (S2+) consume ValNo to split one value number out of a vreg's range; nothing
-// reads it yet at S1.
-//
-// PHYSREG segments use the sentinel ValNo PhysRegValNo (SplitKit splits vregs,
-// not physregs, so physregs need no value numbering for S1).
+/// <summary>
+/// A half-open live window [Start, End) over the global sub-slot numbering.
+/// Half-open is deliberate: it makes "ends exactly where the next thing starts"
+/// (def/use sharing) a non-overlap, which is the whole point of the sub-slot
+/// scheme. Start == End is an empty segment (never stored).
+/// </summary>
+/// <remarks>
+/// ValNo — value number (SplitKit foundation, S1)
+/// A *value number* identifies the maximal set of segments of one vreg that carry
+/// the SAME value: segments connected through the CFG with no intervening def of
+/// that vreg. A def starts a new value number; at a CFG join the value numbers
+/// flowing in from each predecessor are unified into one (non-SSA MIR
+/// is allowed, so a vreg can legitimately have multiple defs reaching a join — the
+/// join's live-in is genuinely one merged value). Computed by
+/// LiveIntervalsValueNumbering (a reaching-definition union-find) and threaded
+/// onto each emitted segment. ValNo is NOT involved in interference: Overlaps /
+/// Interfere / Covers test slot overlap only, never ValNo. Later SplitKit stages
+/// (S2+) consume ValNo to split one value number out of a vreg's range; nothing
+/// reads it yet at S1.
+///
+/// PHYSREG segments use the sentinel ValNo PhysRegValNo (SplitKit splits vregs,
+/// not physregs, so physregs need no value numbering for S1).
+/// </remarks>
 public readonly record struct LiveSegment(int Start, int End, int ValNo)
 {
-    // Sentinel value number for segments that are not value-numbered (physregs).
+    /// <summary>Sentinel value number for segments that are not value-numbered (physregs).</summary>
     public const int PhysRegValNo = -1;
 
     public bool OverlapsWith(LiveSegment other) =>
@@ -161,10 +168,12 @@ public readonly record struct LiveSegment(int Start, int End, int ValNo)
     public bool Contains(int point) => Start <= point && point < End;
 }
 
-// A value's live range: a list of disjoint, ascending segments (holes between
-// them). Built by Add()-ing raw segments and then Normalize()-ing (sort + merge
-// touching/overlapping segments). After Normalize the list is canonical, so two
-// intervals over the same numbering compare/overlap deterministically.
+/// <summary>
+/// A value's live range: a list of disjoint, ascending segments (holes between
+/// them). Built by Add()-ing raw segments and then Normalize()-ing (sort + merge
+/// touching/overlapping segments). After Normalize the list is canonical, so two
+/// intervals over the same numbering compare/overlap deterministically.
+/// </summary>
 public sealed class LiveInterval
 {
     public static readonly LiveInterval Empty = new();
@@ -175,29 +184,35 @@ public sealed class LiveInterval
 
     public bool IsEmpty => _segments.Count == 0;
 
-    // First defined / last live point across all segments. Useful for the
-    // linear-scan ordering Phase 2 will use (order by Start).
+    /// <summary>
+    /// First defined / last live point across all segments. Useful for the
+    /// linear-scan ordering Phase 2 will use (order by Start).
+    /// </summary>
     public int Start => _segments.Count == 0 ? 0 : _segments[0].Start;
     public int End => _segments.Count == 0 ? 0 : _segments[^1].End;
 
-    // Add a raw [start, end) window tagged with a value number. Empty/reversed
-    // windows are dropped. Call Normalize() once after all Add()s before querying.
-    // Physreg segments pass LiveSegment.PhysRegValNo (the sentinel).
+    /// <summary>
+    /// Add a raw [start, end) window tagged with a value number. Empty/reversed
+    /// windows are dropped. Call Normalize() once after all Add()s before querying.
+    /// Physreg segments pass LiveSegment.PhysRegValNo (the sentinel).
+    /// </summary>
     public void Add(int start, int end, int valNo)
     {
         if (end <= start) return;
         _segments.Add(new LiveSegment(start, end, valNo));
     }
 
-    // Sort by start and coalesce touching or overlapping segments into maximal
-    // runs — but ONLY when the two segments share the same ValNo. "Touching"
-    // (prev.End == next.Start) segments merge because a value live up to a point
-    // and again from that same point has no real hole there; however two abutting
-    // segments with DIFFERENT value numbers must stay distinct (that is the whole
-    // point of value numbers — SplitKit splits one value number out of a range).
-    // Overlapping segments of the same ValNo still merge. Physreg segments all
-    // carry the sentinel PhysRegValNo, so they merge on adjacency exactly as
-    // before — preserving physreg interference behaviour.
+    /// <summary>
+    /// Sort by start and coalesce touching or overlapping segments into maximal
+    /// runs — but ONLY when the two segments share the same ValNo. "Touching"
+    /// (prev.End == next.Start) segments merge because a value live up to a point
+    /// and again from that same point has no real hole there; however two abutting
+    /// segments with DIFFERENT value numbers must stay distinct (that is the whole
+    /// point of value numbers — SplitKit splits one value number out of a range).
+    /// Overlapping segments of the same ValNo still merge. Physreg segments all
+    /// carry the sentinel PhysRegValNo, so they merge on adjacency exactly as
+    /// before — preserving physreg interference behaviour.
+    /// </summary>
     public void Normalize()
     {
         if (_segments.Count <= 1) return;
@@ -225,10 +240,12 @@ public sealed class LiveInterval
         _segments.AddRange(merged);
     }
 
-    // True if any segment of this interval overlaps any segment of the other.
-    // Both intervals are normalized (ascending, disjoint), so we can sweep the
-    // two segment lists in lock-step — a standard two-pointer merge — in linear
-    // time rather than the quadratic all-pairs comparison.
+    /// <summary>
+    /// True if any segment of this interval overlaps any segment of the other.
+    /// Both intervals are normalized (ascending, disjoint), so we can sweep the
+    /// two segment lists in lock-step — a standard two-pointer merge — in linear
+    /// time rather than the quadratic all-pairs comparison.
+    /// </summary>
     public bool Overlaps(LiveInterval other)
     {
         var i = 0;
@@ -246,8 +263,10 @@ public sealed class LiveInterval
         return false;
     }
 
-    // True if any segment covers the given point. Used by the allocator to ask
-    // "is this physreg busy at exactly this slot?".
+    /// <summary>
+    /// True if any segment covers the given point. Used by the allocator to ask
+    /// "is this physreg busy at exactly this slot?".
+    /// </summary>
     public bool Covers(int point)
     {
         foreach (var s in _segments)

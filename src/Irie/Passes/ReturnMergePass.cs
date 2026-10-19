@@ -4,32 +4,35 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Merges multiple function-terminating `core.return` blocks into a single common
-// return block, mirroring LLVM SimplifyCFG's
-// `tailMergeBlocksWithSimilarFunctionTerminators` /
-// `performBlockTailMerging` (llvm/lib/Transforms/Scalar/SimplifyCFGPass.cpp).
-//
-// A function with N separate `core.return %v` blocks lowers, at AbiLowering, to N
-// copies of the same return epilogue (unmerge + per-byte copy to the result
-// physregs + pseudo.return). Funnelling all returns through one block turns those
-// into a single epilogue: each original return becomes `cf.br retblock(%v)`, and
-// the returned value rides in as a block parameter (the PHI). Placement then
-// writes the block parameter on each incoming edge, where it collapses to the
-// register the value is already in, and the existing branch-folder /
-// block-placement passes recover the fall-through. The net effect matches llvm-mos's shared `bb.N: ...; rts` tail.
-//
-// Like the LLVM analogue this carries **no cost model** — the only gate is "at
-// least two return blocks" ("We don't want to change IR just because we can.").
-// LLVM merges unconditionally here and relies on a downstream tail-duplicator to
-// rebalance: where merging didn't pay (a trivial `rts`-only tail), the post-RA
-// TailDuplication pass clones the tail back into its jmp-predecessors, undoing
-// the merge. We follow the same division of labour — merge eagerly here, rebalance
-// later (see MOS6502TailDuplicationPass) — rather than guessing profitability
-// up-front with a target-specific size heuristic.
-//
-// Runs first, before AbiLowering lowers `core.return`, on generic SSA MIR. Void
-// and value returns never mix within one function (the return arity is fixed by
-// the signature), so a single uniform merge handles either case.
+/// <summary>
+/// Merges multiple function-terminating `core.return` blocks into a single common
+/// return block, mirroring LLVM SimplifyCFG's
+/// `tailMergeBlocksWithSimilarFunctionTerminators` /
+/// `performBlockTailMerging` (llvm/lib/Transforms/Scalar/SimplifyCFGPass.cpp).
+/// </summary>
+/// <remarks>
+/// A function with N separate `core.return %v` blocks lowers, at AbiLowering, to N
+/// copies of the same return epilogue (unmerge + per-byte copy to the result
+/// physregs + pseudo.return). Funnelling all returns through one block turns those
+/// into a single epilogue: each original return becomes `cf.br retblock(%v)`, and
+/// the returned value rides in as a block parameter (the PHI). Placement then
+/// writes the block parameter on each incoming edge, where it collapses to the
+/// register the value is already in, and the existing branch-folder /
+/// block-placement passes recover the fall-through. The net effect matches llvm-mos's shared `bb.N: ...; rts` tail.
+///
+/// Like the LLVM analogue this carries **no cost model** — the only gate is "at
+/// least two return blocks" ("We don't want to change IR just because we can.").
+/// LLVM merges unconditionally here and relies on a downstream tail-duplicator to
+/// rebalance: where merging didn't pay (a trivial `rts`-only tail), the post-RA
+/// TailDuplication pass clones the tail back into its jmp-predecessors, undoing
+/// the merge. We follow the same division of labour — merge eagerly here, rebalance
+/// later (see MOS6502TailDuplicationPass) — rather than guessing profitability
+/// up-front with a target-specific size heuristic.
+///
+/// Runs first, before AbiLowering lowers `core.return`, on generic SSA MIR. Void
+/// and value returns never mix within one function (the return arity is fixed by
+/// the signature), so a single uniform merge handles either case.
+/// </remarks>
 public sealed class ReturnMergePass : MirFunctionPass
 {
     public override string Name => "ReturnMerge";

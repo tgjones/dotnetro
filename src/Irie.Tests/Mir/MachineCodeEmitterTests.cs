@@ -6,10 +6,12 @@ namespace Irie.Tests.Mir;
 
 public sealed class MachineCodeEmitterTests
 {
-    // Drives the emitter end-to-end on a tiny hand-built MirModule that skips
-    // the parser. Two implied-mode instructions exercise the simplest path:
-    // each MIR op produces one byte and zero operands. Anything more elaborate
-    // is covered by the lit pipeline.
+    /// <summary>
+    /// Drives the emitter end-to-end on a tiny hand-built MirModule that skips
+    /// the parser. Two implied-mode instructions exercise the simplest path:
+    /// each MIR op produces one byte and zero operands. Anything more elaborate
+    /// is covered by the lit pipeline.
+    /// </summary>
     [Test]
     public async Task Emit_ClcRts_ProducesExpectedMachineCode()
     {

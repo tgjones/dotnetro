@@ -8,9 +8,11 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Passes;
 
-// The pointer typing rules of GenericMirVerifierPass: a `ptr` is not an integer,
-// and every op that takes or produces an address says so. One rejection test per
-// rule, plus a well-typed function that is accepted.
+/// <summary>
+/// The pointer typing rules of GenericMirVerifierPass: a `ptr` is not an integer,
+/// and every op that takes or produces an address says so. One rejection test per
+/// rule, plus a well-typed function that is accepted.
+/// </summary>
 public sealed class GenericMirVerifierPointerTests
 {
     private static readonly GenericMirVerifierPass Pass = new();
@@ -23,8 +25,10 @@ public sealed class GenericMirVerifierPointerTests
     private static VirtualReg Def(int vreg) => new(vreg, IsDefinition: true);
     private static VirtualReg Use(int vreg) => new(vreg, IsDefinition: false);
 
-    // Builds `func @f : () -> void` with one block and lets `body` fill it; the
-    // rule under test sees only what `body` emits.
+    /// <summary>
+    /// Builds `func @f : () -&gt; void` with one block and lets `body` fill it; the
+    /// rule under test sees only what `body` emits.
+    /// </summary>
     private static MirModule Module(Action<MirFunction, MirBlock> body)
     {
         var module = new MirModule();
@@ -261,8 +265,10 @@ public sealed class GenericMirVerifierPointerTests
         await AssertRejected(module, "arith.constant result %0 has type ptr");
     }
 
-    // A module with @callee : (ptr, i8) -> ptr and a caller whose call.func
-    // arguments / results `configure` shapes.
+    /// <summary>
+    /// A module with @callee : (ptr, i8) -&gt; ptr and a caller whose call.func
+    /// arguments / results `configure` shapes.
+    /// </summary>
     private static MirModule CallModule(Action<MirFunction, MirBlock> configureCaller)
     {
         var module = new MirModule();

@@ -233,8 +233,10 @@ public static class LitTestRegenerator
         return -1;
     }
 
-    // CHECK patterns are matched literally (LitPattern), so the regenerated line is the verbatim
-    // output line — no escaping. Authors add {{...}} regex holes by hand where output varies.
+    /// <summary>
+    /// CHECK patterns are matched literally (LitPattern), so the regenerated line is the verbatim
+    /// output line — no escaping. Authors add {{...}} regex holes by hand where output varies.
+    /// </summary>
     private static string FormatCheckLine(string prefix, string directive, string outputLine) =>
         outputLine.Length == 0
             ? $"{prefix}{directive}:"

@@ -2,6 +2,11 @@ using Irie.Mir;
 
 namespace Irie.Dialects.Cf;
 
+/// <summary>
+/// Terminators only: cf.br and cf.cond_br. Both take BlockTarget operands, which may
+/// carry per-edge block arguments (the dialect has no phis; block parameters are the
+/// SSA join mechanism until placement removes them).
+/// </summary>
 public sealed class CfDialect : Dialect
 {
     public static new DialectId Id { get; private set; }

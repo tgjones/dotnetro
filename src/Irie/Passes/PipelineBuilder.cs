@@ -2,8 +2,32 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// The single definition of the Irie pass pipeline, shared by `iriec` and `dnrc`
-// so lit goldens and emulator-executed programs always exercise the same passes.
+/// <summary>
+/// The single definition of the Irie pass pipeline, shared by `iriec` and `dnrc`
+/// so lit goldens and emulator-executed programs always exercise the same passes.
+/// </summary>
+/// <remarks>
+/// The stages, in order (each pass documents itself; the comments below say why the
+/// order matters):
+///   1. Generic SSA clean-up and verification: GenericMirVerifierPass,
+///      ArithSimplifyPass, SinglePredecessorBlockParamsPass, HoistCommonCodePass,
+///      ReturnMergePass (merges 2+ returns into one block; TailDuplicationPass undoes
+///      it for trivial tails at the end).
+///   2. Lowering to the target's shape: FrameLoweringPass, AbiLoweringPass
+///      (parameters/returns become physreg copies via Target.CallLowering),
+///      LegalizerPass (Target.LegalizerInfo), the target's pre-selection passes, and
+///      InstructionSelectorPass (generic ops -&gt; the target's unpinned byte ops).
+///   3. Placement (Target.CreateBeamPlacementPass): every value gets a register or a
+///      home, block parameters disappear; the result is physreg-only MIR.
+///   4. Post-placement: branch folding, CopyEliminationPass, the target's passes
+///      (MOS6502: recursion saves, zero-page layout), frame access lowering,
+///      prologue/epilogue insertion, CopyPropagationPass, PseudoExpansionPass, the
+///      target's late optimisation, RegisterScavengingPass, the target's final passes
+///      (MOS6502: block placement), a final verification, TailDuplicationPass.
+///
+/// Whole programs are emitted with Target.EmitProgram / BuildProgram, which also link
+/// in the target's library routines; the pass pipeline itself does not.
+/// </remarks>
 public static class PipelineBuilder
 {
     public static void AddStandardPipeline(
@@ -40,7 +64,7 @@ public static class PipelineBuilder
         AddLoweringAndFinalPasses(passMgr, target);
     }
 
-    // Everything after the register / home assignment.
+    /// <summary>Everything after the register / home assignment.</summary>
     private static void AddLoweringAndFinalPasses(PassManager passMgr, Target.Target target)
     {
         // Expand abstract frame accesses (mos6502.frame.*.byte) into concrete

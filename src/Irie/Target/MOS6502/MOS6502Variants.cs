@@ -2,9 +2,11 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// The operations whose implementation a placement chooses among variants: the
-// unpinned ops of MOS6502Op plus the register <-> memory moves a placement adds
-// around them.
+/// <summary>
+/// The operations whose implementation a placement chooses among variants: the
+/// unpinned ops of MOS6502Op plus the register &lt;-&gt; memory moves a placement adds
+/// around them.
+/// </summary>
 public enum MOS6502Operation
 {
     Adc,
@@ -12,20 +14,31 @@ public enum MOS6502Operation
     And,
     Ora,
     Eor,
-    Shl,      // one-bit shift left through the carry (mos6502.shle)
-    Lshr,     // one-bit logical shift right through the carry (mos6502.lshre)
-    Cmp,      // the compare of mos6502.cmp_br (then the branches on its flags) and of mos6502.cmp (the carry)
-    Load,     // register <- the byte a pointer pair or a symbol addresses
-    Store,    // the byte a pointer pair or a symbol addresses <- register
-    Const,    // register <- constant or address byte
-    Reload,   // register <- the home of a value
-    Spill,    // home <- register
-    Inc,      // one added to a byte (mos6502.inc)
-    Dec,      // one subtracted from a byte (mos6502.dec)
-    Transfer, // register <- another register (TAX, TXA, TAY, TYA); `Memory` is the source
+    /// <summary>one-bit shift left through the carry (mos6502.shle)</summary>
+    Shl,
+    /// <summary>one-bit logical shift right through the carry (mos6502.lshre)</summary>
+    Lshr,
+    /// <summary>the compare of mos6502.cmp_br (then the branches on its flags) and of mos6502.cmp (the carry)</summary>
+    Cmp,
+    /// <summary>register &lt;- the byte a pointer pair or a symbol addresses</summary>
+    Load,
+    /// <summary>the byte a pointer pair or a symbol addresses &lt;- register</summary>
+    Store,
+    /// <summary>register &lt;- constant or address byte</summary>
+    Const,
+    /// <summary>register &lt;- the home of a value</summary>
+    Reload,
+    /// <summary>home &lt;- register</summary>
+    Spill,
+    /// <summary>one added to a byte (mos6502.inc)</summary>
+    Inc,
+    /// <summary>one subtracted from a byte (mos6502.dec)</summary>
+    Dec,
+    /// <summary>register &lt;- another register (TAX, TXA, TAY, TYA); `Memory` is the source</summary>
+    Transfer,
 }
 
-// Where an operand of a variant has to be.
+/// <summary>Where an operand of a variant has to be.</summary>
 [Flags]
 public enum Place
 {
@@ -34,20 +47,28 @@ public enum Place
     X     = 2,
     Y     = 4,
     Carry = 8,
-    Home  = 16,   // a function-local zero-page byte (absolute memory if layout demotes it)
-    Imm   = 32,   // an immediate in the instruction
-    Abs   = 64,   // a symbol + offset
-    Pair  = 128,  // a zero-page pointer pair addressed with (zp),Y
+    /// <summary>a function-local zero-page byte (absolute memory if layout demotes it)</summary>
+    Home  = 16,
+    /// <summary>an immediate in the instruction</summary>
+    Imm   = 32,
+    /// <summary>a symbol + offset</summary>
+    Abs   = 64,
+    /// <summary>a zero-page pointer pair addressed with (zp),Y</summary>
+    Pair  = 128,
 }
 
-// One instruction of a variant's template, with the operand it takes from the
-// operation's memory-side operand (a home, an immediate, a symbol).
+/// <summary>
+/// One instruction of a variant's template, with the operand it takes from the
+/// operation's memory-side operand (a home, an immediate, a symbol).
+/// </summary>
 public sealed record TemplateInstruction(MOS6502Op Op);
 
-// One way to implement an operation: the register its byte operand lives in, the
-// kind of place its other operand lives in, and the instructions that do it.
-// Bytes and cycles are derived from those instructions through the opcode tables,
-// so what the search would count is exactly what is emitted.
+/// <summary>
+/// One way to implement an operation: the register its byte operand lives in, the
+/// kind of place its other operand lives in, and the instructions that do it.
+/// Bytes and cycles are derived from those instructions through the opcode tables,
+/// so what the search would count is exactly what is emitted.
+/// </summary>
 public sealed record Variant(
     MOS6502Operation Operation,
     string           Name,
@@ -58,8 +79,10 @@ public sealed record Variant(
     public int Bytes => Code.Sum(i => MOS6502Variants.DescribeInstruction(i.Op).Bytes);
     public int Cycles => Code.Sum(i => MOS6502Variants.DescribeInstruction(i.Op).Cycles);
 
-    // The instructions of the variant with `memory` as the memory-side operand
-    // (an Immediate, a Symbol, or the PhysicalReg of a home).
+    /// <summary>
+    /// The instructions of the variant with `memory` as the memory-side operand
+    /// (an Immediate, a Symbol, or the PhysicalReg of a home).
+    /// </summary>
     public IEnumerable<(OpcodeRef Opcode, MirOperand[] Operands)> Instantiate(MirOperand? memory = null)
     {
         foreach (var instruction in Code)
@@ -67,9 +90,21 @@ public sealed record Variant(
     }
 }
 
-// The table of variants. It is the single source of truth for what a placement can
-// emit for an operation and what that costs; the placements select from it
-// with `Find`.
+/// <summary>
+/// The table of variants. It is the single source of truth for what a placement can
+/// emit for an operation and what that costs; the placements select from it
+/// with `Find`.
+/// </summary>
+/// <remarks>
+/// A variant is an operation's operand places (Place: A X Y Carry Home Imm Abs Pair),
+/// instruction template, bytes (from the opcode tables) and cycles
+/// (MOS6502InstructionDescription.Cycles). A placement emits from it; when you add a
+/// variant, extend PlacementChecker to model it.
+///
+/// Program layout takes `allowAbsoluteHomes`: homes beyond the zero-page budget stay
+/// symbolic here and become bytes of absolute memory (`&lt;func&gt;_h&lt;n&gt;` globals), with
+/// every instruction naming one rewritten to its absolute twin (lda.zp -&gt; lda.abs, …).
+/// </remarks>
 public static class MOS6502Variants
 {
     private const int A = MOS6502Registers.A;
@@ -77,7 +112,7 @@ public static class MOS6502Variants
     private const int Y = MOS6502Registers.Y;
     private const int C = MOS6502Registers.C;
 
-    // The scratch pointer pair `(zp),Y` accesses go through.
+    /// <summary>The scratch pointer pair `(zp),Y` accesses go through.</summary>
     public static readonly int PointerLo = MOS6502Registers.RC(18);
     public static readonly int PointerHi = MOS6502Registers.RC(19);
 
@@ -86,8 +121,10 @@ public static class MOS6502Variants
     public static IEnumerable<Variant> For(MOS6502Operation operation) =>
         All.Where(v => v.Operation == operation);
 
-    // The variant of `operation` with its byte operand in `register` and the other
-    // operand in `memory`; null if the table has none.
+    /// <summary>
+    /// The variant of `operation` with its byte operand in `register` and the other
+    /// operand in `memory`; null if the table has none.
+    /// </summary>
     public static Variant? Find(MOS6502Operation operation, Place register, Place memory, string? name = null) =>
         All.FirstOrDefault(v =>
             v.Operation == operation && v.Register == register && v.Memory == memory
@@ -186,14 +223,18 @@ public static class MOS6502Variants
         return table;
     }
 
-    // Mnemonic, addressing mode, size and cycles of a pinned op, from the opcode
-    // tables.
+    /// <summary>
+    /// Mnemonic, addressing mode, size and cycles of a pinned op, from the opcode
+    /// tables.
+    /// </summary>
     public static MOS6502InstructionDescription DescribeInstruction(MOS6502Op op) =>
         MOS6502InstructionInfo.Instance.Get(MOS6502MachineCodeEmitTable.Get(op).OpcodeByte);
 
-    // The operand array a pinned op of this template takes, per the operand
-    // layouts the rest of the pipeline already uses for it (defs first). `memory`
-    // is the op's immediate / symbol / home operand where it has one.
+    /// <summary>
+    /// The operand array a pinned op of this template takes, per the operand
+    /// layouts the rest of the pipeline already uses for it (defs first). `memory`
+    /// is the op's immediate / symbol / home operand where it has one.
+    /// </summary>
     public static MirOperand[] Layout(MOS6502Op op, MirOperand? memory)
     {
         static PhysicalReg Def(int reg) => new(reg, IsDefinition: true);

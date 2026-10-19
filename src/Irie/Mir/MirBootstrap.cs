@@ -8,13 +8,16 @@ using Irie.Dialects.Pseudo;
 
 namespace Irie.Mir;
 
-// Registers the seven non-target dialects (core, arith, cast, cf, call, mem,
-// pseudo) into DialectRegistry. Idempotent — safe to call multiple times. The
-// Mir parser and writer both call this on first use, so most callers never
-// need to.
-//
-// Target dialects (e.g. mos6502) register themselves from their target's
-// constructor and are not handled here.
+/// <summary>
+/// Registers the seven non-target dialects (core, arith, cast, cf, call, mem,
+/// pseudo) into DialectRegistry. Idempotent — safe to call multiple times. The
+/// Mir parser and writer both call this on first use, so most callers never
+/// need to.
+/// </summary>
+/// <remarks>
+/// Target dialects (e.g. mos6502) register themselves from their target's
+/// constructor and are not handled here.
+/// </remarks>
 public static class MirBootstrap
 {
     private static bool _registered;

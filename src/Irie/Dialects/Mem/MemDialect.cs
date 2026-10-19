@@ -2,6 +2,20 @@ using Irie.Mir;
 
 namespace Irie.Dialects.Mem;
 
+/// <summary>
+/// Address and memory ops.
+/// </summary>
+/// <remarks>
+/// `ptr` is a distinct, opaque 16-bit type (PointerType; no pointee, the value type
+/// lives on the load/store op), not an integer: no arith op takes or produces one.
+///   - mem.symbol @g and mem.frame_addr N produce a ptr;
+///   - mem.ptradd %p, %off ((ptr, i16) -&gt; ptr, byte offset, no scaling) is address
+///     arithmetic;
+///   - mem.load.{i8,i16,i32,i64}, mem.store.* and mem.fill take a ptr address;
+///   - mem.load.ptr / mem.store.ptr move a pointer-valued datum;
+///   - mem.load.byte_at / mem.store.byte_at are the post-legalization byte forms.
+/// GenericMirVerifierPass enforces these typing rules.
+/// </remarks>
 public sealed class MemDialect : Dialect
 {
     public static new DialectId Id { get; private set; }
@@ -79,9 +93,11 @@ public sealed class MemDialect : Dialect
     private static readonly DialectInstructionInfo StoreByteAtInfo = new(TypeOperandIndex: 2);
     private static readonly DialectInstructionInfo FillInfo        = new(TypeOperandIndex: 1);
 
-    // mem.symbol / mem.frame_addr are pure (they return a constant pointer
-    // value). Loads, stores, and fills observe or modify memory, so they have
-    // side effects.
+    /// <summary>
+    /// mem.symbol / mem.frame_addr are pure (they return a constant pointer
+    /// value). Loads, stores, and fills observe or modify memory, so they have
+    /// side effects.
+    /// </summary>
     public override bool IsSideEffectFree(ushort code) => ((MemOp)code) switch
     {
         MemOp.Symbol    => true,
@@ -94,10 +110,12 @@ public sealed class MemDialect : Dialect
 
     public override bool IsArtifact(ushort code) => false;
 
-    // Legal inline immediates: structural attributes (offsets / counts), not
-    // value literals. mem.fill's count (use 2), mem.load.byte_at's offset (use 1),
-    // mem.store.byte_at's offset (use 1). mem.frame_addr's slot index (use 0) is
-    // also a structural attribute, not a value literal.
+    /// <summary>
+    /// Legal inline immediates: structural attributes (offsets / counts), not
+    /// value literals. mem.fill's count (use 2), mem.load.byte_at's offset (use 1),
+    /// mem.store.byte_at's offset (use 1). mem.frame_addr's slot index (use 0) is
+    /// also a structural attribute, not a value literal.
+    /// </summary>
     public override bool IsLegalImmediateOperand(ushort code, int useIndex) =>
         (MemOp)code switch
         {

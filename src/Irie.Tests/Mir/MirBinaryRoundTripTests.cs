@@ -4,11 +4,13 @@ namespace DotNetro.Compiler.Tests.Mir;
 
 public class MirBinaryRoundTripTests
 {
-    // Parses `input` from text, writes to binary, reads it back, writes to
-    // text, and asserts the textual representation is preserved bit-for-bit.
-    // The text round-trip is already covered by MirRoundTripTests; this
-    // exercises the binary format on the same inputs to confirm the two
-    // formats agree.
+    /// <summary>
+    /// Parses `input` from text, writes to binary, reads it back, writes to
+    /// text, and asserts the textual representation is preserved bit-for-bit.
+    /// The text round-trip is already covered by MirRoundTripTests; this
+    /// exercises the binary format on the same inputs to confirm the two
+    /// formats agree.
+    /// </summary>
     private static async Task AssertBinaryRoundTrips(string input)
     {
         var original = MirModule.Parse(new StringReader(input));

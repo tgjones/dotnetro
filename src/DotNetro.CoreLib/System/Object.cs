@@ -6,14 +6,16 @@ public class Object
     {
     }
 
-    // Reference equality.
+    /// <summary>Reference equality.</summary>
     public virtual bool Equals(object obj) => (object)this == obj;
 
-    // There is no object identity to hash yet, so every object hashes alike (which is
-    // consistent with Equals, if not well distributed).
+    /// <summary>
+    /// There is no object identity to hash yet, so every object hashes alike (which is
+    /// consistent with Equals, if not well distributed).
+    /// </summary>
     public virtual int GetHashCode() => 0;
 
-    // There are no run-time types yet, so every object is named for the root type.
+    /// <summary>There are no run-time types yet, so every object is named for the root type.</summary>
     public virtual string ToString() => "System.Object";
 
     public static bool Equals(object objA, object objB)

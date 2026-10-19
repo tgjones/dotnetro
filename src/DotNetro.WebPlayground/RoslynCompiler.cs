@@ -9,7 +9,7 @@ internal static class RoslynCompiler
     private static readonly CSharpParseOptions s_parseOptions =
         CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
 
-    // Mirrors DotNetro.Compiler.Tests.CsCompiler.
+    /// <summary>Mirrors DotNetro.Compiler.Tests.CsCompiler.</summary>
     private static readonly SyntaxTree s_globalUsings = CSharpSyntaxTree.ParseText("""
         global using System;
         global using System.Collections.Generic;

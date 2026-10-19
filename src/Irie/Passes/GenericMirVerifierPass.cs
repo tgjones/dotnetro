@@ -6,26 +6,29 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Pre-pipeline verifier for generic-dialect MIR. Enforces the invariant that an
-// integer *value* is never an inline `Immediate` operand — it is always an
-// `arith.constant` def. Inline `Immediate`s are reserved for structural
-// attributes (the cmpi predicate, mem offsets/counts, frame-slot indices, …)
-// and for `arith.constant`'s own value. Each dialect declares its legal
-// immediate operand positions via Dialect.IsLegalImmediateOperand.
-//
-// It also type-checks pointers, which are a distinct `ptr` type rather than an
-// integer: address operands (mem.load/store/fill, the call.indirect target) must
-// be `ptr`; mem.symbol / mem.frame_addr / mem.ptradd / mem.load.ptr define `ptr`;
-// mem.ptradd is `(ptr, i16) -> ptr`; cast.ptrtoint / cast.inttoptr convert
-// between `ptr` and `i16`; no arith op takes or produces a `ptr`; and the
-// arguments and results of a call.func to a function in the module match that
-// function's declared signature (catching drift between the C# runtime,
-// runtime.irie and translator-built calls).
-//
-// Mutates nothing; throws MirVerificationException on the first violation so a
-// bad inline literal or mistyped pointer surfaces as a clean diagnostic rather
-// than an InvalidCast crash deeper in isel/lowering. Runs first, before
-// ReturnMergePass.
+/// <summary>
+/// Pre-pipeline verifier for generic-dialect MIR. Enforces the invariant that an
+/// integer *value* is never an inline `Immediate` operand — it is always an
+/// `arith.constant` def. Inline `Immediate`s are reserved for structural
+/// attributes (the cmpi predicate, mem offsets/counts, frame-slot indices, …)
+/// and for `arith.constant`'s own value. Each dialect declares its legal
+/// immediate operand positions via Dialect.IsLegalImmediateOperand.
+/// </summary>
+/// <remarks>
+/// It also type-checks pointers, which are a distinct `ptr` type rather than an
+/// integer: address operands (mem.load/store/fill, the call.indirect target) must
+/// be `ptr`; mem.symbol / mem.frame_addr / mem.ptradd / mem.load.ptr define `ptr`;
+/// mem.ptradd is `(ptr, i16) -&gt; ptr`; cast.ptrtoint / cast.inttoptr convert
+/// between `ptr` and `i16`; no arith op takes or produces a `ptr`; and the
+/// arguments and results of a call.func to a function in the module match that
+/// function's declared signature (catching drift between the C# runtime,
+/// runtime.irie and translator-built calls).
+///
+/// Mutates nothing; throws MirVerificationException on the first violation so a
+/// bad inline literal or mistyped pointer surfaces as a clean diagnostic rather
+/// than an InvalidCast crash deeper in isel/lowering. Runs first, before
+/// ReturnMergePass.
+/// </remarks>
 public sealed class GenericMirVerifierPass : Pass
 {
     public override string Name => "GenericMirVerifier";
@@ -36,16 +39,20 @@ public sealed class GenericMirVerifierPass : Pass
             Run(function, context.Module);
     }
 
-    // Verifies one function without module context: the call-signature rule is
-    // skipped, as no callee can be looked up.
+    /// <summary>
+    /// Verifies one function without module context: the call-signature rule is
+    /// skipped, as no callee can be looked up.
+    /// </summary>
     public void Run(MirFunction function) => Run(function, module: null);
 
-    // The invariant only applies to the generic (non-target) dialects — the ones
-    // MirBootstrap registers. Target dialects (e.g. mos6502) legitimately carry
-    // inline immediates (e.g. `mos6502.lda.imm #$00`), so the verifier ignores
-    // any instruction whose dialect is not in this set. The set is keyed by the
-    // dialects' stable prefixes rather than IDs (IDs are assigned at registration
-    // time, which differs depending on which targets have been constructed).
+    /// <summary>
+    /// The invariant only applies to the generic (non-target) dialects — the ones
+    /// MirBootstrap registers. Target dialects (e.g. mos6502) legitimately carry
+    /// inline immediates (e.g. `mos6502.lda.imm #$00`), so the verifier ignores
+    /// any instruction whose dialect is not in this set. The set is keyed by the
+    /// dialects' stable prefixes rather than IDs (IDs are assigned at registration
+    /// time, which differs depending on which targets have been constructed).
+    /// </summary>
     private static readonly HashSet<string> GenericDialectPrefixes =
         ["core", "arith", "cast", "cf", "call", "mem", "pseudo"];
 
@@ -192,9 +199,11 @@ public sealed class GenericMirVerifierPass : Pass
         }
     }
 
-    // call.func @callee, args... against the callee's declared signature, when the
-    // callee is a function in the module (a symbol defined elsewhere has no
-    // signature to check against).
+    /// <summary>
+    /// call.func @callee, args... against the callee's declared signature, when the
+    /// callee is a function in the module (a symbol defined elsewhere has no
+    /// signature to check against).
+    /// </summary>
     private static void VerifyCallSignature(
         MirFunction function, MirModule? module, MirInstruction instr,
         List<VirtualReg> defs, List<MirOperand> uses, string opName)

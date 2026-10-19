@@ -1,4 +1,4 @@
-﻿using System.Collections.Immutable;
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Reflection.Metadata;
 
@@ -61,11 +61,13 @@ internal sealed class EcmaMethod
 
     public bool IsFinal => MethodDefinition.Attributes.HasFlag(MethodAttributes.Final);
 
-    // [MethodImpl(MethodImplOptions.InternalCall)]: the method has no IL body and
-    // is provided by the "runtime". DotNetro uses this to mark ROM-call wrappers
-    // (e.g. PutChar) whose bodies are hand-written MOS6502 MIR in runtime.irie; the
-    // translator routes calls to them straight to the matching runtime symbol
-    // instead of translating a body.
+    /// <summary>
+    /// [MethodImpl(MethodImplOptions.InternalCall)]: the method has no IL body and
+    /// is provided by the "runtime". DotNetro uses this to mark ROM-call wrappers
+    /// (e.g. PutChar) whose bodies are hand-written MOS6502 MIR in runtime.irie; the
+    /// translator routes calls to them straight to the matching runtime symbol
+    /// instead of translating a body.
+    /// </summary>
     public bool IsInternalCall =>
         MethodDefinition.ImplAttributes.HasFlag(MethodImplAttributes.InternalCall);
 

@@ -2,9 +2,9 @@ namespace Irie.Dialects.Cf;
 
 public enum CfOp : ushort
 {
-    // cf.br bb1
+    /// <summary>cf.br bb1</summary>
     Br,
 
-    // cf.cond_br %cond, bb1, bb2(%x)
+    /// <summary>cf.cond_br %cond, bb1, bb2(%x)</summary>
     CondBr,
 }

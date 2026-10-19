@@ -8,18 +8,23 @@ using Irie.Mir;
 
 namespace Irie.Tools.Interpreter;
 
-// A reference interpreter for pre-pipeline (generic-dialect) MIR: the ground
-// truth that compiled code is checked against. It shares nothing with the
-// legalizer, instruction selector or register allocator; it only reads the
-// parsed MirModule, so a bug in those passes cannot hide in it.
-//
-// Values are the low `width` bits of a ulong (pointers are 16-bit addresses).
-// Operations with no defined result throw InterpreterException rather than
-// picking an answer.
+/// <summary>
+/// A reference interpreter for pre-pipeline (generic-dialect) MIR: the ground
+/// truth that compiled code is checked against. It shares nothing with the
+/// legalizer, instruction selector or register allocator; it only reads the
+/// parsed MirModule, so a bug in those passes cannot hide in it.
+/// </summary>
+/// <remarks>
+/// Values are the low `width` bits of a ulong (pointers are 16-bit addresses).
+/// Operations with no defined result throw InterpreterException rather than
+/// picking an answer.
+/// </remarks>
 public sealed class MirInterpreter
 {
-    // Globals are laid out from here, in module order; the first page is left
-    // unmapped-by-convention so a null pointer never aliases a global.
+    /// <summary>
+    /// Globals are laid out from here, in module order; the first page is left
+    /// unmapped-by-convention so a null pointer never aliases a global.
+    /// </summary>
     private const int GlobalsBase = 0x0100;
 
     private readonly MirModule _module;
@@ -28,11 +33,13 @@ public sealed class MirInterpreter
     private readonly int _maxSteps;
     private int _steps;
 
-    // 64 KiB flat address space, as on the 6502.
+    /// <summary>64 KiB flat address space, as on the 6502.</summary>
     public byte[] Memory { get; } = new byte[0x10000];
 
-    // maxSteps bounds the instructions executed across all calls since the last
-    // Reset, so a non-terminating program fails the check instead of hanging it.
+    /// <summary>
+    /// maxSteps bounds the instructions executed across all calls since the last
+    /// Reset, so a non-terminating program fails the check instead of hanging it.
+    /// </summary>
     public MirInterpreter(MirModule module, int maxSteps = 10_000_000)
     {
         MirBootstrap.EnsureRegistered();
@@ -45,15 +52,17 @@ public sealed class MirInterpreter
         LayOutGlobals();
     }
 
-    // The address the interpreter gave a global.
+    /// <summary>The address the interpreter gave a global.</summary>
     public int GetGlobalAddress(string name) =>
         _globalAddresses.TryGetValue(name, out var address)
             ? address
             : throw new InterpreterException($"Unknown global '@{name}'.");
 
-    // Calls `function` with the given arguments (each the value's bit pattern;
-    // high bits beyond the parameter's width are ignored). Returns the result
-    // bit pattern, or null for a void function.
+    /// <summary>
+    /// Calls `function` with the given arguments (each the value's bit pattern;
+    /// high bits beyond the parameter's width are ignored). Returns the result
+    /// bit pattern, or null for a void function.
+    /// </summary>
     public ulong? Call(string function, params ulong[] arguments)
     {
         _steps = 0;
@@ -130,8 +139,10 @@ public sealed class MirInterpreter
         }
     }
 
-    // Runs one block; returns the successor, or null when the function returned
-    // (the result, if any, in `result`).
+    /// <summary>
+    /// Runs one block; returns the successor, or null when the function returned
+    /// (the result, if any, in `result`).
+    /// </summary>
     private MirBlock? RunBlock(MirFunction function, MirBlock block, Dictionary<int, ulong> values, out ulong? result)
     {
         result = null;
@@ -440,7 +451,7 @@ public sealed class MirInterpreter
             throw new InterpreterException($"@{function.Name}: access of {bytes} byte(s) at ${address:X} is outside the address space.");
     }
 
-    // Bytes moved by a load/store, from the type of the value operand.
+    /// <summary>Bytes moved by a load/store, from the type of the value operand.</summary>
     private static int AccessBytes(MirFunction function, MirOperand valueOperand) =>
         UseBits(function, valueOperand) / 8;
 

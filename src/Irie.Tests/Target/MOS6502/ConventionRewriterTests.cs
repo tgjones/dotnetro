@@ -5,8 +5,10 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Target.MOS6502;
 
-// Moving a function's arguments and results to other registers renames the ABI copies
-// of the function and of the calls to it, and nothing else.
+/// <summary>
+/// Moving a function's arguments and results to other registers renames the ABI copies
+/// of the function and of the calls to it, and nothing else.
+/// </summary>
 public sealed class ConventionRewriterTests
 {
     private static readonly MOS6502Target Target = new();

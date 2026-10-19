@@ -2,13 +2,15 @@ using System.Runtime.CompilerServices;
 
 namespace System;
 
-// Commodore 64 half of Console. Text goes through the KERNAL: CHROUT ($FFD2) writes
-// the character in A to the screen and CHRIN ($FFCF) reads the keyboard through the
-// screen editor, both called through function pointers with the `C64Kernal` calling
-// convention (byte arguments in A, X, Y). The KERNAL speaks PETSCII, in the
-// lower/upper-case character set Startup selects: letters are $41-$5A (lower case)
-// and $C1-$DA (upper case), the reverse of ASCII's case order, so the conversion is
-// done here. CR ($0D) is the newline in both.
+/// <summary>
+/// Commodore 64 half of Console. Text goes through the KERNAL: CHROUT ($FFD2) writes
+/// the character in A to the screen and CHRIN ($FFCF) reads the keyboard through the
+/// screen editor, both called through function pointers with the `C64Kernal` calling
+/// convention (byte arguments in A, X, Y). The KERNAL speaks PETSCII, in the
+/// lower/upper-case character set Startup selects: letters are $41-$5A (lower case)
+/// and $C1-$DA (upper case), the reverse of ASCII's case order, so the conversion is
+/// done here. CR ($0D) is the newline in both.
+/// </summary>
 public static partial class Console
 {
     private static unsafe partial void PutChar(byte c)
@@ -22,9 +24,11 @@ public static partial class Console
         ((delegate* unmanaged[C64Kernal]<byte, void>)(nint)0xFFD2)(petscii);
     }
 
-    // CHRIN until the line's CR into the tape buffer ($033C-$03FB, unused here), as ASCII, ending
-    // with CR; returns a pointer to it. A line longer than 80 characters (the screen editor's limit
-    // is 79) is truncated.
+    /// <summary>
+    /// CHRIN until the line's CR into the tape buffer ($033C-$03FB, unused here), as ASCII, ending
+    /// with CR; returns a pointer to it. A line longer than 80 characters (the screen editor's limit
+    /// is 79) is truncated.
+    /// </summary>
     private static unsafe partial byte* PlatformReadLine()
     {
         var buffer = (byte*)0x033C;
@@ -50,8 +54,10 @@ public static partial class Console
         return buffer;
     }
 
-    // SID voice 1: a triangle wave at full volume for about a fifth of a second. The SID is
-    // written directly; there is no ROM routine.
+    /// <summary>
+    /// SID voice 1: a triangle wave at full volume for about a fifth of a second. The SID is
+    /// written directly; there is no ROM routine.
+    /// </summary>
     private static unsafe partial void PlatformBeep()
     {
         var sid = (byte*)0xD400;

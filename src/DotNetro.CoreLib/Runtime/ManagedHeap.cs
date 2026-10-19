@@ -5,18 +5,22 @@ namespace DotNetro.Runtime;
 
 internal static partial class ManagedHeap
 {
-    // Where the heap starts: right after the program image (the encoder's @__image_end,
-    // via @HeapStart in runtime.irie), the same on every target.
+    /// <summary>
+    /// Where the heap starts: right after the program image (the encoder's @__image_end,
+    /// via @HeapStart in runtime.irie), the same on every target.
+    /// </summary>
     [MethodImpl(MethodImplOptions.InternalCall)]
     private static unsafe extern byte* HeapStart();
 
-    // The first address past the heap, per target.
+    /// <summary>The first address past the heap, per target.</summary>
     private static unsafe partial byte* HeapEnd();
 
     private static unsafe byte* s_heapPtr = HeapStart();
 
-    // Allocate `size` bytes of zeroed object contents behind a vtable header.
-    // Returns a pointer to the contents.
+    /// <summary>
+    /// Allocate `size` bytes of zeroed object contents behind a vtable header.
+    /// Returns a pointer to the contents.
+    /// </summary>
     public static unsafe byte* Alloc(nint size, void* vtablePtr)
     {
         var result = s_heapPtr;
@@ -47,8 +51,10 @@ internal static partial class ManagedHeap
         return result + sizeof(IntPtr);
     }
 
-    // Allocate an array: a null vtable header, a 2-byte length, then
-    // `contentSize` bytes of (zeroed) elements. Returns a pointer to the length.
+    /// <summary>
+    /// Allocate an array: a null vtable header, a 2-byte length, then
+    /// `contentSize` bytes of (zeroed) elements. Returns a pointer to the length.
+    /// </summary>
     public static unsafe byte* AllocArray(nint length, nint contentSize)
     {
         var result = Alloc(sizeof(IntPtr) + contentSize, null);

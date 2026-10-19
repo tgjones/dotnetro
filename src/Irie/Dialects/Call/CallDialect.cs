@@ -2,6 +2,12 @@ using Irie.Mir;
 
 namespace Irie.Dialects.Call;
 
+/// <summary>
+/// Calls: call.func (direct, by symbol) and call.indirect (through a ptr), each with an
+/// optional calling convention (CallConvention) that Target.GetCallLowering resolves.
+/// GenericMirVerifierPass checks the arguments and results of a call.func against the
+/// callee's signature when the callee is in the module.
+/// </summary>
 public sealed class CallDialect : Dialect
 {
     public static new DialectId Id { get; private set; }
@@ -28,8 +34,10 @@ public sealed class CallDialect : Dialect
         return false;
     }
 
-    // The optional calling-convention immediate is use 1 (right after the callee
-    // symbol / target pointer); render it by name.
+    /// <summary>
+    /// The optional calling-convention immediate is use 1 (right after the callee
+    /// symbol / target pointer); render it by name.
+    /// </summary>
     public override bool TryFormatImmediateUse(ushort code, int useIndex, long value, out string text)
     {
         text = string.Empty;
@@ -47,10 +55,10 @@ public sealed class CallDialect : Dialect
     public override DialectInstructionInfo GetInstructionInfo(ushort code) =>
         DialectInstructionInfo.Empty;
 
-    // call ops have side effects (the callee is observable).
+    /// <summary>call ops have side effects (the callee is observable).</summary>
     public override bool IsSideEffectFree(ushort code) => false;
 
-    // Calls return to the next instruction; not terminators.
+    /// <summary>Calls return to the next instruction; not terminators.</summary>
     public override bool IsTerminator(ushort code) => false;
 
     public override bool IsArtifact(ushort code) => false;

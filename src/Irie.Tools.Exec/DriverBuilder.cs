@@ -4,23 +4,27 @@ using Irie.Mir;
 
 namespace Irie.Tools.Exec;
 
-// Builds the program that runs a function over a table of argument vectors on
-// the target and prints each result as big-endian hex:
-//
-//   @__exec_main    loops over @__exec_vectors, calls the function, prints the result
-//   @__exec_puthex  prints one byte as two hex digits through the target's output routine
-//   @__exec_vectors the argument table: per vector, each argument little-endian
-//   @__exec_digits  "0123456789ABCDEF"
-//
-// The driver is itself compiled by the pipeline under test; it sticks to loads,
-// adds, a compare and calls so that a failure there shows up as every vector
-// mismatching rather than going unnoticed.
+/// <summary>
+/// Builds the program that runs a function over a table of argument vectors on
+/// the target and prints each result as big-endian hex:
+///   @__exec_main    loops over @__exec_vectors, calls the function, prints the result
+///   @__exec_puthex  prints one byte as two hex digits through the target's output routine
+///   @__exec_vectors the argument table: per vector, each argument little-endian
+///   @__exec_digits  "0123456789ABCDEF"
+/// </summary>
+/// <remarks>
+/// The driver is itself compiled by the pipeline under test; it sticks to loads,
+/// adds, a compare and calls so that a failure there shows up as every vector
+/// mismatching rather than going unnoticed.
+/// </remarks>
 internal static class DriverBuilder
 {
     public const string MainName = "__exec_main";
 
-    // `bufferSymbols` has one entry per parameter: the global a pointer parameter points
-    // into (its table entry is the byte offset), or null for a plain value.
+    /// <summary>
+    /// `bufferSymbols` has one entry per parameter: the global a pointer parameter points
+    /// into (its table entry is the byte offset), or null for a plain value.
+    /// </summary>
     public static void AddDriver(MirModule module, MirFunction target, IReadOnlyList<ulong[]> vectors, ExecTarget execTarget, IReadOnlyList<string?> bufferSymbols)
     {
         var argumentBytes = target.ParameterTypes.Select(ByteWidth).ToArray();

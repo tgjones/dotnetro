@@ -6,21 +6,24 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// Shape selection: legalized generic MIR -> the unpinned byte operations of the
-// mos6502 dialect (adc, sbc, inc, dec, and, ora, eor, shle, lshre, cmp_br, load,
-// store, const), with the register pinning left out.
-//
-// It selects only what does not decide placement:
-//   - arith.cmpi + cf.cond_br (and the lexicographic select tree of a wide compare)
-//     fuse into cmp_br ops, one per byte, exiting on the flags of that one compare;
-//   - memory accesses become load / store of a symbol, or of a pointer pair;
-//   - constants and address bytes become const.
-// Nothing here names A, X, Y, a zero-page register or an addressing mode: the
-// vregs keep their types, and a placement picks a variant of MOS6502Variants for
-// each operation (see MOS6502BeamPlacementPass).
-//
-// Everything the call lowering already selected (jsr.abs, the frame accesses of
-// stack arguments, rts) and the copies to and from fixed registers pass through.
+/// <summary>
+/// Shape selection: legalized generic MIR -&gt; the unpinned byte operations of the
+/// mos6502 dialect (adc, sbc, inc, dec, and, ora, eor, shle, lshre, cmp_br, load,
+/// store, const), with the register pinning left out.
+/// </summary>
+/// <remarks>
+/// It selects only what does not decide placement:
+///   - arith.cmpi + cf.cond_br (and the lexicographic select tree of a wide compare)
+///     fuse into cmp_br ops, one per byte, exiting on the flags of that one compare;
+///   - memory accesses become load / store of a symbol, or of a pointer pair;
+///   - constants and address bytes become const.
+/// Nothing here names A, X, Y, a zero-page register or an addressing mode: the
+/// vregs keep their types, and a placement picks a variant of MOS6502Variants for
+/// each operation (see MOS6502BeamPlacementPass).
+///
+/// Everything the call lowering already selected (jsr.abs, the frame accesses of
+/// stack arguments, rts) and the copies to and from fixed registers pass through.
+/// </remarks>
 public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
 {
     public override bool Select(MirInstruction instruction, MirBuilder builder)
@@ -82,8 +85,10 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return opcode.Dialect == MOS6502Dialect.Id;
     }
 
-    // What selection left dead: merges whose pointer was resolved to its byte
-    // vregs, symbol addresses used only to address memory.
+    /// <summary>
+    /// What selection left dead: merges whose pointer was resolved to its byte
+    /// vregs, symbol addresses used only to address memory.
+    /// </summary>
     public override void EndFunction(MirFunction function, MirBuilder builder)
     {
         bool removed;
@@ -111,8 +116,10 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         } while (removed);
     }
 
-    // The same operands under a new opcode (adc / sbc / and / ora / eor take the
-    // layout of the generic op they replace).
+    /// <summary>
+    /// The same operands under a new opcode (adc / sbc / and / ora / eor take the
+    /// layout of the generic op they replace).
+    /// </summary>
     private static bool Replace(MirInstruction instr, MirBuilder builder, MOS6502Op op)
     {
         builder.SetInsertionPointBefore(instr);
@@ -121,7 +128,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // arith.constant of an i1 or i8 -> mos6502.const, defining the same vreg.
+    /// <summary>arith.constant of an i1 or i8 -&gt; mos6502.const, defining the same vreg.</summary>
     private static bool SelectConstant(MirInstruction instr, MirBuilder builder)
     {
         var def = (VirtualReg)instr.Operands[0];
@@ -137,12 +144,15 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // arith.addi / arith.subi on bytes: the carry-less form is an adc / sbc whose
-    // carry in is a constant (0 for add, 1 for sub: the 6502 "no borrow") and whose
-    // carry out nobody reads.
-    //
-    // A step of one (x + 1, x - 1, x + 0xFF, x - 0xFF) is an inc or a dec instead: the
-    // 6502 has INX, INY and INC for it, and a placement chooses among them.
+    /// <summary>
+    /// arith.addi / arith.subi on bytes: the carry-less form is an adc / sbc whose
+    /// carry in is a constant (0 for add, 1 for sub: the 6502 "no borrow") and whose
+    /// carry out nobody reads.
+    /// </summary>
+    /// <remarks>
+    /// A step of one (x + 1, x - 1, x + 0xFF, x - 0xFF) is an inc or a dec instead: the
+    /// 6502 has INX, INY and INC for it, and a placement chooses among them.
+    /// </remarks>
     private static bool SelectBareAddSub(MirInstruction instr, MirBuilder builder, MOS6502Op op, int carryIn)
     {
         var function = builder.Function;
@@ -173,8 +183,10 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // Whether `%r = addi|subi %a, %b` adds or subtracts one: the op to build and the
-    // operand that is stepped. Adding is commutative, so the constant may be either.
+    /// <summary>
+    /// Whether `%r = addi|subi %a, %b` adds or subtracts one: the op to build and the
+    /// operand that is stepped. Adding is commutative, so the constant may be either.
+    /// </summary>
     private static bool TryGetIncDec(
         MirFunction function, MirInstruction instr, MOS6502Op op, out MOS6502Op step, out MirOperand source)
     {
@@ -221,10 +233,12 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
     // Compare and branch
     // ------------------------------------------------------------------
 
-    // An arith.cmpi is normally consumed by the cf.cond_br above it (and left for
-    // SelectCondBr). One whose i1 result is a value — the sign seed of an
-    // arithmetic shift right, `cmpi uge x, 0x80`, feeding a rotate's carry — is the
-    // carry a CMP leaves: mos6502.cmp.
+    /// <summary>
+    /// An arith.cmpi is normally consumed by the cf.cond_br above it (and left for
+    /// SelectCondBr). One whose i1 result is a value — the sign seed of an
+    /// arithmetic shift right, `cmpi uge x, 0x80`, feeding a rotate's carry — is the
+    /// carry a CMP leaves: mos6502.cmp.
+    /// </summary>
     private static bool SelectCompareValue(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -246,7 +260,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // The ops a compare result is consumed by when it only decides a branch.
+    /// <summary>The ops a compare result is consumed by when it only decides a branch.</summary>
     private static bool IsCompareConsumer(MirInstruction user) =>
         (user.Opcode.Dialect == CfDialect.Id && (CfOp)user.Opcode.Code == CfOp.CondBr)
         || (user.Opcode.Dialect == ArithDialect.Id && (ArithOp)user.Opcode.Code is ArithOp.Not or ArithOp.Select);
@@ -311,15 +325,17 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // The compare of an N-byte value (index 0 least significant), one cmp_br per
-    // byte from the top down, for a canonical predicate (eq, uge, slt after the
-    // legalizer's normalisation). The ladder:
-    //   eq:   each byte exits to F on ne; equal to the end falls to T
-    //   ult:  each byte exits to T on cc and to F on ne; the last has only the cc exit
-    //   uge:  each byte exits to F on cc and to T on ne; the last exits to T on cs
-    // A signed slt runs the unsigned ult ladder after flipping bit 7 of the top
-    // byte of both operands (a <s b  ==  (a ^ 0x80) <u (b ^ 0x80)), except a sign
-    // test of the top byte against zero (an immediate 0), which is just mi.
+    /// <summary>
+    /// The compare of an N-byte value (index 0 least significant), one cmp_br per
+    /// byte from the top down, for a canonical predicate (eq, uge, slt after the
+    /// legalizer's normalisation). The ladder:
+    ///   eq:   each byte exits to F on ne; equal to the end falls to T
+    ///   ult:  each byte exits to T on cc and to F on ne; the last has only the cc exit
+    ///   uge:  each byte exits to F on cc and to T on ne; the last exits to T on cs
+    /// A signed slt runs the unsigned ult ladder after flipping bit 7 of the top
+    /// byte of both operands (a &lt;s b  ==  (a ^ 0x80) &lt;u (b ^ 0x80)), except a sign
+    /// test of the top byte against zero (an immediate 0), which is just mi.
+    /// </summary>
     private static void EmitLadder(
         MirBuilder builder, ArithCmpPredicate predicate,
         MirOperand[] aBytes, MirOperand[] bBytes, BlockTarget tTarget, BlockTarget fTarget)
@@ -381,7 +397,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
     private static void EmitBr(MirBuilder builder, BlockTarget target) =>
         builder.BuildInstruction(CfDialect.OpRef(CfOp.Br), target);
 
-    // %r = eor %byte, 0x80 (a fresh i8 vreg), for the signed-compare bias.
+    /// <summary>%r = eor %byte, 0x80 (a fresh i8 vreg), for the signed-compare bias.</summary>
     private static VirtualReg EorWithImmediate(MirBuilder builder, MirOperand byteOperand, long imm)
     {
         var function = builder.Function;
@@ -401,8 +417,10 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
     // Memory
     // ------------------------------------------------------------------
 
-    // %v = mem.load.byte_at %p, off  ->  %v = mos6502.load @sym+off   (a symbol address)
-    //                                    %v = mos6502.load %lo, %hi, off  (a pointer)
+    /// <summary>
+    /// %v = mem.load.byte_at %p, off  -&gt;  %v = mos6502.load @sym+off   (a symbol address)
+    ///                                    %v = mos6502.load %lo, %hi, off  (a pointer)
+    /// </summary>
     private static bool SelectLoad(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -428,7 +446,7 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // mem.store.byte_at %p, off, %v  ->  mos6502.store %v, @sym+off | %v, %lo, %hi, off
+    /// <summary>mem.store.byte_at %p, off, %v  -&gt;  mos6502.store %v, @sym+off | %v, %lo, %hi, off</summary>
     private static bool SelectStore(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -454,8 +472,10 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // pseudo.unmerge of a `mem.symbol @name` (an address used as a value, e.g. a
-    // string passed to a call) -> the two address bytes as mos6502.const @name, 0|1.
+    /// <summary>
+    /// pseudo.unmerge of a `mem.symbol @name` (an address used as a value, e.g. a
+    /// string passed to a call) -&gt; the two address bytes as mos6502.const @name, 0|1.
+    /// </summary>
     private static bool SelectUnmerge(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -474,14 +494,16 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // pseudo.return → mos6502.rts. The return physregs are surfaced as
-    // implicit uses on the rts, gathered by scanning backward from the
-    // pseudo.return for a *contiguous* run of `$reg = pseudo.copy %v` (or
-    // `$reg = pseudo.copy $reg`) instructions: AbiLowering.LowerReturn emits
-    // exactly that run immediately before pseudo.return. Scanning only the
-    // contiguous run avoids picking up unrelated physreg-target copies
-    // emitted earlier in the block (e.g. the indirect-Y pointer setup that
-    // mem.load/store lowering inserts).
+    /// <summary>
+    /// pseudo.return → mos6502.rts. The return physregs are surfaced as
+    /// implicit uses on the rts, gathered by scanning backward from the
+    /// pseudo.return for a *contiguous* run of `$reg = pseudo.copy %v` (or
+    /// `$reg = pseudo.copy $reg`) instructions: AbiLowering.LowerReturn emits
+    /// exactly that run immediately before pseudo.return. Scanning only the
+    /// contiguous run avoids picking up unrelated physreg-target copies
+    /// emitted earlier in the block (e.g. the indirect-Y pointer setup that
+    /// mem.load/store lowering inserts).
+    /// </summary>
     private static bool SelectReturn(MirInstruction instr, MirBuilder builder)
     {
         var block = instr.Parent!;
@@ -507,22 +529,25 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return true;
     }
 
-    // Walk a wide-compare lexicographic tree rooted at `vreg`, returning the
-    // overall canonical predicate and the per-byte operand vregs (index 0 = least
-    // significant). Collects every tree instruction (selects, leaf cmpis, and the
-    // arith.nots described below) into `treeInstrs` for the caller to erase.
-    // Mirrors the shape built by MOS6502LegalizerInfo.BuildLexicographic:
-    //   leaf:   %r = arith.cmpi <pred>, %a, %b
-    //   select: %r = arith.select %eqHi, %rest, %cmpHi
-    //           with %eqHi = cmpi eq, %aHi, %bHi  and  %cmpHi = cmpi <pred>, %aHi, %bHi
-    //
-    // The "rest" / lower-byte compares are built with the unsigned `ult`
-    // predicate, which the legalizer's consumer-independent normalization then
-    // rewrites to `uge` wrapped in an arith.not (exactly as llvm-mos does). The
-    // ladder is driven entirely by the *overall* predicate (recovered from the
-    // outermost high-byte compare) and the per-byte operands, so those per-byte
-    // predicates and the nots wrapping them are irrelevant here — StripNots looks
-    // through them, and the lower-level predicates are discarded.
+    /// <summary>
+    /// Walk a wide-compare lexicographic tree rooted at `vreg`, returning the
+    /// overall canonical predicate and the per-byte operand vregs (index 0 = least
+    /// significant). Collects every tree instruction (selects, leaf cmpis, and the
+    /// arith.nots described below) into `treeInstrs` for the caller to erase.
+    /// Mirrors the shape built by MOS6502LegalizerInfo.BuildLexicographic:
+    ///   leaf:   %r = arith.cmpi &lt;pred&gt;, %a, %b
+    ///   select: %r = arith.select %eqHi, %rest, %cmpHi
+    ///           with %eqHi = cmpi eq, %aHi, %bHi  and  %cmpHi = cmpi &lt;pred&gt;, %aHi, %bHi
+    /// </summary>
+    /// <remarks>
+    /// The "rest" / lower-byte compares are built with the unsigned `ult`
+    /// predicate, which the legalizer's consumer-independent normalization then
+    /// rewrites to `uge` wrapped in an arith.not (exactly as llvm-mos does). The
+    /// ladder is driven entirely by the *overall* predicate (recovered from the
+    /// outermost high-byte compare) and the per-byte operands, so those per-byte
+    /// predicates and the nots wrapping them are irrelevant here — StripNots looks
+    /// through them, and the lower-level predicates are discarded.
+    /// </remarks>
     private static (ArithCmpPredicate predicate, List<(int a, int b)> bytes)
         RecoverCmpTree(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
     {
@@ -569,8 +594,10 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
             $"MOS6502ShapeSelector: unexpected opcode in wide-compare tree at %{vreg}.");
     }
 
-    // Follow a chain of `arith.not` definitions, collecting them into
-    // `treeInstrs`, and return the underlying (non-not) vreg.
+    /// <summary>
+    /// Follow a chain of `arith.not` definitions, collecting them into
+    /// `treeInstrs`, and return the underlying (non-not) vreg.
+    /// </summary>
     private static int StripNots(MirFunction function, int vreg, List<MirInstruction> treeInstrs)
     {
         while (true)
@@ -599,10 +626,12 @@ public sealed class MOS6502ShapeSelector : Irie.Target.InstructionSelector
         return null;
     }
 
-    // The two byte vregs (low, high) of a runtime i16 pointer. Throws if the
-    // address vreg is not defined by a pseudo.merge of exactly two byte vregs —
-    // other pointer shapes (frame slots, scalar i16 vregs that never went
-    // through a merge) are not yet supported, so the gap stays visible.
+    /// <summary>
+    /// The two byte vregs (low, high) of a runtime i16 pointer. Throws if the
+    /// address vreg is not defined by a pseudo.merge of exactly two byte vregs —
+    /// other pointer shapes (frame slots, scalar i16 vregs that never went
+    /// through a merge) are not yet supported, so the gap stays visible.
+    /// </summary>
     private static (int Lo, int Hi) ResolveRuntimePointerBytesOrThrow(MirFunction function, int addrVreg)
     {
         var def = function.GetDefinition(addrVreg);

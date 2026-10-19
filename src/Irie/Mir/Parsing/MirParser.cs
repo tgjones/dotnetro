@@ -2,6 +2,12 @@ using System.Text;
 
 namespace Irie.Mir.Parsing;
 
+/// <summary>
+/// Parses MIR text (`;` starts a line comment). Two passes within each function: scan
+/// the block headers (`bbN(`) first, then parse the instructions, so branches can
+/// forward-reference blocks. Supports the multi-def syntax
+/// `%a : i8, %b : i1 = some.op …`.
+/// </summary>
 internal sealed class MirParser
 {
     private MirLexer _lexer = null!;
@@ -46,9 +52,11 @@ internal sealed class MirParser
         return module;
     }
 
-    // global @name : <type> [= <initializer>]
-    //   initializer := <data-item> | '[' <data-item> (',' <data-item>)* ']'
-    //   data-item   := 'bytes' STRING | '@' IDENTIFIER
+    /// <summary>
+    /// global @name : &lt;type&gt; [= &lt;initializer&gt;]
+    ///   initializer := &lt;data-item&gt; | '[' &lt;data-item&gt; (',' &lt;data-item&gt;)* ']'
+    ///   data-item   := 'bytes' STRING | '@' IDENTIFIER
+    /// </summary>
     private MirGlobal ParseGlobal()
     {
         var globalKeyword = Expect(MirTokenKind.Identifier);
@@ -446,11 +454,13 @@ internal sealed class MirParser
         _ => false,
     };
 
-    // True when the token stream at the current position is the start of a
-    // physreg def list — a run of `$reg` separated by commas, terminated by `=`
-    // (e.g. `$a =` or `$a, $c =`). Mirrors the def-parsing logic in
-    // ParseInstruction so the use-operand loop can stop at an instruction
-    // boundary the (newline-insensitive) lexer doesn't otherwise mark.
+    /// <summary>
+    /// True when the token stream at the current position is the start of a
+    /// physreg def list — a run of `$reg` separated by commas, terminated by `=`
+    /// (e.g. `$a =` or `$a, $c =`). Mirrors the def-parsing logic in
+    /// ParseInstruction so the use-operand loop can stop at an instruction
+    /// boundary the (newline-insensitive) lexer doesn't otherwise mark.
+    /// </summary>
     private static bool StartsPhysRegDef(TokenReader tokens)
     {
         var offset = 0;

@@ -3,28 +3,31 @@ using Irie.Mir;
 
 namespace Irie.Target;
 
-// Port of llvm's constrainSelectedInstRegOperands / constrainOperandRegClass
-// (llvm/lib/CodeGen/GlobalISel/Utils.cpp) and constrainGenericRegister
-// (llvm/lib/CodeGen/RegisterBankInfo.cpp).
-//
-// After a target instruction is selected, each of its register operands must
-// satisfy that operand's declared register class (DialectInstructionInfo.
-// OperandClasses). This narrows the operand's vreg toward the required class,
-// inserting a `pseudo.copy` split only when the vreg is already committed to an
-// incompatible class — the getCommonSubClass-empty case. Call it on each target
-// op the instruction selector emits, the same way each llvm-mos select() rule
-// ends with constrainSelectedInstRegOperands.
-//
-// The two cases mirror constrainGenericRegister exactly:
-//   * vreg has only a TYPE (TypedVReg, the "bank only" state) — set its class to
-//     the operand class directly, no copy. (RegisterBankInfo.cpp:139-146)
-//   * vreg already has a CLASS (ClassedVReg) — intersect with the operand class
-//     (TryGetCommonSubClass); narrow in place if non-empty, else split with a
-//     copy. (RegisterBankInfo.cpp:134-137 → MachineRegisterInfo::constrainRegClass)
-//
-// Because the vreg's class is mutated in place, processing instructions in
-// selection order reproduces llvm's order-dependent split: the first operand to
-// require an incompatible class pins the vreg, and the second triggers the copy.
+/// <summary>
+/// Port of llvm's constrainSelectedInstRegOperands / constrainOperandRegClass
+/// (llvm/lib/CodeGen/GlobalISel/Utils.cpp) and constrainGenericRegister
+/// (llvm/lib/CodeGen/RegisterBankInfo.cpp).
+/// </summary>
+/// <remarks>
+/// After a target instruction is selected, each of its register operands must
+/// satisfy that operand's declared register class (DialectInstructionInfo.
+/// OperandClasses). This narrows the operand's vreg toward the required class,
+/// inserting a `pseudo.copy` split only when the vreg is already committed to an
+/// incompatible class — the getCommonSubClass-empty case. Call it on each target
+/// op the instruction selector emits, the same way each llvm-mos select() rule
+/// ends with constrainSelectedInstRegOperands.
+///
+/// The two cases mirror constrainGenericRegister exactly:
+///   * vreg has only a TYPE (TypedVReg, the "bank only" state) — set its class to
+///     the operand class directly, no copy. (RegisterBankInfo.cpp:139-146)
+///   * vreg already has a CLASS (ClassedVReg) — intersect with the operand class
+///     (TryGetCommonSubClass); narrow in place if non-empty, else split with a
+///     copy. (RegisterBankInfo.cpp:134-137 → MachineRegisterInfo::constrainRegClass)
+///
+/// Because the vreg's class is mutated in place, processing instructions in
+/// selection order reproduces llvm's order-dependent split: the first operand to
+/// require an incompatible class pins the vreg, and the second triggers the copy.
+/// </remarks>
 public static class RegisterClassConstraining
 {
     public static void ConstrainSelectedInstRegOperands(

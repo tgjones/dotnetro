@@ -1,6 +1,6 @@
 namespace System;
 
-// Roslyn requires AttributeUsageAttribute (it checks every attribute class against it).
+/// <summary>Roslyn requires AttributeUsageAttribute (it checks every attribute class against it).</summary>
 [Flags]
 public enum AttributeTargets
 {

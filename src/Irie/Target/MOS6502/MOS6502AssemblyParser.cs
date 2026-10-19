@@ -6,11 +6,13 @@ public static class MOS6502AssemblyParser
 {
     private static readonly Dictionary<(string Mnemonic, AddressingMode Mode), int> _reverseTable = BuildReverseTable();
 
-    // `zeroPageBase` is the address of RC0 on the target (Target.ZeroPageBase):
-    // an operand written `__rcN` (the llvm-mos name for imaginary register N) is
-    // the zero-page address zeroPageBase + N, so one source assembles for every
-    // target whatever its register file's address. Allowed wherever a zero-page
-    // operand is: `LDA __rc2`, `STA __rc4,X`.
+    /// <summary>
+    /// `zeroPageBase` is the address of RC0 on the target (Target.ZeroPageBase):
+    /// an operand written `__rcN` (the llvm-mos name for imaginary register N) is
+    /// the zero-page address zeroPageBase + N, so one source assembles for every
+    /// target whatever its register file's address. Allowed wherever a zero-page
+    /// operand is: `LDA __rc2`, `STA __rc4,X`.
+    /// </summary>
     public static MachineCodeModule Parse(TextReader reader, int zeroPageBase = 0)
     {
         var lines = ReadLines(reader, zeroPageBase);
@@ -177,10 +179,12 @@ public static class MOS6502AssemblyParser
         return (addressingMode, new MachineCodeOperand.ExternalRef(symName, SymbolHalf.Full, symOff));
     }
 
-    // Splits a `name+N` / `name-N` symbol token into its name and signed byte
-    // offset (offset 0 when no `+`/`-` suffix is present). The sign character
-    // must follow at least one name character so a leading-`-` is never treated
-    // as an offset separator.
+    /// <summary>
+    /// Splits a `name+N` / `name-N` symbol token into its name and signed byte
+    /// offset (offset 0 when no `+`/`-` suffix is present). The sign character
+    /// must follow at least one name character so a leading-`-` is never treated
+    /// as an offset separator.
+    /// </summary>
     private static (string Name, int Offset) SplitSymbolOffset(string text)
     {
         for (var i = 1; i < text.Length; i++)

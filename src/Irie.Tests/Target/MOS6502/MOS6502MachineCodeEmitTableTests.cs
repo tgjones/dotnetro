@@ -4,10 +4,12 @@ namespace Irie.Tests.Target.MOS6502;
 
 public sealed class MOS6502MachineCodeEmitTableTests
 {
-    // The seven entries the current pipeline actually produces, with the
-    // opcode byte and operand interpretation each MIR op lowers to.
-    // expectedOperandIndex == -1 stands in for null; attribute arguments
-    // can't carry a Nullable<int> directly.
+    /// <summary>
+    /// The seven entries the current pipeline actually produces, with the
+    /// opcode byte and operand interpretation each MIR op lowers to.
+    /// expectedOperandIndex == -1 stands in for null; attribute arguments
+    /// can't carry a Nullable&lt;int&gt; directly.
+    /// </summary>
     [Test]
     [Arguments(MOS6502Op.Clc,   MOS6502Opcode.CLC,          EmitOperandKind.Implied,         -1)]
     [Arguments(MOS6502Op.AdcZp, MOS6502Opcode.ADC_ZeroPage, EmitOperandKind.ZeroPageAddress,  3)]
@@ -28,10 +30,12 @@ public sealed class MOS6502MachineCodeEmitTableTests
         await Assert.That(rule.OperandIndex).IsEqualTo(expectedOperandIndex == -1 ? (int?)null : expectedOperandIndex);
     }
 
-    // The table is intentionally incomplete — pre-AMS opcodes like `Cmp`
-    // should never reach the emitter (AMS refines them to a post-AMS form
-    // first). Asking for one is a bug in an upstream pass, so the table
-    // throws loudly rather than silently emitting garbage.
+    /// <summary>
+    /// The table is intentionally incomplete — pre-AMS opcodes like `Cmp`
+    /// should never reach the emitter (AMS refines them to a post-AMS form
+    /// first). Asking for one is a bug in an upstream pass, so the table
+    /// throws loudly rather than silently emitting garbage.
+    /// </summary>
     [Test]
     public async Task Get_ThrowsForUnmappedOpcode()
     {

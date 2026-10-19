@@ -3,13 +3,16 @@ using System.Text.RegularExpressions;
 
 namespace Irie.Target.MOS6502;
 
-// Packages a flat 6502 byte buffer into an Acorn DFS single-sided
-// single-density disk image (.ssd): two catalogue sectors (0 + 1) followed
-// by the file's data starting at sector 2.
+/// <summary>
+/// Packages a flat 6502 byte buffer into an Acorn DFS single-sided
+/// single-density disk image (.ssd): two catalogue sectors (0 + 1) followed
+/// by the file's data starting at sector 2.
+/// </summary>
 internal static class BbcMicroDfsImage
 {
     private const int SectorSize = 256;
-    private const string DiskTitle = "DotNetro"; // exactly 8 chars; bytes 8-11 stay zero
+    /// <summary>exactly 8 chars; bytes 8-11 stay zero</summary>
+    private const string DiskTitle = "DotNetro";
     private static readonly Regex FileNameRegex = new("^[A-Z0-9_!]+$", RegexOptions.Compiled);
 
     public static byte[] Build(byte[] code, int loadAddress, int execAddress, string fileName)
@@ -54,7 +57,7 @@ internal static class BbcMicroDfsImage
         return image;
     }
 
-    // Packs bits 17:16 of exec/length/load plus bits 9:8 of start-sector into one byte.
+    /// <summary>Packs bits 17:16 of exec/length/load plus bits 9:8 of start-sector into one byte.</summary>
     private static byte EncodePackedHighBits(int load, int exec, int length, int startSector)
     {
         var execHi = (exec >> 16) & 0x03;

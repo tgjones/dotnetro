@@ -42,6 +42,10 @@ dotnet test --project src/DotNetro.Compiler.Tests # all compiler tests incl. eve
 
 CI runs `dotnet test --solution src` in both Debug and Release configurations.
 
+## Code Documentation
+
+Document types and members with `///` XML doc comments (`<summary>`, with longer explanation in `<remarks>`), not `//` blocks above declarations. Plain `//` is for comments inside method bodies, group/section labels, and lit-test directives (`RUN:`/`CHECK:`).
+
 ## Architecture
 
 ### Compilation Pipeline
@@ -75,7 +79,7 @@ CI runs `dotnet test --solution src` in both Debug and Release configurations.
 
 - **Irie.Tools.Reference** (`irie-report`) — scores Irie's MOS6502 output against the llvm-mos reference corpus (`ext/llvm-mos-reference/`); see its README and `doc/irie/llvm-mos-comparison.md`
 
-- **Irie** — the compiler backend: unified MIR + MachineCode layers, the pass pipeline and the MOS6502 target (subtargets: BBC Micro, C64). `DotNetro.Compiler` depends on it; it is also usable standalone via the `iriec` / `irie-*` tools. **Detailed layer, dialect, pass-order and target notes live in `src/Irie/CLAUDE.md`** (loaded when working under `src/Irie`). Pass order, in short: ReturnMerge → AbiLowering → Legalizer → InstructionSelector (shape selection) → placement (beam search) → CopyElimination → target post-placement passes → PseudoExpansion.
+- **Irie** — the compiler backend: unified MIR + MachineCode layers, the pass pipeline and the MOS6502 target (subtargets: BBC Micro, C64). `DotNetro.Compiler` depends on it; it is also usable standalone via the `iriec` / `irie-*` tools. **`src/Irie/AGENTS.md` maps where the layer, dialect, pass-order and target docs live** (loaded when working under `src/Irie`; the 6502 target overview is `src/Irie/Target/MOS6502/README.md`). Pass order, in short: ReturnMerge → AbiLowering → Legalizer → InstructionSelector (shape selection) → placement (beam search) → CopyElimination → target post-placement passes → PseudoExpansion.
 
 - **DotLit** — LIT-style test infrastructure; parses `RUN:` and `CHECK:` directives from any comment line; used by both `DotNetro.Compiler.Tests` (`.cs` files, `//` comments) and `Irie.Tests` (`.irie` files for MIR tests, `.s` files for MachineCode tests; all use `;` comments). Also an executable (`dotlit`): `dotlit --regenerate <folder|file>` rewrites the `CHECK` directives to match current RUN output — see "Regenerating `CHECK` blocks" below
 

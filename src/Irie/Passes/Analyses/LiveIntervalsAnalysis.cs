@@ -2,37 +2,38 @@ using Irie.Mir;
 
 namespace Irie.Passes.Analyses;
 
-// =============================================================================
-// LiveIntervalsAnalysis — builds the physreg-aware LiveIntervals (with holes).
-// =============================================================================
-//
-// RegisterScavengingPass consumes it to find the registers dead at a copy.
-//
-// Algorithm (Appel ch. 11; same backward dataflow as the old analysis, but
-// computing precise segments instead of one [start,end] per value):
-//
-//   1. Number every instruction with a base sub-slot (SlotsPerInstruction apart)
-//      so a use point and a def point can be addressed separately
-//      (LiveIntervals header explains why).
-//   2. Backward dataflow over vregs to get per-block LiveIn/LiveOut sets
-//      (LiveOut[B] = ∪ LiveIn[succ]; LiveIn[B] = use[B] ∪ (LiveOut[B] − def[B])).
-//      Same equations as LivenessAnalysis — verified against it.
-//   3. For each block, build precise *local* segments for each value (vreg AND
-//      physreg) by walking instructions and pairing each def with the uses that
-//      follow it, with block boundaries closed by the live-in/live-out sets.
-//      A value live-in to a block opens a segment at the block's first use
-//      point; a value live-out closes at the block's last def point.
-//   4. Normalize each interval (sort + merge), yielding holes wherever a value
-//      went dead and was later redefined within a block or across blocks.
-//
-// PHYSREGS are tracked exactly like vregs, reading them out of the operand
-// array: by the time RA runs, the instruction selector and call lowering have
-// already materialized every implicit def/use (call clobbers, flag defs such as
-// mos6502.cmp's $n/$z/$c) as explicit PhysicalReg(IsImplicit:true) operands.
-// So "what physreg does this instruction clobber / read" is answered by reading
-// PhysicalReg operands — the same source ComputeClobberSlots/Reservations read —
-// not by re-consulting DialectInstructionInfo.ImplicitDefs. Entry-block CC
-// live-ins (MirBlock.LiveIns) seed the entry physreg segments.
+/// <summary>
+/// LiveIntervalsAnalysis — builds the physreg-aware LiveIntervals (with holes).
+/// </summary>
+/// <remarks>
+/// RegisterScavengingPass consumes it to find the registers dead at a copy.
+///
+/// Algorithm (Appel ch. 11; same backward dataflow as the old analysis, but
+/// computing precise segments instead of one [start,end] per value):
+///
+///   1. Number every instruction with a base sub-slot (SlotsPerInstruction apart)
+///      so a use point and a def point can be addressed separately
+///      (LiveIntervals header explains why).
+///   2. Backward dataflow over vregs to get per-block LiveIn/LiveOut sets
+///      (LiveOut[B] = ∪ LiveIn[succ]; LiveIn[B] = use[B] ∪ (LiveOut[B] − def[B])).
+///      Same equations as LivenessAnalysis — verified against it.
+///   3. For each block, build precise *local* segments for each value (vreg AND
+///      physreg) by walking instructions and pairing each def with the uses that
+///      follow it, with block boundaries closed by the live-in/live-out sets.
+///      A value live-in to a block opens a segment at the block's first use
+///      point; a value live-out closes at the block's last def point.
+///   4. Normalize each interval (sort + merge), yielding holes wherever a value
+///      went dead and was later redefined within a block or across blocks.
+///
+/// PHYSREGS are tracked exactly like vregs, reading them out of the operand
+/// array: by the time RA runs, the instruction selector and call lowering have
+/// already materialized every implicit def/use (call clobbers, flag defs such as
+/// mos6502.cmp's $n/$z/$c) as explicit PhysicalReg(IsImplicit:true) operands.
+/// So "what physreg does this instruction clobber / read" is answered by reading
+/// PhysicalReg operands — the same source ComputeClobberSlots/Reservations read —
+/// not by re-consulting DialectInstructionInfo.ImplicitDefs. Entry-block CC
+/// live-ins (MirBlock.LiveIns) seed the entry physreg segments.
+/// </remarks>
 public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
 {
     public override LiveIntervals Compute(MirFunction function)
@@ -112,13 +113,13 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
         return new LiveIntervals(baseSlotOf, vregBuilders, physBuilders);
     }
 
-    // -------------------------------------------------------------------------
-    // Step 2: classic backward liveness dataflow over VIRTUAL registers only.
-    // Identical equations to LivenessAnalysis (so the two agree on vreg
-    // liveness); physregs are handled structurally in step 3, not by dataflow,
-    // because by RA time every physreg use/def is explicit in the operand array
-    // and physreg live ranges do not span blocks except via MirBlock.LiveIns.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// Step 2: classic backward liveness dataflow over VIRTUAL registers only.
+    /// Identical equations to LivenessAnalysis (so the two agree on vreg
+    /// liveness); physregs are handled structurally in step 3, not by dataflow,
+    /// because by RA time every physreg use/def is explicit in the operand array
+    /// and physreg live ranges do not span blocks except via MirBlock.LiveIns.
+    /// </summary>
     private static (Dictionary<MirBlock, HashSet<int>> LiveIn,
                     Dictionary<MirBlock, HashSet<int>> LiveOut)
         ComputeVRegDataflow(MirFunction function)
@@ -185,23 +186,24 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
         return (liveIn, liveOut);
     }
 
-    // -------------------------------------------------------------------------
-    // Step 3a: precise per-block VREG segments.
-    //
-    // We walk the block once and, for each vreg, track the slot at which its
-    // current live segment opened ("openAt"). A segment opens when the vreg is
-    // live-in (open at the block's first use point) or defined (open at that
-    // instruction's def point). A segment provisionally closes at each use (the
-    // use point of the using instruction). If the vreg is live-out, its final
-    // open segment is closed at the block's last def point so it reaches the
-    // successor. A vreg defined, used, then redefined within the block produces
-    // TWO segments with a hole between — that is the hole tracking the old
-    // analysis lacked.
-    //
-    // Ordering note: we emit the previous segment's close *before* opening a new
-    // one on a re-definition, so a value re-defined in the same block leaves a
-    // hole between its last use and the re-def's def point.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// Step 3a: precise per-block VREG segments.
+    /// </summary>
+    /// <remarks>
+    /// We walk the block once and, for each vreg, track the slot at which its
+    /// current live segment opened ("openAt"). A segment opens when the vreg is
+    /// live-in (open at the block's first use point) or defined (open at that
+    /// instruction's def point). A segment provisionally closes at each use (the
+    /// use point of the using instruction). If the vreg is live-out, its final
+    /// open segment is closed at the block's last def point so it reaches the
+    /// successor. A vreg defined, used, then redefined within the block produces
+    /// TWO segments with a hole between — that is the hole tracking the old
+    /// analysis lacked.
+    ///
+    /// Ordering note: we emit the previous segment's close *before* opening a new
+    /// one on a re-definition, so a value re-defined in the same block leaves a
+    /// hole between its last use and the re-def's def point.
+    /// </remarks>
     private static void BuildVRegSegmentsForBlock(
         MirBlock block,
         IReadOnlyDictionary<MirInstruction, int> baseSlotOf,
@@ -292,29 +294,30 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Step 3b: precise per-block PHYSREG segments.
-    //
-    // Physregs are read straight out of the operand array (explicit + implicit
-    // PhysicalReg operands). This is the *same* information the old pass's
-    // ComputeClobberSlots (implicit defs) and ComputePhysRegReservations (a copy
-    // reading $P after a def of $P) reconstructed by hand — here it falls out of
-    // the same def/use segment machinery as vregs.
-    //
-    //   - A physreg DEF (explicit or implicit) opens a segment at the def point.
-    //     A def while already open closes the prior segment first (hole / new
-    //     value), exactly like a vreg re-definition.
-    //   - A physreg USE extends the open segment to the use point.
-    //   - MirBlock.LiveIns physregs (entry-block CC args, cross-block live
-    //     physregs) open at the block's first use point.
-    //
-    // Cross-block physreg liveness: there is no physreg dataflow here. Instead a
-    // physreg that is genuinely live across a block boundary is recorded in the
-    // successor's MirBlock.LiveIns (populated by AbiLowering for the entry block
-    // and by RA for the rest). A physreg whose value does not escape the block
-    // simply closes at its last use, which is the conservative-but-correct local
-    // picture the allocator needs for interference.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// Step 3b: precise per-block PHYSREG segments.
+    /// </summary>
+    /// <remarks>
+    /// Physregs are read straight out of the operand array (explicit + implicit
+    /// PhysicalReg operands). This is the *same* information the old pass's
+    /// ComputeClobberSlots (implicit defs) and ComputePhysRegReservations (a copy
+    /// reading $P after a def of $P) reconstructed by hand — here it falls out of
+    /// the same def/use segment machinery as vregs.
+    ///
+    ///   - A physreg DEF (explicit or implicit) opens a segment at the def point.
+    ///     A def while already open closes the prior segment first (hole / new
+    ///     value), exactly like a vreg re-definition.
+    ///   - A physreg USE extends the open segment to the use point.
+    ///   - MirBlock.LiveIns physregs (entry-block CC args, cross-block live
+    ///     physregs) open at the block's first use point.
+    ///
+    /// Cross-block physreg liveness: there is no physreg dataflow here. Instead a
+    /// physreg that is genuinely live across a block boundary is recorded in the
+    /// successor's MirBlock.LiveIns (populated by AbiLowering for the entry block
+    /// and by RA for the rest). A physreg whose value does not escape the block
+    /// simply closes at its last use, which is the conservative-but-correct local
+    /// picture the allocator needs for interference.
+    /// </remarks>
     private static void BuildPhysRegSegmentsForBlock(
         MirBlock block,
         IReadOnlyDictionary<MirInstruction, int> baseSlotOf,
@@ -393,10 +396,12 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
         }
     }
 
-    // A physreg is live-out of a block iff some successor lists it as a live-in
-    // (the post-RA cross-block liveness convention; MirBlock.LiveIns is set by
-    // AbiLowering for the entry block and by RA for the rest). A physreg merely
-    // live-IN to the current block but read and dropped here is not live-out.
+    /// <summary>
+    /// A physreg is live-out of a block iff some successor lists it as a live-in
+    /// (the post-RA cross-block liveness convention; MirBlock.LiveIns is set by
+    /// AbiLowering for the entry block and by RA for the rest). A physreg merely
+    /// live-IN to the current block but read and dropped here is not live-out.
+    /// </summary>
     private static bool IsLiveOut(MirBlock block, int physReg)
     {
         foreach (var succ in block.Successors)
@@ -405,8 +410,10 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
         return false;
     }
 
-    // Vreg uses, recursing into BlockTarget.Args (same helper shape as
-    // LivenessAnalysis so the two analyses see uses identically).
+    /// <summary>
+    /// Vreg uses, recursing into BlockTarget.Args (same helper shape as
+    /// LivenessAnalysis so the two analyses see uses identically).
+    /// </summary>
     private static IEnumerable<int> EnumerateVRegUses(MirOperand operand)
     {
         switch (operand)
@@ -422,8 +429,10 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
         }
     }
 
-    // DFS post-order reversed = reverse post-order. Unreachable blocks appended
-    // in function-list order (matches LivenessAnalysis).
+    /// <summary>
+    /// DFS post-order reversed = reverse post-order. Unreachable blocks appended
+    /// in function-list order (matches LivenessAnalysis).
+    /// </summary>
     private static List<MirBlock> ComputeReversePostOrder(MirFunction function)
     {
         if (function.Blocks.Count == 0) return [];
@@ -450,50 +459,53 @@ public sealed class LiveIntervalsAnalysis : MirFunctionAnalysis<LiveIntervals>
     }
 }
 
-// =============================================================================
-// ValueNumbering — reaching-definition value numbers for vregs (SplitKit S1).
-// =============================================================================
-//
-// A *value number* identifies the maximal set of live-range segments of one vreg
-// that carry the SAME value: segments connected through the CFG with no
-// intervening def of that vreg. A def starts a new value number; at a CFG join
-// the value numbers flowing in from each predecessor are unified into one.
-// Non-SSA MIR — a vreg can legitimately have several defs
-// reaching a join (the scratch vregs pseudo expansion mints, for instance) — so
-// the join's live-in is genuinely one merged value.
-//
-// This is a standard reaching-definition computation, done with union-find:
-//
-//   1. Build a union-find node per def of a vreg, keyed by (vreg, def-slot), and
-//      a node per (block, vreg) where the vreg is live-in to the block (the
-//      block-entry value).
-//   2. To compute reaching defs: for each block B and vreg V live-in to B, for
-//      each predecessor P of B where V is live-out of P, union node(B-entry, V)
-//      with the value live-out of P — which is the last def of V within P if P
-//      defines V, else node(P-entry, V) (V passes straight through P).
-//   3. Assign a small deterministic ValNo per union-find representative,
-//      allocated in a deterministic walk (ascending block index, then ascending
-//      vreg id for entry values; ascending vreg id, then ascending def slot for
-//      defs) so output is stable, as AGENTS.md requires.
-//
-// The segment builder threads a "current value node" — node(B-entry, V) for a
-// live-in V, becoming node(V, def-slot) at each def — and tags each emitted
-// segment with the ValNo of find(current node). Only the cross-block carry
-// (step 2) is genuinely new; the rest falls out of the existing slot machinery.
+/// <summary>
+/// ValueNumbering — reaching-definition value numbers for vregs (SplitKit S1).
+/// </summary>
+/// <remarks>
+/// A *value number* identifies the maximal set of live-range segments of one vreg
+/// that carry the SAME value: segments connected through the CFG with no
+/// intervening def of that vreg. A def starts a new value number; at a CFG join
+/// the value numbers flowing in from each predecessor are unified into one.
+/// Non-SSA MIR — a vreg can legitimately have several defs
+/// reaching a join (the scratch vregs pseudo expansion mints, for instance) — so
+/// the join's live-in is genuinely one merged value.
+///
+/// This is a standard reaching-definition computation, done with union-find:
+///
+///   1. Build a union-find node per def of a vreg, keyed by (vreg, def-slot), and
+///      a node per (block, vreg) where the vreg is live-in to the block (the
+///      block-entry value).
+///   2. To compute reaching defs: for each block B and vreg V live-in to B, for
+///      each predecessor P of B where V is live-out of P, union node(B-entry, V)
+///      with the value live-out of P — which is the last def of V within P if P
+///      defines V, else node(P-entry, V) (V passes straight through P).
+///   3. Assign a small deterministic ValNo per union-find representative,
+///      allocated in a deterministic walk (ascending block index, then ascending
+///      vreg id for entry values; ascending vreg id, then ascending def slot for
+///      defs) so output is stable, as AGENTS.md requires.
+///
+/// The segment builder threads a "current value node" — node(B-entry, V) for a
+/// live-in V, becoming node(V, def-slot) at each def — and tags each emitted
+/// segment with the ValNo of find(current node). Only the cross-block carry
+/// (step 2) is genuinely new; the rest falls out of the existing slot machinery.
+/// </remarks>
 internal sealed class ValueNumbering
 {
-    // Two node-key spaces, kept disjoint by a tag:
-    //   def value:        key = (Vreg: v, Slot: defSlot, IsEntry: false)
-    //   block-entry value: key = (Vreg: v, Slot: blockIndex, IsEntry: true)
+    /// <summary>
+    /// Two node-key spaces, kept disjoint by a tag:
+    ///   def value:        key = (Vreg: v, Slot: defSlot, IsEntry: false)
+    ///   block-entry value: key = (Vreg: v, Slot: blockIndex, IsEntry: true)
+    /// </summary>
     private readonly record struct Node(int Vreg, int Slot, bool IsEntry);
 
-    // Union-find parent map over Node keys.
+    /// <summary>Union-find parent map over Node keys.</summary>
     private readonly Dictionary<Node, Node> _parent = new();
 
-    // Final small integer value number per representative node.
+    /// <summary>Final small integer value number per representative node.</summary>
     private readonly Dictionary<Node, int> _repValNo = new();
 
-    // Block → its 0-based index (deterministic node ordering for entry values).
+    /// <summary>Block → its 0-based index (deterministic node ordering for entry values).</summary>
     private readonly Dictionary<MirBlock, int> _blockIndex = new();
 
     public static ValueNumbering Compute(
@@ -580,11 +592,11 @@ internal sealed class ValueNumbering
         return vn;
     }
 
-    // The value number flowing into block B for live-in vreg V.
+    /// <summary>The value number flowing into block B for live-in vreg V.</summary>
     public int BlockEntryValNo(MirBlock block, int vreg) =>
         ValNoOf(EntryNode(block, vreg, this));
 
-    // The value number of the def of vreg V at the given def slot.
+    /// <summary>The value number of the def of vreg V at the given def slot.</summary>
     public int DefValNo(int vreg, int defSlot) =>
         ValNoOf(DefNode(vreg, defSlot));
 
@@ -603,8 +615,10 @@ internal sealed class ValueNumbering
             if (!block.Parameters.Contains(v)) yield return v;
     }
 
-    // The value number live-out of predecessor P for vreg V: the last def of V in
-    // P if P defines V, else V's block-entry value in P (straight pass-through).
+    /// <summary>
+    /// The value number live-out of predecessor P for vreg V: the last def of V in
+    /// P if P defines V, else V's block-entry value in P (straight pass-through).
+    /// </summary>
     private Node ValueLiveOut(MirBlock pred, int vreg, Dictionary<int, int> lastDefInPred) =>
         lastDefInPred.TryGetValue(vreg, out var defSlot)
             ? DefNode(vreg, defSlot)
@@ -651,8 +665,10 @@ internal sealed class ValueNumbering
         _parent[rb] = ra;
     }
 
-    // Total order on nodes for a deterministic union direction. Entry values sort
-    // before defs; within each, by (vreg, slot).
+    /// <summary>
+    /// Total order on nodes for a deterministic union direction. Entry values sort
+    /// before defs; within each, by (vreg, slot).
+    /// </summary>
     private static bool Less(Node a, Node b)
     {
         if (a.IsEntry != b.IsEntry) return a.IsEntry; // entry < def

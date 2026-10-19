@@ -2,19 +2,23 @@ namespace Irie.Mir;
 
 public sealed class MirBlock
 {
-    // Virtual-register IDs of block parameters (typed/classed vregs); empty
-    // on the entry block after ABI lowering and on all blocks after RA.
+    /// <summary>
+    /// Virtual-register IDs of block parameters (typed/classed vregs); empty
+    /// on the entry block after ABI lowering and on all blocks after RA.
+    /// </summary>
     public List<int> Parameters { get; } = [];
 
-    // Physical-register IDs known to be live on entry to this block.
-    // (1) On the entry block after ABI lowering: the calling convention live-ins.
-    // (2) On any block after RA: the physical registers live-in per the final
-    //     assignment.
+    /// <summary>
+    /// Physical-register IDs known to be live on entry to this block.
+    /// (1) On the entry block after ABI lowering: the calling convention live-ins.
+    /// (2) On any block after RA: the physical registers live-in per the final
+    ///     assignment.
+    /// </summary>
     public List<int> LiveIns { get; } = [];
 
     public List<MirInstruction> Instructions { get; } = [];
 
-    // Populated by MirFunction.RebuildCfg from terminator BlockTarget operands.
+    /// <summary>Populated by MirFunction.RebuildCfg from terminator BlockTarget operands.</summary>
     public List<MirBlock> Predecessors { get; } = [];
     public List<MirBlock> Successors   { get; } = [];
 

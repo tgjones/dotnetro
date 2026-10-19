@@ -3,11 +3,13 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Target.MOS6502;
 
-// The variant table is the one place a placement reads costs from and emits from,
-// so what it claims has to be what is encoded.
+/// <summary>
+/// The variant table is the one place a placement reads costs from and emits from,
+/// so what it claims has to be what is encoded.
+/// </summary>
 public sealed class MOS6502VariantsTests
 {
-    // The bytes of an instruction follow from how its operand is encoded.
+    /// <summary>The bytes of an instruction follow from how its operand is encoded.</summary>
     private static int EncodedBytes(MOS6502Op op) => MOS6502MachineCodeEmitTable.Get(op).Kind switch
     {
         EmitOperandKind.Implied => 1,

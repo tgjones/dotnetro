@@ -7,20 +7,23 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Lowers the calling convention into target-agnostic pseudo ops:
-//   - Entry-block typed parameters become live-ins + `pseudo.copy` from
-//     physregs (plus a `pseudo.merge` reassembling each multi-byte parameter
-//     back into the original parameter vreg).
-//   - Each `core.return %v` becomes per-byte `pseudo.copy` to result physregs
-//     (preceded by `pseudo.unmerge` for multi-byte return values), followed
-//     by `pseudo.return`.
-//   - Each `call.func` is replaced by per-arg `pseudo.copy → physreg` setups,
-//     a target-specific call instruction (e.g. `mos6502.jsr.abs`), and
-//     per-return `pseudo.copy ← physreg` teardowns.
-//
-// The function signature (ParameterTypes / ReturnType) is preserved.
-// Target-specific decisions (which physregs hold which bytes) live in the
-// supplied CallLowering.
+/// <summary>
+/// Lowers the calling convention into target-agnostic pseudo ops:
+///   - Entry-block typed parameters become live-ins + `pseudo.copy` from
+///     physregs (plus a `pseudo.merge` reassembling each multi-byte parameter
+///     back into the original parameter vreg).
+///   - Each `core.return %v` becomes per-byte `pseudo.copy` to result physregs
+///     (preceded by `pseudo.unmerge` for multi-byte return values), followed
+///     by `pseudo.return`.
+///   - Each `call.func` is replaced by per-arg `pseudo.copy → physreg` setups,
+///     a target-specific call instruction (e.g. `mos6502.jsr.abs`), and
+///     per-return `pseudo.copy ← physreg` teardowns.
+/// </summary>
+/// <remarks>
+/// The function signature (ParameterTypes / ReturnType) is preserved.
+/// Target-specific decisions (which physregs hold which bytes) live in the
+/// supplied CallLowering.
+/// </remarks>
 public sealed class AbiLoweringPass(Irie.Target.Target target) : MirFunctionPass
 {
     public override string Name => "AbiLowering";
@@ -206,8 +209,10 @@ public sealed class AbiLoweringPass(Irie.Target.Target target) : MirFunctionPass
         builder.Remove(call);
     }
 
-    // True when `vreg` is `cast.inttoptr` of an `arith.constant` (looking through
-    // integer width casts).
+    /// <summary>
+    /// True when `vreg` is `cast.inttoptr` of an `arith.constant` (looking through
+    /// integer width casts).
+    /// </summary>
     private static bool TryGetConstantAddress(MirFunction function, int vreg, out long address)
     {
         address = 0;

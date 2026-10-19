@@ -2,22 +2,25 @@ using Irie.Mir;
 
 namespace Irie.Passes;
 
-// Removes the parameters of blocks that have exactly one incoming edge, on
-// generic SSA MIR.
-//
-// A block parameter is a phi. With a single incoming edge it can only ever take
-// the one value that edge passes, so every use of the parameter is a use of that
-// argument — the LLVM `SimplifyCFG` / `InstCombine` single-entry-phi fold. The
-// argument is defined in the predecessor or dominates it, and the block's only
-// way in is through the predecessor, so it dominates every use of the parameter.
-//
-// Without this the parameter would be a vreg of its own, copied to on the edge
-// by phi elimination and then coalesced (or not) by the allocator; the i32
-// compare ladders of C# code create many such blocks, which end up holding only
-// copies and a jump.
-//
-// A block with two edges from the same predecessor (a `cf.cond_br` whose arms
-// both target it) has two incoming edges and is left alone.
+/// <summary>
+/// Removes the parameters of blocks that have exactly one incoming edge, on
+/// generic SSA MIR.
+/// </summary>
+/// <remarks>
+/// A block parameter is a phi. With a single incoming edge it can only ever take
+/// the one value that edge passes, so every use of the parameter is a use of that
+/// argument — the LLVM `SimplifyCFG` / `InstCombine` single-entry-phi fold. The
+/// argument is defined in the predecessor or dominates it, and the block's only
+/// way in is through the predecessor, so it dominates every use of the parameter.
+///
+/// Without this the parameter would be a vreg of its own, copied to on the edge
+/// by phi elimination and then coalesced (or not) by the allocator; the i32
+/// compare ladders of C# code create many such blocks, which end up holding only
+/// copies and a jump.
+///
+/// A block with two edges from the same predecessor (a `cf.cond_br` whose arms
+/// both target it) has two incoming edges and is left alone.
+/// </remarks>
 public sealed class SinglePredecessorBlockParamsPass : MirFunctionPass
 {
     public override string Name => "SinglePredecessorBlockParams";

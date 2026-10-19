@@ -2,75 +2,94 @@ using Irie.Mir;
 
 namespace Irie.Target;
 
-// Target hook for prologue/epilogue (frame) lowering, mirroring LLVM's
-// TargetFrameLowering. The generic PrologueEpilogueInsertionPass owns the
-// policy — which callee-saved registers a function actually clobbers, where the
-// entry block and the return instructions are, the order in which save/restore
-// happen — and delegates the actual instruction emission to a target subclass.
-//
-// Only the save/restore *instruction emission* is target-specific (on the
-// MOS6502 the hardware stack `pha`/`pla` pair plus the `$a`-preservation
-// `tay`/`tya` dance); the framework that drives it is target-independent. This
-// is the FrameLowering counterpart to the existing LegalizerInfo /
-// InstructionSelector / PseudoExpander / BranchLowering generic-pass + target-
-// hook idiom.
+/// <summary>
+/// Target hook for prologue/epilogue (frame) lowering, mirroring LLVM's
+/// TargetFrameLowering. The generic PrologueEpilogueInsertionPass owns the
+/// policy — which callee-saved registers a function actually clobbers, where the
+/// entry block and the return instructions are, the order in which save/restore
+/// happen — and delegates the actual instruction emission to a target subclass.
+/// </summary>
+/// <remarks>
+/// Only the save/restore *instruction emission* is target-specific (on the
+/// MOS6502 the hardware stack `pha`/`pla` pair plus the `$a`-preservation
+/// `tay`/`tya` dance); the framework that drives it is target-independent. This
+/// is the FrameLowering counterpart to the existing LegalizerInfo /
+/// InstructionSelector / PseudoExpander / BranchLowering generic-pass + target-
+/// hook idiom.
+/// </remarks>
 public abstract class FrameLowering
 {
-    // True iff `instr` is the target's return instruction (e.g. mos6502.rts).
-    // The generic pass uses this to find the epilogue insertion points; mirrors
-    // LLVM's MachineInstr::isReturn.
+    /// <summary>
+    /// True iff `instr` is the target's return instruction (e.g. mos6502.rts).
+    /// The generic pass uses this to find the epilogue insertion points; mirrors
+    /// LLVM's MachineInstr::isReturn.
+    /// </summary>
     public abstract bool IsReturnInstruction(MirInstruction instr);
 
-    // Emit the prologue save sequence for `saved` (the callee-saved registers
-    // the function actually clobbers, supplied in ASCENDING order) at the TOP of
-    // `entryBlock`, before its first instruction. The emitted instructions must
-    // preserve every value live-in to the entry block (the calling-convention
-    // argument bytes) — the target is responsible for that (e.g. on the MOS6502,
-    // shuttling a live `$a` through `$y` while `$a` is borrowed for the spill
-    // loop). `builder` is positioned by the caller; the implementation sets its
-    // own insertion point.
+    /// <summary>
+    /// Emit the prologue save sequence for `saved` (the callee-saved registers
+    /// the function actually clobbers, supplied in ASCENDING order) at the TOP of
+    /// `entryBlock`, before its first instruction. The emitted instructions must
+    /// preserve every value live-in to the entry block (the calling-convention
+    /// argument bytes) — the target is responsible for that (e.g. on the MOS6502,
+    /// shuttling a live `$a` through `$y` while `$a` is borrowed for the spill
+    /// loop). `builder` is positioned by the caller; the implementation sets its
+    /// own insertion point.
+    /// </summary>
     public abstract void EmitCalleeSavedSpills(
         MirBlock entryBlock, IReadOnlyList<int> saved, MirBuilder builder);
 
-    // Emit the epilogue restore sequence for `saved` immediately BEFORE
-    // `returnInstr`. The same registers as EmitCalleeSavedSpills, but restored in
-    // the reverse (LIFO) order — the target restores in DESCENDING order to match
-    // a stack discipline. The emitted instructions must preserve any value the
-    // return instruction itself uses (the return-value bytes carried as implicit
-    // uses on the return).
+    /// <summary>
+    /// Emit the epilogue restore sequence for `saved` immediately BEFORE
+    /// `returnInstr`. The same registers as EmitCalleeSavedSpills, but restored in
+    /// the reverse (LIFO) order — the target restores in DESCENDING order to match
+    /// a stack discipline. The emitted instructions must preserve any value the
+    /// return instruction itself uses (the return-value bytes carried as implicit
+    /// uses on the return).
+    /// </summary>
     public abstract void EmitCalleeSavedRestores(
         MirInstruction returnInstr, IReadOnlyList<int> saved, MirBuilder builder);
 
-    // True iff `instr` is one of the target's abstract frame-access instructions
-    // (the llvm-mos LDStk/STStk analogue) — a byte load/store still carrying a
-    // FrameSlot symbol + offset rather than a concrete address. The generic
-    // FrameAccessLoweringPass uses this to find the accesses it must delegate to
-    // LowerFrameAccess; the target owns what its abstract frame ops look like.
+    /// <summary>
+    /// True iff `instr` is one of the target's abstract frame-access instructions
+    /// (the llvm-mos LDStk/STStk analogue) — a byte load/store still carrying a
+    /// FrameSlot symbol + offset rather than a concrete address. The generic
+    /// FrameAccessLoweringPass uses this to find the accesses it must delegate to
+    /// LowerFrameAccess; the target owns what its abstract frame ops look like.
+    /// </summary>
     public abstract bool IsFrameAccess(MirInstruction instr);
 
-    // Rewrite one abstract frame access (`IsFrameAccess(instr)` is true) into the
-    // concrete instruction sequence that addresses the slot, per the slot's
-    // placement (FrameSlot.StackId / Offset). The llvm-mos
-    // MOSRegisterInfo::eliminateFrameIndex analogue: it runs post-RA, so the
-    // value byte is already in its physreg and the access's scratch clobbers are
-    // already reserved — no register scavenging is required. `function` supplies
-    // the FrameSlots; `builder` is positioned by the caller and the implementation
-    // builds the replacement and removes `instr`.
+    /// <summary>
+    /// Rewrite one abstract frame access (`IsFrameAccess(instr)` is true) into the
+    /// concrete instruction sequence that addresses the slot, per the slot's
+    /// placement (FrameSlot.StackId / Offset). The llvm-mos
+    /// MOSRegisterInfo::eliminateFrameIndex analogue: it runs post-RA, so the
+    /// value byte is already in its physreg and the access's scratch clobbers are
+    /// already reserved — no register scavenging is required. `function` supplies
+    /// the FrameSlots; `builder` is positioned by the caller and the implementation
+    /// builds the replacement and removes `instr`.
+    /// </summary>
     public abstract void LowerFrameAccess(
         MirFunction function, MirInstruction instr, MirBuilder builder);
 
-    // The number of bytes of soft stack this function reserves in its prologue
-    // (for the arguments of its calls), 0 if it needs none. Known once the
-    // function's calls have been lowered.
+    /// <summary>
+    /// The number of bytes of soft stack this function reserves in its prologue
+    /// (for the arguments of its calls), 0 if it needs none. Known once the
+    /// function's calls have been lowered.
+    /// </summary>
     public virtual int GetSoftStackFrameBytes(MirFunction function) => 0;
 
-    // Emit the soft-stack reservation of `bytes` at the TOP of `entryBlock`,
-    // preserving every value live-in to it.
+    /// <summary>
+    /// Emit the soft-stack reservation of `bytes` at the TOP of `entryBlock`,
+    /// preserving every value live-in to it.
+    /// </summary>
     public virtual void EmitSoftStackReserve(MirBlock entryBlock, int bytes, MirBuilder builder) =>
         throw new NotSupportedException("This target has no soft stack.");
 
-    // Emit the matching release immediately BEFORE `returnInstr`, preserving
-    // every value the return uses.
+    /// <summary>
+    /// Emit the matching release immediately BEFORE `returnInstr`, preserving
+    /// every value the return uses.
+    /// </summary>
     public virtual void EmitSoftStackRelease(MirInstruction returnInstr, int bytes, MirBuilder builder) =>
         throw new NotSupportedException("This target has no soft stack.");
 }

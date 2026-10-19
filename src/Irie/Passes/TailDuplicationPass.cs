@@ -4,46 +4,49 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// Tail-duplication — the llvm-mos `tailduplication` (TailDuplicator) analogue.
-// It *rebalances* what the eager return-merge (ReturnMergePass, our SimplifyCFG
-// mergeReturnBlocks analogue) and the branch-folder over-merged: when funnelling
-// several returns through one shared block did not pay off — because the shared
-// tail is trivial — it clones the tail back into the predecessors that jump to
-// it, eliminating the jump.
-//
-// Generic, like LLVM's TailDuplicator: the duplication logic is target-agnostic
-// and the few target-specific questions are delegated, exactly as LLVM routes
-// them through TargetInstrInfo. "Is this a return?" → `Dialect.IsReturn`
-// (MCInstrDesc::isReturn). "Is this an unconditional branch, and to where?" →
-// `BranchLowering.TryGetUnconditionalBranchTarget` (the unconditional arm of
-// analyzeBranch). "Is this a terminator?" → `Dialect.IsTerminator`.
-//
-// Placement: this runs as the LAST pass, just after the target's block-placement
-// — not before it as llvm-mos's standalone `tailduplication` does. llvm-mos's
-// block-placement integrates tail duplication (layout-aware TailDupPlacement);
-// ours does not, so this post-placement pass is the faithful analogue. By running
-// after placement we only ever see the unconditional-branch edges that placement
-// could NOT turn into a free fall-through — exactly the jumps worth replacing
-// with the inlined tail. Running before placement would clone over jumps that
-// placement was about to drop for free, growing code (e.g. a single return
-// reached by an adjacent jump that becomes a fall-through). By this point
-// pseudo-expansion has also run, so the tail is final real instructions and the
-// duplication-cost count is exact.
-//
-// Cost model (mirrors TailDuplicator::shouldTailDuplicate at -Os, where
-// MaxDuplicateCount == 1: "duplicate only one, because one branch instruction can
-// be eliminated to compensate for the duplication"): a tail block is duplicated
-// only when its real-instruction count is <= 1. So a bare `rts` (1 instr) is
-// cloned back — removing the jump that reached it at zero net instruction cost —
-// while a genuinely-shared epilogue like `tya ; rts` (2 instrs) is left merged.
-//
-// Scope: we only duplicate **return-terminated** tails (last instruction
-// satisfies Dialect.IsReturn) into predecessors that reach them via an
-// unconditional branch (a redirectable edge). A return tail has no successors,
-// so cloning it needs no successor/PHI fix-up, and post-RA physregs mean no SSA
-// update — exactly the trivial-tail rebalancing we need, nothing more.
-// Predecessors that fall through into the tail, or reach it via a conditional
-// branch, are left untouched (the tail stays for them).
+/// <summary>
+/// Tail-duplication — the llvm-mos `tailduplication` (TailDuplicator) analogue.
+/// It *rebalances* what the eager return-merge (ReturnMergePass, our SimplifyCFG
+/// mergeReturnBlocks analogue) and the branch-folder over-merged: when funnelling
+/// several returns through one shared block did not pay off — because the shared
+/// tail is trivial — it clones the tail back into the predecessors that jump to
+/// it, eliminating the jump.
+/// </summary>
+/// <remarks>
+/// Generic, like LLVM's TailDuplicator: the duplication logic is target-agnostic
+/// and the few target-specific questions are delegated, exactly as LLVM routes
+/// them through TargetInstrInfo. "Is this a return?" → `Dialect.IsReturn`
+/// (MCInstrDesc::isReturn). "Is this an unconditional branch, and to where?" →
+/// `BranchLowering.TryGetUnconditionalBranchTarget` (the unconditional arm of
+/// analyzeBranch). "Is this a terminator?" → `Dialect.IsTerminator`.
+///
+/// Placement: this runs as the LAST pass, just after the target's block-placement
+/// — not before it as llvm-mos's standalone `tailduplication` does. llvm-mos's
+/// block-placement integrates tail duplication (layout-aware TailDupPlacement);
+/// ours does not, so this post-placement pass is the faithful analogue. By running
+/// after placement we only ever see the unconditional-branch edges that placement
+/// could NOT turn into a free fall-through — exactly the jumps worth replacing
+/// with the inlined tail. Running before placement would clone over jumps that
+/// placement was about to drop for free, growing code (e.g. a single return
+/// reached by an adjacent jump that becomes a fall-through). By this point
+/// pseudo-expansion has also run, so the tail is final real instructions and the
+/// duplication-cost count is exact.
+///
+/// Cost model (mirrors TailDuplicator::shouldTailDuplicate at -Os, where
+/// MaxDuplicateCount == 1: "duplicate only one, because one branch instruction can
+/// be eliminated to compensate for the duplication"): a tail block is duplicated
+/// only when its real-instruction count is &lt;= 1. So a bare `rts` (1 instr) is
+/// cloned back — removing the jump that reached it at zero net instruction cost —
+/// while a genuinely-shared epilogue like `tya ; rts` (2 instrs) is left merged.
+///
+/// Scope: we only duplicate **return-terminated** tails (last instruction
+/// satisfies Dialect.IsReturn) into predecessors that reach them via an
+/// unconditional branch (a redirectable edge). A return tail has no successors,
+/// so cloning it needs no successor/PHI fix-up, and post-RA physregs mean no SSA
+/// update — exactly the trivial-tail rebalancing we need, nothing more.
+/// Predecessors that fall through into the tail, or reach it via a conditional
+/// branch, are left untouched (the tail stays for them).
+/// </remarks>
 public sealed class TailDuplicationPass(BranchLowering branchLowering) : MirFunctionPass
 {
     public override string Name => "TailDuplication";
@@ -99,10 +102,12 @@ public sealed class TailDuplicationPass(BranchLowering branchLowering) : MirFunc
         function.RebuildCfg();
     }
 
-    // A block is a duplicable return tail when its last instruction is a return
-    // (Dialect.IsReturn) and its real-instruction count is within the cost limit
-    // (<= 1; see the header comment). Identity `pseudo.copy $r -> $r` instructions
-    // generate no code and are treated as transparent.
+    /// <summary>
+    /// A block is a duplicable return tail when its last instruction is a return
+    /// (Dialect.IsReturn) and its real-instruction count is within the cost limit
+    /// (&lt;= 1; see the header comment). Identity `pseudo.copy $r -&gt; $r` instructions
+    /// generate no code and are treated as transparent.
+    /// </summary>
     private static bool IsDuplicableReturnTail(MirBlock block)
     {
         if (block.Instructions.Count == 0) return false;
@@ -131,10 +136,12 @@ public sealed class TailDuplicationPass(BranchLowering branchLowering) : MirFunc
             && def.Id == use.Id;
     }
 
-    // True if `block` is reached by physical fall-through: the block laid out
-    // immediately before it does not end in a terminator (so control flows into
-    // `block`). A block ending in a conditional branch counts — conditional
-    // branches are not terminators in our model and fall through.
+    /// <summary>
+    /// True if `block` is reached by physical fall-through: the block laid out
+    /// immediately before it does not end in a terminator (so control flows into
+    /// `block`). A block ending in a conditional branch counts — conditional
+    /// branches are not terminators in our model and fall through.
+    /// </summary>
     private static bool IsFallenInto(MirFunction function, MirBlock block)
     {
         var index = function.Blocks.IndexOf(block);
@@ -147,8 +154,10 @@ public sealed class TailDuplicationPass(BranchLowering branchLowering) : MirFunc
     private static bool IsTerminator(MirInstruction instr)
         => DialectRegistry.ById(instr.Opcode.Dialect).IsTerminator(instr.Opcode.Code);
 
-    // Deep-copy the operand array (a fresh array sharing the immutable operand
-    // records) so the clone and original never share a mutable operand slot.
+    /// <summary>
+    /// Deep-copy the operand array (a fresh array sharing the immutable operand
+    /// records) so the clone and original never share a mutable operand slot.
+    /// </summary>
     private static MirOperand[] CloneOperands(MirOperand[] operands)
         => (MirOperand[])operands.Clone();
 }

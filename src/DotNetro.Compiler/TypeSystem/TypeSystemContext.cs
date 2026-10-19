@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Reflection.Metadata;
 
@@ -6,13 +6,17 @@ namespace DotNetro.Compiler.TypeSystem;
 
 internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resolver) : IDisposable
 {
-    // Identity: an assembly is identified by the simple name in its own metadata, so
-    // the same image reached under different names (mscorlib -> System.Private.CoreLib
-    // via type forwarders, or by file path) is one EcmaAssembly and types stay unique.
+    /// <summary>
+    /// Identity: an assembly is identified by the simple name in its own metadata, so
+    /// the same image reached under different names (mscorlib -&gt; System.Private.CoreLib
+    /// via type forwarders, or by file path) is one EcmaAssembly and types stay unique.
+    /// </summary>
     private readonly Dictionary<string, EcmaAssembly> _assembliesByIdentity = [];
 
-    // Cache of reference -> assembly lookups, so the resolver is asked at most once per
-    // distinct reference.
+    /// <summary>
+    /// Cache of reference -&gt; assembly lookups, so the resolver is asked at most once per
+    /// distinct reference.
+    /// </summary>
     private readonly Dictionary<string, EcmaAssembly> _assembliesByReference = [];
 
     private readonly ConcurrentDictionary<TypeDescription, ByReferenceType> _byReferenceTypes = new();
@@ -27,11 +31,13 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
     /// <summary>Simple name of DotNetro's own core library (see <c>src/DotNetro.CoreLib</c>).</summary>
     public const string CoreLibraryName = WellKnownAssemblies.CoreLib;
 
-    // Framework assembly names that user programs (compiled by Roslyn against the
-    // standard reference assemblies) and the host's facades refer to. They are all
-    // redirected to DotNetro.CoreLib, which defines every type we support under the
-    // same namespace and name; the host's own copies are never loaded. Add a name
-    // here when we fold another framework assembly's types into the core library.
+    /// <summary>
+    /// Framework assembly names that user programs (compiled by Roslyn against the
+    /// standard reference assemblies) and the host's facades refer to. They are all
+    /// redirected to DotNetro.CoreLib, which defines every type we support under the
+    /// same namespace and name; the host's own copies are never loaded. Add a name
+    /// here when we fold another framework assembly's types into the core library.
+    /// </summary>
     private static readonly HashSet<string> s_redirectedFrameworkAssemblies = new(StringComparer.OrdinalIgnoreCase)
     {
         "mscorlib",
@@ -47,7 +53,7 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
 
     public EcmaAssembly CoreAssembly => ResolveAssembly(new AssemblyName(CoreLibraryName));
 
-    // The runtime helpers (ManagedHeap, ConsoleHelper) live in the core library.
+    /// <summary>The runtime helpers (ManagedHeap, ConsoleHelper) live in the core library.</summary>
     public EcmaAssembly RuntimeAssembly => CoreAssembly;
 
     public int PointerSize { get; } = pointerSize;
@@ -134,10 +140,12 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
         return result;
     }
 
-    // Maps a framework assembly reference onto DotNetro.CoreLib before the resolver
-    // is asked, so the host's CoreLib/facades can never be loaded by accident. A
-    // framework assembly we have no mapping for is an error naming it. Everything
-    // else (the user's own assembly, third-party libraries) resolves normally.
+    /// <summary>
+    /// Maps a framework assembly reference onto DotNetro.CoreLib before the resolver
+    /// is asked, so the host's CoreLib/facades can never be loaded by accident. A
+    /// framework assembly we have no mapping for is an error naming it. Everything
+    /// else (the user's own assembly, third-party libraries) resolves normally.
+    /// </summary>
     private static AssemblyName Redirect(AssemblyName assemblyName)
     {
         var name = assemblyName.Name;

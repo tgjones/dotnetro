@@ -3,30 +3,33 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// generate-oscar64: the Oscar64 side of the reference corpus.
-//
-// Oscar64 (github.com/drmortalwombat/oscar64) is a whole-program C compiler for the
-// 6502 that measures best on cross-compiler benchmarks, so it is a second reference
-// next to llvm-mos. It only compiles whole programs, so each corpus case gets a
-// generated harness: the case's source, a `__noinline` declaration of every function
-// it defines (Oscar64 would otherwise inline them into `main`), out-of-line
-// definitions for functions it only declares (`extern int g(int);`), and a `main`
-// that calls each function with arguments read from `volatile` globals, so nothing
-// is constant-folded. The compiled listing (`.asm`) is cut down to the case's own
-// functions and written beside the case as `<name>.oscar64.asm`, which is checked
-// in, like the llvm-mos `.s`; generate-report reads it from there.
-//
-// Oscar64 sees the whole harness, so it picks its own calling convention per
-// function (parameters in zero page, a callee's arguments in A/X, ...). That is part
-// of what is being measured, but it makes the smallest cases less like-for-like with
-// llvm-mos, which compiles each function against a fixed ABI.
+/// <summary>
+/// generate-oscar64: the Oscar64 side of the reference corpus.
+/// </summary>
+/// <remarks>
+/// Oscar64 (github.com/drmortalwombat/oscar64) is a whole-program C compiler for the
+/// 6502 that measures best on cross-compiler benchmarks, so it is a second reference
+/// next to llvm-mos. It only compiles whole programs, so each corpus case gets a
+/// generated harness: the case's source, a `__noinline` declaration of every function
+/// it defines (Oscar64 would otherwise inline them into `main`), out-of-line
+/// definitions for functions it only declares (`extern int g(int);`), and a `main`
+/// that calls each function with arguments read from `volatile` globals, so nothing
+/// is constant-folded. The compiled listing (`.asm`) is cut down to the case's own
+/// functions and written beside the case as `&lt;name&gt;.oscar64.asm`, which is checked
+/// in, like the llvm-mos `.s`; generate-report reads it from there.
+///
+/// Oscar64 sees the whole harness, so it picks its own calling convention per
+/// function (parameters in zero page, a callee's arguments in A/X, ...). That is part
+/// of what is being measured, but it makes the smallest cases less like-for-like with
+/// llvm-mos, which compiles each function against a fixed ABI.
+/// </remarks>
 static class Oscar64Reference
 {
-    // A listing instruction line: `08a8 : 18 __ __ CLC` / `0882 : bd fc 08 LDA $08fc,x ; (…)`.
+    /// <summary>A listing instruction line: `08a8 : 18 __ __ CLC` / `0882 : bd fc 08 LDA $08fc,x ; (…)`.</summary>
     static readonly Regex InstructionLine = new(@"^[0-9a-f]{4} : (?<bytes>(?:[0-9a-f_]{2} ){3})(?<mnemonic>[A-Z]{3})\b");
-    // A function header in the listing: `add_i16: ; add_i16(i16,i16)->i16`.
+    /// <summary>A function header in the listing: `add_i16: ; add_i16(i16,i16)-&gt;i16`.</summary>
     static readonly Regex FunctionHeader = new(@"^(?<name>[A-Za-z_]\w*): ;");
-    // A source-reference line: `;   5, "/abs/path/to/file.c"` (dropped: it holds machine paths).
+    /// <summary>A source-reference line: `;   5, "/abs/path/to/file.c"` (dropped: it holds machine paths).</summary>
     static readonly Regex SourceLine = new(@"^;\s+\d+, """);
 
     public static Command Build()
@@ -77,8 +80,10 @@ static class Oscar64Reference
         return cmd;
     }
 
-    // Counts instructions and code bytes in a committed `.oscar64.asm`. Returns null
-    // when the file records a compile failure (or holds no code).
+    /// <summary>
+    /// Counts instructions and code bytes in a committed `.oscar64.asm`. Returns null
+    /// when the file records a compile failure (or holds no code).
+    /// </summary>
     public static (int Instructions, int Bytes, string Display)? Count(string listing)
     {
         var instructions = 0;
@@ -95,8 +100,10 @@ static class Oscar64Reference
         return (instructions, bytes, display);
     }
 
-    // Builds the harness for one case, compiles it, and returns the listing of the
-    // case's own functions (or null, with the compiler's output in `error`).
+    /// <summary>
+    /// Builds the harness for one case, compiles it, and returns the listing of the
+    /// case's own functions (or null, with the compiler's output in `error`).
+    /// </summary>
     static string? Compile(string compiler, string home, string opt, string cFile, out string error)
     {
         var source = StripComments(File.ReadAllText(cFile));
@@ -176,15 +183,17 @@ static class Oscar64Reference
         return sb.ToString();
     }
 
-    // Names of the case's top-level scalar globals: `int counter;`, `int g0, g1;`.
+    /// <summary>Names of the case's top-level scalar globals: `int counter;`, `int g0, g1;`.</summary>
     static List<string> ParseGlobals(string source) =>
         Regex.Matches(source, @"^(?:unsigned\s+|signed\s+)?(?:char|short|int|long)(?:\s+(?:int|long))?\s+(?<names>[A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s*;", RegexOptions.Multiline)
             .SelectMany(m => m.Groups["names"].Value.Split(',').Select(n => n.Trim()))
             .ToList();
 
-    // Top-level function definitions (`terminator` = `{`) or declarations (`;`):
-    // `<return type> <name>(<params>)`. The corpus is small, plain C, so a regex over
-    // the comment-free source is enough.
+    /// <summary>
+    /// Top-level function definitions (`terminator` = `{`) or declarations (`;`):
+    /// `&lt;return type&gt; &lt;name&gt;(&lt;params&gt;)`. The corpus is small, plain C, so a regex over
+    /// the comment-free source is enough.
+    /// </summary>
     static IEnumerable<Function> ParseFunctions(string source, string terminator)
     {
         var re = new Regex(@"^(?<ret>(?:extern\s+|static\s+)?[A-Za-z_][\w\s\*]*?)\s*\b(?<name>[A-Za-z_]\w*)\s*\((?<params>[^()]*)" + terminator, RegexOptions.Multiline);
@@ -201,7 +210,7 @@ static class Oscar64Reference
         }
     }
 
-    // `const int *a` → `const int *`; `int` (unnamed) stays `int`.
+    /// <summary>`const int *a` → `const int *`; `int` (unnamed) stays `int`.</summary>
     static string ParamType(string param)
     {
         var m = Regex.Match(param, @"^(?<type>.*?[\s\*])(?<name>[A-Za-z_]\w*)$");
@@ -210,8 +219,10 @@ static class Oscar64Reference
         return (isNamed ? m.Groups["type"].Value : param).Trim();
     }
 
-    // Keeps only the listing sections of the given functions, minus source-reference
-    // lines (they hold absolute paths).
+    /// <summary>
+    /// Keeps only the listing sections of the given functions, minus source-reference
+    /// lines (they hold absolute paths).
+    /// </summary>
     static string ExtractFunctions(string[] lines, HashSet<string> names)
     {
         var sb = new StringBuilder();
@@ -231,7 +242,7 @@ static class Oscar64Reference
     static string StripComments(string source) =>
         Regex.Replace(Regex.Replace(source, @"/\*.*?\*/", " ", RegexOptions.Singleline), @"//[^\n]*", "");
 
-    // Compiler errors name the harness and the case by absolute path; keep the file name.
+    /// <summary>Compiler errors name the harness and the case by absolute path; keep the file name.</summary>
     static string StripPaths(string line, string cFile) =>
         Regex.Replace(line.Replace(Path.GetFullPath(cFile), Path.GetFileName(cFile)), @"/\S*/(harness\.c)", "$1");
 

@@ -4,31 +4,36 @@ using Irie.Passes.Analyses;
 
 namespace Irie.Target.MOS6502;
 
-// Home classes: sets of values that share one memory home.
-//
-// Two values may share a home when they are never live at the same time. Every
-// block parameter is joined with the arguments it receives, and every copy with its
-// source, as far as that is possible: with no limit on the number of homes,
-// sharing can never force a spill, and a branch whose argument already sits in the
-// parameter's home needs no move at all (the phi webs of a loop counter or an
-// accumulator collapse into one home).
-//
-// Interference is by value: a value is live from its definition to its last use,
-// and a copy does not make its source and its result interfere, since they hold the
-// same value. Candidates are tried in decreasing block frequency, so a loop's
-// moves are removed before a cold path's.
+/// <summary>
+/// Home classes: sets of values that share one memory home.
+/// </summary>
+/// <remarks>
+/// Two values may share a home when they are never live at the same time. Every
+/// block parameter is joined with the arguments it receives, and every copy with its
+/// source, as far as that is possible: with no limit on the number of homes,
+/// sharing can never force a spill, and a branch whose argument already sits in the
+/// parameter's home needs no move at all (the phi webs of a loop counter or an
+/// accumulator collapse into one home).
+///
+/// Interference is by value: a value is live from its definition to its last use,
+/// and a copy does not make its source and its result interfere, since they hold the
+/// same value. Candidates are tried in decreasing block frequency, so a loop's
+/// moves are removed before a cold path's.
+/// </remarks>
 internal sealed class HomeClasses
 {
-    // The number of homes from which unrelated values share them.
+    /// <summary>The number of homes from which unrelated values share them.</summary>
     private const int PressureLimit = 32;
 
     private readonly Dictionary<int, int> _parent = [];
-    // Interference between class representatives.
+    /// <summary>Interference between class representatives.</summary>
     private readonly Dictionary<int, HashSet<int>> _adjacent = [];
 
-    // The representative of every value that shares its home with another; a value
-    // not in the result has a home of its own. `excluded` names values that must
-    // keep their own (those that live in a fixed register or are rebuilt).
+    /// <summary>
+    /// The representative of every value that shares its home with another; a value
+    /// not in the result has a home of its own. `excluded` names values that must
+    /// keep their own (those that live in a fixed register or are rebuilt).
+    /// </summary>
     public static Dictionary<int, int> Build(
         MOS6502Placer placer, LoopInfo loops, Func<int, bool> excluded)
     {
@@ -137,10 +142,12 @@ internal sealed class HomeClasses
         }
     }
 
-    // Values that have no copy or parameter in common but are never live together
-    // can share a home as well: first fit over the classes. Without it every value
-    // would keep a home of its own, and a function with many short-lived values
-    // would overflow the zero page.
+    /// <summary>
+    /// Values that have no copy or parameter in common but are never live together
+    /// can share a home as well: first fit over the classes. Without it every value
+    /// would keep a home of its own, and a function with many short-lived values
+    /// would overflow the zero page.
+    /// </summary>
     private void ShareUnrelated(MOS6502Placer placer, Func<int, bool> excluded)
     {
         var classes = new List<int>();
@@ -180,7 +187,7 @@ internal sealed class HomeClasses
         }
     }
 
-    // Folds class rb into class ra.
+    /// <summary>Folds class rb into class ra.</summary>
     private void Merge(int ra, int rb)
     {
         _parent[rb] = ra;

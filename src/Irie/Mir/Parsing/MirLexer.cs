@@ -4,10 +4,12 @@ namespace Irie.Mir.Parsing;
 
 internal sealed class MirLexer
 {
-    // No reserved keywords. Identifiers like `func` are matched by their text
-    // in the parser (e.g. ParseFunction expects Identifier("func")), so that
-    // dialect opcode parts like `call.func` lex as ordinary identifiers and
-    // don't collide with syntactic-looking words.
+    /// <summary>
+    /// No reserved keywords. Identifiers like `func` are matched by their text
+    /// in the parser (e.g. ParseFunction expects Identifier("func")), so that
+    /// dialect opcode parts like `call.func` lex as ordinary identifiers and
+    /// don't collide with syntactic-looking words.
+    /// </summary>
     private static readonly Dictionary<string, MirTokenKind> Keywords = new();
 
     private readonly TextReader _reader;
@@ -154,10 +156,12 @@ internal sealed class MirLexer
         return long.Parse(sb.ToString());
     }
 
-    // Identifier: ASCII letter/digit/underscore, optionally with embedded hyphens
-    // followed by another letter/underscore (lets us tokenize `implicit-def`,
-    // `tied-def`, etc. as a single identifier — same convention as the IR/Mir
-    // grammar uses elsewhere).
+    /// <summary>
+    /// Identifier: ASCII letter/digit/underscore, optionally with embedded hyphens
+    /// followed by another letter/underscore (lets us tokenize `implicit-def`,
+    /// `tied-def`, etc. as a single identifier — same convention as the IR/Mir
+    /// grammar uses elsewhere).
+    /// </summary>
     private string ReadWord()
     {
         var sb = new StringBuilder();
@@ -182,8 +186,10 @@ internal sealed class MirLexer
         return sb.ToString();
     }
 
-    // Reads a double-quoted string with the same escape vocabulary used by
-    // MirWriter.WriteDataItem: \\  \"  \n  \r  \t  \xHH.
+    /// <summary>
+    /// Reads a double-quoted string with the same escape vocabulary used by
+    /// MirWriter.WriteDataItem: \\  \"  \n  \r  \t  \xHH.
+    /// </summary>
     private MirToken ReadString(int line, int col)
     {
         Advance(); // consume opening '"'

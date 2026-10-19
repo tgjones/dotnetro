@@ -3,10 +3,12 @@ using System.Text;
 
 namespace Irie.Target.MOS6502;
 
-// Packages a flat 6502 byte buffer into a Commodore 64 .prg: a two-byte load
-// address ($0801, the start of BASIC memory) followed by a one-line tokenised
-// BASIC program, `10 SYS <origin>`, so that RUN starts the machine code, then
-// the code itself at <origin>.
+/// <summary>
+/// Packages a flat 6502 byte buffer into a Commodore 64 .prg: a two-byte load
+/// address ($0801, the start of BASIC memory) followed by a one-line tokenised
+/// BASIC program, `10 SYS &lt;origin&gt;`, so that RUN starts the machine code, then
+/// the code itself at &lt;origin&gt;.
+/// </summary>
 internal static class C64PrgImage
 {
     public const int BasicStart = 0x0801;

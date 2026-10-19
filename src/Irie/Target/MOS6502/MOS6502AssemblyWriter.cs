@@ -104,8 +104,10 @@ public static class MOS6502AssemblyWriter
         };
     }
 
-    // Renders a symbol reference with an optional byte offset (`name+N` / `name-N`);
-    // a zero offset renders as the bare name so existing output is unchanged.
+    /// <summary>
+    /// Renders a symbol reference with an optional byte offset (`name+N` / `name-N`);
+    /// a zero offset renders as the bare name so existing output is unchanged.
+    /// </summary>
     private static string FormatSymbol(string name, int offset)
         => offset == 0 ? name : $"{name}{offset:+0;-0}";
 }

@@ -5,8 +5,10 @@ using Irie.Dialects.Pseudo;
 
 namespace Irie.Mir;
 
-// Insertion-point-based helper for emitting MirInstructions. Mirrors today's
-// MachineIRBuilder but talks in terms of OpcodeRef and the new operand types.
+/// <summary>
+/// Insertion-point-based helper for emitting MirInstructions. Mirrors today's
+/// MachineIRBuilder but talks in terms of OpcodeRef and the new operand types.
+/// </summary>
 public sealed class MirBuilder(MirFunction function)
 {
     private MirBlock? _block;
@@ -41,15 +43,17 @@ public sealed class MirBuilder(MirFunction function)
         _insertionIndex = _block.Instructions.IndexOf(instruction) + 1;
     }
 
-    // Mark a physical register as live-in on the current block.
+    /// <summary>Mark a physical register as live-in on the current block.</summary>
     public void AddLiveIn(int physReg) => _block!.LiveIns.Add(physReg);
 
-    // Emit an instruction at the current insertion point. Defs first in
-    // operands, then uses, per dialect convention.
+    /// <summary>
+    /// Emit an instruction at the current insertion point. Defs first in
+    /// operands, then uses, per dialect convention.
+    /// </summary>
     public MirInstruction BuildInstruction(OpcodeRef opcode, params MirOperand[] operands) =>
         Insert(opcode, operands);
 
-    // pseudo.copy from a physical register into a fresh virtual register.
+    /// <summary>pseudo.copy from a physical register into a fresh virtual register.</summary>
     public int BuildCopyFromPhysicalRegister(int physReg, IRType type)
     {
         var vreg = function.CreateVirtualRegister(type);
@@ -60,7 +64,7 @@ public sealed class MirBuilder(MirFunction function)
         return vreg;
     }
 
-    // pseudo.copy from a physical register into an existing virtual register.
+    /// <summary>pseudo.copy from a physical register into an existing virtual register.</summary>
     public void BuildCopyFromPhysicalRegisterInto(int destVreg, int physReg)
     {
         Insert(PseudoDialect.OpRef(PseudoOp.Copy), [
@@ -69,7 +73,7 @@ public sealed class MirBuilder(MirFunction function)
         ]);
     }
 
-    // pseudo.copy from a virtual register into a physical register.
+    /// <summary>pseudo.copy from a virtual register into a physical register.</summary>
     public void BuildCopyToPhysicalRegister(int physReg, int sourceVreg)
     {
         Insert(PseudoDialect.OpRef(PseudoOp.Copy), [
@@ -78,9 +82,11 @@ public sealed class MirBuilder(MirFunction function)
         ]);
     }
 
-    // pseudo.merge into an existing wide virtual register. Used by ABI lowering
-    // so the merge def reuses the original parameter vreg, leaving downstream
-    // uses unchanged.
+    /// <summary>
+    /// pseudo.merge into an existing wide virtual register. Used by ABI lowering
+    /// so the merge def reuses the original parameter vreg, leaving downstream
+    /// uses unchanged.
+    /// </summary>
     public void BuildMergeInto(int existingVreg, int[] sourceVregs)
     {
         var operands = new MirOperand[1 + sourceVregs.Length];
@@ -90,9 +96,11 @@ public sealed class MirBuilder(MirFunction function)
         Insert(PseudoDialect.OpRef(PseudoOp.Merge), operands);
     }
 
-    // arith.constant: materialize an immediate of the given type into a fresh vreg.
-    // Used by the legalizer to supply an explicit zero carry-in to the head of an
-    // addi_with_carry chain so every link has a uniform 3-use shape.
+    /// <summary>
+    /// arith.constant: materialize an immediate of the given type into a fresh vreg.
+    /// Used by the legalizer to supply an explicit zero carry-in to the head of an
+    /// addi_with_carry chain so every link has a uniform 3-use shape.
+    /// </summary>
     public int BuildConstant(IRType type, long value)
     {
         var vreg = function.CreateVirtualRegister(type);
@@ -103,7 +111,7 @@ public sealed class MirBuilder(MirFunction function)
         return vreg;
     }
 
-    // arith.addi_with_carry: 2 defs (result, carry-out), 3 uses (a, b, carry-in).
+    /// <summary>arith.addi_with_carry: 2 defs (result, carry-out), 3 uses (a, b, carry-in).</summary>
     public (int result, int carryOut) BuildAddCarry(IRType type, int a, int b, int carryInVreg)
     {
         var result   = function.CreateVirtualRegister(type);
@@ -118,8 +126,10 @@ public sealed class MirBuilder(MirFunction function)
         return (result, carryOut);
     }
 
-    // arith.subi_with_borrow: 2 defs (result, borrow-out), 3 uses (a, b, borrow-in).
-    // borrow_in/out follow 6502 C-flag polarity (1 = no borrow).
+    /// <summary>
+    /// arith.subi_with_borrow: 2 defs (result, borrow-out), 3 uses (a, b, borrow-in).
+    /// borrow_in/out follow 6502 C-flag polarity (1 = no borrow).
+    /// </summary>
     public (int result, int borrowOut) BuildSubBorrow(IRType type, int a, int b, int borrowInVreg)
     {
         var result    = function.CreateVirtualRegister(type);
@@ -134,9 +144,11 @@ public sealed class MirBuilder(MirFunction function)
         return (result, borrowOut);
     }
 
-    // arith.cmpi <pred>, %a, %b: 1 def (i1 result), 3 uses (predicate Immediate, a, b).
-    // The predicate is encoded as the first use Immediate; the writer/parser
-    // render it symbolically via ArithDialect.TryFormat/ParseImmediateUse.
+    /// <summary>
+    /// arith.cmpi &lt;pred&gt;, %a, %b: 1 def (i1 result), 3 uses (predicate Immediate, a, b).
+    /// The predicate is encoded as the first use Immediate; the writer/parser
+    /// render it symbolically via ArithDialect.TryFormat/ParseImmediateUse.
+    /// </summary>
     public int BuildCmpI(ArithCmpPredicate predicate, int aVreg, int bVreg)
     {
         var result = function.CreateVirtualRegister(IRType.I1);
@@ -149,8 +161,10 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // arith.select %cond, %a, %b: 1 def (result, type `valueType`), 3 uses
-    // (cond i1, a, b). %r is %a when %cond is true, else %b.
+    /// <summary>
+    /// arith.select %cond, %a, %b: 1 def (result, type `valueType`), 3 uses
+    /// (cond i1, a, b). %r is %a when %cond is true, else %b.
+    /// </summary>
     public int BuildSelect(IRType valueType, int condVreg, int aVreg, int bVreg)
     {
         var result = function.CreateVirtualRegister(valueType);
@@ -163,9 +177,11 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // call.func @callee, %arg0, %arg1, ... → %r0, %r1, ...
-    // Allocates fresh def vregs of the given returnTypes. Caller passes
-    // existing arg vregs.
+    /// <summary>
+    /// call.func @callee, %arg0, %arg1, ... → %r0, %r1, ...
+    /// Allocates fresh def vregs of the given returnTypes. Caller passes
+    /// existing arg vregs.
+    /// </summary>
     public int[] BuildCall(string calleeName, IRType[] returnTypes, params int[] argVregs) =>
         BuildCall(calleeName, CallConvention.Default, returnTypes, argVregs);
 
@@ -188,9 +204,11 @@ public sealed class MirBuilder(MirFunction function)
         return defs;
     }
 
-    // call.indirect %target, %arg0, %arg1, ... → %r0, %r1, ...
-    // Same shape as BuildCall but the callee is a ptr target vreg
-    // instead of a Symbol.
+    /// <summary>
+    /// call.indirect %target, %arg0, %arg1, ... → %r0, %r1, ...
+    /// Same shape as BuildCall but the callee is a ptr target vreg
+    /// instead of a Symbol.
+    /// </summary>
     public int[] BuildCallIndirect(int targetPtrVreg, IRType[] returnTypes, params int[] argVregs) =>
         BuildCallIndirect(targetPtrVreg, CallConvention.Default, returnTypes, argVregs);
 
@@ -213,7 +231,7 @@ public sealed class MirBuilder(MirFunction function)
         return defs;
     }
 
-    // pseudo.unmerge a wide vreg into N freshly-allocated narrow vregs.
+    /// <summary>pseudo.unmerge a wide vreg into N freshly-allocated narrow vregs.</summary>
     public int[] BuildUnmerge(IRType elementType, int sourceVreg, int count)
     {
         var defs = new int[count];
@@ -228,9 +246,11 @@ public sealed class MirBuilder(MirFunction function)
         return defs;
     }
 
-    // pseudo.extract: %byte = pseudo.extract %wide, <bit_offset>
-    // Carves out a sub-range of `sourceVreg` starting at `bitOffset` bits.
-    // The result vreg's type (sub-range width) is determined by `resultType`.
+    /// <summary>
+    /// pseudo.extract: %byte = pseudo.extract %wide, &lt;bit_offset&gt;
+    /// Carves out a sub-range of `sourceVreg` starting at `bitOffset` bits.
+    /// The result vreg's type (sub-range width) is determined by `resultType`.
+    /// </summary>
     public int BuildExtract(IRType resultType, int sourceVreg, long bitOffset)
     {
         var result = function.CreateVirtualRegister(resultType);
@@ -242,7 +262,7 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // pseudo.insert: %new = pseudo.insert %wide, %sub, <bit_offset>
+    /// <summary>pseudo.insert: %new = pseudo.insert %wide, %sub, &lt;bit_offset&gt;</summary>
     public int BuildInsert(IRType resultType, int wideVreg, int subVreg, long bitOffset)
     {
         var result = function.CreateVirtualRegister(resultType);
@@ -255,8 +275,10 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // mem.symbol @name → %p : ptr
-    // Returns the ptr vreg holding the address of the named global.
+    /// <summary>
+    /// mem.symbol @name → %p : ptr
+    /// Returns the ptr vreg holding the address of the named global.
+    /// </summary>
     public int BuildMemSymbol(string symbolName)
     {
         var result = function.CreateVirtualRegister(IRType.Pointer);
@@ -267,9 +289,11 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // mem.frame_addr <slot_index> → %p : ptr
-    // Surface the address of one of the function's reserved frame slots.
-    // The slot itself must already be registered on `function.FrameSlots`.
+    /// <summary>
+    /// mem.frame_addr &lt;slot_index&gt; → %p : ptr
+    /// Surface the address of one of the function's reserved frame slots.
+    /// The slot itself must already be registered on `function.FrameSlots`.
+    /// </summary>
     public int BuildFrameAddr(int slotIndex)
     {
         var result = function.CreateVirtualRegister(IRType.Pointer);
@@ -280,7 +304,7 @@ public sealed class MirBuilder(MirFunction function)
         return result;
     }
 
-    // Remove an instruction from its block and detach it (Parent = null).
+    /// <summary>Remove an instruction from its block and detach it (Parent = null).</summary>
     public void Remove(MirInstruction instruction)
     {
         instruction.Parent?.Instructions.Remove(instruction);

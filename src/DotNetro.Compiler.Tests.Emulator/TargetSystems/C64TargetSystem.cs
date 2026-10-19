@@ -1,15 +1,18 @@
 using System.Text;
 using Aemula.Chips.Mos6502;
 
-// A flat-RAM Commodore 64 with the three KERNAL calls the runtime uses stubbed
-// out: CHROUT ($FFD2), CHRIN ($FFCF) and GETIN ($FFE4). Text crosses the stubs as
-// PETSCII in the lower/upper-case character set (the one the start-up code
-// selects) and is mapped to and from ASCII here, so the DIFF lit tests check the
-// program's own ASCII<->PETSCII conversion.
-//
-// The 6510's I/O port at $00/$01 is not emulated. Generated code must never touch
-// it (a stray write remaps ROM/RAM/IO on the real machine), so any bus access to
-// those addresses fails the run: it would be a code generation bug.
+/// <summary>
+/// A flat-RAM Commodore 64 with the three KERNAL calls the runtime uses stubbed
+/// out: CHROUT ($FFD2), CHRIN ($FFCF) and GETIN ($FFE4). Text crosses the stubs as
+/// PETSCII in the lower/upper-case character set (the one the start-up code
+/// selects) and is mapped to and from ASCII here, so the DIFF lit tests check the
+/// program's own ASCII&lt;-&gt;PETSCII conversion.
+/// </summary>
+/// <remarks>
+/// The 6510's I/O port at $00/$01 is not emulated. Generated code must never touch
+/// it (a stray write remaps ROM/RAM/IO on the real machine), so any bus access to
+/// those addresses fails the run: it would be a code generation bug.
+/// </remarks>
 internal sealed class C64TargetSystem : ITargetSystem
 {
     private const ushort Chrin = 0xFFCF;
@@ -104,9 +107,11 @@ internal sealed class C64TargetSystem : ITargetSystem
         }
     }
 
-    // Screen codes in the lower/upper-case set: $41-$5A are lower-case letters and $C1-$DA upper-case.
-    // Control codes the start-up code sends ($0E charset select, $8E, $93 clear) print nothing; anything
-    // else unmapped shows as '?' so a stray byte is visible in a DIFF.
+    /// <summary>
+    /// Screen codes in the lower/upper-case set: $41-$5A are lower-case letters and $C1-$DA upper-case.
+    /// Control codes the start-up code sends ($0E charset select, $8E, $93 clear) print nothing; anything
+    /// else unmapped shows as '?' so a stray byte is visible in a DIFF.
+    /// </summary>
     private static char? PetsciiToAscii(byte b) => b switch
     {
         0x0D => '\n',

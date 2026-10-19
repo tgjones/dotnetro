@@ -2,13 +2,16 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// The `mos6502` MIR dialect. Owns the target opcode enum and its dialect-side
-// metadata (names, terminator/side-effect bits). Registered via the target's
-// constructor by DialectRegistry, like the other dialects.
-//
-// Per-opcode operand classes and tied/implicit operands live on the
-// target-side TargetInstructionInfo (still under construction in later steps);
-// GetInstructionInfo here returns DialectInstructionInfo.Empty for now.
+/// <summary>
+/// The `mos6502` MIR dialect. Owns the target opcode enum and its dialect-side
+/// metadata (names, terminator/side-effect bits). Registered via the target's
+/// constructor by DialectRegistry, like the other dialects.
+/// </summary>
+/// <remarks>
+/// Per-opcode operand classes and tied/implicit operands live on the
+/// target-side TargetInstructionInfo (still under construction in later steps);
+/// GetInstructionInfo here returns DialectInstructionInfo.Empty for now.
+/// </remarks>
 public sealed class MOS6502Dialect : Dialect
 {
     public static new DialectId Id { get; private set; }
@@ -333,18 +336,20 @@ public sealed class MOS6502Dialect : Dialect
             _ => DialectInstructionInfo.Empty,
         };
 
-    // Loads and transfers that set N/Z as a side effect of moving a byte.
-    // Modelled as implicit defs so the late-optimization pass and RA know the
-    // N/Z flags are written. No operand classes / tied operands are declared
-    // here: these ops are only seen post-RA (their explicit operands are
-    // already physical / immediate by the time this matters).
+    /// <summary>
+    /// Loads and transfers that set N/Z as a side effect of moving a byte.
+    /// Modelled as implicit defs so the late-optimization pass and RA know the
+    /// N/Z flags are written. No operand classes / tied operands are declared
+    /// here: these ops are only seen post-RA (their explicit operands are
+    /// already physical / immediate by the time this matters).
+    /// </summary>
     private static readonly DialectInstructionInfo NZFlagSettingInfo = new(
         ImplicitDefs: [
             MOS6502Registers.N,
             MOS6502Registers.Z,
         ]);
 
-    // PLA: pulls the top hardware-stack byte into $a and sets N/Z from it.
+    /// <summary>PLA: pulls the top hardware-stack byte into $a and sets N/Z from it.</summary>
     private static readonly DialectInstructionInfo PlaInfo = new(
         ImplicitDefs: [
             MOS6502Registers.A,
@@ -352,47 +357,52 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Registers.Z,
         ]);
 
-    // PHA: pushes $a onto the hardware stack (a pure use of $a, no flag effect).
+    /// <summary>PHA: pushes $a onto the hardware stack (a pure use of $a, no flag effect).</summary>
     private static readonly DialectInstructionInfo PhaInfo = new(
         ImplicitUses: [MOS6502Registers.A]);
 
-    // Abstract frame byte accesses. The scratch each expansion uses is declared
-    // here as implicit defs to document the clobber contract; the instruction
-    // selector also materialises these as explicit PhysicalReg(IsImplicit)
-    // operands (like mos6502.cmp's $n/$z/$c), which is what RA actually reads to
-    // reserve them. No tied operands.
-    //
-    // The load defines its value in $a (Ac) — where lda.indy / lda.zp lands it —
-    // and clobbers $y plus the $rc18/$rc19 pointer pair (the indirect-Y path).
-    //
-    // The store's value is a use in $a (Ac), PRESERVED through the expansion: the
-    // absolute path builds the $rc18/$rc19 pointer pair via $x (ldx/stx, not
-    // lda/sta) precisely so the value byte already sitting in $a survives until
-    // the sta.indy. The store therefore clobbers $x, $y, $rc18, $rc19 — but NOT
-    // $a (it is a preserved use, not a clobber).
-    //
-    // A CallerStackArg-flavored frame.load.byte (stack-argument access, built
-    // directly by MOS6502CallLowering pre-legalization) is narrower than this:
-    // it only ever clobbers $y, since MOS6502FrameLowering.LowerCallerStackArgAccess
-    // reads the live RC0/RC1 soft stack pointer rather than rebuilding a pointer
-    // into it. That instance declares its own (smaller) explicit implicit-def
-    // list rather than this shared per-opcode default.
-    //
-    //   %v : ac = frame.load.byte  @slot, #off   (def[0]=value)
-    //             frame.store.byte  @slot, #off, %v : ac
+    /// <summary>
+    /// Abstract frame byte accesses. The scratch each expansion uses is declared
+    /// here as implicit defs to document the clobber contract; the instruction
+    /// selector also materialises these as explicit PhysicalReg(IsImplicit)
+    /// operands (like mos6502.cmp's $n/$z/$c), which is what RA actually reads to
+    /// reserve them. No tied operands.
+    /// </summary>
+    /// <remarks>
+    /// The load defines its value in $a (Ac) — where lda.indy / lda.zp lands it —
+    /// and clobbers $y plus the $rc18/$rc19 pointer pair (the indirect-Y path).
+    ///
+    /// The store's value is a use in $a (Ac), PRESERVED through the expansion: the
+    /// absolute path builds the $rc18/$rc19 pointer pair via $x (ldx/stx, not
+    /// lda/sta) precisely so the value byte already sitting in $a survives until
+    /// the sta.indy. The store therefore clobbers $x, $y, $rc18, $rc19 — but NOT
+    /// $a (it is a preserved use, not a clobber).
+    ///
+    /// A CallerStackArg-flavored frame.load.byte (stack-argument access, built
+    /// directly by MOS6502CallLowering pre-legalization) is narrower than this:
+    /// it only ever clobbers $y, since MOS6502FrameLowering.LowerCallerStackArgAccess
+    /// reads the live RC0/RC1 soft stack pointer rather than rebuilding a pointer
+    /// into it. That instance declares its own (smaller) explicit implicit-def
+    /// list rather than this shared per-opcode default.
+    ///
+    ///   %v : ac = frame.load.byte  @slot, #off   (def[0]=value)
+    ///             frame.store.byte  @slot, #off, %v : ac
+    /// </remarks>
     private static readonly DialectInstructionInfo FrameLoadByteInfo = new(
         ImplicitDefs: [MOS6502Registers.Y, MOS6502Registers.RC(18), MOS6502Registers.RC(19)]);
 
     private static readonly DialectInstructionInfo FrameStoreByteInfo = new(
         ImplicitDefs: [MOS6502Registers.X, MOS6502Registers.Y, MOS6502Registers.RC(18), MOS6502Registers.RC(19)]);
 
-    // The `mos6502.adc` addressing-mode variants (`adc.zp`, `adc.imm`,
-    // `adc.abs`). 2 defs + 3 uses; use[0] is tied to def[0]. All addressing
-    // modes share this operand block — the only difference is the opcode tag and
-    // whether use[1] is a register, immediate, or Symbol. (The Imag8 class on
-    // use[1] only constrains the .zp form, where the RHS is a register; the
-    // .imm/.abs forms carry an Immediate/Symbol there, which the operand-class
-    // machinery skips.)
+    /// <summary>
+    /// The `mos6502.adc` addressing-mode variants (`adc.zp`, `adc.imm`,
+    /// `adc.abs`). 2 defs + 3 uses; use[0] is tied to def[0]. All addressing
+    /// modes share this operand block — the only difference is the opcode tag and
+    /// whether use[1] is a register, immediate, or Symbol. (The Imag8 class on
+    /// use[1] only constrains the .zp form, where the RHS is a register; the
+    /// .imm/.abs forms carry an Immediate/Symbol there, which the operand-class
+    /// machinery skips.)
+    /// </summary>
     private static readonly DialectInstructionInfo AdcInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // def[0]: result
@@ -403,9 +413,11 @@ public sealed class MOS6502Dialect : Dialect
         ],
         TiedOperands: [-1, -1, 0, -1, -1]);
 
-    // The `mos6502.sbc` variants (`sbc.zp`, `sbc.imm`, `sbc.abs`). Same shape as
-    // Adc: 2 defs + 3 uses; use[0] tied to def[0]. The carry-in here is the 6502
-    // borrow-inverted carry flag (1 = no borrow).
+    /// <summary>
+    /// The `mos6502.sbc` variants (`sbc.zp`, `sbc.imm`, `sbc.abs`). Same shape as
+    /// Adc: 2 defs + 3 uses; use[0] tied to def[0]. The carry-in here is the 6502
+    /// borrow-inverted carry flag (1 = no borrow).
+    /// </summary>
     private static readonly DialectInstructionInfo SbcInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // def[0]: result
@@ -416,9 +428,11 @@ public sealed class MOS6502Dialect : Dialect
         ],
         TiedOperands: [-1, -1, 0, -1, -1]);
 
-    // `mos6502.asl.acc` / `mos6502.lsr.acc`: shift $a one bit, the bit shifted out
-    // landing in the carry. def[0]=$a (result), def[1]=$c (carry-out),
-    // use[0]=$a (tied to def[0]).
+    /// <summary>
+    /// `mos6502.asl.acc` / `mos6502.lsr.acc`: shift $a one bit, the bit shifted out
+    /// landing in the carry. def[0]=$a (result), def[1]=$c (carry-out),
+    /// use[0]=$a (tied to def[0]).
+    /// </summary>
     private static readonly DialectInstructionInfo ShiftInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // def[0]: result
@@ -427,8 +441,10 @@ public sealed class MOS6502Dialect : Dialect
         ],
         TiedOperands: [-1, -1, 0]);
 
-    // `mos6502.rol.acc` / `mos6502.ror.acc`: as ShiftInfo, but the old carry is
-    // shifted in at the vacated end. use[1]=$c (carry-in).
+    /// <summary>
+    /// `mos6502.rol.acc` / `mos6502.ror.acc`: as ShiftInfo, but the old carry is
+    /// shifted in at the vacated end. use[1]=$c (carry-in).
+    /// </summary>
     private static readonly DialectInstructionInfo RotateInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // def[0]: result
@@ -438,21 +454,24 @@ public sealed class MOS6502Dialect : Dialect
         ],
         TiedOperands: [-1, -1, 0, -1]);
 
-    // The `mos6502.cmp` variants (`cmp.zp`, `cmp.imm`).
-    // Explicit operands: use[0]=a (in $a), use[1]=b. Sets flags $n, $z, $c as
-    // implicit defs — they live as separate PhysicalReg(IsImplicit=true)
-    // entries in the operand array so RA understands the clobber. No tied
-    // operands (cmp doesn't write back to its register).
-    //
-    // use[0] is `Ac`, though the 6502 can compare A, X or Y against memory
-    // (CMP / CPX / CPY) and llvm-mos declares the operand as a GPR
-    // (`CMPImag8 (ins GPR:$l, Imag8:$r)`). Widening it to any of A/X/Y was tried,
-    // with the post-RA addressing-mode selector refining to `cpx` / `cpy` (that
-    // selector has since been removed): it shrank the loop-heavy __umodsi3
-    // helper by 18%, but cost +8 instructions (734 → 742) on the llvm-mos
-    // reference scoreboard — the colourer spends $x / $y on short compares
-    // without weighing the moves that costs elsewhere (see early-return). Revisit
-    // when the allocator's cost model can use the freedom.
+    /// <summary>
+    /// The `mos6502.cmp` variants (`cmp.zp`, `cmp.imm`).
+    /// Explicit operands: use[0]=a (in $a), use[1]=b. Sets flags $n, $z, $c as
+    /// implicit defs — they live as separate PhysicalReg(IsImplicit=true)
+    /// entries in the operand array so RA understands the clobber. No tied
+    /// operands (cmp doesn't write back to its register).
+    /// </summary>
+    /// <remarks>
+    /// use[0] is `Ac`, though the 6502 can compare A, X or Y against memory
+    /// (CMP / CPX / CPY) and llvm-mos declares the operand as a GPR
+    /// (`CMPImag8 (ins GPR:$l, Imag8:$r)`). Widening it to any of A/X/Y was tried,
+    /// with the post-RA addressing-mode selector refining to `cpx` / `cpy` (that
+    /// selector has since been removed): it shrank the loop-heavy __umodsi3
+    /// helper by 18%, but cost +8 instructions (734 → 742) on the llvm-mos
+    /// reference scoreboard — the colourer spends $x / $y on short compares
+    /// without weighing the moves that costs elsewhere (see early-return). Revisit
+    /// when the allocator's cost model can use the freedom.
+    /// </remarks>
     private static readonly DialectInstructionInfo CmpInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // use[0]: a
@@ -464,9 +483,11 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Registers.C,
         ]);
 
-    // The X / Y forms `cpx.*` / `cpy.*` the addressing-mode selector refines a
-    // cmp to when its left operand is in $x / $y: same shape as CmpInfo with the
-    // register fixed.
+    /// <summary>
+    /// The X / Y forms `cpx.*` / `cpy.*` the addressing-mode selector refines a
+    /// cmp to when its left operand is in $x / $y: same shape as CmpInfo with the
+    /// register fixed.
+    /// </summary>
     private static readonly DialectInstructionInfo CpxInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Xc,
@@ -489,12 +510,14 @@ public sealed class MOS6502Dialect : Dialect
             MOS6502Registers.C,
         ]);
 
-    // The accumulator logic ops `mos6502.{and,ora,eor}.{zp,imm,abs}`: def[0]=$a
-    // (result), use[0]=$a (tied to def[0]), use[1]=the RHS (a zero-page register,
-    // immediate or Symbol; the Imag8 class only constrains the .zp form). The
-    // signed-compare sign-flip also emits eor.imm with virtual Ac vregs, so the
-    // tied-operand metadata is needed for the two-address pass and RA to share a
-    // single $a across the def/use.
+    /// <summary>
+    /// The accumulator logic ops `mos6502.{and,ora,eor}.{zp,imm,abs}`: def[0]=$a
+    /// (result), use[0]=$a (tied to def[0]), use[1]=the RHS (a zero-page register,
+    /// immediate or Symbol; the Imag8 class only constrains the .zp form). The
+    /// signed-compare sign-flip also emits eor.imm with virtual Ac vregs, so the
+    /// tied-operand metadata is needed for the two-address pass and RA to share a
+    /// single $a across the def/use.
+    /// </summary>
     private static readonly DialectInstructionInfo LogicInfo = new(
         OperandClasses: [
             MOS6502RegisterClass.Ac,    // def[0]: result
@@ -503,24 +526,30 @@ public sealed class MOS6502Dialect : Dialect
         ],
         TiedOperands: [-1, 0, -1]);
 
-    // Target ops conservatively touch physregs/memory; treat them as having
-    // side effects for DCE purposes until a finer-grained model is in place.
+    /// <summary>
+    /// Target ops conservatively touch physregs/memory; treat them as having
+    /// side effects for DCE purposes until a finer-grained model is in place.
+    /// </summary>
     public override bool IsSideEffectFree(ushort code) => false;
 
-    // Of the ops that name a symbol, only a jsr (and a tail-call jmp) calls it; the
-    // loads of a symbol's address bytes and the accesses of a global do not.
+    /// <summary>
+    /// Of the ops that name a symbol, only a jsr (and a tail-call jmp) calls it; the
+    /// loads of a symbol's address bytes and the accesses of a global do not.
+    /// </summary>
     public override bool IsCall(ushort code) => (MOS6502Op)code is MOS6502Op.JsrAbs or MOS6502Op.JmpAbs;
 
     public override bool IsTerminator(ushort code) => _terminators.Contains((MOS6502Op)code);
 
-    // RTS / RTI return from the (sub)routine — the function-exit terminators.
+    /// <summary>RTS / RTI return from the (sub)routine — the function-exit terminators.</summary>
     public override bool IsReturn(ushort code)
         => (MOS6502Op)code is MOS6502Op.Rts or MOS6502Op.Rti;
 
     public override bool IsArtifact(ushort code) => false;
 
-    // cmp_br's conditions are Immediates at use positions 2, 4, … (each followed
-    // by its BlockTarget); render them as `eq`, `cs`, … rather than numbers.
+    /// <summary>
+    /// cmp_br's conditions are Immediates at use positions 2, 4, … (each followed
+    /// by its BlockTarget); render them as `eq`, `cs`, … rather than numbers.
+    /// </summary>
     public override bool TryFormatImmediateUse(ushort code, int useIndex, long value, out string text)
     {
         if ((MOS6502Op)code == MOS6502Op.CmpBr && useIndex >= 2 && useIndex % 2 == 0
@@ -545,9 +574,11 @@ public sealed class MOS6502Dialect : Dialect
         return false;
     }
 
-    // The structural immediates of the unpinned ops: cmp_br's conditions, the
-    // offset of load / store, cmp's right operand, and const's value or address-byte
-    // selector.
+    /// <summary>
+    /// The structural immediates of the unpinned ops: cmp_br's conditions, the
+    /// offset of load / store, cmp's right operand, and const's value or address-byte
+    /// selector.
+    /// </summary>
     public override bool IsLegalImmediateOperand(ushort code, int useIndex) =>
         (MOS6502Op)code switch
         {

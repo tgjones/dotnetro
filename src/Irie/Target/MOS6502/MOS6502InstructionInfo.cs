@@ -1,10 +1,12 @@
 namespace Irie.Target.MOS6502;
 
-// Byte-opcode (0..0xFF) → (mnemonic, addressing mode) table used by
-// MOS6502AssemblyParser / MOS6502AssemblyWriter for the human-readable
-// assembly text format. The legacy CodeGen-pipeline TargetInstructionInfo
-// base has been retired; this class is now
-// a self-contained lookup table for the MachineCode text emitter only.
+/// <summary>
+/// Byte-opcode (0..0xFF) → (mnemonic, addressing mode) table used by
+/// MOS6502AssemblyParser / MOS6502AssemblyWriter for the human-readable
+/// assembly text format. The legacy CodeGen-pipeline TargetInstructionInfo
+/// base has been retired; this class is now
+/// a self-contained lookup table for the MachineCode text emitter only.
+/// </summary>
 public sealed class MOS6502InstructionInfo
 {
     public static readonly MOS6502InstructionInfo Instance = new();
@@ -210,7 +212,7 @@ public sealed record MOS6502InstructionDescription(
     string         Mnemonic,
     AddressingMode Mode)
 {
-    // Encoded size: the opcode byte plus its operand.
+    /// <summary>Encoded size: the opcode byte plus its operand.</summary>
     public int Bytes => Mode switch
     {
         AddressingMode.Implied => 1,
@@ -219,9 +221,11 @@ public sealed record MOS6502InstructionDescription(
         _ => 2,
     };
 
-    // Base cycle count of the NMOS 6502. A page-crossing indexed read costs one
-    // more and a taken branch one more (two when it crosses a page); neither is
-    // counted, so this is the fastest the instruction can run.
+    /// <summary>
+    /// Base cycle count of the NMOS 6502. A page-crossing indexed read costs one
+    /// more and a taken branch one more (two when it crosses a page); neither is
+    /// counted, so this is the fastest the instruction can run.
+    /// </summary>
     public int Cycles => Mode switch
     {
         _ when Mnemonic is "JSR" or "RTS" or "RTI" => 6,

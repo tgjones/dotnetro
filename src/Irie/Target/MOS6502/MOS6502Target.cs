@@ -3,7 +3,7 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// MOS6502 target for the unified-MIR pipeline driven by `iriec`.
+/// <summary>MOS6502 target for the unified-MIR pipeline driven by `iriec`.</summary>
 public class MOS6502Target : Irie.Target.Target
 {
     public MOS6502Target()
@@ -46,11 +46,13 @@ public class MOS6502Target : Irie.Target.Target
     public override Pass CreateBeamPlacementPass(PlacementTuning? tuning = null) =>
         new MOS6502BeamPlacementPass(BeamPlacementOptions.From(tuning));
 
-    // Placement emits concrete ops on homes already, so only the recursion saves
-    // (which make stacked homes safe inside call cycles) and the program layout
-    // run: it lays the homes out in zero page, or in absolute memory when zero
-    // page runs out. Both come before the generic FrameAccessLoweringPass, which
-    // expands each frame access per the layout.
+    /// <summary>
+    /// Placement emits concrete ops on homes already, so only the recursion saves
+    /// (which make stacked homes safe inside call cycles) and the program layout
+    /// run: it lays the homes out in zero page, or in absolute memory when zero
+    /// page runs out. Both come before the generic FrameAccessLoweringPass, which
+    /// expands each frame access per the layout.
+    /// </summary>
     public override void AddPostPlacementPasses(Irie.Passes.PassManager pm)
     {
         pm.AddPass(new MOS6502RecursionSavePass());
@@ -59,14 +61,18 @@ public class MOS6502Target : Irie.Target.Target
             allowAbsoluteHomes: true));
     }
 
-    // The zero-page window holding the functions' homes: everything above the
-    // fixed ABI registers RC0..RC19 up to $8F. A DotNetro program never returns
-    // to BASIC, so it owns the language workspace; the OS uses $90 and up.
+    /// <summary>
+    /// The zero-page window holding the functions' homes: everything above the
+    /// fixed ABI registers RC0..RC19 up to $8F. A DotNetro program never returns
+    /// to BASIC, so it owns the language workspace; the OS uses $90 and up.
+    /// </summary>
     protected virtual int HomeWindowStart => ZeroPageBase + 20;
     protected virtual int HomeWindowEnd => 0x90;
 
-    // Whether frame slots of non-reentrant functions are promoted into the same
-    // window (the base chip keeps them in absolute memory).
+    /// <summary>
+    /// Whether frame slots of non-reentrant functions are promoted into the same
+    /// window (the base chip keeps them in absolute memory).
+    /// </summary>
     protected virtual bool PromoteFrameSlots => false;
 
     public override void AddPostPseudoExpansionPasses(Irie.Passes.PassManager pm)
@@ -101,10 +107,12 @@ public class MOS6502Target : Irie.Target.Target
         pm.AddPass(new MOS6502BlockPlacementPass());
     }
 
-    // Hand-written MIR runtime: the chip-generic part (the indirect-call
-    // trampoline, ...) followed by the subtarget's system part (OS-call wrappers),
-    // if any. Both are embedded resources; the IL→MIR translator parses the
-    // concatenation and merges its functions into the produced module.
+    /// <summary>
+    /// Hand-written MIR runtime: the chip-generic part (the indirect-call
+    /// trampoline, ...) followed by the subtarget's system part (OS-call wrappers),
+    /// if any. Both are embedded resources; the IL→MIR translator parses the
+    /// concatenation and merges its functions into the produced module.
+    /// </summary>
     public override string GetRuntime()
     {
         var runtime = ReadResource("runtime.irie");
@@ -123,15 +131,17 @@ public class MOS6502Target : Irie.Target.Target
         return new EncodedProgram(bytes, encoder.FunctionAddresses, encoder.GlobalAddresses);
     }
 
-    // The libcall routines, in MOS6502 assembly (libcalls.s), assembled for this
-    // target's zero-page base.
+    /// <summary>
+    /// The libcall routines, in MOS6502 assembly (libcalls.s), assembled for this
+    /// target's zero-page base.
+    /// </summary>
     public override Irie.MachineCode.MachineCodeModule? GetLibrary()
     {
         using var reader = new StringReader(ReadResource("libcalls.s"));
         return MOS6502AssemblyParser.Parse(reader, ZeroPageBase);
     }
 
-    // Embedded-resource file name of the subtarget's runtime half; null = none.
+    /// <summary>Embedded-resource file name of the subtarget's runtime half; null = none.</summary>
     protected virtual string? SystemRuntimeResource => null;
 
     private static string ReadResource(string fileName)

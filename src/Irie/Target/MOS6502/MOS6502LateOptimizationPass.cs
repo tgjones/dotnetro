@@ -3,21 +3,24 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// Target-private late-optimization pass — the llvm-mos `mos-late-opt`
-// (MOSLateOptimization::lowerCmpZeros) analogue. Runs AFTER PseudoExpansion so
-// it sees the final expanded loads/transfers (lda.zp / ldx.zp / ldy.zp / tax /
-// tay / txa / tya …) with their N/Z side-effects.
-//
-// A `cmp $r, #0` (pre-AMS `mos6502.cmp` or post-AMS `mos6502.cmp.imm`) is
-// redundant when `$r` was just produced by a flag-setting load or transfer with
-// no intervening N/Z clobber: the comparison against zero would set exactly the
-// N/Z that the producer already set. We erase the compare and tag the producer
-// with an implicit N/Z def so the downstream branch's implicit flag use still
-// has a reaching def (mirrors llvm-mos adding the implicit NZ def operand).
-//
-// Conservative, mirrors llvm-mos: scan backward from the compare within the
-// same block; stop at the first instruction that clobbers N/Z. If that
-// instruction is the producer of `$r`, fold; otherwise leave the compare.
+/// <summary>
+/// Target-private late-optimization pass — the llvm-mos `mos-late-opt`
+/// (MOSLateOptimization::lowerCmpZeros) analogue. Runs AFTER PseudoExpansion so
+/// it sees the final expanded loads/transfers (lda.zp / ldx.zp / ldy.zp / tax /
+/// tay / txa / tya …) with their N/Z side-effects.
+/// </summary>
+/// <remarks>
+/// A `cmp $r, #0` (pre-AMS `mos6502.cmp` or post-AMS `mos6502.cmp.imm`) is
+/// redundant when `$r` was just produced by a flag-setting load or transfer with
+/// no intervening N/Z clobber: the comparison against zero would set exactly the
+/// N/Z that the producer already set. We erase the compare and tag the producer
+/// with an implicit N/Z def so the downstream branch's implicit flag use still
+/// has a reaching def (mirrors llvm-mos adding the implicit NZ def operand).
+///
+/// Conservative, mirrors llvm-mos: scan backward from the compare within the
+/// same block; stop at the first instruction that clobbers N/Z. If that
+/// instruction is the producer of `$r`, fold; otherwise leave the compare.
+/// </remarks>
 public sealed class MOS6502LateOptimizationPass : MirFunctionPass
 {
     public override string Name => "MOS6502LateOptimization";
@@ -64,9 +67,11 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         }
     }
 
-    // True when an instruction after `index` in the block reads $c before $c is
-    // redefined. A C live-out past the block end is not tracked: every compare
-    // the selector emits is consumed by a branch in its own block.
+    /// <summary>
+    /// True when an instruction after `index` in the block reads $c before $c is
+    /// redefined. A C live-out past the block end is not tracked: every compare
+    /// the selector emits is consumed by a branch in its own block.
+    /// </summary>
     private static bool CarryIsReadAfter(MirBlock block, int index)
     {
         for (var k = index + 1; k < block.Instructions.Count; k++)
@@ -82,10 +87,12 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         return false;
     }
 
-    // Matches `mos6502.{cmp,cpx,cpy}.imm $r, #0` — the selector always picks the
-    // concrete .imm form for a constant RHS (the addressing-mode selector then
-    // retargets it to cpx / cpy for $x / $y). Explicit operands: use[0]=a, use[1]=b;
-    // implicit $n/$z/$c defs follow. Only an immediate-zero RHS qualifies.
+    /// <summary>
+    /// Matches `mos6502.{cmp,cpx,cpy}.imm $r, #0` — the selector always picks the
+    /// concrete .imm form for a constant RHS (the addressing-mode selector then
+    /// retargets it to cpx / cpy for $x / $y). Explicit operands: use[0]=a, use[1]=b;
+    /// implicit $n/$z/$c defs follow. Only an immediate-zero RHS qualifies.
+    /// </summary>
     private static bool IsCmpAgainstZero(MirInstruction instr, out int comparedReg)
     {
         comparedReg = -1;
@@ -102,10 +109,12 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         return true;
     }
 
-    // True if `instr` is a flag-setting load/transfer whose result is `reg` —
-    // i.e. it already leaves N/Z reflecting `reg`. The dialect models these via
-    // ImplicitDefs of $n/$z (see MOS6502Dialect.NZFlagSettingInfo); here we also
-    // require the instruction to actually define `reg` (its first def operand).
+    /// <summary>
+    /// True if `instr` is a flag-setting load/transfer whose result is `reg` —
+    /// i.e. it already leaves N/Z reflecting `reg`. The dialect models these via
+    /// ImplicitDefs of $n/$z (see MOS6502Dialect.NZFlagSettingInfo); here we also
+    /// require the instruction to actually define `reg` (its first def operand).
+    /// </summary>
     private static bool DefinesNZForRegister(MirInstruction instr, int reg)
     {
         if (instr.Opcode.Dialect != MOS6502Dialect.Id) return false;
@@ -118,10 +127,12 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
             && def.Id == reg;
     }
 
-    // An instruction clobbers N/Z if it (re)defines either flag. We read this
-    // from the dialect's ImplicitDefs plus any explicit flag defs in the operand
-    // array. Branches, jumps and pure stores don't touch N/Z, so the scan walks
-    // past them to reach the producer (as in llvm-mos).
+    /// <summary>
+    /// An instruction clobbers N/Z if it (re)defines either flag. We read this
+    /// from the dialect's ImplicitDefs plus any explicit flag defs in the operand
+    /// array. Branches, jumps and pure stores don't touch N/Z, so the scan walks
+    /// past them to reach the producer (as in llvm-mos).
+    /// </summary>
     private static bool ClobbersNZ(MirInstruction instr)
     {
         foreach (var operand in instr.Operands)
@@ -136,7 +147,7 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         return SetsNZ(instr);
     }
 
-    // True if the dialect declares this opcode as defining N/Z implicitly.
+    /// <summary>True if the dialect declares this opcode as defining N/Z implicitly.</summary>
     private static bool SetsNZ(MirInstruction instr)
     {
         if (instr.Opcode.Dialect != MOS6502Dialect.Id) return false;
@@ -149,9 +160,11 @@ public sealed class MOS6502LateOptimizationPass : MirFunctionPass
         return false;
     }
 
-    // Append implicit-def $n / $z operands to a producer that didn't already
-    // carry them, so the now-flagless branch's implicit flag use has a reaching
-    // def in the MIR (mirrors llvm-mos's `addOperand(NZ def)`). Idempotent.
+    /// <summary>
+    /// Append implicit-def $n / $z operands to a producer that didn't already
+    /// carry them, so the now-flagless branch's implicit flag use has a reaching
+    /// def in the MIR (mirrors llvm-mos's `addOperand(NZ def)`). Idempotent.
+    /// </summary>
     private static MirInstruction WithImplicitNZDefs(MirInstruction instr, MirBlock block)
     {
         bool HasDef(int reg) => Array.Exists(instr.Operands,

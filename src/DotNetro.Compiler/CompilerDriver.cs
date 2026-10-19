@@ -7,10 +7,12 @@ namespace DotNetro.Compiler;
 
 public static class CompilerDriver
 {
-    // File-based entry point used by dnrc and the tests: compiles for the given
-    // target (default the BBC Micro), resolving the core library and the DotNetro
-    // runtime through the host runtime. Failures, including an unknown target id,
-    // surface as exceptions.
+    /// <summary>
+    /// File-based entry point used by dnrc and the tests: compiles for the given
+    /// target (default the BBC Micro), resolving the core library and the DotNetro
+    /// runtime through the host runtime. Failures, including an unknown target id,
+    /// surface as exceptions.
+    /// </summary>
     public static CompilationResult Compile(
         string dotNetAssemblyPath, string entryPointMethodName, string targetId = TargetRegistry.BbcMicroId,
         Irie.Target.PlacementTuning? tuning = null)
@@ -21,10 +23,12 @@ public static class CompilerDriver
             entryPointMethodName,
             Tuning: tuning));
 
-    // Byte-based entry point: nothing here touches the file system. Expected
-    // failures (the program uses something the compiler does not support) are
-    // reported as Diagnostics on the result rather than thrown; anything else is a
-    // compiler bug and still throws.
+    /// <summary>
+    /// Byte-based entry point: nothing here touches the file system. Expected
+    /// failures (the program uses something the compiler does not support) are
+    /// reported as Diagnostics on the result rather than thrown; anything else is a
+    /// compiler bug and still throws.
+    /// </summary>
     public static CompilationResult Compile(CompileRequest request)
     {
         try
@@ -37,9 +41,11 @@ public static class CompilerDriver
         }
     }
 
-    // IL→MIR pipeline: translate the IL to an Irie MirModule, run it through
-    // the shared Irie pass pipeline (same as iriec), and produce program (raw) +
-    // image bytes.
+    /// <summary>
+    /// IL→MIR pipeline: translate the IL to an Irie MirModule, run it through
+    /// the shared Irie pass pipeline (same as iriec), and produce program (raw) +
+    /// image bytes.
+    /// </summary>
     private static CompilationResult CompileCore(CompileRequest request)
     {
         var descriptor = TargetRegistry.Get(request.TargetId);

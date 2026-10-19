@@ -3,38 +3,43 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// CC_MOS for the unified-MIR pipeline. Bytes are passed/returned in A, X, RC2,
-// RC3, … (LSB-first for multi-byte values); RC0/RC1 are the soft stack pointer.
-// Mirrors the old Irie.Target.MOS6502.MOS6502CallLowering while emitting the new
-// pseudo dialect ops on the MIR types.
-//
-// Register save classes follow the LLVM-MOS C calling convention
-// (https://llvm-mos.org/wiki/C_calling_convention):
-//
-//   Caller-saved (volatile; a callee may clobber these freely, so the caller
-//   must preserve any it still needs across a call):
-//       A, X, Y, C, N, V, Z, RC2..RC19   (RC2..RC19 = zp $02..$13)
-//
-//   Preserved by a call: PC, S, D, I, RC0, RC1, and every function-local home
-//   ($h0, $h1, …). Homes are not saved by anyone: program layout
-//   (MOS6502ProgramLayoutPass) stacks each function's homes above those of all its
-//   callees, so a callee can never overwrite a home its caller still needs.
-//
-// `CallerSavedScratch` below encodes the caller-saved view of this convention:
-// it lists A, X, Y, C, N, V, Z and RC2..RC19, which are attached as implicit
-// defs (a clobber barrier) on every `jsr.abs`. Homes are deliberately omitted, so
-// a vreg that is live across a call is placed in one by the RA. Calls inside a
-// recursive cycle are the exception: a function that can re-enter itself
-// saves the homes live across such a call around it (MOS6502RecursionSavePass).
+/// <summary>
+/// CC_MOS for the unified-MIR pipeline. Bytes are passed/returned in A, X, RC2,
+/// RC3, … (LSB-first for multi-byte values); RC0/RC1 are the soft stack pointer.
+/// Mirrors the old Irie.Target.MOS6502.MOS6502CallLowering while emitting the new
+/// pseudo dialect ops on the MIR types.
+/// </summary>
+/// <remarks>
+/// Register save classes follow the LLVM-MOS C calling convention
+/// (https://llvm-mos.org/wiki/C_calling_convention):
+///
+///   Caller-saved (volatile; a callee may clobber these freely, so the caller
+///   must preserve any it still needs across a call):
+///       A, X, Y, C, N, V, Z, RC2..RC19   (RC2..RC19 = zp $02..$13)
+///
+///   Preserved by a call: PC, S, D, I, RC0, RC1, and every function-local home
+///   ($h0, $h1, …). Homes are not saved by anyone: program layout
+///   (MOS6502ProgramLayoutPass) stacks each function's homes above those of all its
+///   callees, so a callee can never overwrite a home its caller still needs.
+///
+/// `CallerSavedScratch` below encodes the caller-saved view of this convention:
+/// it lists A, X, Y, C, N, V, Z and RC2..RC19, which are attached as implicit
+/// defs (a clobber barrier) on every `jsr.abs`. Homes are deliberately omitted, so
+/// a vreg that is live across a call is placed in one by the RA. Calls inside a
+/// recursive cycle are the exception: a function that can re-enter itself
+/// saves the homes live across such a call around it (MOS6502RecursionSavePass).
+/// </remarks>
 public sealed class MOS6502CallLowering : Irie.Target.CallLowering
 {
-    // CC_MOS, the default convention.
+    /// <summary>CC_MOS, the default convention.</summary>
     public MOS6502CallLowering() : this(CcMosArgRegs, CcMosCallerSaved) { }
 
-    // A convention over the same lowering machinery with its own argument/result
-    // registers (assigned in order, LSB-first) and its own clobber set (the
-    // registers a call destroys). `callerSaved` must include every register in
-    // `argRegs` that results can come back in.
+    /// <summary>
+    /// A convention over the same lowering machinery with its own argument/result
+    /// registers (assigned in order, LSB-first) and its own clobber set (the
+    /// registers a call destroys). `callerSaved` must include every register in
+    /// `argRegs` that results can come back in.
+    /// </summary>
     public MOS6502CallLowering(int[] argRegs, int[] callerSaved)
     {
         _argRegs = argRegs;
@@ -64,10 +69,12 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         MOS6502Registers.RC(15),
     ];
 
-    // The convention a function with `argBytes` argument bytes and `returnBytes`
-    // result bytes gets from this lowering: bytes take the argument registers in
-    // order, and the arguments past them go on the stack. Results take the same
-    // registers from the start.
+    /// <summary>
+    /// The convention a function with `argBytes` argument bytes and `returnBytes`
+    /// result bytes gets from this lowering: bytes take the argument registers in
+    /// order, and the arguments past them go on the stack. Results take the same
+    /// registers from the start.
+    /// </summary>
     public FunctionConvention DefaultConvention(int argBytes, int returnBytes)
     {
         var args = new int[argBytes];
@@ -132,13 +139,15 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         }
     }
 
-    // Materialize one caller-placed stack-argument byte at 0-based stack
-    // position `k` (LSB-first across the overflow portion of the parameter
-    // list) into a fresh flexible vreg. Mints a CallerStackArg FrameSlot and
-    // emits the target's already-abstract, virtual-register-based frame-access
-    // op directly — the same shape the shape selector builds for an ordinary
-    // local — so it flows through LegalizerPass/InstructionSelectorPass
-    // untouched, the same way LowerCall's mos6502.jsr.abs already does.
+    /// <summary>
+    /// Materialize one caller-placed stack-argument byte at 0-based stack
+    /// position `k` (LSB-first across the overflow portion of the parameter
+    /// list) into a fresh flexible vreg. Mints a CallerStackArg FrameSlot and
+    /// emits the target's already-abstract, virtual-register-based frame-access
+    /// op directly — the same shape the shape selector builds for an ordinary
+    /// local — so it flows through LegalizerPass/InstructionSelectorPass
+    /// untouched, the same way LowerCall's mos6502.jsr.abs already does.
+    /// </summary>
     private static int LowerStackArgByte(MirFunction function, MirBuilder builder, int k)
     {
         var slot = new FrameSlot(function.FrameSlots.Count, IRType.I8, $"{function.Name}_stackarg{k}")
@@ -203,8 +212,10 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         MirBuilder builder) =>
         LowerJsr(new Symbol(calleeName), argTypes, argVregs, returnTypes, returnVregs, builder);
 
-    // A call to a fixed address (a ROM entry point) is a plain `jsr.abs $addr`;
-    // there is nothing to dispatch through the trampoline.
+    /// <summary>
+    /// A call to a fixed address (a ROM entry point) is a plain `jsr.abs $addr`;
+    /// there is nothing to dispatch through the trampoline.
+    /// </summary>
     public override bool TryLowerCallToAddress(
         long address,
         IRType[] argTypes,
@@ -371,15 +382,17 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         }
     }
 
-    // Place the arguments into their CC physregs in two phases: first
-    // materialize every argument byte into a vreg, then copy them all into the
-    // physregs. Splitting the phases is load-bearing — a byte value that must be
-    // computed in a constrained register (e.g. a `mem.symbol` argument lowers to
-    // a hard-$a `lda.imm`) has to be produced and relocated to a flexible
-    // register BEFORE any arg physreg is occupied. The per-arg "materialize then
-    // immediately pin" order would sandwich such a value between two uses of $a
-    // (an earlier arg already pinned to $a and the hard-$a lda), which no
-    // colouring can resolve. Returns the pinned arg physregs (implicit uses).
+    /// <summary>
+    /// Place the arguments into their CC physregs in two phases: first
+    /// materialize every argument byte into a vreg, then copy them all into the
+    /// physregs. Splitting the phases is load-bearing — a byte value that must be
+    /// computed in a constrained register (e.g. a `mem.symbol` argument lowers to
+    /// a hard-$a `lda.imm`) has to be produced and relocated to a flexible
+    /// register BEFORE any arg physreg is occupied. The per-arg "materialize then
+    /// immediately pin" order would sandwich such a value between two uses of $a
+    /// (an earlier arg already pinned to $a and the hard-$a lda), which no
+    /// colouring can resolve. Returns the pinned arg physregs (implicit uses).
+    /// </summary>
     private List<int> EmitArgumentSetup(IRType[] argTypes, int[] argVregs, MirBuilder builder)
     {
         var byteVregs = MaterializeArgumentBytes(argTypes, argVregs, builder, out var physRegs);
@@ -395,11 +408,13 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         return implicitUses;
     }
 
-    // Phase 1 of argument setup: unmerge each argument into its bytes (LSB-first
-    // for multi-byte values), returning the flat byte-vreg list and, via
-    // `physRegs`, the CC physreg each byte will be pinned to, or StackByte for a
-    // byte past the register budget. Bytes take registers in order until they
-    // run out, then the stack in order, mirroring LowerFormalArguments.
+    /// <summary>
+    /// Phase 1 of argument setup: unmerge each argument into its bytes (LSB-first
+    /// for multi-byte values), returning the flat byte-vreg list and, via
+    /// `physRegs`, the CC physreg each byte will be pinned to, or StackByte for a
+    /// byte past the register budget. Bytes take registers in order until they
+    /// run out, then the stack in order, mirroring LowerFormalArguments.
+    /// </summary>
     private const int StackByte = -1;
 
     private List<int> MaterializeArgumentBytes(IRType[] argTypes, int[] argVregs, MirBuilder builder, out List<int> physRegs)
@@ -424,10 +439,12 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         return byteVregs;
     }
 
-    // Store the bytes bound for the stack at their offsets from the soft stack
-    // pointer (the callee reads them there; the function reserved the room in its
-    // prologue, see MOS6502FrameLowering.GetSoftStackFrameBytes). Done before any
-    // argument register is pinned: each store goes through $a and $y.
+    /// <summary>
+    /// Store the bytes bound for the stack at their offsets from the soft stack
+    /// pointer (the callee reads them there; the function reserved the room in its
+    /// prologue, see MOS6502FrameLowering.GetSoftStackFrameBytes). Done before any
+    /// argument register is pinned: each store goes through $a and $y.
+    /// </summary>
     private static void EmitStackArgumentStores(List<int> byteVregs, List<int> physRegs, MirBuilder builder)
     {
         var function = builder.Function;
@@ -465,25 +482,30 @@ public sealed class MOS6502CallLowering : Irie.Target.CallLowering
         }
     }
 
-    // Reserved zero-page slots that the indirect-call trampoline reads its
-    // target address from. The runtime trampoline (`@__call_indirect_trampoline`)
-    // does `JMP (RC16)` — i.e. reads RC16 / RC17 as a 16-bit pointer and jumps
-    // there. They are in the caller-saved range (clobbered by every call, so
-    // never holding a value across one) and outside the CC argument range
-    // (RC2..RC15).
+    /// <summary>
+    /// Reserved zero-page slots that the indirect-call trampoline reads its
+    /// target address from. The runtime trampoline (`@__call_indirect_trampoline`)
+    /// does `JMP (RC16)` — i.e. reads RC16 / RC17 as a 16-bit pointer and jumps
+    /// there. They are in the caller-saved range (clobbered by every call, so
+    /// never holding a value across one) and outside the CC argument range
+    /// (RC2..RC15).
+    /// </summary>
     private static readonly int CallTargetLo = MOS6502Registers.RC(16);
     private static readonly int CallTargetHi = MOS6502Registers.RC(17);
 
-    // Caller-saved scratch physregs that any arbitrary callee may clobber,
-    // independent of the call's arg/return registers. Attached as implicit defs
-    // on every `jsr.abs` so the RA keeps no live value in them across a call.
-    // See the file-header table for the full LLVM-MOS save classes.
-    //
-    // TARGET convention (encoded here): caller-saved = A, X, Y, C, N, V, Z,
-    // RC2..RC19. The callee-saved flags D and I are NOT clobbered by a call, so
-    // they are excluded. Homes are likewise excluded: a cross-call vreg lands in
-    // one (the RC class orders the homes after the caller-saved RC2..RC17) and
-    // stays intact because layout keeps it disjoint from every callee's homes.
+    /// <summary>
+    /// Caller-saved scratch physregs that any arbitrary callee may clobber,
+    /// independent of the call's arg/return registers. Attached as implicit defs
+    /// on every `jsr.abs` so the RA keeps no live value in them across a call.
+    /// See the file-header table for the full LLVM-MOS save classes.
+    /// </summary>
+    /// <remarks>
+    /// TARGET convention (encoded here): caller-saved = A, X, Y, C, N, V, Z,
+    /// RC2..RC19. The callee-saved flags D and I are NOT clobbered by a call, so
+    /// they are excluded. Homes are likewise excluded: a cross-call vreg lands in
+    /// one (the RC class orders the homes after the caller-saved RC2..RC17) and
+    /// stays intact because layout keeps it disjoint from every callee's homes.
+    /// </remarks>
     private static readonly int[] CcMosCallerSaved =
     [
         MOS6502Registers.A,

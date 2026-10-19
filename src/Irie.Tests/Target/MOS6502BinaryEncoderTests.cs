@@ -5,8 +5,10 @@ namespace Irie.Tests.Target;
 
 public sealed class MOS6502BinaryEncoderTests
 {
-    // CLC (1) + LDA #$00 (2) + JMP $1234 (3) at origin 0x1000 should lay out at
-    // 0x1000, 0x1001, 0x1003 with the function address pinned to the origin.
+    /// <summary>
+    /// CLC (1) + LDA #$00 (2) + JMP $1234 (3) at origin 0x1000 should lay out at
+    /// 0x1000, 0x1001, 0x1003 with the function address pinned to the origin.
+    /// </summary>
     [Test]
     public async Task LayoutOnly_MixedAddressingModes_AssignsExpectedAddresses()
     {
@@ -29,8 +31,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(layout.Entries[2].Instruction.Opcode).IsEqualTo(MOS6502Opcode.JMP_Absolute);
     }
 
-    // Labels are zero-width: a label between two CLCs sits at the same address
-    // as the following instruction.
+    /// <summary>
+    /// Labels are zero-width: a label between two CLCs sits at the same address
+    /// as the following instruction.
+    /// </summary>
     [Test]
     public async Task LayoutOnly_LabelBetweenInstructions_LabelAddressEqualsFollowingInstruction()
     {
@@ -49,8 +53,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(layout.Entries[1].Addr).IsEqualTo(0x2001);
     }
 
-    // Two back-to-back functions: the second one starts immediately after the
-    // first's instructions end.
+    /// <summary>
+    /// Two back-to-back functions: the second one starts immediately after the
+    /// first's instructions end.
+    /// </summary>
     [Test]
     public async Task LayoutOnly_TwoFunctions_SecondStartsAfterFirst()
     {
@@ -77,7 +83,7 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(layout.Entries[2].Parent).IsEqualTo(second);
     }
 
-    // Smallest possible program: a single RTS encodes to one byte.
+    /// <summary>Smallest possible program: a single RTS encodes to one byte.</summary>
     [Test]
     public async Task Encode_SingleRts_ReturnsOneByte()
     {
@@ -115,7 +121,7 @@ public sealed class MOS6502BinaryEncoderTests
             .WithMessageContaining("duplicate label");
     }
 
-    // Implied-only opcodes encode to their single-byte opcode value with no operand.
+    /// <summary>Implied-only opcodes encode to their single-byte opcode value with no operand.</summary>
     [Test]
     public async Task Encode_ImpliedOnly_EncodesOneByteEach()
     {
@@ -130,8 +136,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(bytes).IsEquivalentTo(new byte[] { 0x18, 0x38, 0x60 });
     }
 
-    // Mixed immediate / zero-page / implied — each instruction takes its
-    // declared length and the operand bytes follow the opcode byte.
+    /// <summary>
+    /// Mixed immediate / zero-page / implied — each instruction takes its
+    /// declared length and the operand bytes follow the opcode byte.
+    /// </summary>
     [Test]
     public async Task Encode_ImmediateZeroPageAndImpliedTransfer_EncodesExpectedBytes()
     {
@@ -147,8 +155,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(bytes).IsEquivalentTo(new byte[] { 0xA9, 0x42, 0x85, 0x05, 0x8A, 0x60 });
     }
 
-    // Absolute mode with an Immediate operand carries the literal address LE.
-    // JSR $FFEE is the canonical OSWRCH-style call.
+    /// <summary>
+    /// Absolute mode with an Immediate operand carries the literal address LE.
+    /// JSR $FFEE is the canonical OSWRCH-style call.
+    /// </summary>
     [Test]
     public async Task Encode_AbsoluteImmediateOperand_EncodesLittleEndian()
     {
@@ -162,8 +172,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(bytes).IsEquivalentTo(new byte[] { 0x20, 0xEE, 0xFF, 0x60 });
     }
 
-    // A local label resolves to an absolute address for JMP and to a signed
-    // 8-bit offset for BEQ. The BEQ here is a backward branch.
+    /// <summary>
+    /// A local label resolves to an absolute address for JMP and to a signed
+    /// 8-bit offset for BEQ. The BEQ here is a backward branch.
+    /// </summary>
     [Test]
     public async Task Encode_LocalLabelAbsoluteAndRelative_BackwardBranch()
     {
@@ -191,8 +203,10 @@ public sealed class MOS6502BinaryEncoderTests
         });
     }
 
-    // Forward branch over a small block — positive offset, computed from PC
-    // (the address after the branch instruction).
+    /// <summary>
+    /// Forward branch over a small block — positive offset, computed from PC
+    /// (the address after the branch instruction).
+    /// </summary>
     [Test]
     public async Task Encode_RelativeForwardBranch_PositiveOffset()
     {
@@ -212,8 +226,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(bytes).IsEquivalentTo(new byte[] { 0xF0, 0x02, 0xEA, 0xEA, 0x60 });
     }
 
-    // Two functions; the first JSRs the second by symbol. The JSR operand
-    // should resolve to the helper's absolute address LE-encoded.
+    /// <summary>
+    /// Two functions; the first JSRs the second by symbol. The JSR operand
+    /// should resolve to the helper's absolute address LE-encoded.
+    /// </summary>
     [Test]
     public async Task Encode_CrossFunctionJsr_ResolvesExternalRef()
     {
@@ -234,8 +250,10 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(bytes).IsEquivalentTo(new byte[] { 0x20, 0x04, 0x10, 0x60, 0x60 });
     }
 
-    // SymbolHalf.LowByte / HighByte resolve to the matching half of a function
-    // address as a single immediate byte.
+    /// <summary>
+    /// SymbolHalf.LowByte / HighByte resolve to the matching half of a function
+    /// address as a single immediate byte.
+    /// </summary>
     [Test]
     public async Task Encode_ExternalRefSymbolHalf_LowAndHighBytes()
     {
@@ -266,9 +284,11 @@ public sealed class MOS6502BinaryEncoderTests
         await Assert.That(bytes[3]).IsEqualTo((byte)0x12);
     }
 
-    // Pad with enough NOPs that the BEQ target is more than 127 bytes ahead.
-    // The signed-8-bit relative offset cannot reach it, so the encoder relaxes
-    // the branch into `BNE *+3 ; JMP far` (inverse branch over a 3-byte JMP).
+    /// <summary>
+    /// Pad with enough NOPs that the BEQ target is more than 127 bytes ahead.
+    /// The signed-8-bit relative offset cannot reach it, so the encoder relaxes
+    /// the branch into `BNE *+3 ; JMP far` (inverse branch over a 3-byte JMP).
+    /// </summary>
     [Test]
     public async Task Encode_BranchOutOfRange_Relaxes()
     {
@@ -308,8 +328,10 @@ public sealed class MOS6502BinaryEncoderTests
             .WithMessageContaining("nonexistent");
     }
 
-    // SymbolHalf only makes sense with Immediate addressing; using it on an
-    // Absolute operand is a hard error.
+    /// <summary>
+    /// SymbolHalf only makes sense with Immediate addressing; using it on an
+    /// Absolute operand is a hard error.
+    /// </summary>
     [Test]
     public async Task Encode_SymbolHalfOnAbsoluteOperand_Throws()
     {
@@ -337,7 +359,7 @@ public sealed class MOS6502BinaryEncoderTests
             .WithMessageContaining("missing");
     }
 
-    // LDA-immediate expects Immediate or SymbolHalf operand, not LabelRef.
+    /// <summary>LDA-immediate expects Immediate or SymbolHalf operand, not LabelRef.</summary>
     [Test]
     public async Task Encode_WrongOperandVariantForAddressingMode_Throws()
     {
@@ -352,7 +374,7 @@ public sealed class MOS6502BinaryEncoderTests
             .WithMessageContaining("LabelRef");
     }
 
-    // Total length = sum of instruction lengths across all functions.
+    /// <summary>Total length = sum of instruction lengths across all functions.</summary>
     [Test]
     public async Task Encode_TotalLength_EqualsSumOfInstructionLengths()
     {

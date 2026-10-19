@@ -2,6 +2,18 @@ using Irie.Mir;
 
 namespace Irie.Dialects.Arith;
 
+/// <summary>
+/// Pure SSA value producers: arith.addi, arith.subi, arith.cmpi &lt;pred&gt; (predicate from
+/// ArithCmpPredicate), arith.addi_with_carry (two defs, result + carry_out; three
+/// uses, a, b, carry_in: the post-legalization narrow form of a multi-byte add), the
+/// bitwise arith.and / or / xor, and the shifts arith.shl / lshr / ashr (constant
+/// amount only; the MOS6502 legalizer lowers them to byte moves plus chains of the
+/// target's one-bit ops mos6502.shle / lshre, the analogues of llvm-mos
+/// G_SHLE / G_LSHRE, which select to asl/rol/lsr/ror).
+/// </summary>
+/// <remarks>
+/// No arith op takes or produces a `ptr` (see the Mem dialect).
+/// </remarks>
 public sealed class ArithDialect : Dialect
 {
     public static new DialectId Id { get; private set; }
@@ -79,9 +91,11 @@ public sealed class ArithDialect : Dialect
 
     public override bool IsArtifact(ushort code) => false;
 
-    // arith.cmpi's first use is the predicate (encoded as an Immediate with the
-    // ArithCmpPredicate enum value); render it symbolically (`eq`, `slt`, …)
-    // rather than as a number.
+    /// <summary>
+    /// arith.cmpi's first use is the predicate (encoded as an Immediate with the
+    /// ArithCmpPredicate enum value); render it symbolically (`eq`, `slt`, …)
+    /// rather than as a number.
+    /// </summary>
     public override bool TryFormatImmediateUse(ushort code, int useIndex, long value, out string text)
     {
         if ((ArithOp)code == ArithOp.CmpI && useIndex == 0)
@@ -93,9 +107,11 @@ public sealed class ArithDialect : Dialect
         return false;
     }
 
-    // Legal inline immediates: arith.constant's own value (use 0) and arith.cmpi's
-    // predicate (use 0). Every other arith immediate is an illegal inline value
-    // literal that must be materialised as an arith.constant def.
+    /// <summary>
+    /// Legal inline immediates: arith.constant's own value (use 0) and arith.cmpi's
+    /// predicate (use 0). Every other arith immediate is an illegal inline value
+    /// literal that must be materialised as an arith.constant def.
+    /// </summary>
     public override bool IsLegalImmediateOperand(ushort code, int useIndex) =>
         (ArithOp)code switch
         {

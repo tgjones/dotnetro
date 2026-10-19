@@ -4,9 +4,11 @@ namespace DotNetro.Compiler.Tests.Mir;
 
 public class MirRoundTripTests
 {
-    // Parses `input`, writes the parsed module, and asserts the text round-trips
-    // unchanged. Whitespace must match exactly — the writer's canonical layout
-    // is part of the contract.
+    /// <summary>
+    /// Parses `input`, writes the parsed module, and asserts the text round-trips
+    /// unchanged. Whitespace must match exactly — the writer's canonical layout
+    /// is part of the contract.
+    /// </summary>
     private static async Task AssertRoundTrips(string input)
     {
         var module = MirModule.Parse(new StringReader(input));

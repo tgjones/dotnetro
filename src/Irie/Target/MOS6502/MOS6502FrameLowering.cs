@@ -3,28 +3,31 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// MOS6502 frame lowering: saves/restores callee-saved zero-page registers via the
-// 6502 hardware stack (pha/pla). MOS6502 currently has none (homes are protected
-// by program layout instead), so the hooks are unused here. Mirrors llvm-mos's
-// MOSFrameLowering::spillCalleeSavedRegisters / restoreCalleeSavedRegisters,
-// which emit `copy $a <- RCn ; PH $a` (= `LDA $nn ; PHA`) because the base 6502
-// stack register class is the accumulator.
-//
-// The wrinkle the base 6502 forces: the only register that can be pushed is the
-// accumulator, so the save loop must borrow `$a`. But `$a` holds arg0's low byte
-// on entry (a live-in) and the return value's byte0 at the `rts`. `$y` is never
-// a CC argument or return register under CC_MOS, so it is provably dead at both
-// points; we shuttle the live `$a` through `$y` around the spill loop. This is a
-// pure post-RA pass — no scratch scavenging, no `$a`-evacuation into a zp slot
-// (which is what `llc --target=mos -Os` does instead).
-//
-// The shuttle is emitted as a generic pseudo.copy (not a concrete tay/tya),
-// mirroring llvm-mos's PEI emitting generic COPY. Frame lowering stays oblivious
-// to where values live — it never inspects the surrounding code. If RA happened
-// to leave the preserved byte in `$y` already, the shuttle's `$y = copy $a`
-// becomes a redundant round-trip, which the target-independent
-// CopyPropagationPass (running post-PEI, the machine-cp analogue) folds away —
-// keeping that cleverness out of frame lowering.
+/// <summary>
+/// MOS6502 frame lowering: saves/restores callee-saved zero-page registers via the
+/// 6502 hardware stack (pha/pla). MOS6502 currently has none (homes are protected
+/// by program layout instead), so the hooks are unused here. Mirrors llvm-mos's
+/// MOSFrameLowering::spillCalleeSavedRegisters / restoreCalleeSavedRegisters,
+/// which emit `copy $a &lt;- RCn ; PH $a` (= `LDA $nn ; PHA`) because the base 6502
+/// stack register class is the accumulator.
+/// </summary>
+/// <remarks>
+/// The wrinkle the base 6502 forces: the only register that can be pushed is the
+/// accumulator, so the save loop must borrow `$a`. But `$a` holds arg0's low byte
+/// on entry (a live-in) and the return value's byte0 at the `rts`. `$y` is never
+/// a CC argument or return register under CC_MOS, so it is provably dead at both
+/// points; we shuttle the live `$a` through `$y` around the spill loop. This is a
+/// pure post-RA pass — no scratch scavenging, no `$a`-evacuation into a zp slot
+/// (which is what `llc --target=mos -Os` does instead).
+///
+/// The shuttle is emitted as a generic pseudo.copy (not a concrete tay/tya),
+/// mirroring llvm-mos's PEI emitting generic COPY. Frame lowering stays oblivious
+/// to where values live — it never inspects the surrounding code. If RA happened
+/// to leave the preserved byte in `$y` already, the shuttle's `$y = copy $a`
+/// becomes a redundant round-trip, which the target-independent
+/// CopyPropagationPass (running post-PEI, the machine-cp analogue) folds away —
+/// keeping that cleverness out of frame lowering.
+/// </remarks>
 public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
 {
     public override bool IsReturnInstruction(MirInstruction instr)
@@ -100,23 +103,29 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
     }
 
-    // --- Frame-access lowering (the eliminateFrameIndex analogue) ------------
-    //
-    // The indirect-Y scratch the absolute path uses: a zero-page pointer pair
-    // (PointerZpLo/Hi) plus $y for the
-    // indexed offset. These are the physregs the abstract frame op declares
-    // clobbered, so they are free here without scavenging.
-    //
-    // Pinned to RC18/RC19 (not RC0/RC1): RC0/RC1 are the CC_MOS soft stack
-    // pointer and must stay live across ordinary code so LowerCallerStackArgAccess
-    // can address caller-placed stack arguments through them. RC18/RC19 sit at
-    // the top of the caller-saved range and are excluded from
-    // MOS6502RegisterInfo's allocatable Imag8 pool.
+    /// <summary>
+    /// --- Frame-access lowering (the eliminateFrameIndex analogue) ------------
+    /// </summary>
+    /// <remarks>
+    /// The indirect-Y scratch the absolute path uses: a zero-page pointer pair
+    /// (PointerZpLo/Hi) plus $y for the
+    /// indexed offset. These are the physregs the abstract frame op declares
+    /// clobbered, so they are free here without scavenging.
+    ///
+    /// Pinned to RC18/RC19 (not RC0/RC1): RC0/RC1 are the CC_MOS soft stack
+    /// pointer and must stay live across ordinary code so LowerCallerStackArgAccess
+    /// can address caller-placed stack arguments through them. RC18/RC19 sit at
+    /// the top of the caller-saved range and are excluded from
+    /// MOS6502RegisterInfo's allocatable Imag8 pool.
+    /// </remarks>
     private static readonly int PointerZpLo = MOS6502Registers.RC(18); // physreg 30 → $12
-    private static readonly int PointerZpHi = MOS6502Registers.RC(19); // physreg 31 → $13
+    /// <summary>physreg 31 → $13</summary>
+    private static readonly int PointerZpHi = MOS6502Registers.RC(19);
 
-    // The soft stack the function reserves in its prologue: room for the stack
-    // arguments of its largest call, i.e. one past the highest outgoing slot.
+    /// <summary>
+    /// The soft stack the function reserves in its prologue: room for the stack
+    /// arguments of its largest call, i.e. one past the highest outgoing slot.
+    /// </summary>
     public override int GetSoftStackFrameBytes(MirFunction function)
     {
         var bytes = 0;
@@ -126,8 +135,10 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         return bytes;
     }
 
-    // SP -= bytes, through $a and the carry. A live-in $a (the first argument
-    // byte) is parked in $y meanwhile; $y is never an argument register.
+    /// <summary>
+    /// SP -= bytes, through $a and the carry. A live-in $a (the first argument
+    /// byte) is parked in $y meanwhile; $y is never an argument register.
+    /// </summary>
     public override void EmitSoftStackReserve(MirBlock entryBlock, int bytes, MirBuilder builder)
     {
         if (entryBlock.LiveIns.Contains(MOS6502Registers.Y))
@@ -148,7 +159,7 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
     }
 
-    // SP += bytes, before the return, which may use $a (the first return byte).
+    /// <summary>SP += bytes, before the return, which may use $a (the first return byte).</summary>
     public override void EmitSoftStackRelease(MirInstruction returnInstr, int bytes, MirBuilder builder)
     {
         if (ReturnUses(returnInstr, MOS6502Registers.Y))
@@ -165,8 +176,10 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             EmitCopy(builder, MOS6502Registers.A, MOS6502Registers.Y);
     }
 
-    // RC0/RC1 += delta (16-bit), clobbering $a and the carry:
-    //   sec/clc ; lda rc0 ; sbc/adc #lo ; sta rc0 ; lda rc1 ; sbc/adc #hi ; sta rc1
+    /// <summary>
+    /// RC0/RC1 += delta (16-bit), clobbering $a and the carry:
+    ///   sec/clc ; lda rc0 ; sbc/adc #lo ; sta rc0 ; lda rc1 ; sbc/adc #hi ; sta rc1
+    /// </summary>
     private static void EmitAdjustSoftStack(MirBuilder builder, int delta)
     {
         var subtract = delta < 0;
@@ -200,18 +213,20 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         => instr.Opcode.Dialect == MOS6502Dialect.Id
            && (MOS6502Op)instr.Opcode.Code is MOS6502Op.FrameLoadByte or MOS6502Op.FrameStoreByte;
 
-    // Expand one mos6502.frame.{load,store}.byte into the concrete sequence that
-    // addresses the slot, chosen from the slot's StackId (the eliminateFrameIndex
-    // analogue). Three placements:
-    //   ZeroPage       — a direct lda.zp/sta.zp against the slot's promoted
-    //                    absolute zero-page address (slot.Offset + byteOffset).
-    //                    No pointer pair, no $y, no indirect-Y.
-    //   CallerStackArg — a caller-placed stack argument, addressed directly off
-    //                    the live RC0/RC1 soft stack pointer (no pointer pair to
-    //                    build — see LowerCallerStackArgAccess).
-    //   default        — the absolute global + indirect-Y path: build the
-    //                    PointerZpLo/Hi pointer pair and set $y to the offset,
-    //                    then LDA/STA (PointerZpLo),Y.
+    /// <summary>
+    /// Expand one mos6502.frame.{load,store}.byte into the concrete sequence that
+    /// addresses the slot, chosen from the slot's StackId (the eliminateFrameIndex
+    /// analogue). Three placements:
+    ///   ZeroPage       — a direct lda.zp/sta.zp against the slot's promoted
+    ///                    absolute zero-page address (slot.Offset + byteOffset).
+    ///                    No pointer pair, no $y, no indirect-Y.
+    ///   CallerStackArg — a caller-placed stack argument, addressed directly off
+    ///                    the live RC0/RC1 soft stack pointer (no pointer pair to
+    ///                    build — see LowerCallerStackArgAccess).
+    ///   default        — the absolute global + indirect-Y path: build the
+    ///                    PointerZpLo/Hi pointer pair and set $y to the offset,
+    ///                    then LDA/STA (PointerZpLo),Y.
+    /// </summary>
     public override void LowerFrameAccess(
         MirFunction function, MirInstruction instr, MirBuilder builder)
     {
@@ -234,10 +249,12 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         builder.Remove(instr);
     }
 
-    // Direct zero-page access. The slot's Offset is its absolute zp base address
-    // (stamped by MOS6502ProgramLayoutPass); the byte offset is added literally.
-    //   load:  $a = lda.zp #addr
-    //   store: sta.zp #addr        (value already in $a — the op's preserved use)
+    /// <summary>
+    /// Direct zero-page access. The slot's Offset is its absolute zp base address
+    /// (stamped by MOS6502ProgramLayoutPass); the byte offset is added literally.
+    ///   load:  $a = lda.zp #addr
+    ///   store: sta.zp #addr        (value already in $a — the op's preserved use)
+    /// </summary>
     private static void LowerZeroPageAccess(
         MirBuilder builder, MOS6502Op op, FrameSlot slot, long offset, int valueReg)
     {
@@ -258,9 +275,11 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
         }
     }
 
-    // Absolute global + indirect-Y access. For a store the value byte is in $a
-    // and must survive the pointer setup, so the pointer pair is built through $x
-    // (ldx/stx, never lda/sta). The load is free to use $a (it is the result).
+    /// <summary>
+    /// Absolute global + indirect-Y access. For a store the value byte is in $a
+    /// and must survive the pointer setup, so the pointer pair is built through $x
+    /// (ldx/stx, never lda/sta). The load is free to use $a (it is the result).
+    /// </summary>
     private void LowerAbsoluteAccess(
         MirBuilder builder, MOS6502Op op, string symbol, long offset, int valueReg)
     {
@@ -297,12 +316,14 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             new PhysicalReg(MOS6502Registers.Y, IsDefinition: false, IsImplicit: true));
     }
 
-    // Caller-placed stack argument access. Unlike LowerAbsoluteAccess, no
-    // pointer needs building at all: RC0/RC1 already *is* the right pointer —
-    // the live CC_MOS soft stack pointer the caller set up before the call —
-    // so this only sets $y to the slot's offset and addresses off RC0/RC1
-    // directly. Reads RC0/RC1 as USES, never as defs: this access must not
-    // disturb the live SP.
+    /// <summary>
+    /// Caller-placed stack argument access. Unlike LowerAbsoluteAccess, no
+    /// pointer needs building at all: RC0/RC1 already *is* the right pointer —
+    /// the live CC_MOS soft stack pointer the caller set up before the call —
+    /// so this only sets $y to the slot's offset and addresses off RC0/RC1
+    /// directly. Reads RC0/RC1 as USES, never as defs: this access must not
+    /// disturb the live SP.
+    /// </summary>
     private static void LowerCallerStackArgAccess(
         MirBuilder builder, MOS6502Op op, long spOffset, int valueReg)
     {
@@ -335,10 +356,12 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             new PhysicalReg(MOS6502Registers.Y, IsDefinition: true),
             new Immediate(offset));
 
-    // Decode a frame access into (slot symbol, byte offset, value physreg).
-    //   load:  %v = frame.load.byte @sym, #off    → value=def[0]
-    //   store: frame.store.byte @sym, #off, %v     → value=use after the offset
-    // Implicit clobber operands ($a/$y/$rc0/$rc1) follow and are ignored here.
+    /// <summary>
+    /// Decode a frame access into (slot symbol, byte offset, value physreg).
+    ///   load:  %v = frame.load.byte @sym, #off    → value=def[0]
+    ///   store: frame.store.byte @sym, #off, %v     → value=use after the offset
+    /// Implicit clobber operands ($a/$y/$rc0/$rc1) follow and are ignored here.
+    /// </summary>
     private static (string Symbol, long Offset, int ValueReg) DecodeFrameAccess(
         MirInstruction instr, MOS6502Op op)
     {
@@ -370,8 +393,10 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             $"MOS6502FrameLowering: function @{function.Name} has no frame slot named '{symbol}'.");
     }
 
-    // $a = lda.imm.sym{lo,hi} @sym ; $rcN = sta.zp $a. Used by the load path,
-    // whose result lands in $a anyway.
+    /// <summary>
+    /// $a = lda.imm.sym{lo,hi} @sym ; $rcN = sta.zp $a. Used by the load path,
+    /// whose result lands in $a anyway.
+    /// </summary>
     private static void EmitSymbolPointerByteViaA(MirBuilder builder, MOS6502Op ldaOp, string symbol, int zpReg)
     {
         builder.BuildInstruction(
@@ -384,8 +409,10 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             new PhysicalReg(MOS6502Registers.A, IsDefinition: false));
     }
 
-    // $x = ldx.imm.sym{lo,hi} @sym ; $rcN = stx.zp $x. Used by the store path so
-    // the value byte already in $a is not disturbed while the pointer is built.
+    /// <summary>
+    /// $x = ldx.imm.sym{lo,hi} @sym ; $rcN = stx.zp $x. Used by the store path so
+    /// the value byte already in $a is not disturbed while the pointer is built.
+    /// </summary>
     private static void EmitSymbolPointerByteViaX(MirBuilder builder, MOS6502Op ldxOp, string symbol, int zpReg)
     {
         builder.BuildInstruction(
@@ -398,20 +425,24 @@ public sealed class MOS6502FrameLowering : Irie.Target.FrameLowering
             new PhysicalReg(MOS6502Registers.X, IsDefinition: false));
     }
 
-    // Emit the $a↔$y shuttle as a generic pseudo.copy rather than a concrete
-    // tay/tya. This mirrors llvm-mos's PEI, which emits generic COPY and defers
-    // the TA/T_A lowering to postrapseudos: the copy is side-effect-free (no N/Z
-    // clobber), so the post-PEI CopyPropagationPass can fold a redundant shuttle
-    // round-trip (e.g. when RA already parked the preserved byte in $y) without
-    // any flag-liveness reasoning. PseudoExpansion lowers the survivors to
-    // tay/tya, so unoptimized output is byte-identical to the old form.
+    /// <summary>
+    /// Emit the $a↔$y shuttle as a generic pseudo.copy rather than a concrete
+    /// tay/tya. This mirrors llvm-mos's PEI, which emits generic COPY and defers
+    /// the TA/T_A lowering to postrapseudos: the copy is side-effect-free (no N/Z
+    /// clobber), so the post-PEI CopyPropagationPass can fold a redundant shuttle
+    /// round-trip (e.g. when RA already parked the preserved byte in $y) without
+    /// any flag-liveness reasoning. PseudoExpansion lowers the survivors to
+    /// tay/tya, so unoptimized output is byte-identical to the old form.
+    /// </summary>
     private static void EmitCopy(MirBuilder builder, int dst, int src)
         => builder.BuildInstruction(PseudoDialect.OpRef(PseudoOp.Copy),
             new PhysicalReg(dst, IsDefinition: true),
             new PhysicalReg(src, IsDefinition: false));
 
-    // True if `physReg` appears as a use operand on the return instruction
-    // (e.g. an implicit-use return-value byte left there by SelectReturn).
+    /// <summary>
+    /// True if `physReg` appears as a use operand on the return instruction
+    /// (e.g. an implicit-use return-value byte left there by SelectReturn).
+    /// </summary>
     private static bool ReturnUses(MirInstruction returnInstr, int physReg)
     {
         foreach (var op in returnInstr.Operands)

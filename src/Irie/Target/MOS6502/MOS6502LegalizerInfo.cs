@@ -6,16 +6,20 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// MOS6502 legalizer for the unified-MIR pipeline. Mirrors the old
-// Irie.Target.MOS6502.MOS6502LegalizerInfo while talking in OpcodeRef and the
-// new dialect opcodes (arith.addi, arith.addi_with_carry, arith.constant,
-// pseudo.merge, pseudo.unmerge, pseudo.copy).
+/// <summary>
+/// MOS6502 legalizer for the unified-MIR pipeline. Mirrors the old
+/// Irie.Target.MOS6502.MOS6502LegalizerInfo while talking in OpcodeRef and the
+/// new dialect opcodes (arith.addi, arith.addi_with_carry, arith.constant,
+/// pseudo.merge, pseudo.unmerge, pseudo.copy).
+/// </summary>
 public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 {
-    // Used to lower runtime-helper libcalls built during legalization. AbiLowering
-    // has already run by then, so a libcall cannot be left as a `call.func` for it
-    // to lower; the legalizer lowers it directly, as llvm-mos's createLibcall does
-    // through CallLowering::lowerCall.
+    /// <summary>
+    /// Used to lower runtime-helper libcalls built during legalization. AbiLowering
+    /// has already run by then, so a libcall cannot be left as a `call.func` for it
+    /// to lower; the legalizer lowers it directly, as llvm-mos's createLibcall does
+    /// through CallLowering::lowerCall.
+    /// </summary>
     private readonly MOS6502CallLowering _callLowering = new();
 
     public override LegalityAction GetAction(OpcodeRef opcode, IRType type)
@@ -210,11 +214,13 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             $"MOS6502LegalizerInfo: no narrow type defined for opcode {opcode}");
     }
 
-    // Custom legalization for the mem dialect: rewrites typed mem.load / mem.store
-    // ops into per-byte mem.load.byte_at / mem.store.byte_at chains. The byte
-    // form carries an Immediate offset that the isel feeds into the indirect-Y
-    // addressing mode's Y register, so consecutive bytes of a wide load/store
-    // read or write from address+0, address+1, …
+    /// <summary>
+    /// Custom legalization for the mem dialect: rewrites typed mem.load / mem.store
+    /// ops into per-byte mem.load.byte_at / mem.store.byte_at chains. The byte
+    /// form carries an Immediate offset that the isel feeds into the indirect-Y
+    /// addressing mode's Y register, so consecutive bytes of a wide load/store
+    /// read or write from address+0, address+1, …
+    /// </summary>
     public override void LegalizeCustom(MirInstruction instr, MirBuilder builder)
     {
         if (instr.Opcode.Dialect == MemDialect.Id)
@@ -299,14 +305,17 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             $"MOS6502LegalizerInfo: no Custom legalization for {instr.Opcode}");
     }
 
-    // %r : iN = arith.{shl,lshr,ashr} %a, %n  (%n a constant k < N)
-    //
-    // Split k = 8q + r. The q whole-byte part is pure byte renaming: the live bytes
-    // move q places and the vacated bytes are filled with 0 (the sign byte for
-    // ashr). The r remaining bits are r passes of a one-bit shift chain through the
-    // carry flag over the live bytes only — ASL/ROL from the low byte up for shl,
-    // LSR/ROR from the high byte down for lshr. An arithmetic shift seeds its chain
-    // with the sign: `x >=u 0x80` is the carry-in of the top byte's ROR.
+    /// <summary>
+    /// %r : iN = arith.{shl,lshr,ashr} %a, %n  (%n a constant k &lt; N)
+    /// </summary>
+    /// <remarks>
+    /// Split k = 8q + r. The q whole-byte part is pure byte renaming: the live bytes
+    /// move q places and the vacated bytes are filled with 0 (the sign byte for
+    /// ashr). The r remaining bits are r passes of a one-bit shift chain through the
+    /// carry flag over the live bytes only — ASL/ROL from the low byte up for shl,
+    /// LSR/ROR from the high byte down for lshr. An arithmetic shift seeds its chain
+    /// with the sign: `x &gt;=u 0x80` is the carry-in of the top byte's ROR.
+    /// </remarks>
     private void LowerShift(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -392,14 +401,16 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // %r : iN = arith.{shl,lshr,ashr} %a, %n  (%n not a constant)  →  a call to the
-    // runtime shift helper (compiler-rt / llvm RuntimeLibcalls names, as llvm-mos
-    // does for a variable shift: __ashlhi3, __lshrsi3, __ashrdi3, …) with the value
-    // widened to the helper's width and the count passed as an i8. A count at or
-    // beyond the operand width is undefined, as in LLVM IR; the helpers just shift
-    // that many times. The value is zero-extended for shl and lshr (the low bits of
-    // a left shift do not depend on the extension) and sign-extended for ashr, then
-    // the result truncated back.
+    /// <summary>
+    /// %r : iN = arith.{shl,lshr,ashr} %a, %n  (%n not a constant)  →  a call to the
+    /// runtime shift helper (compiler-rt / llvm RuntimeLibcalls names, as llvm-mos
+    /// does for a variable shift: __ashlhi3, __lshrsi3, __ashrdi3, …) with the value
+    /// widened to the helper's width and the count passed as an i8. A count at or
+    /// beyond the operand width is undefined, as in LLVM IR; the helpers just shift
+    /// that many times. The value is zero-extended for shl and lshr (the low bits of
+    /// a left shift do not depend on the extension) and sign-extended for ashr, then
+    /// the result truncated back.
+    /// </summary>
     private void LowerShiftLibcall(MirInstruction instr, MirBuilder builder, ArithOp op,
         VirtualReg defReg, VirtualReg valueReg, VirtualReg amountReg)
     {
@@ -442,7 +453,7 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // %r, %cout = mos6502.{shle,lshre} %a, %cin : one-bit shift link of a chain.
+    /// <summary>%r, %cout = mos6502.{shle,lshre} %a, %cin : one-bit shift link of a chain.</summary>
     private static (int result, int carryOut) BuildShiftBit(
         MirBuilder builder, MOS6502Op op, int a, int carryIn)
     {
@@ -457,26 +468,28 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         return (result, carryOut);
     }
 
-    // arith.cmpi legalization (mirrors llvm-mos MOSLegalizerInfo::legalizeICmp):
-    //
-    //   1. Normalize the predicate to the canonical {eq, uge, slt} set the 6502
-    //      flags express directly — *consumer-independently*, exactly as llvm-mos
-    //      does. Negation (ne/ult/sge → eq/uge/slt) inverts the predicate and
-    //      wraps the i1 result in an `arith.not` (the buildNot analogue); operand
-    //      swap (ule/ugt/sle/sgt) reverses the predicate and the a/b operands.
-    //      The selector strips the `arith.not` at the consuming cf.cond_br by
-    //      swapping its true/false targets, so no boolean is ever materialized.
-    //   2. Narrow the signed compare against a statically-zero RHS (`x <s 0`) to
-    //      a single high-byte sign test — `arith.cmpi slt, lhsHigh : i8, 0` —
-    //      since only the most-significant byte's sign bit matters.
-    //   3. Lower any remaining wide (i16/i32) compare to a lexicographic tree of
-    //      per-byte i8 arith.cmpi combined with i1 arith.select (BuildWideCmpTree).
-    //      The tree's i1 root feeds the cond_br; the instruction selector re-fuses
-    //      the whole tree into a CMP+branch ladder (it is never materialized).
-    //
-    // Because normalization no longer depends on the consumer, a compare feeding a
-    // materialized arith.select (lowered to a cond_br only later, by the target's
-    // select-lowering pass) is narrowed here just the same.
+    /// <summary>
+    /// arith.cmpi legalization (mirrors llvm-mos MOSLegalizerInfo::legalizeICmp):
+    ///   1. Normalize the predicate to the canonical {eq, uge, slt} set the 6502
+    ///      flags express directly — *consumer-independently*, exactly as llvm-mos
+    ///      does. Negation (ne/ult/sge → eq/uge/slt) inverts the predicate and
+    ///      wraps the i1 result in an `arith.not` (the buildNot analogue); operand
+    ///      swap (ule/ugt/sle/sgt) reverses the predicate and the a/b operands.
+    ///      The selector strips the `arith.not` at the consuming cf.cond_br by
+    ///      swapping its true/false targets, so no boolean is ever materialized.
+    ///   2. Narrow the signed compare against a statically-zero RHS (`x &lt;s 0`) to
+    ///      a single high-byte sign test — `arith.cmpi slt, lhsHigh : i8, 0` —
+    ///      since only the most-significant byte's sign bit matters.
+    ///   3. Lower any remaining wide (i16/i32) compare to a lexicographic tree of
+    ///      per-byte i8 arith.cmpi combined with i1 arith.select (BuildWideCmpTree).
+    ///      The tree's i1 root feeds the cond_br; the instruction selector re-fuses
+    ///      the whole tree into a CMP+branch ladder (it is never materialized).
+    /// </summary>
+    /// <remarks>
+    /// Because normalization no longer depends on the consumer, a compare feeding a
+    /// materialized arith.select (lowered to a cond_br only later, by the target's
+    /// select-lowering pass) is narrowed here just the same.
+    /// </remarks>
     private static void LegalizeCmpI(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -559,18 +572,20 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         // An i8 compare is left as-is for the selector's i8 cmpi+cond_br fusion.
     }
 
-    // Lexicographic per-byte lowering of a wide compare. For canonical predicate
-    // P on N-byte operands (byte index 0 = least significant), the most-
-    // significant byte is compared with P and the lower bytes with the unsigned
-    // "rest" predicate (uge→uge, eq→eq, slt→ult — the signed bias of the top byte
-    // is applied later by the selector, exactly as the old multi-byte ladder did):
-    //
-    //   cmp(P, [0..hi]) = select(cmpi eq, a[hi], b[hi]
-    //                            ? cmp(restP, [0..hi-1])
-    //                            : cmpi P, a[hi], b[hi])
-    //
-    // The selector's re-fusion recovers (predicate, per-byte operands) from this
-    // shape and emits the ladder; the tree instructions are then erased.
+    /// <summary>
+    /// Lexicographic per-byte lowering of a wide compare. For canonical predicate
+    /// P on N-byte operands (byte index 0 = least significant), the most-
+    /// significant byte is compared with P and the lower bytes with the unsigned
+    /// "rest" predicate (uge→uge, eq→eq, slt→ult — the signed bias of the top byte
+    /// is applied later by the selector, exactly as the old multi-byte ladder did):
+    ///   cmp(P, [0..hi]) = select(cmpi eq, a[hi], b[hi]
+    ///                            ? cmp(restP, [0..hi-1])
+    ///                            : cmpi P, a[hi], b[hi])
+    /// </summary>
+    /// <remarks>
+    /// The selector's re-fusion recovers (predicate, per-byte operands) from this
+    /// shape and emits the ladder; the tree instructions are then erased.
+    /// </remarks>
     private static void BuildWideCmpTree(
         MirInstruction cmpi, MirBuilder builder, ArithCmpPredicate predicate,
         int aVreg, int bVreg, int byteCount)
@@ -589,8 +604,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(cmpi);
     }
 
-    // Build the i1 comparison vreg for bytes [0..hi]. The byte at `hi` is compared
-    // with `thisPredicate`; the recursion for lower bytes uses `restPredicate`.
+    /// <summary>
+    /// Build the i1 comparison vreg for bytes [0..hi]. The byte at `hi` is compared
+    /// with `thisPredicate`; the recursion for lower bytes uses `restPredicate`.
+    /// </summary>
     private static int BuildLexicographic(
         MirBuilder builder, int[] aBytes, int[] bBytes, int hi,
         ArithCmpPredicate thisPredicate, ArithCmpPredicate restPredicate)
@@ -604,8 +621,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         return builder.BuildSelect(IRType.I1, eqHi, rest, cmpHi);
     }
 
-    // True when `vreg` is defined by `arith.constant 0` of any width. Pure
-    // inspection — never mutates the IR.
+    /// <summary>
+    /// True when `vreg` is defined by `arith.constant 0` of any width. Pure
+    /// inspection — never mutates the IR.
+    /// </summary>
     private static bool IsConstantZero(MirFunction function, int vreg)
     {
         var def = function.GetDefinition(vreg);
@@ -615,9 +634,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
             && def.Operands is [_, Immediate { Value: 0 }];
     }
 
-    // %v : iN = mem.load.iN %p  →  per-byte mem.load.byte_at chain + pseudo.merge.
-    // The merge re-uses the original wide vreg as its def so downstream uses are
-    // untouched.
+    /// <summary>
+    /// %v : iN = mem.load.iN %p  →  per-byte mem.load.byte_at chain + pseudo.merge.
+    /// The merge re-uses the original wide vreg as its def so downstream uses are
+    /// untouched.
+    /// </summary>
     private static void LowerWideLoad(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -659,9 +680,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // mem.fill %addr, %byte, <count>  →  unroll into <count> mem.store.byte_at
-    // ops at offsets 0..count-1, all writing the same byte vreg. Loop-form for
-    // large counts is future work; the active tests use small struct sizes.
+    /// <summary>
+    /// mem.fill %addr, %byte, &lt;count&gt;  →  unroll into &lt;count&gt; mem.store.byte_at
+    /// ops at offsets 0..count-1, all writing the same byte vreg. Loop-form for
+    /// large counts is future work; the active tests use small struct sizes.
+    /// </summary>
     private static void LowerMemFill(MirInstruction instr, MirBuilder builder)
     {
         if (instr.Operands.Length != 3
@@ -691,20 +714,22 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // %y : iN = cast.zext|sext %x : iM  (M < N)  →  the M/8 source bytes followed by
-    // N/8 - M/8 high bytes, merged into the original def. A zero-extend's high
-    // byte is a constant 0. A sign-extend's is the sign broadcast: 0xFF when the
-    // source's top byte is negative, else 0 — `select (slt top, 0), 0xFF, 0`, one
-    // byte shared by every high byte. (llvm-mos derives it from a shift/borrow
-    // sequence; that needs a shift op, which Irie's arith dialect lacks.)
-    // arith.muli / udivi / sdivi / uremi / sremi → a call to a runtime helper
-    // (names follow compiler-rt / llvm RuntimeLibcalls: __mulhi3, __mulsi3,
-    // __udivsi3, __divsi3, __umodsi3, __modsi3). Multiply has an i16 and an i32
-    // helper; divide and remainder only an i32 one. A narrower operand is widened
-    // to the helper's width and the result truncated back: zero-extension for
-    // multiply (the low bits of a product don't depend on the extension) and for
-    // the unsigned forms, sign-extension for the signed forms. The extension and
-    // truncation are ordinary casts, legalized afterwards by the worklist.
+    /// <summary>
+    /// %y : iN = cast.zext|sext %x : iM  (M &lt; N)  →  the M/8 source bytes followed by
+    /// N/8 - M/8 high bytes, merged into the original def. A zero-extend's high
+    /// byte is a constant 0. A sign-extend's is the sign broadcast: 0xFF when the
+    /// source's top byte is negative, else 0 — `select (slt top, 0), 0xFF, 0`, one
+    /// byte shared by every high byte. (llvm-mos derives it from a shift/borrow
+    /// sequence; that needs a shift op, which Irie's arith dialect lacks.)
+    /// arith.muli / udivi / sdivi / uremi / sremi → a call to a runtime helper
+    /// (names follow compiler-rt / llvm RuntimeLibcalls: __mulhi3, __mulsi3,
+    /// __udivsi3, __divsi3, __umodsi3, __modsi3). Multiply has an i16 and an i32
+    /// helper; divide and remainder only an i32 one. A narrower operand is widened
+    /// to the helper's width and the result truncated back: zero-extension for
+    /// multiply (the low bits of a product don't depend on the extension) and for
+    /// the unsigned forms, sign-extension for the signed forms. The extension and
+    /// truncation are ordinary casts, legalized afterwards by the worklist.
+    /// </summary>
     private void LowerLibcall(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -827,7 +852,7 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // The i8 value of boolean `cond`: 1 (or 0xFF when `allOnes`) if set, else 0.
+    /// <summary>The i8 value of boolean `cond`: 1 (or 0xFF when `allOnes`) if set, else 0.</summary>
     private static int BuildBooleanByte(MirBuilder builder, int cond, bool allOnes)
     {
         var set = builder.BuildConstant(IRType.I8, allOnes ? 0xFF : 1);
@@ -835,9 +860,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         return builder.BuildSelect(IRType.I8, cond, set, clear);
     }
 
-    // %r : i1 = arith.{and,or,xor} %a : i1, %b : i1  →  the op on the operands'
-    // 0/1 bytes, then `!= 0` to get a boolean back. A consumer that widens the
-    // result (the usual case) re-materializes it with a select.
+    /// <summary>
+    /// %r : i1 = arith.{and,or,xor} %a : i1, %b : i1  →  the op on the operands'
+    /// 0/1 bytes, then `!= 0` to get a boolean back. A consumer that widens the
+    /// result (the usual case) re-materializes it with a select.
+    /// </summary>
     private static void LowerBooleanLogic(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -861,11 +888,13 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // %y : iM = cast.trunc %x : iN  (M < N)  →  pseudo.unmerge + pseudo.merge
-    // of the low M/8 byte vregs. The special case M = 8 reduces to a single
-    // pseudo.extract (the artifact combiner from step 6 folds it through any
-    // upstream pseudo.merge, so a truncate of a multi-byte construct collapses
-    // to a direct reference to the desired byte).
+    /// <summary>
+    /// %y : iM = cast.trunc %x : iN  (M &lt; N)  →  pseudo.unmerge + pseudo.merge
+    /// of the low M/8 byte vregs. The special case M = 8 reduces to a single
+    /// pseudo.extract (the artifact combiner from step 6 folds it through any
+    /// upstream pseudo.merge, so a truncate of a multi-byte construct collapses
+    /// to a direct reference to the desired byte).
+    /// </summary>
     private static void LowerTrunc(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -909,9 +938,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // mem.store.iN %p, %v  →  pseudo.unmerge %v + per-byte mem.store.byte_at chain.
-    // For a single-byte store the unmerge is skipped (the value vreg is fed
-    // straight into mem.store.byte_at at offset 0).
+    /// <summary>
+    /// mem.store.iN %p, %v  →  pseudo.unmerge %v + per-byte mem.store.byte_at chain.
+    /// For a single-byte store the unmerge is skipped (the value vreg is fed
+    /// straight into mem.store.byte_at at offset 0).
+    /// </summary>
     private static void LowerWideStore(MirInstruction instr, MirBuilder builder)
     {
         var function = builder.Function;
@@ -948,9 +979,11 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // %q : ptr = mem.ptradd %p, %off  →  unmerge both to bytes, a 2-link
-    // addi_with_carry chain, merge back into the original ptr def (which keeps
-    // its ptr type).
+    /// <summary>
+    /// %q : ptr = mem.ptradd %p, %off  →  unmerge both to bytes, a 2-link
+    /// addi_with_carry chain, merge back into the original ptr def (which keeps
+    /// its ptr type).
+    /// </summary>
     private static void LowerPtrAdd(MirInstruction instr, MirBuilder builder)
     {
         if (instr.Operands.Length != 3
@@ -973,8 +1006,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
         builder.Remove(instr);
     }
 
-    // cast.ptrtoint / cast.inttoptr (same width): unmerge to bytes and merge
-    // into the other type; the artifact combiner folds back-to-back casts.
+    /// <summary>
+    /// cast.ptrtoint / cast.inttoptr (same width): unmerge to bytes and merge
+    /// into the other type; the artifact combiner folds back-to-back casts.
+    /// </summary>
     private static void LowerPointerCast(MirInstruction instr, MirBuilder builder)
     {
         if (instr.Operands.Length != 2

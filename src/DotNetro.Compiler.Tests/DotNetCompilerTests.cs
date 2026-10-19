@@ -8,7 +8,7 @@ namespace DotNetro.Compiler.Tests;
 [NotInParallel]
 public class DotNetCompilerTests
 {
-    //[CompilerTest]
+    // [CompilerTest]
     private static void CompareLessThanOrEqualToInt32()
     {
         var a = 1;
@@ -16,7 +16,7 @@ public class DotNetCompilerTests
         Console.WriteLine(a <= b);
     }
 
-    //[CompilerTest]
+    // [CompilerTest]
     private static void CompareEqualToInt32()
     {
         var a = 1;
@@ -24,7 +24,7 @@ public class DotNetCompilerTests
         Console.WriteLine(a == b);
     }
 
-    //[CompilerTest]
+    // [CompilerTest]
     private static void CompareGreaterThanInt32()
     {
         var a = 1;
@@ -32,7 +32,7 @@ public class DotNetCompilerTests
         Console.WriteLine(a > b);
     }
 
-    //[CompilerTest]
+    // [CompilerTest]
     private static void CompareGreaterThanOrEqualToInt32()
     {
         var a = 1;
@@ -55,7 +55,7 @@ public class DotNetCompilerTests
     //    Console.WriteLine();
     //}
 
-    //[CompilerTest]
+    // [CompilerTest]
     private static void StringConcat()
     {
         var who = "world";

@@ -1,49 +1,65 @@
 namespace Irie.Target.MOS6502;
 
-// How a single MIR operand position translates into a MachineCode operand
-// byte (or no operand at all).
+/// <summary>
+/// How a single MIR operand position translates into a MachineCode operand
+/// byte (or no operand at all).
+/// </summary>
 public enum EmitOperandKind
 {
-    // No operand byte. The instruction encodes as a single opcode byte; any
-    // MIR operands are implicit (e.g. flag defs/uses, tied accumulator).
+    /// <summary>
+    /// No operand byte. The instruction encodes as a single opcode byte; any
+    /// MIR operands are implicit (e.g. flag defs/uses, tied accumulator).
+    /// </summary>
     Implied,
 
-    // 1-byte zero-page address read from a PhysicalReg(zpN) operand. The
-    // emitter computes the address byte as `phys.Id - MOS6502Registers.RC(0)`.
+    /// <summary>
+    /// 1-byte zero-page address read from a PhysicalReg(zpN) operand. The
+    /// emitter computes the address byte as `phys.Id - MOS6502Registers.RC(0)`.
+    /// </summary>
     ZeroPageAddress,
 
-    // 1-byte immediate read from an Immediate operand.
+    /// <summary>1-byte immediate read from an Immediate operand.</summary>
     Immediate,
 
-    // 1-byte signed branch offset. The MIR operand is a BlockTarget; the
-    // emitter produces a MachineCodeOperand.LabelRef and leaves offset
-    // resolution to the assembler.
+    /// <summary>
+    /// 1-byte signed branch offset. The MIR operand is a BlockTarget; the
+    /// emitter produces a MachineCodeOperand.LabelRef and leaves offset
+    /// resolution to the assembler.
+    /// </summary>
     BranchTarget,
 
-    // 2-byte absolute address. The MIR operand is either a Symbol (external
-    // function name) or a BlockTarget (intra-function jump).
+    /// <summary>
+    /// 2-byte absolute address. The MIR operand is either a Symbol (external
+    /// function name) or a BlockTarget (intra-function jump).
+    /// </summary>
     AbsoluteAddress,
 
-    // 1-byte immediate carrying the low (`SymbolLowByte`) or high
-    // (`SymbolHighByte`) half of a Symbol operand's final address. The MIR
-    // operand is a Symbol; the emitter produces a MachineCodeOperand.ExternalRef
-    // tagged with SymbolHalf.LowByte / .HighByte so the assembler resolves only
-    // that half.
+    /// <summary>
+    /// 1-byte immediate carrying the low (`SymbolLowByte`) or high
+    /// (`SymbolHighByte`) half of a Symbol operand's final address. The MIR
+    /// operand is a Symbol; the emitter produces a MachineCodeOperand.ExternalRef
+    /// tagged with SymbolHalf.LowByte / .HighByte so the assembler resolves only
+    /// that half.
+    /// </summary>
     SymbolLowByte,
     SymbolHighByte,
 }
 
-// Per-opcode rule: which 6502 byte to emit, how to interpret the operand,
-// and which slot in the MIR operand array holds it (null for Implied).
+/// <summary>
+/// Per-opcode rule: which 6502 byte to emit, how to interpret the operand,
+/// and which slot in the MIR operand array holds it (null for Implied).
+/// </summary>
 public sealed record EmitRule(
     int             OpcodeByte,
     EmitOperandKind Kind,
     int?            OperandIndex);
 
-// Table of MOS6502Op → EmitRule for the subset of opcodes the current
-// instruction selector + addressing-mode selector + pseudo expander can
-// actually produce. Get(op) throws for any opcode not yet covered — that
-// failure is the signal that the table needs growing when isel grows.
+/// <summary>
+/// Table of MOS6502Op → EmitRule for the subset of opcodes the current
+/// instruction selector + addressing-mode selector + pseudo expander can
+/// actually produce. Get(op) throws for any opcode not yet covered — that
+/// failure is the signal that the table needs growing when isel grows.
+/// </summary>
 public static class MOS6502MachineCodeEmitTable
 {
     private static readonly Dictionary<MOS6502Op, EmitRule> Table = new()

@@ -36,9 +36,11 @@ public sealed class CompilerDriverTests
         await Assert.That(result.PassSnapshots).IsNull();
     }
 
-    // Every framework reference (System.Runtime, System.Console, ...) is redirected to
-    // DotNetro.CoreLib before the resolver is asked, so the only assembly the compiler
-    // ever requests is the core library: the host's CoreLib and facades are unreachable.
+    /// <summary>
+    /// Every framework reference (System.Runtime, System.Console, ...) is redirected to
+    /// DotNetro.CoreLib before the resolver is asked, so the only assembly the compiler
+    /// ever requests is the core library: the host's CoreLib and facades are unreachable.
+    /// </summary>
     [Test]
     public async Task OnlyTheDotNetroCoreLibraryIsRequestedFromTheResolver()
     {
@@ -140,8 +142,10 @@ public sealed class CompilerDriverTests
         await Assert.That(target.EmulatorKind).IsEqualTo("jsbeeb");
     }
 
-    // The core library supplied as bytes (the DotNetro.CoreLib.dll copied beside the
-    // tests), the way the playground supplies it from an embedded file.
+    /// <summary>
+    /// The core library supplied as bytes (the DotNetro.CoreLib.dll copied beside the
+    /// tests), the way the playground supplies it from an embedded file.
+    /// </summary>
     private static InMemoryAssemblyResolver CreateInMemoryResolver()
         => new InMemoryAssemblyResolver().Add(
             WellKnownAssemblies.CoreLib,
@@ -158,7 +162,7 @@ public sealed class CompilerDriverTests
         }
     }
 
-    // Mirrors DotNetro.Compiler.Tests.CsCompiler (Release IL, top-level statements).
+    /// <summary>Mirrors DotNetro.Compiler.Tests.CsCompiler (Release IL, top-level statements).</summary>
     private static byte[] CompileCSharp(string source)
     {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);

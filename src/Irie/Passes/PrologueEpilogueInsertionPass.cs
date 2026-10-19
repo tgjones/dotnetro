@@ -3,28 +3,29 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// =============================================================================
-// PrologueEpilogueInsertionPass — inserts callee-saved register save/restore
-// sequences in each function's prologue/epilogue. Mirrors LLVM's
-// PrologEpilogInserter.
-// =============================================================================
-//
-// The framework is target-independent: this pass determines which callee-saved
-// registers a function actually clobbers, finds the entry block and the return
-// instructions, and drives the target's FrameLowering hooks to emit the actual
-// save/restore instructions. Only the instruction emission (and the target's
-// notion of "the return instruction") is target-specific.
-//
-// Pipeline position: after register allocation and any target post-RA passes,
-// before PseudoExpansionPass — at which point physreg assignments and the set of
-// defined registers are final (matching LLVM's "PEI after RA, before post-RA
-// pseudo expansion"). The concrete target ops it emits (e.g. lda.zp/pha/sta.zp)
-// are already final machine ops, so the later pseudo-expansion / scavenging
-// passes (which only touch pseudo.*) leave them alone.
-//
-// A no-op for MOS6502 apart from the soft-stack reserve: no register is
-// callee-saved there (values that survive calls live in homes that program layout
-// keeps disjoint from every callee's).
+/// <summary>
+/// PrologueEpilogueInsertionPass — inserts callee-saved register save/restore
+/// sequences in each function's prologue/epilogue. Mirrors LLVM's
+/// PrologEpilogInserter.
+/// </summary>
+/// <remarks>
+/// The framework is target-independent: this pass determines which callee-saved
+/// registers a function actually clobbers, finds the entry block and the return
+/// instructions, and drives the target's FrameLowering hooks to emit the actual
+/// save/restore instructions. Only the instruction emission (and the target's
+/// notion of "the return instruction") is target-specific.
+///
+/// Pipeline position: after register allocation and any target post-RA passes,
+/// before PseudoExpansionPass — at which point physreg assignments and the set of
+/// defined registers are final (matching LLVM's "PEI after RA, before post-RA
+/// pseudo expansion"). The concrete target ops it emits (e.g. lda.zp/pha/sta.zp)
+/// are already final machine ops, so the later pseudo-expansion / scavenging
+/// passes (which only touch pseudo.*) leave them alone.
+///
+/// A no-op for MOS6502 apart from the soft-stack reserve: no register is
+/// callee-saved there (values that survive calls live in homes that program layout
+/// keeps disjoint from every callee's).
+/// </remarks>
 public sealed class PrologueEpilogueInsertionPass(
     TargetRegisterInfo registerInfo, FrameLowering frameLowering) : MirFunctionPass
 {

@@ -15,8 +15,10 @@ public enum AddressingMode
     IndirectY,
     Relative,
 
-    // Pseudo opcodes that don't correspond to a real 6502 instruction (e.g. LDImm1
-    // for materializing an i1 constant). Lowered to one or more real instructions
-    // by a later pass when emitting MachineCode.
+    /// <summary>
+    /// Pseudo opcodes that don't correspond to a real 6502 instruction (e.g. LDImm1
+    /// for materializing an i1 constant). Lowered to one or more real instructions
+    /// by a later pass when emitting MachineCode.
+    /// </summary>
     Pseudo,
 }

@@ -4,30 +4,33 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// Target-private branch-folder — the llvm-mos `branch-folder`
-// (BranchFolder::OptimizeBlock, the "empty block" arm) analogue. Runs AFTER
-// register allocation and BEFORE CopyElimination, mirroring llvm-mos which runs
-// the Control Flow Optimizer after the VReg rewriter and before copy-opt /
-// pseudo expansion.
-//
-// An "empty block" in our post-placement model is a block whose
-// only instruction is an unconditional `mos6502.jmp.abs <succ>`. Such a block
-// does nothing but transfer control to a single successor, so we make every
-// predecessor reach that successor directly (rewriting the BlockTarget operand
-// that names the empty block) and then drop the empty block.
-//
-// llvm-mos: "If this block is empty, make everyone use its fall-through, not the
-// block explicitly" — it walks the empty block's predecessors and calls
-// `ReplaceUsesOfBlockWith(MBB, FallThrough)`. We do the same by rewriting every
-// `BlockTarget` operand across the function that points at the empty block.
-//
-// Correctness: conditional branches in our model are NOT terminators — they fall
-// through to the next physically-laid-out block on the not-taken path. So an
-// empty block may only be physically removed from the block list when nothing
-// falls through into it (i.e. the physically-preceding block ends in a
-// terminator). If a fall-through reaches it we conservatively leave the block in
-// place; the explicit predecessors have still been redirected, and the
-// later block-placement pass handles the residual jmp.
+/// <summary>
+/// Target-private branch-folder — the llvm-mos `branch-folder`
+/// (BranchFolder::OptimizeBlock, the "empty block" arm) analogue. Runs AFTER
+/// register allocation and BEFORE CopyElimination, mirroring llvm-mos which runs
+/// the Control Flow Optimizer after the VReg rewriter and before copy-opt /
+/// pseudo expansion.
+/// </summary>
+/// <remarks>
+/// An "empty block" in our post-placement model is a block whose
+/// only instruction is an unconditional `mos6502.jmp.abs &lt;succ&gt;`. Such a block
+/// does nothing but transfer control to a single successor, so we make every
+/// predecessor reach that successor directly (rewriting the BlockTarget operand
+/// that names the empty block) and then drop the empty block.
+///
+/// llvm-mos: "If this block is empty, make everyone use its fall-through, not the
+/// block explicitly" — it walks the empty block's predecessors and calls
+/// `ReplaceUsesOfBlockWith(MBB, FallThrough)`. We do the same by rewriting every
+/// `BlockTarget` operand across the function that points at the empty block.
+///
+/// Correctness: conditional branches in our model are NOT terminators — they fall
+/// through to the next physically-laid-out block on the not-taken path. So an
+/// empty block may only be physically removed from the block list when nothing
+/// falls through into it (i.e. the physically-preceding block ends in a
+/// terminator). If a fall-through reaches it we conservatively leave the block in
+/// place; the explicit predecessors have still been redirected, and the
+/// later block-placement pass handles the residual jmp.
+/// </remarks>
 public sealed class MOS6502BranchFolderPass : MirFunctionPass
 {
     public override string Name => "MOS6502BranchFolder";
@@ -69,12 +72,14 @@ public sealed class MOS6502BranchFolderPass : MirFunctionPass
         function.RebuildCfg();
     }
 
-    // True if `block`'s only code-generating instruction is an unconditional
-    // `mos6502.jmp.abs` naming a single successor block. Identity `pseudo.copy
-    // $r -> $r` instructions are treated as transparent: they generate no code
-    // and CopyElimination (which runs right after this pass) will delete them.
-    // This mirrors llvm-mos's IsEmptyBlock, which skips instructions that don't
-    // generate code (debug values).
+    /// <summary>
+    /// True if `block`'s only code-generating instruction is an unconditional
+    /// `mos6502.jmp.abs` naming a single successor block. Identity `pseudo.copy
+    /// $r -&gt; $r` instructions are treated as transparent: they generate no code
+    /// and CopyElimination (which runs right after this pass) will delete them.
+    /// This mirrors llvm-mos's IsEmptyBlock, which skips instructions that don't
+    /// generate code (debug values).
+    /// </summary>
     private static bool IsJumpOnlyBlock(MirBlock block, out MirBlock successor)
     {
         successor = null!;
@@ -97,8 +102,10 @@ public sealed class MOS6502BranchFolderPass : MirFunctionPass
         return true;
     }
 
-    // An identity copy `$r = pseudo.copy $r` — generates no code and is dropped
-    // by CopyElimination. Treated as transparent when deciding emptiness.
+    /// <summary>
+    /// An identity copy `$r = pseudo.copy $r` — generates no code and is dropped
+    /// by CopyElimination. Treated as transparent when deciding emptiness.
+    /// </summary>
     private static bool IsIdentityCopy(MirInstruction instr)
     {
         if (instr.Opcode.Dialect != PseudoDialect.Id) return false;
@@ -109,8 +116,10 @@ public sealed class MOS6502BranchFolderPass : MirFunctionPass
             && def.Id == use.Id;
     }
 
-    // Rewrite every BlockTarget operand across the whole function that points at
-    // `from` to point at `to` instead.
+    /// <summary>
+    /// Rewrite every BlockTarget operand across the whole function that points at
+    /// `from` to point at `to` instead.
+    /// </summary>
     private static void RedirectAllReferences(MirFunction function, MirBlock from, MirBlock to)
     {
         foreach (var block in function.Blocks)
@@ -128,10 +137,12 @@ public sealed class MOS6502BranchFolderPass : MirFunctionPass
         }
     }
 
-    // A block at index `i` may be physically removed only when nothing falls
-    // through into it from the physically-preceding block — i.e. that block's
-    // last instruction is a terminator (jmp / rts), so control never reaches
-    // block `i` by fall-through.
+    /// <summary>
+    /// A block at index `i` may be physically removed only when nothing falls
+    /// through into it from the physically-preceding block — i.e. that block's
+    /// last instruction is a terminator (jmp / rts), so control never reaches
+    /// block `i` by fall-through.
+    /// </summary>
     private static bool CanPhysicallyRemove(MirFunction function, int i)
     {
         var prev = function.Blocks[i - 1];

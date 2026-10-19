@@ -2,39 +2,49 @@ using Irie.MachineCode;
 
 namespace Irie.Target.MOS6502;
 
-// Two-pass encoder: pass 1 walks the module assigning absolute addresses to
-// functions, local labels, and instructions; pass 2 uses the layout tables to
-// emit the actual 6502 byte stream.
+/// <summary>
+/// Two-pass encoder: pass 1 walks the module assigning absolute addresses to
+/// functions, local labels, and instructions; pass 2 uses the layout tables to
+/// emit the actual 6502 byte stream.
+/// </summary>
 public sealed class MOS6502BinaryEncoder
 {
-    // Function name → absolute start address. Resolves ExternalRef in pass 2.
+    /// <summary>Function name → absolute start address. Resolves ExternalRef in pass 2.</summary>
     private Dictionary<string, int> _functionAddrs = new();
 
-    // Global symbol name → absolute start address. Shares the symbol namespace
-    // with _functionAddrs but kept separate so duplicate-function-name checks
-    // still report function-vs-function clashes specifically.
+    /// <summary>
+    /// Global symbol name → absolute start address. Shares the symbol namespace
+    /// with _functionAddrs but kept separate so duplicate-function-name checks
+    /// still report function-vs-function clashes specifically.
+    /// </summary>
     private Dictionary<string, int> _globalAddrs = new();
 
-    // Per-function local label name → absolute address. Resolves LabelRef in pass 2.
+    /// <summary>Per-function local label name → absolute address. Resolves LabelRef in pass 2.</summary>
     private Dictionary<MachineCodeFunction, Dictionary<string, int>> _localLabelAddrs = new();
 
-    // The instructions to encode in pass 2, in declaration order, each with the
-    // address it was laid out at and the function it belongs to (for label resolution).
+    /// <summary>
+    /// The instructions to encode in pass 2, in declaration order, each with the
+    /// address it was laid out at and the function it belongs to (for label resolution).
+    /// </summary>
     private List<LayoutEntry> _layoutEntries = new();
 
-    // The globals to encode in pass 2, in declaration order, each with the
-    // address it was laid out at.
+    /// <summary>
+    /// The globals to encode in pass 2, in declaration order, each with the
+    /// address it was laid out at.
+    /// </summary>
     private List<GlobalLayoutEntry> _globalLayoutEntries = new();
 
-    // Relative branches whose target is out of signed-8-bit reach and must be
-    // relaxed into `Bxx_inverse *+5; JMP target` (5 bytes instead of 2).
-    // Determined by iterating layout to a fixpoint (relaxation only grows code).
+    /// <summary>
+    /// Relative branches whose target is out of signed-8-bit reach and must be
+    /// relaxed into `Bxx_inverse *+5; JMP target` (5 bytes instead of 2).
+    /// Determined by iterating layout to a fixpoint (relaxation only grows code).
+    /// </summary>
     private HashSet<MachineCodeInstruction> _relaxedBranches = new();
 
-    // Function name → absolute start address, as laid out by the last Encode.
+    /// <summary>Function name → absolute start address, as laid out by the last Encode.</summary>
     public IReadOnlyDictionary<string, int> FunctionAddresses => _functionAddrs;
 
-    // Global name → absolute start address, as laid out by the last Encode.
+    /// <summary>Global name → absolute start address, as laid out by the last Encode.</summary>
     public IReadOnlyDictionary<string, int> GlobalAddresses => _globalAddrs;
 
     public byte[] Encode(MachineCodeModule module, int origin)
@@ -260,7 +270,7 @@ public sealed class MOS6502BinaryEncoder
         return addr;
     }
 
-    // Defined by the encoder: the address just past the last byte of the image.
+    /// <summary>Defined by the encoder: the address just past the last byte of the image.</summary>
     public const string ImageEndSymbol = "__image_end";
 
     private int ResolveSymbol(string name, int referringAddr)
@@ -282,8 +292,10 @@ public sealed class MOS6502BinaryEncoder
         bytes[pos + 1] = (byte)((value >> 8) & 0xFF);
     }
 
-    // Runs pass 1 in isolation and returns the resolved layout. Encode() calls
-    // this internally; tests use it to observe the layout state until pass 2 lands.
+    /// <summary>
+    /// Runs pass 1 in isolation and returns the resolved layout. Encode() calls
+    /// this internally; tests use it to observe the layout state until pass 2 lands.
+    /// </summary>
     public LayoutResult LayoutOnly(MachineCodeModule module, int origin)
         => LayoutOnly(module, origin, new HashSet<MachineCodeInstruction>());
 
@@ -373,8 +385,10 @@ public sealed class MOS6502BinaryEncoder
         return InstructionLength(mode);
     }
 
-    // The conditional-branch opcode that branches on the opposite condition,
-    // used when relaxing an out-of-range branch into a branch-over-JMP.
+    /// <summary>
+    /// The conditional-branch opcode that branches on the opposite condition,
+    /// used when relaxing an out-of-range branch into a branch-over-JMP.
+    /// </summary>
     private static int InverseBranchOpcode(int opcode) => opcode switch
     {
         MOS6502Opcode.BEQ => MOS6502Opcode.BNE,

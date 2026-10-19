@@ -3,37 +3,40 @@ using Irie.Passes;
 
 namespace Irie.Target.MOS6502;
 
-// Target-private block-placement — the llvm-mos `block-placement`
-// (MachineBlockPlacement) analogue, in its minimal fall-through form. Runs LAST
-// among the MOS6502 passes (immediately after MOS6502LateOptimizationPass),
-// mirroring llvm-mos which runs block-placement after mos-late-opt.
-//
-// The goal is to order blocks so that a block's unconditional `mos6502.jmp.abs`
-// target is laid out immediately after it, then drop the now-redundant jmp and
-// let control fall through. This removes the explicit JMP on every straight-line
-// edge.
-//
-// Correctness — fall-through semantics:
-//   * Conditional branches (bne/beq/bmi/bpl/…) are NOT terminators in our model:
-//     on the not-taken path control falls through to the *next physically-laid-
-//     out block*. A block ending in a conditional branch (i.e. whose last
-//     instruction is not a terminator) therefore has a *required* physical
-//     successor — the block that currently follows it — which MUST stay
-//     immediately after it. We model this as an unbreakable "forced" edge: the
-//     forced successor is never pulled elsewhere (it is excluded from jmp-target
-//     chaining and never used as an independent chain seed), so it is always
-//     still available to be appended right after its forced predecessor.
-//   * A jmp is dropped only when its target ends up immediately next, so any
-//     conditional branch sitting before that jmp keeps the exact same
-//     fall-through block it had before.
-//
-// Algorithm (greedy chain building, MachineBlockPlacement's core idea without
-// the profile-guided heuristics): start at the entry block; repeatedly place a
-// block, then extend the chain to (a) its forced fall-through successor if it
-// has one, else (b) its jmp target if that target is still unplaced and has no
-// forced predecessor. When the chain can't be extended, resume from the next
-// unplaced, non-forced-successor block in original order. Entry block is always
-// first.
+/// <summary>
+/// Target-private block-placement — the llvm-mos `block-placement`
+/// (MachineBlockPlacement) analogue, in its minimal fall-through form. Runs LAST
+/// among the MOS6502 passes (immediately after MOS6502LateOptimizationPass),
+/// mirroring llvm-mos which runs block-placement after mos-late-opt.
+/// </summary>
+/// <remarks>
+/// The goal is to order blocks so that a block's unconditional `mos6502.jmp.abs`
+/// target is laid out immediately after it, then drop the now-redundant jmp and
+/// let control fall through. This removes the explicit JMP on every straight-line
+/// edge.
+///
+/// Correctness — fall-through semantics:
+///   * Conditional branches (bne/beq/bmi/bpl/…) are NOT terminators in our model:
+///     on the not-taken path control falls through to the *next physically-laid-
+///     out block*. A block ending in a conditional branch (i.e. whose last
+///     instruction is not a terminator) therefore has a *required* physical
+///     successor — the block that currently follows it — which MUST stay
+///     immediately after it. We model this as an unbreakable "forced" edge: the
+///     forced successor is never pulled elsewhere (it is excluded from jmp-target
+///     chaining and never used as an independent chain seed), so it is always
+///     still available to be appended right after its forced predecessor.
+///   * A jmp is dropped only when its target ends up immediately next, so any
+///     conditional branch sitting before that jmp keeps the exact same
+///     fall-through block it had before.
+///
+/// Algorithm (greedy chain building, MachineBlockPlacement's core idea without
+/// the profile-guided heuristics): start at the entry block; repeatedly place a
+/// block, then extend the chain to (a) its forced fall-through successor if it
+/// has one, else (b) its jmp target if that target is still unplaced and has no
+/// forced predecessor. When the chain can't be extended, resume from the next
+/// unplaced, non-forced-successor block in original order. Entry block is always
+/// first.
+/// </remarks>
 public sealed class MOS6502BlockPlacementPass : MirFunctionPass
 {
     public override string Name => "MOS6502BlockPlacement";
@@ -129,11 +132,13 @@ public sealed class MOS6502BlockPlacementPass : MirFunctionPass
         return order;
     }
 
-    // Choose the block to place immediately after `block`:
-    //   1. If `block`'s last instruction is not a terminator, control falls
-    //      through to its original neighbour — that neighbour MUST come next.
-    //   2. Otherwise, if `block` ends in `jmp.abs T`, T is unplaced and T has no
-    //      forced predecessor, prefer T so the jmp can fall through.
+    /// <summary>
+    /// Choose the block to place immediately after `block`:
+    ///   1. If `block`'s last instruction is not a terminator, control falls
+    ///      through to its original neighbour — that neighbour MUST come next.
+    ///   2. Otherwise, if `block` ends in `jmp.abs T`, T is unplaced and T has no
+    ///      forced predecessor, prefer T so the jmp can fall through.
+    /// </summary>
     private static MirBlock? NextInChain(
         MirBlock block,
         Dictionary<MirBlock, MirBlock> originalNext,

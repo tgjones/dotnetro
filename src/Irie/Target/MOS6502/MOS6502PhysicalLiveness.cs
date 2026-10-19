@@ -2,12 +2,14 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// Backward liveness of physical registers (the homes included) over a function
-// that has been through placement: an operand marked as a definition ends the
-// register's live range, one that is not starts it.
+/// <summary>
+/// Backward liveness of physical registers (the homes included) over a function
+/// that has been through placement: an operand marked as a definition ends the
+/// register's live range, one that is not starts it.
+/// </summary>
 internal static class MOS6502PhysicalLiveness
 {
-    // live_before = (live_after \ defs) ∪ uses.
+    /// <summary>live_before = (live_after \ defs) ∪ uses.</summary>
     public static void Step(MirInstruction instr, HashSet<int> live)
     {
         foreach (var op in instr.Operands)
@@ -18,8 +20,10 @@ internal static class MOS6502PhysicalLiveness
                 live.Add(u.Id);
     }
 
-    // To a fixpoint; returns each block's live-in and live-out. The function's CFG
-    // must be current (`RebuildCfg`).
+    /// <summary>
+    /// To a fixpoint; returns each block's live-in and live-out. The function's CFG
+    /// must be current (`RebuildCfg`).
+    /// </summary>
     public static (Dictionary<MirBlock, HashSet<int>> LiveIn, Dictionary<MirBlock, HashSet<int>> LiveOut)
         Compute(MirFunction function)
     {

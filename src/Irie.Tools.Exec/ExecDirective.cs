@@ -3,17 +3,19 @@ using System.Text.RegularExpressions;
 
 namespace Irie.Tools.Exec;
 
-// `--exec "name(arg, arg, ...)"` -- one function to run and the values to run it
-// with. Each argument is
-//   *          the default edge values for its width
-//   lo..hi     every integer in the inclusive range
-//   a|b|c      exactly these values
-//   v          a single value
-//   buf(N)     a pointer to a fresh N-byte buffer of seeded bytes (a global, so its
-//              contents are compared after the run)
-//   buf(N)@a|b a pointer into such a buffer at each of these byte offsets
-// Numbers are decimal or 0x-hex and may be negative (two's complement at the
-// parameter's width).
+/// <summary>
+/// `--exec "name(arg, arg, ...)"` -- one function to run and the values to run it
+/// with. Each argument is
+///   *          the default edge values for its width
+///   lo..hi     every integer in the inclusive range
+///   a|b|c      exactly these values
+///   v          a single value
+///   buf(N)     a pointer to a fresh N-byte buffer of seeded bytes (a global, so its
+///              contents are compared after the run)
+///   buf(N)@a|b a pointer into such a buffer at each of these byte offsets
+/// Numbers are decimal or 0x-hex and may be negative (two's complement at the
+/// parameter's width).
+/// </summary>
 internal sealed record ExecDirective(string Function, IReadOnlyList<ArgumentDomain> Arguments)
 {
     private static readonly Regex Syntax = new(@"^\s*(?<name>\w+)\s*\((?<args>.*)\)\s*$");

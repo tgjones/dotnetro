@@ -5,31 +5,39 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
 {
     public string Name { get; } = name;
 
-    // Signature is preserved by every pass — even after ABI lowering replaces
-    // entry-block parameters with pseudo.copy from physregs.
+    /// <summary>
+    /// Signature is preserved by every pass — even after ABI lowering replaces
+    /// entry-block parameters with pseudo.copy from physregs.
+    /// </summary>
     public IRType[] ParameterTypes { get; } = paramTypes;
     public IRType   ReturnType    { get; } = returnType;
 
     public List<MirBlock> Blocks { get; } = [];
 
-    // Where the arguments arrive and the results leave, once something has chosen it
-    // for this function; null while the function uses the target's default convention
-    // for its signature. The ABI copies of the function and of every call to it follow it.
+    /// <summary>
+    /// Where the arguments arrive and the results leave, once something has chosen it
+    /// for this function; null while the function uses the target's default convention
+    /// for its signature. The ABI copies of the function and of every call to it follow it.
+    /// </summary>
     public Irie.Target.FunctionConvention? Convention { get; set; }
 
-    // Interprocedural property set by ReentrancyAnalysis: true iff this function
-    // can never be active on the call stack more than once at a time (its call-
-    // graph SCC is a singleton, it doesn't self-recurse, and it isn't reachable
-    // from an interrupt handler). A non-reentrant function may use static memory
-    // (e.g. fixed zero-page addresses) for its locals, because there is never a
-    // second live activation whose locals would alias the first's. Default false
-    // (conservative) until the analysis proves otherwise.
+    /// <summary>
+    /// Interprocedural property set by ReentrancyAnalysis: true iff this function
+    /// can never be active on the call stack more than once at a time (its call-
+    /// graph SCC is a singleton, it doesn't self-recurse, and it isn't reachable
+    /// from an interrupt handler). A non-reentrant function may use static memory
+    /// (e.g. fixed zero-page addresses) for its locals, because there is never a
+    /// second live activation whose locals would alias the first's. Default false
+    /// (conservative) until the analysis proves otherwise.
+    /// </summary>
     public bool IsNonReentrant { get; set; }
 
-    // Address-taken / value-type locals that the frontend has reserved as
-    // .bss-style frame slots. The FrameLoweringPass converts each entry to a
-    // MirGlobal (zero-init) on the module, and rewrites each mem.frame_addr
-    // use to a mem.symbol against that global's name.
+    /// <summary>
+    /// Address-taken / value-type locals that the frontend has reserved as
+    /// .bss-style frame slots. The FrameLoweringPass converts each entry to a
+    /// MirGlobal (zero-init) on the module, and rewrites each mem.frame_addr
+    /// use to a mem.symbol against that global's name.
+    /// </summary>
     public List<FrameSlot> FrameSlots { get; } = [];
 
     private int _nextVirtualRegister;
@@ -54,19 +62,23 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
     public bool TryGetVRegAnnotation(int vreg, out VRegAnnotation annotation) =>
         _annotations.TryGetValue(vreg, out annotation!);
 
-    // Live virtual-register IDs in dictionary insertion order — stable across
-    // round-trips because both the text parser and the binary reader register
-    // vregs in the order they appear.
+    /// <summary>
+    /// Live virtual-register IDs in dictionary insertion order — stable across
+    /// round-trips because both the text parser and the binary reader register
+    /// vregs in the order they appear.
+    /// </summary>
     public IReadOnlyCollection<int> VirtualRegisterIds => _annotations.Keys;
 
-    // Replace a vreg's TypedVReg entry with a ClassedVReg. Called by
-    // instruction selection when it commits a vreg to a register class.
+    /// <summary>
+    /// Replace a vreg's TypedVReg entry with a ClassedVReg. Called by
+    /// instruction selection when it commits a vreg to a register class.
+    /// </summary>
     public void ReclassifyVirtualRegister(int vreg, int classId, string className)
     {
         _annotations[vreg] = new ClassedVReg(classId, className);
     }
 
-    // Used by parsers to register a vreg with a caller-supplied ID.
+    /// <summary>Used by parsers to register a vreg with a caller-supplied ID.</summary>
     internal void RegisterVirtualRegister(int id, VRegAnnotation annotation)
     {
         _annotations[id] = annotation;
@@ -74,9 +86,11 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
             _nextVirtualRegister = id + 1;
     }
 
-    // What a trial transformation of the function (a placement run to measure its cost)
-    // needs to be undone: the blocks with their instructions and operands, the vreg
-    // table and the frame slots.
+    /// <summary>
+    /// What a trial transformation of the function (a placement run to measure its cost)
+    /// needs to be undone: the blocks with their instructions and operands, the vreg
+    /// table and the frame slots.
+    /// </summary>
     internal sealed class SavedState
     {
         internal required List<MirBlock> Blocks;
@@ -131,7 +145,7 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         RebuildCfg();
     }
 
-    // Drop the vreg table after RA has replaced every VirtualReg with PhysicalReg.
+    /// <summary>Drop the vreg table after RA has replaced every VirtualReg with PhysicalReg.</summary>
     public void ClearVRegAnnotations() => _annotations.Clear();
 
     public MirBlock CreateBlock(Action<MirBlock>? configure = null)
@@ -143,7 +157,7 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         return block;
     }
 
-    // Linear scan for the unique defining instruction of a virtual register.
+    /// <summary>Linear scan for the unique defining instruction of a virtual register.</summary>
     public MirInstruction? GetDefinition(int vreg)
     {
         foreach (var block in Blocks)
@@ -154,9 +168,11 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         return null;
     }
 
-    // Every instruction that defines `vreg`, in program order. After PHI
-    // elimination a block-parameter vreg is defined once per incoming edge (the
-    // edge copies), so "the" definition is not unique past that point.
+    /// <summary>
+    /// Every instruction that defines `vreg`, in program order. After PHI
+    /// elimination a block-parameter vreg is defined once per incoming edge (the
+    /// edge copies), so "the" definition is not unique past that point.
+    /// </summary>
     public List<MirInstruction> GetDefinitions(int vreg)
     {
         var defs = new List<MirInstruction>();
@@ -196,8 +212,10 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         return count;
     }
 
-    // SSA RAUW: rewrite every non-def use of oldVreg to point at newVreg,
-    // including uses nested inside BlockTarget.Args.
+    /// <summary>
+    /// SSA RAUW: rewrite every non-def use of oldVreg to point at newVreg,
+    /// including uses nested inside BlockTarget.Args.
+    /// </summary>
     public void ReplaceAllUsesOfRegister(int oldVreg, int newVreg)
     {
         foreach (var block in Blocks)
@@ -226,8 +244,10 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         return rewritten;
     }
 
-    // Trivially dead: side-effect-free opcode, no physical-register defs, and
-    // every virtual-register def has zero uses.
+    /// <summary>
+    /// Trivially dead: side-effect-free opcode, no physical-register defs, and
+    /// every virtual-register def has zero uses.
+    /// </summary>
     public bool IsTriviallyDead(MirInstruction instr)
     {
         var dialect = DialectRegistry.ById(instr.Opcode.Dialect);
@@ -252,7 +272,7 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
         return hasVRegDef;
     }
 
-    // Rebuild predecessor/successor lists from terminator BlockTarget operands.
+    /// <summary>Rebuild predecessor/successor lists from terminator BlockTarget operands.</summary>
     public void RebuildCfg()
     {
         foreach (var block in Blocks)

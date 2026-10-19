@@ -1,10 +1,12 @@
 namespace Irie.Tools.Exec;
 
-// Turns the argument domains of an --exec argument into the argument vectors to
-// run. Values are bit patterns masked to each parameter's width.
+/// <summary>
+/// Turns the argument domains of an --exec argument into the argument vectors to
+/// run. Values are bit patterns masked to each parameter's width.
+/// </summary>
 internal static class VectorGenerator
 {
-    // The full cross product when it is this small, otherwise a seeded sample.
+    /// <summary>The full cross product when it is this small, otherwise a seeded sample.</summary>
     public const int MaxVectors = 256;
 
     public static List<ulong[]> Generate(IReadOnlyList<ArgumentDomain> domains, IReadOnlyList<int> widths)
@@ -69,8 +71,10 @@ internal static class VectorGenerator
             yield return (ulong)v;
     }
 
-    // Zero and one, the neighbourhood of every byte boundary, the signed
-    // extremes, alternating bit patterns, and a few seeded random values.
+    /// <summary>
+    /// Zero and one, the neighbourhood of every byte boundary, the signed
+    /// extremes, alternating bit patterns, and a few seeded random values.
+    /// </summary>
     private static IEnumerable<ulong> EdgeValues(int bits)
     {
         var mask = bits >= 64 ? ulong.MaxValue : (1UL << bits) - 1;

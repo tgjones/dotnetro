@@ -25,9 +25,11 @@ public sealed record IntegerType(int SizeInBits)
     public override string DisplayName => $"i{SizeInBits}";
 }
 
-// An opaque address: no pointee type (the element type lives on the load/store
-// op). Not an integer — no arith op accepts it; convert with cast.ptrtoint /
-// cast.inttoptr. The width is a field so it can become a target property.
+/// <summary>
+/// An opaque address: no pointee type (the element type lives on the load/store
+/// op). Not an integer — no arith op accepts it; convert with cast.ptrtoint /
+/// cast.inttoptr. The width is a field so it can become a target property.
+/// </summary>
 public sealed record PointerType(int SizeInBits)
     : IRType(SizeInBits)
 {

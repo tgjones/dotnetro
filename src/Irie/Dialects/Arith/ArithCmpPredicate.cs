@@ -1,9 +1,11 @@
 namespace Irie.Dialects.Arith;
 
-// Predicate kinds for arith.cmpi. Encoded in MIR as an Immediate operand at
-// use position 0 of `arith.cmpi`; rendered symbolically by the writer/parser
-// via ArithDialect.TryFormat/ParseImmediateUse. The integer values are the
-// canonical encoding for the binary format.
+/// <summary>
+/// Predicate kinds for arith.cmpi. Encoded in MIR as an Immediate operand at
+/// use position 0 of `arith.cmpi`; rendered symbolically by the writer/parser
+/// via ArithDialect.TryFormat/ParseImmediateUse. The integer values are the
+/// canonical encoding for the binary format.
+/// </summary>
 public enum ArithCmpPredicate
 {
     Eq  = 0,
@@ -20,8 +22,10 @@ public enum ArithCmpPredicate
 
 public static class ArithCmpPredicateOps
 {
-    // The inverse (logical negation) of a predicate: the relation that holds
-    // exactly when this one does not. eq↔ne, slt↔sge, sgt↔sle, ult↔uge, ugt↔ule.
+    /// <summary>
+    /// The inverse (logical negation) of a predicate: the relation that holds
+    /// exactly when this one does not. eq↔ne, slt↔sge, sgt↔sle, ult↔uge, ugt↔ule.
+    /// </summary>
     public static ArithCmpPredicate Inverse(ArithCmpPredicate predicate) => predicate switch
     {
         ArithCmpPredicate.Eq  => ArithCmpPredicate.Ne,
@@ -37,8 +41,10 @@ public static class ArithCmpPredicateOps
         _ => throw new ArgumentOutOfRangeException(nameof(predicate), predicate, "Unknown ArithCmpPredicate"),
     };
 
-    // The predicate that holds for swapped operands: `a P b` ⟺ `b Swapped(P) a`.
-    // eq/ne are symmetric; the orderings reverse (slt↔sgt, sle↔sge, ult↔ugt, ule↔uge).
+    /// <summary>
+    /// The predicate that holds for swapped operands: `a P b` ⟺ `b Swapped(P) a`.
+    /// eq/ne are symmetric; the orderings reverse (slt↔sgt, sle↔sge, ult↔ugt, ule↔uge).
+    /// </summary>
     public static ArithCmpPredicate Swapped(ArithCmpPredicate predicate) => predicate switch
     {
         ArithCmpPredicate.Eq  => ArithCmpPredicate.Eq,

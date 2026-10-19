@@ -1,11 +1,13 @@
-﻿using DotLit;
+using DotLit;
 using TUnit.Core.Interfaces;
 
 namespace DotNetro.Compiler.Tests;
 
-// Each lit test spawns several processes (a Roslyn compile per RUN line, dnrc, the
-// emulator), so TUnit's default of four tests per core oversubscribes the machine
-// until the run looks hung. Keep one test per core.
+/// <summary>
+/// Each lit test spawns several processes (a Roslyn compile per RUN line, dnrc, the
+/// emulator), so TUnit's default of four tests per core oversubscribes the machine
+/// until the run looks hung. Keep one test per core.
+/// </summary>
 public sealed class LitParallelLimit : IParallelLimit
 {
     public int Limit => Environment.ProcessorCount;

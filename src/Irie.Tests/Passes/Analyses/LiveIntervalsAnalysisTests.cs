@@ -7,11 +7,14 @@ using Irie.Target.MOS6502;
 
 namespace Irie.Tests.Passes.Analyses;
 
-// Phase-1 tests for the new physreg-aware LiveIntervals analysis (with holes).
-//
-// Sub-slot numbering reminder (LiveIntervals header): each instruction owns two
-// points — UseSlot = 2*index (operands read here) and DefSlot = 2*index+1
-// (results written here). Intervals are half-open [start, end).
+/// <summary>
+/// Phase-1 tests for the new physreg-aware LiveIntervals analysis (with holes).
+/// </summary>
+/// <remarks>
+/// Sub-slot numbering reminder (LiveIntervals header): each instruction owns two
+/// points — UseSlot = 2*index (operands read here) and DefSlot = 2*index+1
+/// (results written here). Intervals are half-open [start, end).
+/// </remarks>
 public sealed class LiveIntervalsAnalysisTests
 {
     static LiveIntervalsAnalysisTests()
@@ -22,25 +25,26 @@ public sealed class LiveIntervalsAnalysisTests
 
     private static readonly LiveIntervalsAnalysis Analysis = new();
 
-    // Helper: the def point of an instruction (where its results become live).
+    /// <summary>Helper: the def point of an instruction (where its results become live).</summary>
     private static int DefPt(LiveIntervals li, MirInstruction instr) =>
         LiveIntervals.DefSlot(li.BaseSlotOf[instr]);
 
-    // Helper: the use point of an instruction (where its operands are read).
+    /// <summary>Helper: the use point of an instruction (where its operands are read).</summary>
     private static int UsePt(LiveIntervals li, MirInstruction instr) =>
         LiveIntervals.UseSlot(li.BaseSlotOf[instr]);
 
-    // -------------------------------------------------------------------------
-    // 1. A vreg with a HOLE: live, dead, live again. The segments must reflect
-    //    the gap — the central property the old single-[start,end] analysis
-    //    could not express.
-    //
-    //   %0 = arith.constant 1   ; i0 — def %0
-    //   %1 = arith.addi %0, %0  ; i1 — last use of %0 (its first segment ends)
-    //   %2 = arith.constant 2   ; i2 — (%0 dead here: HOLE)
-    //   %0 = arith.constant 3   ; i3 — %0 RE-defined (second segment opens)
-    //   %4 = arith.addi %0, %0  ; i4 — use of %0 again
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 1. A vreg with a HOLE: live, dead, live again. The segments must reflect
+    ///    the gap — the central property the old single-[start,end] analysis
+    ///    could not express.
+    /// </summary>
+    /// <remarks>
+    ///   %0 = arith.constant 1   ; i0 — def %0
+    ///   %1 = arith.addi %0, %0  ; i1 — last use of %0 (its first segment ends)
+    ///   %2 = arith.constant 2   ; i2 — (%0 dead here: HOLE)
+    ///   %0 = arith.constant 3   ; i3 — %0 RE-defined (second segment opens)
+    ///   %4 = arith.addi %0, %0  ; i4 — use of %0 again
+    /// </remarks>
     [Test]
     public async Task VRegHole_TwoSegmentsWithGap()
     {
@@ -85,17 +89,18 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(li.IntervalOf(v0).Covers(gapPoint)).IsFalse();
     }
 
-    // -------------------------------------------------------------------------
-    // 2. Physreg CLOBBER intervals derived from a flag-defining op. mos6502.cmp
-    //    implicit-defs $n/$z/$c (materialized as PhysicalReg(IsImplicit:true)
-    //    def operands by isel). LiveIntervals must produce a busy segment for
-    //    each flag physreg at the cmp — exactly what the old
-    //    ComputeClobberSlots recorded.
-    //
-    //   bb0:
-    //     %a = pseudo.copy $a            ; i0
-    //     mos6502.cmp %a, %b, def $n,$z,$c (implicit)  ; i1 — clobbers flags
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 2. Physreg CLOBBER intervals derived from a flag-defining op. mos6502.cmp
+    ///    implicit-defs $n/$z/$c (materialized as PhysicalReg(IsImplicit:true)
+    ///    def operands by isel). LiveIntervals must produce a busy segment for
+    ///    each flag physreg at the cmp — exactly what the old
+    ///    ComputeClobberSlots recorded.
+    /// </summary>
+    /// <remarks>
+    ///   bb0:
+    ///     %a = pseudo.copy $a            ; i0
+    ///     mos6502.cmp %a, %b, def $n,$z,$c (implicit)  ; i1 — clobbers flags
+    /// </remarks>
     [Test]
     public async Task PhysRegClobber_FromFlagDefiningOp()
     {
@@ -127,15 +132,16 @@ public sealed class LiveIntervalsAnalysisTests
         }
     }
 
-    // -------------------------------------------------------------------------
-    // 3. CC LIVE-INS produce physreg intervals from the entry block. The entry
-    //    block's MirBlock.LiveIns (populated by AbiLowering) must give each
-    //    argument physreg a segment that starts at block entry.
-    //
-    //   bb0 [liveins: $a, $x]:
-    //     %0 = pseudo.copy $a   ; i0 — uses $a (the CC arg)
-    //     %1 = pseudo.copy $x   ; i1 — uses $x
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 3. CC LIVE-INS produce physreg intervals from the entry block. The entry
+    ///    block's MirBlock.LiveIns (populated by AbiLowering) must give each
+    ///    argument physreg a segment that starts at block entry.
+    /// </summary>
+    /// <remarks>
+    ///   bb0 [liveins: $a, $x]:
+    ///     %0 = pseudo.copy $a   ; i0 — uses $a (the CC arg)
+    ///     %1 = pseudo.copy $x   ; i1 — uses $x
+    /// </remarks>
     [Test]
     public async Task CcLiveIns_ProducePhysRegIntervalsFromEntry()
     {
@@ -164,16 +170,17 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(xIv.Covers(UsePt(li, i1))).IsTrue();
     }
 
-    // -------------------------------------------------------------------------
-    // 4. Copy-related intervals: def/use sharing across a pseudo.copy. The whole
-    //    reason for sub-slots is that a value used at one instruction and a fresh
-    //    value defined at the SAME instruction do NOT interfere, so they can
-    //    share a register.
-    //
-    //   %0 = arith.constant 1   ; i0 — def %0
-    //   %1 = pseudo.copy %0     ; i1 — last use of %0 (use point), def of %1
-    //                                  (def point) — half-open windows disjoint.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 4. Copy-related intervals: def/use sharing across a pseudo.copy. The whole
+    ///    reason for sub-slots is that a value used at one instruction and a fresh
+    ///    value defined at the SAME instruction do NOT interfere, so they can
+    ///    share a register.
+    /// </summary>
+    /// <remarks>
+    ///   %0 = arith.constant 1   ; i0 — def %0
+    ///   %1 = pseudo.copy %0     ; i1 — last use of %0 (use point), def of %1
+    ///                                  (def point) — half-open windows disjoint.
+    /// </remarks>
     [Test]
     public async Task CopyDefUseSharing_DoNotInterfere()
     {
@@ -203,12 +210,15 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(li.IntervalOf(v0).Segments.Count).IsEqualTo(1);
     }
 
-    // A live def/use that genuinely overlaps DOES interfere (control for the
-    // test above): two values both live across the same arith.addi.
-    //
-    //   %0 = arith.constant 1   ; i0
-    //   %1 = arith.constant 2   ; i1
-    //   %2 = arith.addi %0, %1  ; i2 — both %0 and %1 read here, both live
+    /// <summary>
+    /// A live def/use that genuinely overlaps DOES interfere (control for the
+    /// test above): two values both live across the same arith.addi.
+    /// </summary>
+    /// <remarks>
+    ///   %0 = arith.constant 1   ; i0
+    ///   %1 = arith.constant 2   ; i1
+    ///   %2 = arith.addi %0, %1  ; i2 — both %0 and %1 read here, both live
+    /// </remarks>
     [Test]
     public async Task TwoValuesLiveTogether_Interfere()
     {
@@ -229,23 +239,24 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(li.Interfere(v0, v1)).IsTrue();
     }
 
-    // -------------------------------------------------------------------------
-    // 5a. REPRODUCTION (clobber): the old RA's ComputeClobberSlots marks a
-    //     physreg busy at the slot of an instruction that implicit-defs it, so a
-    //     vreg whose live range *crosses* that clobber cannot use the physreg.
-    //     LiveIntervals must report the same: the clobbered physreg's interval
-    //     OVERLAPS the crossing vreg's interval.
-    //
-    //   %save = pseudo.copy $a   ; i0 — %save born in $a... but really we model a
-    //                                   value that must stay live across a call.
-    //   jsr.abs @callee, def $a (implicit clobber)  ; i1 — clobbers $a
-    //   %use  = pseudo.copy %save ; i2 — %save read AFTER the clobber
-    //
-    //   In the old pass: $a is a clobber slot at i1; a vreg parked in $a across
-    //   i1 (def < i1 < lastUse) is rejected by IsClobberFree. Here we assert the
-    //   physreg-interval analog: $a's busy interval (the jsr's implicit def)
-    //   overlaps %save's interval if %save were placed on $a.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 5a. REPRODUCTION (clobber): the old RA's ComputeClobberSlots marks a
+    ///     physreg busy at the slot of an instruction that implicit-defs it, so a
+    ///     vreg whose live range *crosses* that clobber cannot use the physreg.
+    ///     LiveIntervals must report the same: the clobbered physreg's interval
+    ///     OVERLAPS the crossing vreg's interval.
+    /// </summary>
+    /// <remarks>
+    ///   %save = pseudo.copy $a   ; i0 — %save born in $a... but really we model a
+    ///                                   value that must stay live across a call.
+    ///   jsr.abs @callee, def $a (implicit clobber)  ; i1 — clobbers $a
+    ///   %use  = pseudo.copy %save ; i2 — %save read AFTER the clobber
+    ///
+    ///   In the old pass: $a is a clobber slot at i1; a vreg parked in $a across
+    ///   i1 (def &lt; i1 &lt; lastUse) is rejected by IsClobberFree. Here we assert the
+    ///   physreg-interval analog: $a's busy interval (the jsr's implicit def)
+    ///   overlaps %save's interval if %save were placed on $a.
+    /// </remarks>
     [Test]
     public async Task Reproduction_ClobberAcrossCall_OverlapsCrossingValue()
     {
@@ -281,22 +292,23 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(li.IntervalOf(use).Overlaps(aIv)).IsFalse();
     }
 
-    // -------------------------------------------------------------------------
-    // 5b. REPRODUCTION (reservation): the old RA's ComputePhysRegReservations
-    //     tracked a call-result physreg held from its def until a
-    //     `pseudo.copy %v = $P` reads it back, reserving [defSlot, readSlot] so
-    //     no unrelated vreg lands on $P in that window. LiveIntervals models the
-    //     identical span as the physreg's own interval: $a is live from the
-    //     jsr's implicit def to the relocation copy's use point.
-    //
-    //   jsr.abs @callee, def $a (implicit)   ; i0 — call result in $a
-    //   %r = pseudo.copy $a                   ; i1 — relocate result out of $a
-    //   ... %other lives here ...
-    //
-    //   The reservation window the old pass computed = [i0.def, i1.use]; the new
-    //   $a interval must cover exactly that, so any vreg overlapping it is
-    //   excluded from $a — the same conclusion, with no bespoke reservation map.
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 5b. REPRODUCTION (reservation): the old RA's ComputePhysRegReservations
+    ///     tracked a call-result physreg held from its def until a
+    ///     `pseudo.copy %v = $P` reads it back, reserving [defSlot, readSlot] so
+    ///     no unrelated vreg lands on $P in that window. LiveIntervals models the
+    ///     identical span as the physreg's own interval: $a is live from the
+    ///     jsr's implicit def to the relocation copy's use point.
+    /// </summary>
+    /// <remarks>
+    ///   jsr.abs @callee, def $a (implicit)   ; i0 — call result in $a
+    ///   %r = pseudo.copy $a                   ; i1 — relocate result out of $a
+    ///   ... %other lives here ...
+    ///
+    ///   The reservation window the old pass computed = [i0.def, i1.use]; the new
+    ///   $a interval must cover exactly that, so any vreg overlapping it is
+    ///   excluded from $a — the same conclusion, with no bespoke reservation map.
+    /// </remarks>
     [Test]
     public async Task Reproduction_CallResultReservation_PhysRegIntervalCoversWindow()
     {
@@ -327,19 +339,20 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(aIv.End).IsGreaterThanOrEqualTo(UsePt(li, reloc));
     }
 
-    // -------------------------------------------------------------------------
-    // 6. Cross-block hole / continuity: a vreg defined in bb0 and used only in
-    //    bb1 must have a single continuous interval reaching across the branch
-    //    (no spurious hole at the block boundary), while a vreg dead before the
-    //    branch must NOT reach bb1.
-    //
-    //   bb0:
-    //     %0 = arith.constant 1   ; i0 — used in bb1 (live-out)
-    //     %1 = arith.constant 2   ; i1 — dead after bb0
-    //     cf.br bb1               ; i2
-    //   bb1:
-    //     %2 = pseudo.copy %0     ; i3 — use of %0
-    // -------------------------------------------------------------------------
+    /// <summary>
+    /// 6. Cross-block hole / continuity: a vreg defined in bb0 and used only in
+    ///    bb1 must have a single continuous interval reaching across the branch
+    ///    (no spurious hole at the block boundary), while a vreg dead before the
+    ///    branch must NOT reach bb1.
+    /// </summary>
+    /// <remarks>
+    ///   bb0:
+    ///     %0 = arith.constant 1   ; i0 — used in bb1 (live-out)
+    ///     %1 = arith.constant 2   ; i1 — dead after bb0
+    ///     cf.br bb1               ; i2
+    ///   bb1:
+    ///     %2 = pseudo.copy %0     ; i3 — use of %0
+    /// </remarks>
     [Test]
     public async Task CrossBlock_LiveOutReachesSuccessor_DeadValueDoesNot()
     {
@@ -384,11 +397,14 @@ public sealed class LiveIntervalsAnalysisTests
     // these tests pin the tagging the later SplitKit stages will consume.
     // =========================================================================
 
-    // VN-1. Straight-line single def: one value number across the whole range.
-    //
-    //   %0 = arith.constant 1   ; i0 — def %0
-    //   %1 = arith.addi %0, %0  ; i1 — use of %0
-    //   %2 = pseudo.copy %0     ; i2 — use of %0 again (still the same value)
+    /// <summary>
+    /// VN-1. Straight-line single def: one value number across the whole range.
+    /// </summary>
+    /// <remarks>
+    ///   %0 = arith.constant 1   ; i0 — def %0
+    ///   %1 = arith.addi %0, %0  ; i1 — use of %0
+    ///   %2 = pseudo.copy %0     ; i2 — use of %0 again (still the same value)
+    /// </remarks>
     [Test]
     public async Task ValNo_StraightLineSingleDef_OneValueNumber()
     {
@@ -413,14 +429,17 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(seg[0].ValNo).IsGreaterThanOrEqualTo(0); // a real (non-sentinel) VN
     }
 
-    // VN-2. In-block re-def with a hole: def, use, re-def, use → two distinct
-    // value numbers with the hole between them.
-    //
-    //   %0 = arith.constant 1   ; i0 — def %0 (value A)
-    //   %1 = arith.addi %0, %0  ; i1 — last use of A
-    //                           ;      (hole: %0 dead)
-    //   %0 = arith.constant 3   ; i2 — re-def %0 (value B)
-    //   %2 = arith.addi %0, %0  ; i3 — use of B
+    /// <summary>
+    /// VN-2. In-block re-def with a hole: def, use, re-def, use → two distinct
+    /// value numbers with the hole between them.
+    /// </summary>
+    /// <remarks>
+    ///   %0 = arith.constant 1   ; i0 — def %0 (value A)
+    ///   %1 = arith.addi %0, %0  ; i1 — last use of A
+    ///                           ;      (hole: %0 dead)
+    ///   %0 = arith.constant 3   ; i2 — re-def %0 (value B)
+    ///   %2 = arith.addi %0, %0  ; i3 — use of B
+    /// </remarks>
     [Test]
     public async Task ValNo_InBlockRedefWithHole_TwoValueNumbers()
     {
@@ -453,14 +472,17 @@ public sealed class LiveIntervalsAnalysisTests
             new LiveSegment(DefPt(li, i2), DefPt(li, i3), seg[1].ValNo));
     }
 
-    // VN-3. Two-address tied through-segment: a vreg used AND re-defined by the
-    // SAME instruction (a tied operand) runs *through* the instruction. The tied
-    // re-def starts a new value number at its def slot, with a continuous segment
-    // (no spurious hole) across the boundary.
-    //
-    //   %0 = arith.constant 1       ; i0 — def %0 (value A)
-    //   %0 = arith.addi %0, %1      ; i1 — %0 tied: read (A) then written (B)
-    //   %2 = pseudo.copy %0         ; i2 — use of B
+    /// <summary>
+    /// VN-3. Two-address tied through-segment: a vreg used AND re-defined by the
+    /// SAME instruction (a tied operand) runs *through* the instruction. The tied
+    /// re-def starts a new value number at its def slot, with a continuous segment
+    /// (no spurious hole) across the boundary.
+    /// </summary>
+    /// <remarks>
+    ///   %0 = arith.constant 1       ; i0 — def %0 (value A)
+    ///   %0 = arith.addi %0, %1      ; i1 — %0 tied: read (A) then written (B)
+    ///   %2 = pseudo.copy %0         ; i2 — use of B
+    /// </remarks>
     [Test]
     public async Task ValNo_TwoAddressTied_NewValueNumberAtDef_NoHole()
     {
@@ -498,13 +520,16 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(li.IntervalOf(v0).Covers(DefPt(li, i1))).IsTrue();
     }
 
-    // VN-4. Cross-block live-out / live-in (no join): def in A, use in successor B
-    // → ONE value number spanning the edge (the live-in value in B is the value
-    // defined in A, carried across the edge).
-    //
-    //   bb0: %0 = arith.constant 1 ; i0 — def %0 (value A)
-    //        cf.br bb1
-    //   bb1: %1 = pseudo.copy %0   ; i1 — use of A in the successor
+    /// <summary>
+    /// VN-4. Cross-block live-out / live-in (no join): def in A, use in successor B
+    /// → ONE value number spanning the edge (the live-in value in B is the value
+    /// defined in A, carried across the edge).
+    /// </summary>
+    /// <remarks>
+    ///   bb0: %0 = arith.constant 1 ; i0 — def %0 (value A)
+    ///        cf.br bb1
+    ///   bb1: %1 = pseudo.copy %0   ; i1 — use of A in the successor
+    /// </remarks>
     [Test]
     public async Task ValNo_CrossBlockNoJoin_OneValueNumber()
     {
@@ -531,14 +556,17 @@ public sealed class LiveIntervalsAnalysisTests
         await Assert.That(li.IntervalOf(v0).Segments[0].ValNo).IsGreaterThanOrEqualTo(0);
     }
 
-    // VN-5. CFG join (the union-find case): a diamond where the vreg is defined on
-    // BOTH arms and used at the join. The two arm-defs' values must UNIFY into ONE
-    // value number at the join's live-in segment — proving the cross-block carry.
-    //
-    //   bb0:  cf.cond_br %c, bb1, bb2
-    //   bb1:  %0 = arith.constant 1   ; def %0 (value A)   → bb3
-    //   bb2:  %0 = arith.constant 2   ; def %0 (value B)   → bb3
-    //   bb3:  %1 = pseudo.copy %0     ; use of %0 (merged value at the join)
+    /// <summary>
+    /// VN-5. CFG join (the union-find case): a diamond where the vreg is defined on
+    /// BOTH arms and used at the join. The two arm-defs' values must UNIFY into ONE
+    /// value number at the join's live-in segment — proving the cross-block carry.
+    /// </summary>
+    /// <remarks>
+    ///   bb0:  cf.cond_br %c, bb1, bb2
+    ///   bb1:  %0 = arith.constant 1   ; def %0 (value A)   → bb3
+    ///   bb2:  %0 = arith.constant 2   ; def %0 (value B)   → bb3
+    ///   bb3:  %1 = pseudo.copy %0     ; use of %0 (merged value at the join)
+    /// </remarks>
     [Test]
     public async Task ValNo_CfgJoin_ArmDefsUnifyToOneValueNumber()
     {

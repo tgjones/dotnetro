@@ -1,15 +1,23 @@
 namespace Irie.Target.MOS6502;
 
-// The condition under which one exit of `mos6502.cmp_br` is taken, evaluated on
-// the flags of the compare that op performs (a CMP of %a with %b).
+/// <summary>
+/// The condition under which one exit of `mos6502.cmp_br` is taken, evaluated on
+/// the flags of the compare that op performs (a CMP of %a with %b).
+/// </summary>
 public enum CmpBrCondition
 {
-    Eq,   // Z set:   %a == %b
-    Ne,   // Z clear: %a != %b
-    Cs,   // C set:   %a >=u %b
-    Cc,   // C clear: %a <u %b
-    Mi,   // N set:   bit 7 of (%a - %b) set (a sign test when %b is 0)
-    Pl,   // N clear
+    /// <summary>Z set:   %a == %b</summary>
+    Eq,
+    /// <summary>Z clear: %a != %b</summary>
+    Ne,
+    /// <summary>C set:   %a &gt;=u %b</summary>
+    Cs,
+    /// <summary>C clear: %a &lt;u %b</summary>
+    Cc,
+    /// <summary>N set:   bit 7 of (%a - %b) set (a sign test when %b is 0)</summary>
+    Mi,
+    /// <summary>N clear</summary>
+    Pl,
 }
 
 public static class CmpBrConditionNames

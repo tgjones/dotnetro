@@ -2,24 +2,27 @@ using Irie.Mir;
 
 namespace Irie.Passes.Analyses;
 
-// Natural loops of a function and the estimated execution frequency of each
-// block.
-//
-// A back edge is an edge whose target dominates its source; the loop it closes
-// is its header plus every block that reaches the source without passing through
-// the header. Back edges to the same header form one loop. Edges that retreat to
-// a block that does not dominate them (irreducible control flow) are not loops
-// here, and the blocks involved get no extra depth.
-//
-// Frequency is relative to one execution of the function: 8^depth, capped, the
-// usual static estimate when no branch probabilities are known.
+/// <summary>
+/// Natural loops of a function and the estimated execution frequency of each
+/// block.
+/// </summary>
+/// <remarks>
+/// A back edge is an edge whose target dominates its source; the loop it closes
+/// is its header plus every block that reaches the source without passing through
+/// the header. Back edges to the same header form one loop. Edges that retreat to
+/// a block that does not dominate them (irreducible control flow) are not loops
+/// here, and the blocks involved get no extra depth.
+///
+/// Frequency is relative to one execution of the function: 8^depth, capped, the
+/// usual static estimate when no branch probabilities are known.
+/// </remarks>
 public sealed class LoopInfo
 {
     private readonly Dictionary<MirBlock, Loop> _innermost;
 
     public IReadOnlyList<Loop> Loops { get; }
 
-    // Each loop level multiplies the frequency by this.
+    /// <summary>Each loop level multiplies the frequency by this.</summary>
     public int FrequencyBase { get; set; } = 8;
 
     internal LoopInfo(IReadOnlyList<Loop> loops, Dictionary<MirBlock, Loop> innermost)
@@ -28,14 +31,16 @@ public sealed class LoopInfo
         _innermost = innermost;
     }
 
-    // The smallest loop containing the block, or null outside every loop.
+    /// <summary>The smallest loop containing the block, or null outside every loop.</summary>
     public Loop? InnermostLoop(MirBlock block) => _innermost.GetValueOrDefault(block);
 
-    // Number of loops containing the block (0 outside every loop).
+    /// <summary>Number of loops containing the block (0 outside every loop).</summary>
     public int Depth(MirBlock block) => InnermostLoop(block)?.Depth ?? 0;
 
-    // Loop depth beyond which the frequency stops growing: 8^6 is already far
-    // past any real nesting, and keeps cost sums well inside a long.
+    /// <summary>
+    /// Loop depth beyond which the frequency stops growing: 8^6 is already far
+    /// past any real nesting, and keeps cost sums well inside a long.
+    /// </summary>
     public const int MaxFrequencyDepth = 6;
 
     public long Frequency(MirBlock block)
@@ -51,16 +56,16 @@ public sealed class Loop
 {
     public required MirBlock Header { get; init; }
 
-    // Every block of the loop, the header and the blocks of nested loops included.
+    /// <summary>Every block of the loop, the header and the blocks of nested loops included.</summary>
     public required IReadOnlySet<MirBlock> Blocks { get; init; }
 
-    // The blocks inside the loop with an edge back to the header.
+    /// <summary>The blocks inside the loop with an edge back to the header.</summary>
     public required IReadOnlyList<MirBlock> Latches { get; init; }
 
-    // The smallest loop that strictly contains this one, or null.
+    /// <summary>The smallest loop that strictly contains this one, or null.</summary>
     public Loop? Parent { get; internal set; }
 
-    // 1 for an outermost loop.
+    /// <summary>1 for an outermost loop.</summary>
     public int Depth { get; internal set; }
 }
 
@@ -156,8 +161,10 @@ public sealed class LoopAnalysis : MirFunctionAnalysis<LoopInfo>
         return postOrder;
     }
 
-    // Immediate dominators (Cooper, Harvey, Kennedy), keyed by block; the entry
-    // maps to itself. Unreachable blocks are absent.
+    /// <summary>
+    /// Immediate dominators (Cooper, Harvey, Kennedy), keyed by block; the entry
+    /// maps to itself. Unreachable blocks are absent.
+    /// </summary>
     private static Dictionary<MirBlock, MirBlock> ComputeDominators(List<MirBlock> reversePostOrder)
     {
         var number = new Dictionary<MirBlock, int>();

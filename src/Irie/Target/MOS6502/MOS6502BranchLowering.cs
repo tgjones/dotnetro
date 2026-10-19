@@ -2,10 +2,12 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// After instruction selection an unconditional branch is `mos6502.jmp.abs`, so
-// a block a later pass creates (tail duplication, edge splitting) uses it
-// (a generic `cf.br` would reach machine-code emission unlowered). See
-// BranchLowering.
+/// <summary>
+/// After instruction selection an unconditional branch is `mos6502.jmp.abs`, so
+/// a block a later pass creates (tail duplication, edge splitting) uses it
+/// (a generic `cf.br` would reach machine-code emission unlowered). See
+/// BranchLowering.
+/// </summary>
 public sealed class MOS6502BranchLowering : Irie.Target.BranchLowering
 {
     public override void InsertUnconditionalBranch(MirBuilder builder, BlockTarget target) =>

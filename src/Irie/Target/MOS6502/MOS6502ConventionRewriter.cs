@@ -3,20 +3,23 @@ using Irie.Mir;
 
 namespace Irie.Target.MOS6502;
 
-// Gives a function a calling convention other than the default one, by renaming the
-// registers of its ABI copies: the copies out of the argument registers at its entry,
-// the copies into the result registers before each return, and, in every function that
-// calls it, the copies into the argument registers before the `jsr` and out of the
-// result registers after it. The shapes are those MOS6502CallLowering emits, so this
-// runs on MIR that still has them (the placement has not rewritten the copies yet).
-//
-// A convention can only name registers an ABI copy can use (A, X and the argument
-// zero-page registers), one per byte, and cannot move a byte to or from the stack.
+/// <summary>
+/// Gives a function a calling convention other than the default one, by renaming the
+/// registers of its ABI copies: the copies out of the argument registers at its entry,
+/// the copies into the result registers before each return, and, in every function that
+/// calls it, the copies into the argument registers before the `jsr` and out of the
+/// result registers after it. The shapes are those MOS6502CallLowering emits, so this
+/// runs on MIR that still has them (the placement has not rewritten the copies yet).
+/// </summary>
+/// <remarks>
+/// A convention can only name registers an ABI copy can use (A, X and the argument
+/// zero-page registers), one per byte, and cannot move a byte to or from the stack.
+/// </remarks>
 internal static class MOS6502ConventionRewriter
 {
     private static readonly MOS6502CallLowering Default = new();
 
-    // The registers a convention may use for an argument or a result byte.
+    /// <summary>The registers a convention may use for an argument or a result byte.</summary>
     internal static bool IsConventionRegister(int register) =>
         register == MOS6502Registers.A || register == MOS6502Registers.X
         || (register >= MOS6502Registers.RC(2) && register <= MOS6502Registers.RC(15));
@@ -29,9 +32,11 @@ internal static class MOS6502ConventionRewriter
     internal static FunctionConvention CurrentOf(MirFunction function) =>
         function.Convention ?? DefaultFor(function);
 
-    // Whether `convention` is one the rewriter can apply to `function`: the same byte
-    // counts as its signature, every byte in a convention register, no register twice
-    // among the arguments or among the results.
+    /// <summary>
+    /// Whether `convention` is one the rewriter can apply to `function`: the same byte
+    /// counts as its signature, every byte in a convention register, no register twice
+    /// among the arguments or among the results.
+    /// </summary>
     internal static bool IsValidFor(FunctionConvention convention, MirFunction function)
     {
         var current = DefaultFor(function);
@@ -43,9 +48,11 @@ internal static class MOS6502ConventionRewriter
             && convention.ReturnBytes.Distinct().Count() == convention.ReturnBytes.Count;
     }
 
-    // Whether the ABI copies of `callee` and of every call to it have the shapes the
-    // rewriter renames: the function is hand-written, or something has moved copies
-    // away from the call, when they do not.
+    /// <summary>
+    /// Whether the ABI copies of `callee` and of every call to it have the shapes the
+    /// rewriter renames: the function is hand-written, or something has moved copies
+    /// away from the call, when they do not.
+    /// </summary>
     internal static bool CanRewrite(MirModule module, MirFunction callee)
     {
         var current = CurrentOf(callee);
@@ -68,13 +75,15 @@ internal static class MOS6502ConventionRewriter
         return true;
     }
 
-    // The number of calls to `callee` in the module.
+    /// <summary>The number of calls to `callee` in the module.</summary>
     internal static int CountCalls(MirModule module, MirFunction callee) =>
         module.Functions.Sum(f => f.Blocks.Sum(b => b.Instructions.Count(i => IsCallTo(i, callee.Name))));
 
-    // Moves the arguments and results of `callee` to `chosen` in the callee alone. A
-    // trial of a convention does this, measures the callee and takes it back; the calls
-    // follow in ApplyToCalls once the convention is final.
+    /// <summary>
+    /// Moves the arguments and results of `callee` to `chosen` in the callee alone. A
+    /// trial of a convention does this, measures the callee and takes it back; the calls
+    /// follow in ApplyToCalls once the convention is final.
+    /// </summary>
     internal static void ApplyToCallee(MirFunction callee, FunctionConvention chosen)
     {
         if (!IsValidFor(chosen, callee))
@@ -89,8 +98,10 @@ internal static class MOS6502ConventionRewriter
         callee.Convention = chosen;
     }
 
-    // Moves the arguments and results of every call to `callee` from `current` to
-    // `chosen`. The callee must not call itself, directly or through a cycle.
+    /// <summary>
+    /// Moves the arguments and results of every call to `callee` from `current` to
+    /// `chosen`. The callee must not call itself, directly or through a cycle.
+    /// </summary>
     internal static void ApplyToCalls(MirModule module, MirFunction callee, FunctionConvention current, FunctionConvention chosen)
     {
         var argMap = Renaming(current.ArgBytes, chosen.ArgBytes);
@@ -112,7 +123,7 @@ internal static class MOS6502ConventionRewriter
                     }
     }
 
-    // Both at once, for a convention that is not tried first.
+    /// <summary>Both at once, for a convention that is not tried first.</summary>
     internal static void Apply(MirModule module, MirFunction callee, FunctionConvention chosen)
     {
         var current = CurrentOf(callee);
@@ -121,9 +132,11 @@ internal static class MOS6502ConventionRewriter
         ApplyToCalls(module, callee, current, chosen);
     }
 
-    // Checks, once the functions are placed, that nothing reads an argument register
-    // outside the convention of its function: not the function itself, and not the
-    // `jsr` of any call to it, which has to hand over exactly the argument registers.
+    /// <summary>
+    /// Checks, once the functions are placed, that nothing reads an argument register
+    /// outside the convention of its function: not the function itself, and not the
+    /// `jsr` of any call to it, which has to hand over exactly the argument registers.
+    /// </summary>
     internal static void Verify(MirModule module)
     {
         var byName = module.Functions.Where(f => f.Convention is not null).ToDictionary(f => f.Name);
@@ -167,7 +180,7 @@ internal static class MOS6502ConventionRewriter
     private static bool IsCopy(MirInstruction instr) =>
         instr.Opcode == PseudoDialect.OpRef(PseudoOp.Copy);
 
-    // A pseudo op that only reshapes values: it may sit between the ABI copies.
+    /// <summary>A pseudo op that only reshapes values: it may sit between the ABI copies.</summary>
     private static bool IsReshape(MirInstruction instr) =>
         instr.Opcode == PseudoDialect.OpRef(PseudoOp.Merge)
         || instr.Opcode == PseudoDialect.OpRef(PseudoOp.Unmerge)
@@ -222,7 +235,7 @@ internal static class MOS6502ConventionRewriter
         return seen;
     }
 
-    // Null for a block that does not return.
+    /// <summary>Null for a block that does not return.</summary>
     private static int? RenameReturns(MirBlock block, Dictionary<int, int> map, HashSet<int> registers)
     {
         var instrs = block.Instructions;

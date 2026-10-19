@@ -227,7 +227,7 @@ static int ParseOrigin(string text)
 
 static class PlacementTuningCli
 {
-    // --tune is applied over the presets, and --beam-width and --choose-conventions over it.
+    /// <summary>--tune is applied over the presets, and --beam-width and --choose-conventions over it.</summary>
     public static Irie.Target.PlacementTuning Resolve(string? tune, bool size, bool speed, int? beamWidth, bool chooseConventions)
     {
         var tuning = size ? Irie.Target.PlacementTuning.Size : speed ? Irie.Target.PlacementTuning.Speed : new Irie.Target.PlacementTuning();

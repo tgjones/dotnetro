@@ -4,15 +4,18 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// Final pass in the unified-MIR pipeline. Replaces every remaining `pseudo.copy`
-// instruction with the appropriate target move(s) via the
-// target-supplied PseudoExpander. After this pass the function contains only target opcodes:
-// no `pseudo.*` or `core.*` survives.
-//
-// Earlier `pseudo.merge` / `pseudo.unmerge` artifacts were folded by the
-// legalizer; `pseudo.return` was lowered to the target return op by isel; only
-// `pseudo.copy` reaches this point. Any other surviving pseudo op is an
-// upstream-pass bug and triggers an exception.
+/// <summary>
+/// Final pass in the unified-MIR pipeline. Replaces every remaining `pseudo.copy`
+/// instruction with the appropriate target move(s) via the
+/// target-supplied PseudoExpander. After this pass the function contains only target opcodes:
+/// no `pseudo.*` or `core.*` survives.
+/// </summary>
+/// <remarks>
+/// Earlier `pseudo.merge` / `pseudo.unmerge` artifacts were folded by the
+/// legalizer; `pseudo.return` was lowered to the target return op by isel; only
+/// `pseudo.copy` reaches this point. Any other surviving pseudo op is an
+/// upstream-pass bug and triggers an exception.
+/// </remarks>
 public sealed class PseudoExpansionPass(PseudoExpander expander) : MirFunctionPass
 {
     public override string Name => "PseudoExpansion";

@@ -3,19 +3,22 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 
-// generate-benchmarks: the C#-derived benchmark set.
-//
-// Each program under src/DotNetro.Compiler.Tests/Lit/Benchmarks/ is also an ordinary
-// lit test (dotnet vs emulator output must match), so the code being measured is
-// known to be correct. The measured code is every method of the program's `Bench`
-// class; the scoreboard reports Irie's instruction count and code bytes for each
-// kernel. There is no reference compiler here, so the numbers are a regression
-// baseline for Irie against itself, aimed at the C# workload (i32 arithmetic,
-// runtime-helper calls, pointer/field/element access) that the llvm-mos C corpus
-// under-represents.
+/// <summary>
+/// generate-benchmarks: the C#-derived benchmark set.
+/// </summary>
+/// <remarks>
+/// Each program under src/DotNetro.Compiler.Tests/Lit/Benchmarks/ is also an ordinary
+/// lit test (dotnet vs emulator output must match), so the code being measured is
+/// known to be correct. The measured code is every method of the program's `Bench`
+/// class; the scoreboard reports Irie's instruction count and code bytes for each
+/// kernel. There is no reference compiler here, so the numbers are a regression
+/// baseline for Irie against itself, aimed at the C# workload (i32 arithmetic,
+/// runtime-helper calls, pointer/field/element access) that the llvm-mos C corpus
+/// under-represents.
+/// </remarks>
 static class BenchmarkReport
 {
-    // Methods of the `Bench` class mangle to labels starting with this prefix.
+    /// <summary>Methods of the `Bench` class mangle to labels starting with this prefix.</summary>
     const string KernelPrefix = "Bench_";
 
     public static Command Build()
@@ -62,8 +65,10 @@ static class BenchmarkReport
     record Row(string Program, string Kernel, int Instructions, int Bytes);
     record Function(string Name, int Instructions, int Bytes);
 
-    // dnrc --emit assembly: functions start at a column-0 label that does not begin
-    // with '.'; local labels are '.bbN:'; instructions are indented.
+    /// <summary>
+    /// dnrc --emit assembly: functions start at a column-0 label that does not begin
+    /// with '.'; local labels are '.bbN:'; instructions are indented.
+    /// </summary>
     static IEnumerable<Function> SplitFunctions(string asm)
     {
         string? name = null;
@@ -87,8 +92,10 @@ static class BenchmarkReport
 
     static readonly HashSet<string> Branches = ["BCC", "BCS", "BEQ", "BMI", "BNE", "BPL", "BVC", "BVS"];
 
-    // Encoded size from the mnemonic and operand form. Symbols are absolute
-    // addresses; `$hh` is zero page, `$hhhh` absolute.
+    /// <summary>
+    /// Encoded size from the mnemonic and operand form. Symbols are absolute
+    /// addresses; `$hh` is zero page, `$hhhh` absolute.
+    /// </summary>
     static int InstructionSize(string line)
     {
         var parts = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
@@ -122,7 +129,7 @@ static class BenchmarkReport
         public string Text => Encoding.UTF8.GetString(Output);
     }
 
-    // Runs `exe args`, feeding `stdin` bytes if given; returns raw stdout bytes.
+    /// <summary>Runs `exe args`, feeding `stdin` bytes if given; returns raw stdout bytes.</summary>
     static Result Run(string exe, byte[]? stdin, params string[] args)
     {
         var psi = new ProcessStartInfo(exe) { RedirectStandardInput = stdin is not null, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
@@ -151,7 +158,7 @@ static class BenchmarkReport
         return (dir.FullName, dir.Parent!.FullName);
     }
 
-    // Sibling tools are built with the same config/tfm as this one.
+    /// <summary>Sibling tools are built with the same config/tfm as this one.</summary>
     static string LocateTool(string srcDir, string project, string? exeName = null)
     {
         var baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);

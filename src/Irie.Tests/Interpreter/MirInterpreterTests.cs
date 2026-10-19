@@ -3,8 +3,10 @@ using Irie.Tools.Interpreter;
 
 namespace Irie.Tests.Interpreter;
 
-// The interpreter is the oracle compiled code is checked against, so these pin
-// it to hand-computed values.
+/// <summary>
+/// The interpreter is the oracle compiled code is checked against, so these pin
+/// it to hand-computed values.
+/// </summary>
 public sealed class MirInterpreterTests
 {
     private static MirInterpreter Load(string mir) => new(MirModule.Parse(new StringReader(mir)));
@@ -25,7 +27,7 @@ public sealed class MirInterpreterTests
         await Assert.That(interpreter.Call("f", a, b)).IsEqualTo(expected);
     }
 
-    // The carry out of an 8-bit add with carry, and the result.
+    /// <summary>The carry out of an 8-bit add with carry, and the result.</summary>
     [Test]
     [Arguments(0xFFUL, 0x01UL, 0UL, 0x00UL, 1UL)]
     [Arguments(0xFFUL, 0x00UL, 1UL, 0x00UL, 1UL)] // the carry in counts
@@ -49,7 +51,7 @@ public sealed class MirInterpreterTests
         await Assert.That(interpreter.Call("carry", a, b, carryIn)).IsEqualTo(carryOut);
     }
 
-    // The borrow follows the 6502: carry 1 means no borrow.
+    /// <summary>The borrow follows the 6502: carry 1 means no borrow.</summary>
     [Test]
     [Arguments(0x05UL, 0x03UL, 1UL, 0x02UL, 1UL)]
     [Arguments(0x05UL, 0x03UL, 0UL, 0x01UL, 1UL)] // a borrow in

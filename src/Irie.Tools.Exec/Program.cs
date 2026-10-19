@@ -317,7 +317,7 @@ static void KeepReachable(MirModule module, MirFunction root)
     module.Functions.RemoveAll(f => !reachable.Contains(f));
 }
 
-// The command-line choices the local functions above read.
+/// <summary>The command-line choices the local functions above read.</summary>
 static class ExecSettings
 {
     public static Irie.Target.PlacementTuning? Tuning;
@@ -325,7 +325,7 @@ static class ExecSettings
 
 static class PlacementTuningCli
 {
-    // --tune is applied over the presets, and --beam-width and --choose-conventions over it.
+    /// <summary>--tune is applied over the presets, and --beam-width and --choose-conventions over it.</summary>
     public static Irie.Target.PlacementTuning Resolve(string? tune, bool size, bool speed, int? beamWidth, bool chooseConventions)
     {
         var tuning = size ? Irie.Target.PlacementTuning.Size : speed ? Irie.Target.PlacementTuning.Speed : new Irie.Target.PlacementTuning();

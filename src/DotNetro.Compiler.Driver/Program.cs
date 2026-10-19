@@ -1,4 +1,4 @@
-﻿using System.CommandLine;
+using System.CommandLine;
 using DotNetro.Compiler;
 
 var assemblyOption = new Option<string?>("--assembly") { Description = "Path to the assembly to compile, or - for stdin" };
@@ -115,7 +115,7 @@ enum EmitFormat
 }
 static class PlacementTuningCli
 {
-    // --tune is applied over the presets, and --beam-width and --choose-conventions over it.
+    /// <summary>--tune is applied over the presets, and --beam-width and --choose-conventions over it.</summary>
     public static Irie.Target.PlacementTuning Resolve(string? tune, bool size, bool speed, int? beamWidth, bool chooseConventions)
     {
         var tuning = size ? Irie.Target.PlacementTuning.Size : speed ? Irie.Target.PlacementTuning.Speed : new Irie.Target.PlacementTuning();

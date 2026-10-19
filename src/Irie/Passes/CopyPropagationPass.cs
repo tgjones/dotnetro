@@ -4,41 +4,42 @@ using Irie.Target;
 
 namespace Irie.Passes;
 
-// =============================================================================
-// CopyPropagationPass — post-RA local copy propagation + dead-copy elimination
-// over physreg-only pseudo.copy. The llvm-mos `machine-cp` (Machine Copy
-// Propagation) analogue.
-// =============================================================================
-//
-// Pipeline position: after PrologueEpilogueInsertion, before PseudoExpansion —
-// the point at which every copy (RA's, the ABI's, and the prologue/epilogue
-// shuttle copies PEI just inserted) is a uniform, side-effect-free
-// `pseudo.copy $dst <- $src` on physical registers, but none have yet been
-// lowered to concrete transfers (which DO clobber N/Z). Operating purely on
-// pseudo.copy keeps the pass flag-agnostic.
-//
-// Why it exists: CopyEliminationPass runs *before* PEI and only removes identity
-// copies ($a = copy $a). It therefore cannot clean up the copies PEI inserts.
-// The motivating case is pressure/live-across-call: RA parks the return-value
-// low byte in $y and copies it into $a for the rts, then MOS6502FrameLowering's
-// $a↔$y preserve shuttle copies it straight back — a redundant round-trip:
-//
-//     $a = pseudo.copy $y     ; (RA)  A <- Y
-//     $y = pseudo.copy $a     ; (PEI) Y <- A   — redundant: Y already == A
-//     ...pla/sta restore loop (does not touch $y)...
-//     $a = pseudo.copy $y     ; (PEI) A <- Y
-//
-// mirroring llvm-mos, we keep FrameLowering oblivious to register contents and
-// fix this here in a general copy pass. Two per-block phases:
-//
-//   Phase A (forward) — remove a `$d = copy $s` whose destination already holds
-//     the source's value (drops the redundant `$y = copy $a` above).
-//   Phase B (backward) — remove a `$d = copy $s` whose destination is dead
-//     (drops the now-dead `$a = copy $y`, since the following PLA redefines $a).
-//
-// Liveness reads defs/uses from operands AND the dialect's implicit def/use
-// lists, so bare PEI ops such as `mos6502.pla` (implicit-def $a) are accounted
-// for. Cross-block liveness uses the post-RA MirBlock.LiveIns convention.
+/// <summary>
+/// CopyPropagationPass — post-RA local copy propagation + dead-copy elimination
+/// over physreg-only pseudo.copy. The llvm-mos `machine-cp` (Machine Copy
+/// Propagation) analogue.
+/// </summary>
+/// <remarks>
+/// Pipeline position: after PrologueEpilogueInsertion, before PseudoExpansion —
+/// the point at which every copy (RA's, the ABI's, and the prologue/epilogue
+/// shuttle copies PEI just inserted) is a uniform, side-effect-free
+/// `pseudo.copy $dst &lt;- $src` on physical registers, but none have yet been
+/// lowered to concrete transfers (which DO clobber N/Z). Operating purely on
+/// pseudo.copy keeps the pass flag-agnostic.
+///
+/// Why it exists: CopyEliminationPass runs *before* PEI and only removes identity
+/// copies ($a = copy $a). It therefore cannot clean up the copies PEI inserts.
+/// The motivating case is pressure/live-across-call: RA parks the return-value
+/// low byte in $y and copies it into $a for the rts, then MOS6502FrameLowering's
+/// $a↔$y preserve shuttle copies it straight back — a redundant round-trip:
+///
+///     $a = pseudo.copy $y     ; (RA)  A &lt;- Y
+///     $y = pseudo.copy $a     ; (PEI) Y &lt;- A   — redundant: Y already == A
+///     ...pla/sta restore loop (does not touch $y)...
+///     $a = pseudo.copy $y     ; (PEI) A &lt;- Y
+///
+/// mirroring llvm-mos, we keep FrameLowering oblivious to register contents and
+/// fix this here in a general copy pass. Two per-block phases:
+///
+///   Phase A (forward) — remove a `$d = copy $s` whose destination already holds
+///     the source's value (drops the redundant `$y = copy $a` above).
+///   Phase B (backward) — remove a `$d = copy $s` whose destination is dead
+///     (drops the now-dead `$a = copy $y`, since the following PLA redefines $a).
+///
+/// Liveness reads defs/uses from operands AND the dialect's implicit def/use
+/// lists, so bare PEI ops such as `mos6502.pla` (implicit-def $a) are accounted
+/// for. Cross-block liveness uses the post-RA MirBlock.LiveIns convention.
+/// </remarks>
 public sealed class CopyPropagationPass(TargetRegisterInfo registerInfo) : MirFunctionPass
 {
     public override string Name => "CopyPropagation";
@@ -54,12 +55,15 @@ public sealed class CopyPropagationPass(TargetRegisterInfo registerInfo) : MirFu
         }
     }
 
-    // --- Phase A: forward local copy propagation -----------------------------
-    //
-    // Track, per physreg, an integer "value token": two registers share a token
-    // iff they provably hold the same value at this point. A `$d = copy $s` whose
-    // $d already shares $s's token is redundant and removed. Any other definition
-    // (operand def or dialect implicit def) assigns its register a fresh token.
+    /// <summary>
+    /// --- Phase A: forward local copy propagation -----------------------------
+    /// </summary>
+    /// <remarks>
+    /// Track, per physreg, an integer "value token": two registers share a token
+    /// iff they provably hold the same value at this point. A `$d = copy $s` whose
+    /// $d already shares $s's token is redundant and removed. Any other definition
+    /// (operand def or dialect implicit def) assigns its register a fresh token.
+    /// </remarks>
     private static void RemoveRedundantCopies(MirBlock block)
     {
         var tokenOf = new Dictionary<int, int>();
@@ -97,10 +101,13 @@ public sealed class CopyPropagationPass(TargetRegisterInfo registerInfo) : MirFu
         }
     }
 
-    // --- Phase B: backward dead-copy elimination -----------------------------
-    //
-    // A `$d = copy $s` is dead when $d is not live immediately after it. Standard
-    // backward liveness seeded with the block's live-out set.
+    /// <summary>
+    /// --- Phase B: backward dead-copy elimination -----------------------------
+    /// </summary>
+    /// <remarks>
+    /// A `$d = copy $s` is dead when $d is not live immediately after it. Standard
+    /// backward liveness seeded with the block's live-out set.
+    /// </remarks>
     private void RemoveDeadCopies(MirBlock block)
     {
         var live = new HashSet<int>();
@@ -133,7 +140,7 @@ public sealed class CopyPropagationPass(TargetRegisterInfo registerInfo) : MirFu
         }
     }
 
-    // A physreg→physreg pseudo.copy `$def = pseudo.copy $use`.
+    /// <summary>A physreg→physreg pseudo.copy `$def = pseudo.copy $use`.</summary>
     private static bool TryGetPhysCopy(MirInstruction instr, out int def, out int use)
     {
         def = use = -1;
@@ -154,8 +161,10 @@ public sealed class CopyPropagationPass(TargetRegisterInfo registerInfo) : MirFu
         return DialectRegistry.ById(last.Opcode.Dialect).IsReturn(last.Opcode.Code);
     }
 
-    // Registers defined by an instruction: explicit physreg def operands plus the
-    // dialect's implicit defs (e.g. mos6502.pla's $a).
+    /// <summary>
+    /// Registers defined by an instruction: explicit physreg def operands plus the
+    /// dialect's implicit defs (e.g. mos6502.pla's $a).
+    /// </summary>
     private static IEnumerable<int> Defs(MirInstruction instr)
     {
         foreach (var op in instr.Operands)
@@ -167,8 +176,10 @@ public sealed class CopyPropagationPass(TargetRegisterInfo registerInfo) : MirFu
                 yield return d;
     }
 
-    // Registers used by an instruction: explicit physreg use operands plus the
-    // dialect's implicit uses (e.g. mos6502.pha's $a).
+    /// <summary>
+    /// Registers used by an instruction: explicit physreg use operands plus the
+    /// dialect's implicit uses (e.g. mos6502.pha's $a).
+    /// </summary>
     private static IEnumerable<int> Uses(MirInstruction instr)
     {
         foreach (var op in instr.Operands)

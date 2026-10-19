@@ -3,17 +3,20 @@ using Irie.Passes.Analyses;
 
 namespace Irie.Target.MOS6502;
 
-// Home slots: homes that are never live at the same time share one byte.
-//
-// Placement gives every home class a home of its own, since the class is the unit it
-// reasons about (a class is the set of values that must share a home). A home is only
-// live from a store to its last reload, though, usually a small part of the function,
-// so most homes could share a byte with another. This colours the homes of one
-// function on the final code, after placement and the late passes: two homes interfere
-// when one is written while the other is live (liveness of the home registers
-// themselves, not of the values placement had in them), and the colours become the
-// function's homes `$h0…`. It is per byte (a home is one byte), and runs before the
-// layout assigns addresses, so the layout sees the smaller set.
+/// <summary>
+/// Home slots: homes that are never live at the same time share one byte.
+/// </summary>
+/// <remarks>
+/// Placement gives every home class a home of its own, since the class is the unit it
+/// reasons about (a class is the set of values that must share a home). A home is only
+/// live from a store to its last reload, though, usually a small part of the function,
+/// so most homes could share a byte with another. This colours the homes of one
+/// function on the final code, after placement and the late passes: two homes interfere
+/// when one is written while the other is live (liveness of the home registers
+/// themselves, not of the values placement had in them), and the colours become the
+/// function's homes `$h0…`. It is per byte (a home is one byte), and runs before the
+/// layout assigns addresses, so the layout sees the smaller set.
+/// </remarks>
 internal static class MOS6502HomeColouring
 {
     public static void Colour(MirFunction function)
@@ -103,7 +106,7 @@ internal static class MOS6502HomeColouring
         }
     }
 
-    // How often each home is accessed, weighted by the loop depth of the access.
+    /// <summary>How often each home is accessed, weighted by the loop depth of the access.</summary>
     internal static Dictionary<int, long> Weights(MirFunction function)
     {
         var loops = new LoopAnalysis().Compute(function);
