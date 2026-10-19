@@ -2,11 +2,11 @@
 
 # Irie vs llvm-mos and Oscar64 — MOS6502 codegen
 
-Irie emits **-21.3%** instructions vs llvm-mos (**1484** vs **1885**, ratio **0.79**) across **36/47** corpus cases.
+Irie emits **-22.1%** instructions vs llvm-mos (**1469** vs **1885**, ratio **0.78**) across **36/47** corpus cases.
 
-Code size: Irie **2610** vs llvm-mos **3517** bytes (**-25.8%**), both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.
+Code size: Irie **2577** vs llvm-mos **3517** bytes (**-26.7%**), both assembled with the llvm-mos assembler; `.text*` sections only, so data and `.bss` are excluded.
 
-Against Oscar64, over the **35** of those cases it compiles: Irie emits **+29.0%** instructions (**1258** vs **975**) and **+26.0%** code bytes (**2176** vs **1727**). Oscar64 compiles each case inside a generated whole-program harness, so it chooses its own calling convention per function; Oscar64 bytes come from its own listing.
+Against Oscar64, over the **35** of those cases it compiles: Irie emits **+27.5%** instructions (**1243** vs **975**) and **+24.1%** code bytes (**2143** vs **1727**). Oscar64 compiles each case inside a generated whole-program harness, so it chooses its own calling convention per function; Oscar64 bytes come from its own listing.
 
 7 cases (marked 🚫) are excluded from the totals above: duplicates of another case's MIR shape, or not comparable (reason shown in the Status column).
 
@@ -17,12 +17,12 @@ Ratio is Irie / llvm-mos; lower is better — 🟢 Irie beats llvm-mos, ⚪ pari
 | realistic | strlen | converted 🚫 incomparable: llvm-mos recognises the loop as strlen and tail-calls the library routine | 1 | 23 | 26 | +25 | 26.00 | 🔴 | 3 | 43 | 42 |
 | memory | array-index | converted | 37 | 21 | 60 | +23 | 1.62 | 🔴 | 61 | 38 | 93 |
 | constraints | shift-const | converted | 26 | 24 | 38 | +12 | 1.46 | 🔴 | 41 | 38 | 50 |
-| realistic | crc8 | converted | 48 | 32 | 68 | +20 | 1.42 | 🔴 | 89 | 56 | 131 |
 | control-flow | loop-sum-array | converted | 43 | 31 | 58 | +15 | 1.35 | 🔴 | 78 | 56 | 100 |
 | memory | two-pointer-copy | converted | 47 | 31 | 63 | +16 | 1.34 | 🔴 | 86 | 56 | 114 |
 | widths | zero-extend | converted | 6 | 7 | 8 | +2 | 1.33 | 🔴 | 9 | 11 | 13 |
 | constraints | compare-flags | converted | 47 | 40 | 57 | +10 | 1.21 | 🔴 | 89 | 75 | 112 |
 | widths | sign-extend | converted | 11 | 13 | 13 | +2 | 1.18 | 🔴 | 19 | 19 | 22 |
+| realistic | crc8 | converted | 48 | 32 | 53 | +5 | 1.10 | 🔴 | 89 | 56 | 98 |
 | constraints | bitops | converted | 30 | 23 | 32 | +2 | 1.07 | 🔴 | 48 | 45 | 52 |
 | realistic | gcd | converted | 40 | 24 | 41 | +1 | 1.03 | 🔴 | 76 | 49 | 84 |
 | basics | add-i16 | converted | 8 | 8 | 8 | 0 | 1.00 | ⚪ | 10 | 14 | 10 |
@@ -160,28 +160,28 @@ Irie (26):
 
 ```asm
 strlen_impl:
-    STA $14
-    STX $15
+    STA $15
+    STX $16
 .bb1:
     STA $12
     STX $13
     LDY #$00
-    STA $16
+    STA $14
     LDA ($12),Y
     BNE .bb3
 .bb2:
     SEC
-    LDA $16
-    SBC $14
+    LDA $14
+    SBC $15
     TAY
     TXA
-    SBC $15
+    SBC $16
     TAX
     TYA
     RTS
 .bb3:
     CLC
-    LDA $16
+    LDA $14
     ADC #$01
     TAY
     TXA
@@ -324,23 +324,23 @@ array_index:
     LDA $03
     ROL
     CLC
-    STA $15
+    STA $16
     TYA
     ADC $14
-    STX $16
+    STX $15
     TAX
-    LDA $15
-    ADC $16
+    LDA $16
+    ADC $15
     STX $12
     STA $13
     LDY #$00
-    STA $17
+    STA $16
     LDA ($12),Y
     LDY #$01
-    STA $18
+    STA $16
     LDA ($12),Y
     CLC
-    STA $19
+    STA $17
     TYA
     ADC $02
     TAX
@@ -358,22 +358,22 @@ array_index:
     ADC $14
     TAX
     TYA
-    ADC $16
+    ADC $15
     STX $12
     STA $13
     LDY #$00
-    STA $1A
+    STA $14
     LDA ($12),Y
     LDY #$01
-    STA $1B
+    STA $14
     LDA ($12),Y
     CLC
     TAX
-    LDA $18
-    ADC $1B
+    LDA $16
+    ADC $14
     TAY
     TXA
-    ADC $19
+    ADC $17
     TAX
     TYA
     RTS
@@ -508,14 +508,14 @@ shift_const:
     TAY
     LDA $15
     ROL
-    STA $16
+    STA $15
     TYA
     ASL
-    STA $17
-    LDA $16
+    STA $16
+    LDA $15
     ROL
     CPX #$80
-    STA $18
+    STA $15
     TXA
     ROR
     TAX
@@ -528,263 +528,12 @@ shift_const:
     TAX
     TYA
     ROR
-    ORA $17
+    ORA $16
     TAY
     TXA
-    ORA $18
+    ORA $15
     TAX
     TYA
-    RTS
-```
-
-</details>
-
-<details>
-<summary>realistic/crc8 — llvm-mos 48, Oscar64 32, Irie 68, ratio 1.42</summary>
-
-llvm-mos (48):
-
-```asm
-    .zeropage    __rc0
-    .zeropage    __rc1
-    .zeropage    __rc2
-    .zeropage    __rc3
-    .zeropage    __rc4
-    .zeropage    __rc5
-    .zeropage    __rc6
-    .zeropage    __rc7
-    .zeropage    __rc8
-    .zeropage    __rc9
-    .zeropage    __rc10
-    .zeropage    __rc11
-    .zeropage    __rc12
-    .zeropage    __rc13
-    .zeropage    __rc14
-    .zeropage    __rc15
-    .zeropage    __rc16
-    .zeropage    __rc17
-    .zeropage    __rc18
-    .zeropage    __rc19
-    .zeropage    __rc20
-    .zeropage    __rc21
-    .zeropage    __rc22
-    .zeropage    __rc23
-    .zeropage    __rc24
-    .zeropage    __rc25
-    .zeropage    __rc26
-    .zeropage    __rc27
-    .zeropage    __rc28
-    .zeropage    __rc29
-    .zeropage    __rc30
-    .zeropage    __rc31
-    .file    "crc8.c"
-    .section    .text.crc8,"ax",@progbits
-    .globl    crc8                            ; -- Begin function crc8
-    .type    crc8,@function
-crc8:                                   ; @crc8
-; %bb.0:
-    sta    __rc4
-    lda    #255
-    stx    __rc5
-    ldx    __rc5
-    bne    .LBB0_2
-; %bb.1:
-    ldx    __rc4
-    beq    .LBB0_11
-.LBB0_2:
-    ldx    #0
-    ldy    __rc2
-    sty    __rc8
-    ldy    __rc3
-    sty    __rc9
-    stx    __rc2
-    stx    __rc3
-.LBB0_3:                                ; =>This Loop Header: Depth=1
-                                        ;     Child Loop BB0_4 Depth 2
-    clc
-    tay
-    lda    __rc8
-    adc    __rc2
-    sta    __rc6
-    sty    __rc10
-    lda    __rc9
-    adc    __rc3
-    sta    __rc7
-    ldy    #0
-    lda    __rc10
-    eor    (__rc6),y
-    ldx    #8
-.LBB0_4:                                ;   Parent Loop BB0_3 Depth=1
-                                        ; =>  This Inner Loop Header: Depth=2
-    sta    __rc6
-    asl
-    ldy    __rc6
-    bpl    .LBB0_6
-; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=2
-    eor    #49
-.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=2
-    dex
-    bne    .LBB0_4
-; %bb.7:                                ;   in Loop: Header=BB0_3 Depth=1
-    ldy    __rc3
-    ldx    __rc2
-    inx
-    bne    .LBB0_9
-; %bb.8:                                ;   in Loop: Header=BB0_3 Depth=1
-    iny
-.LBB0_9:                                ;   in Loop: Header=BB0_3 Depth=1
-    stx    __rc2
-    sty    __rc3
-    cpy    __rc5
-    bne    .LBB0_3
-; %bb.10:                               ;   in Loop: Header=BB0_3 Depth=1
-    stx    __rc2
-    sty    __rc3
-    cpx    __rc4
-    bne    .LBB0_3
-.LBB0_11:
-    rts
-.Lfunc_end0:
-    .size    crc8, .Lfunc_end0-crc8
-                                        ; -- End function
-    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
-    .section    ".note.GNU-stack","",@progbits
-    .addrsig
-    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
-    .globl    __do_init_stack
-```
-
-Oscar64 (32):
-
-```asm
-crc8: ; crc8(const u8*,u16)->u8
-.s4:
-08a1 : a5 10 __ LDA P3 ; (len + 1)
-08a3 : a2 ff __ LDX #$ff
-08a5 : 05 0f __ ORA P2 ; (len + 0)
-08a7 : d0 02 __ BNE $08ab ; (crc8.s15 + 0)
-.s9:
-08a9 : 8a __ __ TXA
-.s3:
-08aa : 60 __ __ RTS
-.s15:
-08ab : a9 00 __ LDA #$00
-08ad : a4 0d __ LDY P0 ; (data + 0)
-08af : 85 0d __ STA P0 ; (data + 0)
-.l5:
-08b1 : 8a __ __ TXA
-08b2 : 51 0d __ EOR (P0),y ; (data + 0)
-08b4 : 0a __ __ ASL
-08b5 : a2 08 __ LDX #$08
-08b7 : 90 02 __ BCC $08bb ; (crc8.l16 + 0)
-.l7:
-08b9 : 49 31 __ EOR #$31
-.l16:
-08bb : ca __ __ DEX
-08bc : f0 05 __ BEQ $08c3 ; (crc8.s8 + 0)
-.s6:
-08be : 0a __ __ ASL
-08bf : 90 fa __ BCC $08bb ; (crc8.l16 + 0)
-08c1 : b0 f6 __ BCS $08b9 ; (crc8.l7 + 0)
-.s8:
-08c3 : aa __ __ TAX
-08c4 : c8 __ __ INY
-08c5 : d0 02 __ BNE $08c9 ; (crc8.s14 + 0)
-.s13:
-08c7 : e6 0e __ INC P1 ; (data + 1)
-.s14:
-08c9 : a5 0f __ LDA P2 ; (len + 0)
-08cb : d0 02 __ BNE $08cf ; (crc8.s11 + 0)
-.s10:
-08cd : c6 10 __ DEC P3 ; (len + 1)
-.s11:
-08cf : c6 0f __ DEC P2 ; (len + 0)
-08d1 : d0 de __ BNE $08b1 ; (crc8.l5 + 0)
-.s12:
-08d3 : a5 10 __ LDA P3 ; (len + 1)
-08d5 : d0 da __ BNE $08b1 ; (crc8.l5 + 0)
-08d7 : f0 d0 __ BEQ $08a9 ; (crc8.s9 + 0)
-```
-
-Irie (68):
-
-```asm
-crc8:
-    LDY #$00
-    STA $14
-    STX $15
-    STY $16
-    LDX #$FF
-    STX $17
-.bb1:
-    LDA $16
-    STY $18
-    CMP $03
-    BCC .bb2
-    BNE .bb8
-    CPY $02
-    BCS .bb8
-.bb2:
-    CLC
-    LDA $14
-    ADC $18
-    TAX
-    LDA $15
-    ADC $16
-    STX $12
-    STA $13
-    LDY #$00
-    LDA ($12),Y
-    EOR $17
-    STY $19
-    STY $1A
-    STA $17
-.bb3:
-    LDA $1A
-    EOR #$80
-    TAX
-    LDA #$00
-    EOR #$80
-    STA $1B
-    CPX $1B
-    BCC .bb5
-    BNE .bb4
-    LDA $19
-    CMP #$08
-    BCC .bb5
-.bb4:
-    CLC
-    LDA $18
-    ADC #$01
-    STA $18
-    LDA $16
-    ADC #$00
-    STA $16
-    LDY $18
-    JMP .bb1
-.bb5:
-    LDA $17
-    AND #$80
-    TAX
-    LDA $17
-    ASL
-    CPX #$00
-    BNE .bb7
-.bb6:
-    CLC
-    STA $17
-    LDA $19
-    ADC #$01
-    STA $19
-    LDA $1A
-    ADC #$00
-    STA $1A
-    JMP .bb3
-.bb7:
-    EOR #$31
-    JMP .bb6
-.bb8:
-    LDA $17
     RTS
 ```
 
@@ -948,65 +697,65 @@ Irie (58):
 ```asm
 loop_sum_array:
     LDY #$00
-    STA $14
-    STX $15
+    STA $19
+    STX $1A
+    STY $14
     STY $16
     STY $17
-    STY $18
 .bb1:
-    LDA $16
+    LDA $14
     EOR #$80
     TAX
     LDA $03
     EOR #$80
-    STA $19
-    STY $1A
-    CPX $19
+    STA $18
+    STY $15
+    CPX $18
     BCC .bb3
     BNE .bb2
     CPY $02
     BCC .bb3
 .bb2:
-    LDX $18
-    LDA $17
+    LDX $17
+    LDA $16
     RTS
 .bb3:
-    LDA $1A
+    LDA $15
     ASL
     TAX
-    LDA $16
+    LDA $14
     ROL
     CLC
     TAY
     TXA
-    ADC $14
-    TAX
-    TYA
-    ADC $15
-    STX $12
-    STA $13
-    LDY #$00
-    STA $1B
-    LDA ($12),Y
-    LDY #$01
-    STA $1C
-    LDA ($12),Y
-    CLC
-    TAX
-    LDA $17
-    ADC $1C
-    STA $17
-    TXA
-    ADC $18
-    CLC
+    ADC $19
     TAX
     TYA
     ADC $1A
-    TAY
+    STX $12
+    STA $13
+    LDY #$00
+    STA $18
+    LDA ($12),Y
+    LDY #$01
+    STA $18
+    LDA ($12),Y
+    CLC
+    TAX
     LDA $16
-    ADC #$00
+    ADC $18
     STA $16
-    STX $18
+    TXA
+    ADC $17
+    CLC
+    TAX
+    TYA
+    ADC $15
+    TAY
+    LDA $14
+    ADC #$00
+    STA $14
+    STX $17
     JMP .bb1
 ```
 
@@ -1175,18 +924,18 @@ Irie (63):
 ```asm
 two_pointer_copy:
     LDY #$00
-    STA $14
-    STX $15
-    STY $16
+    STA $19
+    STX $1A
+    STY $15
 .bb1:
-    LDA $16
+    LDA $15
     EOR #$80
     TAX
     LDA $05
     EOR #$80
-    STA $17
-    STY $18
-    CPX $17
+    STA $16
+    STY $14
+    CPX $16
     BCC .bb3
     BNE .bb2
     CPY $04
@@ -1194,51 +943,51 @@ two_pointer_copy:
 .bb2:
     RTS
 .bb3:
-    LDA $18
+    LDA $14
     ASL
     TAX
-    LDA $16
+    LDA $15
     ROL
     CLC
-    STA $19
+    STA $16
     TXA
     ADC $02
     TAY
     LDA $03
-    ADC $19
+    ADC $16
     STY $12
     STA $13
-    STY $1A
+    STY $17
     LDY #$00
-    STA $1B
+    STA $17
     LDA ($12),Y
     LDY #$01
-    STA $1C
+    STA $17
     LDA ($12),Y
     CLC
-    STA $1D
+    STA $18
     TXA
-    ADC $14
-    TAX
-    LDA $15
     ADC $19
+    TAX
+    LDA $1A
+    ADC $16
     STX $12
     STA $13
     LDY #$00
-    STA $1E
-    LDA $1C
+    STA $16
+    LDA $17
     STA ($12),Y
     LDY #$01
-    LDA $1D
+    LDA $18
     STA ($12),Y
     CLC
     TYA
-    ADC $18
-    STA $18
-    LDA $16
+    ADC $14
+    STA $14
+    LDA $15
     ADC #$00
-    STA $16
-    LDY $18
+    STA $15
+    LDY $14
     JMP .bb1
 ```
 
@@ -1543,9 +1292,9 @@ compare_flags:
     TAY
     LDA $05
     EOR #$80
-    STA $17
-    STX $18
-    CPY $17
+    STA $15
+    STX $17
+    CPY $15
     BCC .bb12
     BNE .bb3
     LDA $02
@@ -1555,13 +1304,13 @@ compare_flags:
     LDX #$00
 .bb4:
     TXA
-    AND $18
+    AND $17
     BNE .bb13
 .bb5:
     LDX #$00
 .bb6:
     LDA $16
-    STX $19
+    STX $15
     CMP $05
     BNE .bb14
     LDA $14
@@ -1571,7 +1320,7 @@ compare_flags:
     LDX #$00
 .bb8:
     TXA
-    AND $19
+    AND $15
     BNE .bb15
 .bb9:
     LDX #$00
@@ -1715,6 +1464,242 @@ sign_extend:
 </details>
 
 <details>
+<summary>realistic/crc8 — llvm-mos 48, Oscar64 32, Irie 53, ratio 1.10</summary>
+
+llvm-mos (48):
+
+```asm
+    .zeropage    __rc0
+    .zeropage    __rc1
+    .zeropage    __rc2
+    .zeropage    __rc3
+    .zeropage    __rc4
+    .zeropage    __rc5
+    .zeropage    __rc6
+    .zeropage    __rc7
+    .zeropage    __rc8
+    .zeropage    __rc9
+    .zeropage    __rc10
+    .zeropage    __rc11
+    .zeropage    __rc12
+    .zeropage    __rc13
+    .zeropage    __rc14
+    .zeropage    __rc15
+    .zeropage    __rc16
+    .zeropage    __rc17
+    .zeropage    __rc18
+    .zeropage    __rc19
+    .zeropage    __rc20
+    .zeropage    __rc21
+    .zeropage    __rc22
+    .zeropage    __rc23
+    .zeropage    __rc24
+    .zeropage    __rc25
+    .zeropage    __rc26
+    .zeropage    __rc27
+    .zeropage    __rc28
+    .zeropage    __rc29
+    .zeropage    __rc30
+    .zeropage    __rc31
+    .file    "crc8.c"
+    .section    .text.crc8,"ax",@progbits
+    .globl    crc8                            ; -- Begin function crc8
+    .type    crc8,@function
+crc8:                                   ; @crc8
+; %bb.0:
+    sta    __rc4
+    lda    #255
+    stx    __rc5
+    ldx    __rc5
+    bne    .LBB0_2
+; %bb.1:
+    ldx    __rc4
+    beq    .LBB0_11
+.LBB0_2:
+    ldx    #0
+    ldy    __rc2
+    sty    __rc8
+    ldy    __rc3
+    sty    __rc9
+    stx    __rc2
+    stx    __rc3
+.LBB0_3:                                ; =>This Loop Header: Depth=1
+                                        ;     Child Loop BB0_4 Depth 2
+    clc
+    tay
+    lda    __rc8
+    adc    __rc2
+    sta    __rc6
+    sty    __rc10
+    lda    __rc9
+    adc    __rc3
+    sta    __rc7
+    ldy    #0
+    lda    __rc10
+    eor    (__rc6),y
+    ldx    #8
+.LBB0_4:                                ;   Parent Loop BB0_3 Depth=1
+                                        ; =>  This Inner Loop Header: Depth=2
+    sta    __rc6
+    asl
+    ldy    __rc6
+    bpl    .LBB0_6
+; %bb.5:                                ;   in Loop: Header=BB0_4 Depth=2
+    eor    #49
+.LBB0_6:                                ;   in Loop: Header=BB0_4 Depth=2
+    dex
+    bne    .LBB0_4
+; %bb.7:                                ;   in Loop: Header=BB0_3 Depth=1
+    ldy    __rc3
+    ldx    __rc2
+    inx
+    bne    .LBB0_9
+; %bb.8:                                ;   in Loop: Header=BB0_3 Depth=1
+    iny
+.LBB0_9:                                ;   in Loop: Header=BB0_3 Depth=1
+    stx    __rc2
+    sty    __rc3
+    cpy    __rc5
+    bne    .LBB0_3
+; %bb.10:                               ;   in Loop: Header=BB0_3 Depth=1
+    stx    __rc2
+    sty    __rc3
+    cpx    __rc4
+    bne    .LBB0_3
+.LBB0_11:
+    rts
+.Lfunc_end0:
+    .size    crc8, .Lfunc_end0-crc8
+                                        ; -- End function
+    .ident    "clang version 23.0.0git (https://github.com/llvm-mos/llvm-mos.git c798c31416f72b395c658b5502d281a162387ab1)"
+    .section    ".note.GNU-stack","",@progbits
+    .addrsig
+    ;Declaring this symbol tells the CRT that the stack pointer needs to be initialized.
+    .globl    __do_init_stack
+```
+
+Oscar64 (32):
+
+```asm
+crc8: ; crc8(const u8*,u16)->u8
+.s4:
+08a1 : a5 10 __ LDA P3 ; (len + 1)
+08a3 : a2 ff __ LDX #$ff
+08a5 : 05 0f __ ORA P2 ; (len + 0)
+08a7 : d0 02 __ BNE $08ab ; (crc8.s15 + 0)
+.s9:
+08a9 : 8a __ __ TXA
+.s3:
+08aa : 60 __ __ RTS
+.s15:
+08ab : a9 00 __ LDA #$00
+08ad : a4 0d __ LDY P0 ; (data + 0)
+08af : 85 0d __ STA P0 ; (data + 0)
+.l5:
+08b1 : 8a __ __ TXA
+08b2 : 51 0d __ EOR (P0),y ; (data + 0)
+08b4 : 0a __ __ ASL
+08b5 : a2 08 __ LDX #$08
+08b7 : 90 02 __ BCC $08bb ; (crc8.l16 + 0)
+.l7:
+08b9 : 49 31 __ EOR #$31
+.l16:
+08bb : ca __ __ DEX
+08bc : f0 05 __ BEQ $08c3 ; (crc8.s8 + 0)
+.s6:
+08be : 0a __ __ ASL
+08bf : 90 fa __ BCC $08bb ; (crc8.l16 + 0)
+08c1 : b0 f6 __ BCS $08b9 ; (crc8.l7 + 0)
+.s8:
+08c3 : aa __ __ TAX
+08c4 : c8 __ __ INY
+08c5 : d0 02 __ BNE $08c9 ; (crc8.s14 + 0)
+.s13:
+08c7 : e6 0e __ INC P1 ; (data + 1)
+.s14:
+08c9 : a5 0f __ LDA P2 ; (len + 0)
+08cb : d0 02 __ BNE $08cf ; (crc8.s11 + 0)
+.s10:
+08cd : c6 10 __ DEC P3 ; (len + 1)
+.s11:
+08cf : c6 0f __ DEC P2 ; (len + 0)
+08d1 : d0 de __ BNE $08b1 ; (crc8.l5 + 0)
+.s12:
+08d3 : a5 10 __ LDA P3 ; (len + 1)
+08d5 : d0 da __ BNE $08b1 ; (crc8.l5 + 0)
+08d7 : f0 d0 __ BEQ $08a9 ; (crc8.s9 + 0)
+```
+
+Irie (53):
+
+```asm
+crc8:
+    LDY #$00
+    STA $17
+    STX $18
+    STY $15
+    LDX #$FF
+    STX $14
+.bb1:
+    LDA $15
+    STY $16
+    CMP $03
+    BCC .bb2
+    BNE .bb8
+    CPY $02
+    BCS .bb8
+.bb2:
+    CLC
+    LDA $17
+    ADC $16
+    TAX
+    LDA $18
+    ADC $15
+    STX $12
+    STA $13
+    LDY #$00
+    LDA ($12),Y
+    EOR $14
+    STY $14
+.bb3:
+    LDX $14
+    CPX #$08
+    BCS .bb7
+.bb4:
+    TAX
+    AND #$80
+    TAY
+    TXA
+    ASL
+    CPY #$00
+    BNE .bb6
+.bb5:
+    LDX $14
+    INX
+    STX $14
+    JMP .bb3
+.bb6:
+    EOR #$31
+    JMP .bb5
+.bb7:
+    CLC
+    TAX
+    LDA $16
+    ADC #$01
+    TAY
+    LDA $15
+    ADC #$00
+    STX $14
+    STA $15
+    JMP .bb1
+.bb8:
+    LDA $14
+    RTS
+```
+
+</details>
+
+<details>
 <summary>constraints/bitops — llvm-mos 30, Oscar64 23, Irie 32, ratio 1.07</summary>
 
 llvm-mos (30):
@@ -1850,18 +1835,18 @@ bitops:
     TAY
     LDA $15
     ORA $17
-    STA $18
+    STA $15
     LDA $14
     AND $04
-    STA $19
+    STA $14
     TXA
     AND $05
     TAX
     TYA
-    ORA $19
+    ORA $14
     TAY
     TXA
-    ORA $18
+    ORA $15
     TAX
     TYA
     RTS
@@ -2008,15 +1993,15 @@ Irie (41):
 ```asm
 gcd:
     LDY $02
-    STY $14
-    LDY $03
     STY $15
+    LDY $03
+    STY $14
     STA $16
     STX $17
 .bb1:
-    LDA $15
-    BNE .bb3
     LDA $14
+    BNE .bb3
+    LDA $15
     BNE .bb3
 .bb2:
     LDX $17
@@ -2028,28 +2013,28 @@ gcd:
 .bb4:
     LDX #$00
 .bb5:
-    LDY $15
+    LDY $14
     BMI .bb9
 .bb6:
     LDY #$00
 .bb7:
     STX $02
     STX $03
-    LDX $14
-    STX $04
     LDX $15
+    STX $04
+    LDX $14
     STX $05
     STY $06
     STY $07
     TAX
     LDA $16
     JSR __modsi3
-    LDY $14
-    STY $16
-    STA $14
     LDY $15
+    STY $16
+    STA $15
+    LDY $14
     STY $17
-    STX $15
+    STX $14
     JMP .bb1
 .bb8:
     LDX #$FF
@@ -3027,12 +3012,12 @@ swap_diff:
     STA $14
     LDA $02
     SBC $14
-    STX $15
-    STA $16
+    STX $14
+    STA $15
     LDA $03
-    SBC $15
+    SBC $14
     TAX
-    LDA $16
+    LDA $15
     RTS
 ```
 
@@ -3739,27 +3724,27 @@ mixed_widths:
     TAX
     LDA $15
     ADC $04
-    STA $16
+    STA $15
     TYA
     ADC $05
-    STA $17
+    STA $16
     TYA
     ADC $06
     CLC
     TAY
     TXA
     ADC $14
-    STA $18
-    LDA $16
+    STA $14
+    LDA $15
     ADC #$00
     TAX
-    LDA $17
+    LDA $16
     ADC #$00
     STA $02
     TYA
     ADC #$00
     STA $03
-    LDA $18
+    LDA $14
     RTS
 .bb3:
     LDY #$FF
@@ -4151,54 +4136,54 @@ Irie (46):
 
 ```asm
 fibonacci:
-    STA $14
-    STX $15
+    STA $1B
+    STX $1C
     LDY #$00
+    STY $18
+    STY $19
+    LDX #$01
+    STX $14
+    STY $15
     STY $16
     STY $17
-    LDX #$01
-    STX $18
-    STY $19
-    STY $1A
-    STY $1B
 .bb1:
-    LDA $1B
+    LDA $17
     EOR #$80
     TAX
-    LDA $15
+    LDA $1C
     EOR #$80
-    STA $1C
-    CPX $1C
+    STA $1A
+    CPX $1A
     BCC .bb3
     BNE .bb2
-    LDA $1A
-    CMP $14
+    LDA $16
+    CMP $1B
     BCC .bb3
 .bb2:
-    LDX $17
-    LDA $16
+    LDX $19
+    LDA $18
     RTS
 .bb3:
     CLC
-    LDA $16
-    ADC $18
+    LDA $18
+    ADC $14
     TAX
-    LDA $17
-    ADC $19
+    LDA $19
+    ADC $15
     CLC
     TAY
-    LDA $1A
+    LDA $16
     ADC #$01
-    STA $1A
-    LDA $1B
-    ADC #$00
-    STA $1B
-    LDA $18
     STA $16
-    STX $18
-    LDA $19
+    LDA $17
+    ADC #$00
     STA $17
-    STY $19
+    LDA $14
+    STA $18
+    STX $14
+    LDA $15
+    STA $19
+    STY $15
     JMP .bb1
 ```
 
@@ -4620,10 +4605,10 @@ pressure_i16:
     STA $19
     LDA $14
     EOR $16
-    STA $1A
+    STA $14
     LDA $15
     EOR $17
-    STA $1B
+    STA $15
     TYA
     EOR $18
     TAY
@@ -4632,10 +4617,10 @@ pressure_i16:
     CLC
     TAX
     TYA
-    ADC $1A
+    ADC $14
     TAY
     TXA
-    ADC $1B
+    ADC $15
     TAX
     TYA
     RTS
@@ -4788,9 +4773,9 @@ abs_diff:
     TAY
     LDA $03
     EOR #$80
-    STA $15
-    STX $16
-    CPY $15
+    STA $16
+    STX $15
+    CPY $16
     BCC .bb3
     BNE .bb1
     LDA $14
@@ -4800,20 +4785,20 @@ abs_diff:
     SEC
     LDA $14
     SBC $02
-    STA $17
-    LDA $16
+    STA $14
+    LDA $15
     SBC $03
 .bb2:
     TAX
-    LDA $17
+    LDA $14
     RTS
 .bb3:
     SEC
     LDA $02
     SBC $14
-    STA $17
+    STA $14
     LDA $03
-    SBC $16
+    SBC $15
     JMP .bb2
 ```
 
@@ -5264,36 +5249,36 @@ Irie (182):
 
 ```asm
 pressure_high:
-    STA $14
-    STX $15
+    STA $1A
+    STX $22
     LDY $02
-    STY $16
-    LDY $03
-    STY $17
-    LDY $04
-    STY $18
-    LDY $05
-    STY $19
-    LDY $06
-    STY $1A
-    LDY $07
     STY $1B
-    LDY $08
-    STY $1C
-    LDY $09
-    STY $1D
-    LDY $0A
-    STY $1E
-    LDY $0B
-    STY $1F
-    LDY $0C
-    STY $20
-    LDY $0D
-    STY $21
-    LDY $0E
-    STY $22
-    LDY $0F
+    LDY $03
     STY $23
+    LDY $04
+    STY $1C
+    LDY $05
+    STY $1D
+    LDY $06
+    STY $14
+    LDY $07
+    STY $15
+    LDY $08
+    STY $16
+    LDY $09
+    STY $17
+    LDY $0A
+    STY $18
+    LDY $0B
+    STY $19
+    LDY $0C
+    STY $1E
+    LDY $0D
+    STY $1F
+    LDY $0E
+    STY $20
+    LDY $0F
+    STY $21
     JSR __mulsi3
     STA $24
     STX $25
@@ -5301,38 +5286,17 @@ pressure_high:
     STY $26
     LDY $03
     STY $27
-    LDY $1A
+    LDY $14
     STY $02
-    LDY $1B
+    LDY $15
     STY $03
-    LDY $1C
+    LDY $16
     STY $04
-    LDY $1D
+    LDY $17
     STY $05
-    LDY $1E
+    LDY $18
     STY $06
-    LDY $1F
-    STY $07
-    LDX $19
-    LDA $18
-    JSR __mulsi3
-    STA $18
-    STX $19
-    LDY $02
-    STY $1A
-    LDY $03
-    STY $1B
-    LDY $1E
-    STY $02
-    LDY $1F
-    STY $03
-    LDY $20
-    STY $04
-    LDY $21
-    STY $05
-    LDY $22
-    STY $06
-    LDY $23
+    LDY $19
     STY $07
     LDX $1D
     LDA $1C
@@ -5340,58 +5304,79 @@ pressure_high:
     STA $1C
     STX $1D
     LDY $02
-    STY $1E
+    STY $14
     LDY $03
-    STY $1F
-    LDY $22
+    STY $15
+    LDY $18
     STY $02
-    LDY $23
+    LDY $19
     STY $03
-    LDY $14
+    LDY $1E
     STY $04
-    LDY $15
+    LDY $1F
     STY $05
-    LDY $16
+    LDY $20
     STY $06
-    LDY $17
+    LDY $21
     STY $07
-    LDX $21
-    LDA $20
+    LDX $17
+    LDA $16
+    JSR __mulsi3
+    STA $16
+    STX $17
+    LDY $02
+    STY $18
+    LDY $03
+    STY $19
+    LDY $20
+    STY $02
+    LDY $21
+    STY $03
+    LDY $1A
+    STY $04
+    LDY $22
+    STY $05
+    LDY $1B
+    STY $06
+    LDY $23
+    STY $07
+    LDX $1F
+    LDA $1E
     JSR __mulsi3
     CLC
-    STA $14
+    STA $1A
     LDA $24
-    ADC $18
-    STA $20
+    ADC $1C
+    STA $1E
     LDA $25
-    ADC $19
+    ADC $1D
     LDY $02
-    STY $16
-    STA $21
+    STY $1B
+    STA $1F
     LDA $26
-    ADC $1A
+    ADC $14
     LDY $03
-    STY $17
+    STY $23
     STA $02
     LDA $27
-    ADC $1B
+    ADC $15
     CLC
     STA $03
-    LDA $1C
-    ADC $14
+    LDA $16
+    ADC $1A
     STA $04
     TXA
-    ADC $1D
+    ADC $17
     STA $05
-    LDA $1E
-    ADC $16
+    LDA $18
+    ADC $1B
     STA $06
     TYA
-    ADC $1F
-    STX $15
+    ADC $19
+    STX $22
     STA $07
-    LDX $21
-    LDA $20
+    LDX $1F
+    LDA $1E
     JSR __mulsi3
     CLC
     ADC $24
@@ -5401,48 +5386,48 @@ pressure_high:
     TAX
     LDA $02
     ADC $26
-    STA $22
+    STA $20
     LDA $03
     ADC $27
     CLC
-    STA $23
-    TYA
-    ADC $18
-    TAY
-    TXA
-    ADC $19
-    TAX
-    LDA $22
-    ADC $1A
-    STA $1A
-    LDA $23
-    ADC $1B
-    CLC
-    STA $1B
+    STA $21
     TYA
     ADC $1C
     TAY
     TXA
     ADC $1D
     TAX
-    LDA $1A
-    ADC $1E
-    STA $1A
-    LDA $1B
-    ADC $1F
-    CLC
-    STA $1B
-    TYA
+    LDA $20
     ADC $14
+    STA $14
+    LDA $21
+    ADC $15
+    CLC
+    STA $15
+    TYA
+    ADC $16
     TAY
     TXA
-    ADC $15
-    TAX
-    LDA $1A
-    ADC $16
-    STA $02
-    LDA $1B
     ADC $17
+    TAX
+    LDA $14
+    ADC $18
+    STA $14
+    LDA $15
+    ADC $19
+    CLC
+    STA $15
+    TYA
+    ADC $1A
+    TAY
+    TXA
+    ADC $22
+    TAX
+    LDA $14
+    ADC $1B
+    STA $02
+    LDA $15
+    ADC $23
     STA $03
     TYA
     RTS
@@ -5654,9 +5639,9 @@ factorial:
     TAY
     TXA
     EOR #$80
-    STA $15
-    STX $16
-    CPY $15
+    STA $16
+    STX $15
+    CPY $16
     BCC .bb3
     BNE .bb1
     LDA #$01
@@ -5672,27 +5657,27 @@ factorial:
     SEC
     LDA $14
     SBC #$01
-    STA $17
-    LDA $16
+    STA $16
+    LDA $15
     SBC #$00
     TAX
-    LDA $17
+    LDA $16
     TAY
     LDA $14
     PHA
-    LDA $16
+    LDA $15
     PHA
     TYA
     JSR factorial
     TAY
     PLA
-    STA $16
+    STA $15
     PLA
     STA $14
     TYA
     STA $02
     STX $03
-    LDX $16
+    LDX $15
     LDA $14
     JSR __mulhi3
     TAY
@@ -6525,36 +6510,36 @@ Irie (226):
 ```asm
 pressure_i64:
     STA $14
-    STX $15
+    STX $1D
     LDY #$00
     LDA ($00),Y
-    STA $16
+    STA $15
     LDY #$01
     LDA ($00),Y
-    STA $17
+    STA $16
     LDY #$02
     LDA ($00),Y
-    STA $18
+    STA $17
     LDY #$03
     LDA ($00),Y
-    STA $19
+    STA $18
     LDY #$04
     LDA ($00),Y
-    STA $1A
+    STA $19
     LDY #$05
     LDA ($00),Y
-    STA $1B
+    STA $1A
     LDY #$06
     LDA ($00),Y
-    STA $1C
+    STA $1B
     LDY #$07
     LDA ($00),Y
-    STA $1D
+    STA $1C
     CLC
     LDA $14
     ADC $08
     TAX
-    LDA $15
+    LDA $1D
     ADC $09
     TAY
     LDA $02
@@ -6571,181 +6556,181 @@ pressure_i64:
     STA $21
     LDA $06
     ADC $0E
-    STA $22
+    STA $2A
     LDA $07
     ADC $0F
     CLC
-    STA $23
-    LDA $08
-    ADC $16
-    STA $24
-    LDA $09
-    ADC $17
-    STA $25
-    LDA $0A
-    ADC $18
-    STA $26
-    LDA $0B
-    ADC $19
-    STA $27
-    LDA $0C
-    ADC $1A
-    STA $28
-    LDA $0D
-    ADC $1B
-    STA $29
-    LDA $0E
-    ADC $1C
-    STA $2A
-    LDA $0F
-    ADC $1D
-    CLC
     STA $2B
-    LDA $14
+    LDA $08
+    ADC $15
+    STA $22
+    LDA $09
     ADC $16
+    STA $23
+    LDA $0A
+    ADC $17
+    STA $24
+    LDA $0B
+    ADC $18
+    STA $25
+    LDA $0C
+    ADC $19
+    STA $26
+    LDA $0D
+    ADC $1A
+    STA $27
+    LDA $0E
+    ADC $1B
+    STA $28
+    LDA $0F
+    ADC $1C
+    CLC
+    STA $29
+    LDA $14
+    ADC $15
     STA $14
-    LDA $15
+    LDA $1D
+    ADC $16
+    STA $1D
+    LDA $02
     ADC $17
     STA $15
-    LDA $02
+    LDA $03
     ADC $18
     STA $16
-    LDA $03
+    LDA $04
     ADC $19
     STA $17
-    LDA $04
+    LDA $05
     ADC $1A
     STA $18
-    LDA $05
+    LDA $06
     ADC $1B
     STA $19
-    LDA $06
+    LDA $07
     ADC $1C
     STA $1A
-    LDA $07
-    ADC $1D
-    STA $1B
     TXA
-    EOR $24
-    STA $1C
+    EOR $22
+    STA $1B
     TYA
-    EOR $25
-    STA $1D
+    EOR $23
+    STA $1C
     LDA $1E
-    EOR $26
+    EOR $24
     STA $2C
     LDA $1F
-    EOR $27
+    EOR $25
     STA $2D
     LDA $20
-    EOR $28
+    EOR $26
     STA $2E
     LDA $21
-    EOR $29
+    EOR $27
     STA $2F
-    LDA $22
-    EOR $2A
+    LDA $2A
+    EOR $28
     STA $30
-    LDA $23
-    EOR $2B
+    LDA $2B
+    EOR $29
     STA $31
-    LDA $24
+    LDA $22
     EOR $14
+    STA $22
+    LDA $23
+    EOR $1D
+    STA $23
+    LDA $24
+    EOR $15
     STA $24
     LDA $25
-    EOR $15
+    EOR $16
     STA $25
     LDA $26
-    EOR $16
+    EOR $17
     STA $26
     LDA $27
-    EOR $17
+    EOR $18
     STA $27
     LDA $28
-    EOR $18
+    EOR $19
     STA $28
     LDA $29
-    EOR $19
-    STA $29
-    LDA $2A
     EOR $1A
-    STA $2A
-    LDA $2B
-    EOR $1B
-    STA $2B
+    STA $29
     TXA
     EOR $14
     TAX
     TYA
-    EOR $15
+    EOR $1D
     TAY
     LDA $1E
+    EOR $15
+    STA $15
+    LDA $1F
     EOR $16
     STA $16
-    LDA $1F
+    LDA $20
     EOR $17
     STA $17
-    LDA $20
+    LDA $21
     EOR $18
     STA $18
-    LDA $21
+    LDA $2A
     EOR $19
     STA $19
-    LDA $22
+    LDA $2B
     EOR $1A
-    STA $1A
-    LDA $23
-    EOR $1B
     CLC
+    STA $1A
+    LDA $1B
+    ADC $22
     STA $1B
     LDA $1C
-    ADC $24
+    ADC $23
     STA $1C
-    LDA $1D
-    ADC $25
-    STA $1D
     LDA $2C
-    ADC $26
-    STA $32
+    ADC $24
+    STA $1D
     LDA $2D
-    ADC $27
-    STA $33
+    ADC $25
+    STA $22
     LDA $2E
-    ADC $28
+    ADC $26
     STA $1E
     LDA $2F
-    ADC $29
+    ADC $27
     STA $1F
     LDA $30
-    ADC $2A
+    ADC $28
     STA $20
     LDA $31
-    ADC $2B
+    ADC $29
     CLC
     STA $21
     TXA
-    ADC $1C
+    ADC $1B
     STA $14
     TYA
-    ADC $1D
+    ADC $1C
     TAX
-    LDA $32
-    ADC $16
+    LDA $1D
+    ADC $15
     TAY
-    LDA $33
-    ADC $17
+    LDA $22
+    ADC $16
     STA $03
     LDA $1E
-    ADC $18
+    ADC $17
     STA $04
     LDA $1F
-    ADC $19
+    ADC $18
     STA $05
     LDA $20
-    ADC $1A
+    ADC $19
     STA $06
     LDA $21
-    ADC $1B
+    ADC $1A
     STY $02
     STA $07
     LDA $14
@@ -6942,44 +6927,44 @@ Irie (37):
 ```asm
 loop_counter:
     LDY #$00
-    STA $14
-    STX $15
+    STA $19
+    STX $1A
+    STY $14
     STY $16
     STY $17
-    STY $18
 .bb1:
-    LDA $16
+    LDA $14
     EOR #$80
     TAX
-    LDA $15
+    LDA $1A
     EOR #$80
-    STA $19
-    STY $1A
-    CPX $19
+    STA $18
+    STY $15
+    CPX $18
     BCC .bb3
     BNE .bb2
-    CPY $14
+    CPY $19
     BCC .bb3
 .bb2:
-    LDX $18
-    LDA $17
+    LDX $17
+    LDA $16
     RTS
 .bb3:
     CLC
-    LDA $17
-    ADC $1A
+    LDA $16
+    ADC $15
     TAX
-    LDA $18
-    ADC $16
+    LDA $17
+    ADC $14
     CLC
-    STA $18
-    LDA $1A
+    STA $17
+    LDA $15
     ADC #$01
     TAY
-    LDA $16
+    LDA $14
     ADC #$00
-    STA $16
-    STX $17
+    STA $14
+    STX $16
     JMP .bb1
 ```
 
@@ -7420,80 +7405,80 @@ Irie (70):
 ```asm
 nested_loop:
     LDY #$00
-    STA $14
-    STX $15
+    STA $1D
+    STX $1E
     LDX $02
-    STX $16
+    STX $1B
     LDX $03
-    STX $17
-    STY $18
-    STY $19
+    STX $1C
     STY $1A
+    STY $16
+    STY $17
 .bb1:
-    LDA $18
+    LDA $1A
     EOR #$80
     TAX
-    LDA $15
+    LDA $1E
     EOR #$80
-    STA $1B
-    STY $1C
-    CPX $1B
+    STA $14
+    STY $19
+    CPX $14
     BCC .bb3
     BNE .bb2
-    CPY $14
+    CPY $1D
     BCC .bb3
 .bb2:
-    LDX $1A
-    LDA $19
+    LDX $17
+    LDA $16
     RTS
 .bb3:
     LDY #$00
-    STY $1D
-    STY $1E
+    STY $14
+    STY $15
 .bb4:
-    LDA $1E
+    LDA $15
     EOR #$80
     TAX
-    LDA $17
+    LDA $1C
     EOR #$80
-    STA $1F
-    CPX $1F
+    STA $18
+    CPX $18
     BCC .bb6
     BNE .bb5
-    LDA $1D
-    CMP $16
+    LDA $14
+    CMP $1B
     BCC .bb6
 .bb5:
     CLC
-    LDA $1C
+    LDA $19
     ADC #$01
-    STA $1C
-    LDA $18
+    STA $19
+    LDA $1A
     ADC #$00
-    STA $18
-    LDY $1C
+    STA $1A
+    LDY $19
     JMP .bb1
 .bb6:
-    LDY $1D
+    LDY $14
     STY $02
-    LDX $1E
+    LDX $15
     STX $03
-    LDX $18
-    LDA $1C
+    LDX $1A
+    LDA $19
     JSR __mulhi3
     CLC
-    ADC $19
-    STA $19
+    ADC $16
+    STA $16
     TXA
-    ADC $1A
+    ADC $17
     CLC
-    STA $1A
-    LDA $1D
+    STA $17
+    LDA $14
     ADC #$01
-    STA $1D
-    LDA $1E
+    STA $14
+    LDA $15
     ADC #$00
-    STA $1E
+    STA $15
     JMP .bb4
 ```
 
@@ -7814,8 +7799,8 @@ g:
     RTS
 
 many_calls:
-    STA $14
-    STX $15
+    STA $1C
+    STX $1D
     LDY $02
     STY $16
     LDY $03
@@ -7829,17 +7814,17 @@ many_calls:
     LDY $07
     STY $1B
     JSR g
-    STA $1C
-    STX $1D
+    STA $14
+    STX $15
     LDX $17
     LDA $16
     JSR g
     CLC
-    ADC $1C
-    STA $1C
+    ADC $14
+    STA $14
     TXA
-    ADC $1D
-    STA $1D
+    ADC $15
+    STA $15
     LDX $19
     LDA $18
     JSR g
@@ -7856,17 +7841,17 @@ many_calls:
     CLC
     TAX
     TYA
-    ADC $1C
-    TAY
-    TXA
-    ADC $1D
-    CLC
-    TAX
-    TYA
     ADC $14
     TAY
     TXA
     ADC $15
+    CLC
+    TAX
+    TYA
+    ADC $1C
+    TAY
+    TXA
+    ADC $1D
     CLC
     TAX
     TYA
