@@ -1,0 +1,76 @@
+; RUN: @iriec --target mos6502 --run-pass UnreachableBlockElimination @file
+
+; Blocks that no path from the entry reaches are removed; reachable blocks stay.
+
+func @Orphan : (i8) -> i8 {
+bb0(%0 : i8):
+    core.return %0
+
+bb1(%1 : i8):
+    core.return %1
+}
+
+; A chain of orphans goes together.
+func @OrphanChain : (i8) -> i8 {
+bb0(%0 : i8):
+    cf.br bb1(%0)
+
+bb1(%1 : i8):
+    core.return %1
+
+bb2(%2 : i8):
+    cf.br bb3(%2)
+
+bb3(%3 : i8):
+    cf.br bb1(%3)
+}
+
+; An orphan loop is still unreachable: its blocks reach each other, but nothing reaches them.
+func @OrphanLoop : (i8) -> i8 {
+bb0(%0 : i8):
+    core.return %0
+
+bb1(%1 : i8):
+    cf.br bb2(%1)
+
+bb2(%2 : i8):
+    cf.br bb1(%2)
+}
+
+; Every block is reachable: nothing changes.
+func @AllReachable : (i1, i8) -> i8 {
+bb0(%0 : i1, %1 : i8):
+    cf.cond_br %0, bb1(%1), bb2(%1)
+
+bb1(%2 : i8):
+    core.return %2
+
+bb2(%3 : i8):
+    core.return %3
+}
+
+; CHECK: func @Orphan : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     core.return %0
+; CHECK: }
+; CHECK: 
+; CHECK: func @OrphanChain : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     cf.br bb1(%0)
+; CHECK: bb1(%1 : i8):
+; CHECK:     core.return %1
+; CHECK: }
+; CHECK: 
+; CHECK: func @OrphanLoop : (i8) -> i8 {
+; CHECK: bb0(%0 : i8):
+; CHECK:     core.return %0
+; CHECK: }
+; CHECK: 
+; CHECK: func @AllReachable : (i1, i8) -> i8 {
+; CHECK: bb0(%0 : i1, %1 : i8):
+; CHECK:     cf.cond_br %0, bb1(%1), bb2(%1)
+; CHECK: bb1(%2 : i8):
+; CHECK:     core.return %2
+; CHECK: bb2(%3 : i8):
+; CHECK:     core.return %3
+; CHECK: }

@@ -86,7 +86,7 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
 - [x] 1. `ValueRange.TryDecide` plus unit tests in `Irie.Tests`: signed and unsigned boundaries, a
       range straddling zero under an unsigned predicate (undecided), `eq`/`ne` with disjoint and equal
       single-value ranges.
-- [ ] 2. `UnreachableBlockEliminationPass` plus lit test `UnreachableBlockElimination.irie`
+- [x] 2. `UnreachableBlockEliminationPass` plus lit test `UnreachableBlockElimination.irie`
       (`--run-pass UnreachableBlockElimination`): an orphan block removed, a chain of orphans removed, a
       loop reachable only from itself removed, reachable blocks untouched.
 - [ ] 3. `ConstantBranchFoldPass` plus lit test `ConstantBranchFold.irie`: constant true and false
