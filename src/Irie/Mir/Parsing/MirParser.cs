@@ -329,16 +329,35 @@ internal sealed class MirParser
         var annotationToken = tokens.Expect(MirTokenKind.Identifier);
 
         var id = (int)vregToken.IntValue!.Value;
-        function.RegisterVirtualRegister(id, ParseAnnotation(annotationToken));
+        function.RegisterVirtualRegister(id, ParseAnnotation(tokens, annotationToken));
         block.Parameters.Add(id);
     }
 
-    private static VRegAnnotation ParseAnnotation(MirToken token) =>
-        IsTypeName(token.Text)
-            ? new TypedVReg(ParseTypeName(token))
+    private static VRegAnnotation ParseAnnotation(TokenReader tokens, MirToken token)
+    {
+        if (!IsTypeName(token.Text))
+        {
             // ClassId is unknown without a target — store -1 as a placeholder.
             // Round-tripping preserves the textual class name.
-            : new ClassedVReg(ClassId: -1, Name: token.Text!);
+            return new ClassedVReg(ClassId: -1, Name: token.Text!);
+        }
+
+        // Optional value range after the type: `i32 in [lo, hi]`.
+        ValueRange? range = null;
+        if (tokens.Current is { Kind: MirTokenKind.Identifier, Text: "in" })
+        {
+            tokens.Advance();
+            tokens.Expect(MirTokenKind.LBracket);
+            var lo = tokens.Expect(MirTokenKind.Integer).IntValue!.Value;
+            tokens.Expect(MirTokenKind.Comma);
+            var hi = tokens.Expect(MirTokenKind.Integer).IntValue!.Value;
+            tokens.Expect(MirTokenKind.RBracket);
+            if (lo > hi)
+                throw Fail(token, $"Empty value range [{lo}, {hi}]");
+            range = new ValueRange(lo, hi);
+        }
+        return new TypedVReg(ParseTypeName(token), range);
+    }
 
     private void ParseInstruction(
         TokenReader tokens,
@@ -359,7 +378,7 @@ internal sealed class MirParser
             var annotationToken = tokens.Expect(MirTokenKind.Identifier);
 
             var vreg = (int)vregToken.IntValue!.Value;
-            function.RegisterVirtualRegister(vreg, ParseAnnotation(annotationToken));
+            function.RegisterVirtualRegister(vreg, ParseAnnotation(tokens, annotationToken));
             defOperands.Add(new VirtualReg(vreg, IsDefinition: true));
 
             // Consume comma only if it precedes another `%N :` def, not a use.

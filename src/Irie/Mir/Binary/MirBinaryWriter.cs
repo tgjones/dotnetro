@@ -188,6 +188,13 @@ internal static class MirBinaryWriter
     {
         switch (annotation)
         {
+            case TypedVReg { Range: { } r } t:
+                writer.Write((byte)VRegAnnotationTag.TypedRanged);
+                WriteType(t.Type, writer);
+                writer.Write((long)r.Lo);
+                writer.Write((long)r.Hi);
+                break;
+
             case TypedVReg t:
                 writer.Write((byte)VRegAnnotationTag.Typed);
                 WriteType(t.Type, writer);

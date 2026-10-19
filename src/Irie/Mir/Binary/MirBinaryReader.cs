@@ -171,6 +171,7 @@ internal static class MirBinaryReader
         return tag switch
         {
             VRegAnnotationTag.Typed   => new TypedVReg(ReadType(reader)),
+            VRegAnnotationTag.TypedRanged => new TypedVReg(ReadType(reader), new ValueRange(reader.ReadInt64(), reader.ReadInt64())),
             VRegAnnotationTag.Classed => new ClassedVReg(reader.ReadInt32(), reader.ReadString()),
             _ => throw new InvalidDataException($"Unknown vreg annotation tag: {(byte)tag}"),
         };

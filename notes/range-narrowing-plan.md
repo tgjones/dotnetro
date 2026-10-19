@@ -1,6 +1,6 @@
 # Range narrowing: shrink i32 arithmetic, compares and loop variables to the bytes they need
 
-Status: not started. Written 2026-10-19 after comparing Oscar64 and llvm-mos (see "Background").
+Status: in progress. Written 2026-10-19 after comparing Oscar64 and llvm-mos (see "Background").
 Self-contained.
 
 ## Goal
@@ -144,7 +144,7 @@ interpreter-based execution tests then check the analysis. The emulator-diff lit
 
 Keep each step green (`dotnet test --solution src`) before the next.
 
-1. **[ ] Range type and text form.** Add `ValueRange`, the `TypedVReg` field, the writer and the
+1. **[x] Range type and text form.** Add `ValueRange`, the `TypedVReg` field, the writer and the
    parser (`in [lo, hi]`), and round-trip tests in `Irie.Tests/Mir`. No pass yet.
 2. **[ ] Interpreter oracle.** Make the interpreter assert ranges. Test with hand-written MIR:
    one whose range holds, one whose range is deliberately wrong and must throw.

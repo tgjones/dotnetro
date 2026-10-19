@@ -260,6 +260,7 @@ internal sealed class MirWriter
 
     private static string FormatAnnotation(VRegAnnotation annotation) => annotation switch
     {
+        TypedVReg { Range: { } r } t when !r.IsFull(t.Type.SizeInBits) => $"{t.Type.DisplayName} in [{r.Lo}, {r.Hi}]",
         TypedVReg t   => t.Type.DisplayName,
         ClassedVReg c => c.Name,
         _ => throw new InvalidOperationException($"Unknown vreg annotation: {annotation.GetType().Name}"),

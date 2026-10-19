@@ -156,4 +156,22 @@ public class MirRoundTripTests
 
         await AssertRoundTrips(input);
     }
+
+    [Test]
+    public async Task RoundTrip_ValueRanges()
+    {
+        // Covers: `in [lo, hi]` after a def type and a block-parameter type, negative bounds, i64 bounds.
+        var input = """
+            func @Ranges : (i8, i64) -> i32 {
+            bb0(%0 : i8, %1 : i64 in [-9223372036854775808, 9223372036854775806]):
+                %2 : i32 in [0, 255] = cast.zext %0
+                %3 : i32 in [-5, 766] = arith.addi %2, %2
+                cf.br bb1(%3)
+            bb1(%4 : i32 in [-5, 766]):
+                core.return %4
+            }
+            """.ReplaceLineEndings("\n") + "\n";
+
+        await AssertRoundTrips(input);
+    }
 }
