@@ -152,9 +152,8 @@ Keep each step green (`dotnet test --solution src`) before the next.
    without loops (a single pass over reverse post-order; block parameters join their edges, and a
    loop-carried block parameter is the full range for now). Add `--run-pass RangeNarrowing`
    `.irie` lit tests (this needs the pass in the pipeline, so step 3 already adds it after `ArithSimplifyPass`; it only annotates, and constants are not annotated) whose `CHECK` lines pin the printed ranges. Include i64 and signed cases.
-4. **[ ] Rewrite: arithmetic and the cleanup peephole.** Add the rules for add/sub/mul/shl/bitwise,
-   and the trunc/ext cleanup. Insert `RangeNarrowingPass` in `PipelineBuilder.AddStandardPipeline`
-   after `ArithSimplifyPass`. Expect `ByteArithmeticPromotion`, `TernaryMixedWidth` and
+4. **[x] Rewrite: arithmetic and the cleanup peephole.** Add the rules for add/sub/mul/shl/bitwise,
+   and the trunc/ext cleanup (zero-extended results only; a result with a negative range stays wide until step 6's cost rule; step 4 also merges duplicate casts within a block). The pass is already in `PipelineBuilder.AddStandardPipeline` after `ArithSimplifyPass` (step 3). Result: 151,668 → 150,419 bytes, no program grew (`notes/measure-lit-sizes.sh`, added in step 4). Expect `ByteArithmeticPromotion`, `TernaryMixedWidth` and
    `SwitchByte` to shrink. Regenerate affected goldens with `dotlit --regenerate` and **read every
    diff**.
 5. **[ ] Rewrite: compares, shifts, divisions.** Narrow `cmpi` (check that `LegalizeCmpI` and
