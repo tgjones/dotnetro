@@ -1,6 +1,6 @@
 # Range folding: fold compares and branches that value ranges decide
 
-Status: proposed. Written 2026-10-19. Follow-up to [range-narrowing-plan.md](range-narrowing-plan.md)
+Status: done. Written 2026-10-19. Follow-up to [range-narrowing-plan.md](range-narrowing-plan.md)
 ("Static folding of compares and branches that ranges decide", Oscar64's `SimplifyIntegerRangeRelops`).
 Self-contained.
 
@@ -102,7 +102,7 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
       (build the configuration first) and review every golden diff: changes are expected only where a
       range decides something. Run `dotnet test --solution src` in Debug and Release. Re-run
       `irie-report` and the benchmarks and record the instruction and byte deltas.
-- [ ] 7. Docs: class remarks on each new pass, the pass-order summary in `src/Irie/AGENTS.md`, the
+- [x] 7. Docs: class remarks on each new pass, the pass-order summary in `src/Irie/AGENTS.md`, the
       pass-order line in `AGENTS.md`, `doc/irie/llvm-mos-comparison.md` if its Oscar64 table lists the
       gap, and tick the follow-up in [range-narrowing-plan.md](range-narrowing-plan.md).
 

@@ -195,6 +195,8 @@ Keep each step green (`dotnet test --solution src`) before the next.
 - ~~**`WriteDigits` in the corelib**~~ Done: `remainder` is now `(byte)(...)`. A program that prints
   an `int` (`AddInt32`) went from 365 to 322 assembly instructions and from 633 to 527 bytes of
   program; the full suite passes.
-- **Static folding of compares and branches** that ranges decide (Oscar64's
-  `SimplifyIntegerRangeRelops`).
+- ~~**Static folding of compares and branches** that ranges decide (Oscar64's
+  `SimplifyIntegerRangeRelops`).~~ Done: see [range-fold-plan.md](range-fold-plan.md) (`RangeFold`,
+  `ConstantBranchFold`, `UnreachableBlockElimination`). The benchmark and llvm-mos corpus counts are
+  unchanged: none of those programs has a compare the ranges decide.
 - **Interprocedural return and argument ranges** for non-escaping static methods.
