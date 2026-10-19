@@ -53,19 +53,19 @@ bb2(%3 : i8):
 ; CHECK: bb0(%0 : i8):
 ; CHECK:     core.return %0
 ; CHECK: }
-; CHECK: 
+; CHECK:
 ; CHECK: func @OrphanChain : (i8) -> i8 {
 ; CHECK: bb0(%0 : i8):
 ; CHECK:     cf.br bb1(%0)
 ; CHECK: bb1(%1 : i8):
 ; CHECK:     core.return %1
 ; CHECK: }
-; CHECK: 
+; CHECK:
 ; CHECK: func @OrphanLoop : (i8) -> i8 {
 ; CHECK: bb0(%0 : i8):
 ; CHECK:     core.return %0
 ; CHECK: }
-; CHECK: 
+; CHECK:
 ; CHECK: func @AllReachable : (i1, i8) -> i8 {
 ; CHECK: bb0(%0 : i1, %1 : i8):
 ; CHECK:     cf.cond_br %0, bb1(%1), bb2(%1)

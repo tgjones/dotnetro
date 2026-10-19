@@ -98,7 +98,7 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
 - [x] 5. Register the three passes in `PipelineBuilder`; add an end-to-end lit test in
       `src/DotNetro.Compiler.Tests/Lit` (a byte compared against a constant it can never reach, with
       `DIFF: dotnet emulated`) so the folded program is proven to run the same.
-- [ ] 6. Run `dotlit --regenerate` over `src/Irie.Tests/Lit` and `src/DotNetro.Compiler.Tests/Lit`
+- [x] 6. Run `dotlit --regenerate` over `src/Irie.Tests/Lit` and `src/DotNetro.Compiler.Tests/Lit`
       (build the configuration first) and review every golden diff: changes are expected only where a
       range decides something. Run `dotnet test --solution src` in Debug and Release. Re-run
       `irie-report` and the benchmarks and record the instruction and byte deltas.

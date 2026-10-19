@@ -61,7 +61,7 @@ bb2():
 ; CHECK:     %2 : i8 = arith.constant 7
 ; CHECK:     core.return %2
 ; CHECK: }
-; CHECK: 
+; CHECK:
 ; CHECK: func @AlwaysFalse : (i8) -> i8 {
 ; CHECK: bb0(%0 : i8):
 ; CHECK:     cf.br bb2
@@ -71,14 +71,14 @@ bb2():
 ; CHECK:     %2 : i8 = arith.constant 7
 ; CHECK:     core.return %2
 ; CHECK: }
-; CHECK: 
+; CHECK:
 ; CHECK: func @TakenEdgeArguments : (i8, i8) -> i8 {
 ; CHECK: bb0(%0 : i8, %1 : i8):
 ; CHECK:     cf.br bb1(%1)
 ; CHECK: bb1(%3 : i8):
 ; CHECK:     core.return %3
 ; CHECK: }
-; CHECK: 
+; CHECK:
 ; CHECK: func @Dynamic : (i1, i8) -> i8 {
 ; CHECK: bb0(%0 : i1, %1 : i8):
 ; CHECK:     cf.cond_br %0, bb1, bb2
