@@ -14,7 +14,7 @@ namespace Irie.Passes;
 /// constant that nothing uses afterwards is removed.
 ///
 /// This needs only constants, not ranges: it folds constants from the front end and from
-/// <see cref="ArithSimplifyPass"/> as well as the compares <c>RangeFoldPass</c> decides.
+/// <see cref="ArithSimplifyPass"/> as well as the compares <see cref="RangeFoldPass"/> decides.
 /// </remarks>
 public sealed class ConstantBranchFoldPass : MirFunctionPass
 {

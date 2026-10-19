@@ -91,7 +91,7 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
       loop reachable only from itself removed, reachable blocks untouched.
 - [x] 3. `ConstantBranchFoldPass` plus lit test `ConstantBranchFold.irie`: constant true and false
       conditions, taken target with block arguments, a non-constant condition left alone.
-- [ ] 4. `RangeFoldPass` plus lit test `RangeFold.irie`: `zext i8` against 256 (`ult` true, `uge` false),
+- [x] 4. `RangeFoldPass` plus lit test `RangeFold.irie`: `zext i8` against 256 (`ult` true, `uge` false),
       `eq` of disjoint ranges, a compare inside a loop that branch refinement decides, an unsigned
       predicate on a possibly negative range (stays), overlapping ranges (stay). Complete `CHECK`
       listings.
