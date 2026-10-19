@@ -106,6 +106,13 @@ its target's parameter list. Blocks that stay reachable but now have one incomin
       pass-order line in `AGENTS.md`, `doc/irie/llvm-mos-comparison.md` if its Oscar64 table lists the
       gap, and tick the follow-up in [range-narrowing-plan.md](range-narrowing-plan.md).
 
+## Deviation recorded during implementation
+
+The front end writes `(a < b) == false` as `arith.not %cmp`. Once `RangeFold` made the compare a constant,
+the branch condition was `arith.not <constant>`, which the MOS6502 selector rejects (four compiler lit
+tests failed). Fix: `ArithSimplifyPass` folds `not` of a constant, and a second `ArithSimplify` runs after
+`RangeFold`. `RangeFold` also treats a compare it just decided as a constant for the compares after it.
+
 ## Risks
 
 - **Signedness**: the classic bug. Unsigned predicates are decided only for non-negative ranges, and the
