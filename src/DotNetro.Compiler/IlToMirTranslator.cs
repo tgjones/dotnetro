@@ -497,10 +497,12 @@ internal sealed class IlToMirTranslator : IDisposable
 
     private MirFunction TranslateMethod(EcmaMethod method)
     {
-        var paramTypes = method.Parameters
-            .Select(p => ToIRType(p.Type))
+        // A struct travels by address (see IsStruct): a parameter is a ptr to the caller's copy and a
+        // returned struct is written through a hidden leading ptr, so the function returns void.
+        var paramTypes = (IsStruct(method.MethodSignature.ReturnType) ? [IRType.Pointer] : Array.Empty<IRType>())
+            .Concat(method.Parameters.Select(p => ParameterIRType(p.Type)))
             .ToArray();
-        var returnType = ToIRType(method.MethodSignature.ReturnType);
+        var returnType = ReturnIRType(method.MethodSignature.ReturnType);
 
         var function = new MirFunction(method.UniqueName, paramTypes, returnType) 
         {
@@ -562,6 +564,20 @@ internal sealed class IlToMirTranslator : IDisposable
     private static bool IsReferenceLike(TypeDescription type) =>
         type is SZArrayType or TypeSystem.PointerType or ByReferenceType
         || type is EcmaType { IsValueType: false };
+
+    /// <summary>
+    /// A struct (a value type that is not a scalar: signatures spell scalars as primitives and enums as
+    /// their underlying type). Like llvm-mos for aggregates over 4 bytes, structs are always passed and
+    /// returned indirectly: an argument is a ptr to a copy the caller made, and a returned struct is
+    /// written through a hidden first ptr the caller supplies. On the eval stack a struct is its address.
+    /// </summary>
+    private static bool IsStruct(TypeDescription type) => type is EcmaType { IsValueType: true };
+
+    /// <summary>The IR type a parameter of CLR type `type` is passed as.</summary>
+    private static IRType ParameterIRType(TypeDescription type) => IsStruct(type) ? IRType.Pointer : ToIRType(type);
+
+    /// <summary>The IR type a function returns for CLR return type `type` (void for a struct: see <see cref="IsStruct"/>).</summary>
+    private static IRType ReturnIRType(TypeDescription type) => IsStruct(type) ? IRType.Void : ToIRType(type);
 
     private static IRType ToIRType(TypeDescription type)
     {
@@ -660,6 +676,26 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private TypeDescription[] _localClrTypes = [];
 
+        /// <summary>The hidden pointer a struct-returning method writes its result through.</summary>
+        private int _sretVreg;
+
+        private bool IsStructParameter(int index) =>
+            index < _method.Parameters.Length && IsStruct(_method.Parameters[index].Type);
+
+        /// <summary>
+        /// A fresh frame slot of `size` bytes, numbered after the locals (slot indexes are shared with
+        /// them); returns its address. Used for the copies and results of structs passed by address.
+        /// </summary>
+        private int AllocateTemporary(int size)
+        {
+            var slotIndex = _localTypes.Length + _temporarySlotCount++;
+            _function.FrameSlots.Add(new FrameSlot(
+                Index:      slotIndex,
+                Type:       new IntegerType(size * 8),
+                SymbolName: $"{_function.Name}_local{slotIndex}"));
+            return _builder.BuildFrameAddr(slotIndex);
+        }
+
         /// <summary>The type of a pending `constrained.` prefix, consumed by the next callvirt.</summary>
         private EcmaType? _constrainedType;
         private bool[] _localIsFrameSlot = [];
@@ -690,8 +726,10 @@ internal sealed class IlToMirTranslator : IDisposable
             _argLocal = new int[_method.Parameters.Length];
             Array.Fill(_argLocal, -1);
             var localCount = locals.Length;
-            var addressTakenArgs = ScanAddressTakenParameters();
-            foreach (var arg in ScanStargParameters().Union(addressTakenArgs).Order())
+            // A struct parameter is already a pointer to the callee's own copy, so starg / ldarga work
+            // on that copy directly and need no shadow local.
+            var addressTakenArgs = ScanAddressTakenParameters().Where(arg => !IsStructParameter(arg)).ToHashSet();
+            foreach (var arg in ScanStargParameters().Where(arg => !IsStructParameter(arg)).Union(addressTakenArgs).Order())
             {
                 if (arg >= _argLocal.Length || _method.Parameters[arg].Type is EcmaType { IsValueType: true })
                     throw new NotSupportedException(
@@ -764,10 +802,15 @@ internal sealed class IlToMirTranslator : IDisposable
 
             // Parameters become entry-block parameter vregs (lowered by
             // AbiLoweringPass). Record them so ldarg.N can read them.
+            if (IsStruct(_method.MethodSignature.ReturnType))
+            {
+                _sretVreg = _function.CreateVirtualRegister(IRType.Pointer);
+                entryBlock.Parameters.Add(_sretVreg);
+            }
             var paramVregs = new int[_method.Parameters.Length];
             for (var i = 0; i < _method.Parameters.Length; i++)
             {
-                var type = ToIRType(_method.Parameters[i].Type);
+                var type = ParameterIRType(_method.Parameters[i].Type);
                 var vreg = _function.CreateVirtualRegister(type);
                 entryBlock.Parameters.Add(vreg);
                 paramVregs[i] = vreg;
@@ -1806,6 +1849,13 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private void TranslateLdarga(int index)
         {
+            if (IsStructParameter(index))
+            {
+                // The parameter is already the struct's address.
+                TranslateLdarg(index);
+                return;
+            }
+
             if (index >= _argLocal.Length || _argLocal[index] < 0)
                 throw new NotSupportedException(
                     $"IL→MIR: ldarga {index} out of range (method {_method.UniqueName}).");
@@ -1817,6 +1867,14 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private void TranslateStarg(int index)
         {
+            if (IsStructParameter(index))
+            {
+                // Assign through the pointer to the callee's own copy.
+                var value = AsAddress(_stack.Pop());
+                EmitStructCopy(_parameterVregs[index], value.Vreg, _method.Parameters[index].Type.InstanceSize);
+                return;
+            }
+
             if (index >= _argLocal.Length || _argLocal[index] < 0)
                 throw new NotSupportedException(
                     $"IL→MIR: starg {index} out of range (method {_method.UniqueName}).");
@@ -1833,7 +1891,7 @@ internal sealed class IlToMirTranslator : IDisposable
             if (index >= _parameterVregs.Length)
                 throw new NotSupportedException(
                     $"IL→MIR: ldarg {index} out of range (method {_method.UniqueName}).");
-            var type = ToIRType(_method.Parameters[index].Type);
+            var type = ParameterIRType(_method.Parameters[index].Type);
 
             PushTyped(_parameterVregs[index], type, _method.Parameters[index].Type);
         }
@@ -2610,12 +2668,36 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private void EmitDirectCall(EcmaMethod callee, string symbolName, int[] argVregs)
         {
-            var returnType = ToIRType(callee.MethodSignature.ReturnType);
+            var sret = AddStructReturnArgument(callee, ref argVregs);
+            var returnType = ReturnIRType(callee.MethodSignature.ReturnType);
             var returnTypes = returnType is VoidType ? Array.Empty<IRType>() : [returnType];
 
             var defs = _builder.BuildCall(symbolName, returnTypes, argVregs);
-            if (returnTypes.Length > 0)
-                PushTyped(defs[0], returnType, callee.MethodSignature.ReturnType);
+            PushCallResult(callee, sret, returnTypes.Length > 0 ? defs[0] : 0);
+        }
+
+        /// <summary>
+        /// For a callee returning a struct: allocate the temporary it writes its result into and put
+        /// its address first among the arguments (before `this`). Returns that address, or null.
+        /// </summary>
+        private int? AddStructReturnArgument(EcmaMethod callee, ref int[] argVregs)
+        {
+            if (!IsStruct(callee.MethodSignature.ReturnType))
+                return null;
+
+            var sret = AllocateTemporary(callee.MethodSignature.ReturnType.InstanceSize);
+            argVregs = [sret, .. argVregs];
+            return sret;
+        }
+
+        /// <summary>Push what a call produced: the struct temporary, the returned scalar, or nothing for void.</summary>
+        private void PushCallResult(EcmaMethod callee, int? sret, int returned)
+        {
+            var returnClr = callee.MethodSignature.ReturnType;
+            if (sret != null)
+                _stack.Push(new StackValue(sret.Value, IRType.Pointer));
+            else if (ReturnIRType(returnClr) is not VoidType)
+                PushTyped(returned, ReturnIRType(returnClr), returnClr);
         }
 
         /// <summary>
@@ -2623,7 +2705,25 @@ internal sealed class IlToMirTranslator : IDisposable
         /// methods), in reverse so the deepest stack entry maps to parameter 0.
         /// </summary>
         private int[] PopCallArgs(EcmaMethod callee) =>
-            PopCallArgs([.. callee.Parameters.Select(p => ToIRType(p.Type))]);
+            CopyStructArguments(callee, PopCallArgs([.. callee.Parameters.Select(p => ParameterIRType(p.Type))]));
+
+        /// <summary>
+        /// A struct argument is a pointer to a copy made by the caller (the callee may modify it, and
+        /// IL passes values), so each is copied into a fresh temporary here.
+        /// </summary>
+        private int[] CopyStructArguments(EcmaMethod callee, int[] argVregs)
+        {
+            for (var i = 0; i < argVregs.Length; i++)
+            {
+                if (!IsStruct(callee.Parameters[i].Type))
+                    continue;
+
+                var copy = AllocateTemporary(callee.Parameters[i].Type.InstanceSize);
+                EmitStructCopy(copy, argVregs[i], callee.Parameters[i].Type.InstanceSize);
+                argVregs[i] = copy;
+            }
+            return argVregs;
+        }
 
         private int[] PopCallArgs(IRType[] parameterTypes)
         {
@@ -2828,7 +2928,8 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var thisPtr = argVregs[0];
 
-            var returnType = ToIRType(callee.MethodSignature.ReturnType);
+            var sret = AddStructReturnArgument(callee, ref argVregs);
+            var returnType = ReturnIRType(callee.MethodSignature.ReturnType);
             var returnTypes = returnType is VoidType ? Array.Empty<IRType>() : [returnType];
 
             // The object header (the vtable pointer) sits PointerSize bytes below
@@ -2847,8 +2948,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(slotAddr, IsDefinition: false));
 
             var defs = _builder.BuildCallIndirect(fptr, returnTypes, argVregs);
-            if (returnTypes.Length > 0)
-                PushTyped(defs[0], returnType, callee.MethodSignature.ReturnType);
+            PushCallResult(callee, sret, returnTypes.Length > 0 ? defs[0] : 0);
         }
 
         /// <summary>
@@ -2862,7 +2962,6 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var constructor = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
             var type = constructor.DeclaringType;
-            _parent.MarkTypeUsed(type);
 
             // Constructor args, excluding the `this` at Parameters[0] (we supply
             // the freshly-allocated pointer for that). Popped before the Alloc so
@@ -2872,9 +2971,30 @@ internal sealed class IlToMirTranslator : IDisposable
             var userArgs = new int[userArgCount];
             for (var i = userArgCount - 1; i >= 0; i--)
             {
-                userArgs[i] = Resize(PopMaterialised(), ToIRType(constructor.Parameters[i + 1].Type)).Vreg;
+                userArgs[i] = Resize(PopMaterialised(), ParameterIRType(constructor.Parameters[i + 1].Type)).Vreg;
+                if (IsStruct(constructor.Parameters[i + 1].Type))
+                {
+                    var copy = AllocateTemporary(constructor.Parameters[i + 1].Type.InstanceSize);
+                    EmitStructCopy(copy, userArgs[i], constructor.Parameters[i + 1].Type.InstanceSize);
+                    userArgs[i] = copy;
+                }
             }
 
+            if (type.IsValueType)
+            {
+                // A struct is not allocated: it is built in a temporary and, on the stack, is its address.
+                var temporary = AllocateTemporary(type.InstanceSize);
+                _builder.BuildInstruction(MemDialect.OpRef(MemOp.Fill),
+                    new VirtualReg(temporary, IsDefinition: false),
+                    new VirtualReg(_builder.BuildConstant(IRType.I8, 0), IsDefinition: false),
+                    new Immediate(type.InstanceSize));
+                _parent.EnqueueMethod(constructor);
+                _builder.BuildCall(constructor.UniqueName, [], [temporary, .. userArgs]);
+                _stack.Push(new StackValue(temporary, IRType.Pointer));
+                return;
+            }
+
+            _parent.MarkTypeUsed(type);
             var size = _builder.BuildConstant(IRType.I16, type.InstanceSize);
             var vtablePtr = _builder.BuildMemSymbol(IlToMirTranslator.VtableName(type));
             var allocMethod = _parent.GetAllocMethod();
@@ -3051,15 +3171,8 @@ internal sealed class IlToMirTranslator : IDisposable
             MaterialiseStackCompares();
             var obj = AsAddress(_stack.Pop());
 
-            // A temporary slot, numbered after the locals (slot indexes are shared with them).
-            var slotIndex = _localTypes.Length + _temporarySlotCount++;
-            _function.FrameSlots.Add(new FrameSlot(
-                Index:      slotIndex,
-                Type:       new IntegerType(type.InstanceSize * 8),
-                SymbolName: $"{_function.Name}_local{slotIndex}"));
-
             _builder.SetInsertionPointAtEnd(_currentBlock);
-            var slot = _builder.BuildFrameAddr(slotIndex);
+            var slot = AllocateTemporary(type.InstanceSize);
             var isNull = _builder.BuildCmpI(ArithCmpPredicate.Eq, AsInteger(obj).Vreg, _builder.BuildConstant(IRType.I16, 0));
 
             EmitDiamond(
@@ -3407,6 +3520,14 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private void TranslateRet()
         {
+            if (IsStruct(_method.MethodSignature.ReturnType))
+            {
+                var result = AsAddress(_stack.Pop());
+                EmitStructCopy(_sretVreg, result.Vreg, _method.MethodSignature.ReturnType.InstanceSize);
+                _builder.BuildInstruction(CoreDialect.OpRef(CoreOp.Return));
+                return;
+            }
+
             if (_function.ReturnType is VoidType)
             {
                 _builder.BuildInstruction(CoreDialect.OpRef(CoreOp.Return));
