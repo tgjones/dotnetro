@@ -154,9 +154,16 @@ currently throw); that gets its own plan, after G3. Generics make it more tracta
 - [x] **G3 – generic-aware ops.** `constrained.` call; `default(T)`/`initobj !T`; `isinst`/`castclass`/`box`/
       `unbox.any` with `T` and with generic instances (`o is Box<int>` vs `o is Box<byte>` distinguishes vtables);
       `sizeof(T)`. Update `il-support.md` (`dotnet run --project src/DotNetro.Tools.ILSupport`).
-- [ ] **G4 – corelib uptake.** Switch `Nullable<T>` from stub to real; remove "no generic instantiation"
+- [x] **G4 – corelib uptake.** Switch `Nullable<T>` from stub to real; remove "no generic instantiation"
       notes from `custom-corelib-plan.md`. (`List<T>`/`Stack<T>` that don't need interfaces can follow here;
       the rest waits for the interface-dispatch plan.)
+      *Done:* `Nullable<T>` gained `GetValueOrDefault()` / `GetValueOrDefault(T)` (what C# lowers `??` and
+      lifted operators to; `NullableOperations` covers them). `custom-corelib-plan.md` no longer exists, so
+      there was no note to remove. Still open, none specific to generics: `Value` on an empty instance
+      returns `default` (no exceptions yet); passing/returning a struct by value (so `int?` parameters and
+      returns, and `Nullable<Struct>` construction) is unsupported by the ABI. `box` / `unbox.any` of
+      `Nullable<T>` follow the CLR (null when empty, else the boxed `T`), covered by `NullableBoxing`;
+      `Console.WriteLine(object)` was added so a boxed `int?` can be printed.
 - [ ] **G5 – code size.** Count instantiated bodies on a `List<T>`-heavy sample; implement MIR-level ICF
       (hash the printed body with its own name normalised; redirect call sites/vtable slots/`ldftn` to the
       survivor); only consider canonical sharing if the numbers say ICF isn't enough.

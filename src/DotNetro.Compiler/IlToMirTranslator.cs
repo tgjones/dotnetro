@@ -2934,6 +2934,12 @@ internal sealed class IlToMirTranslator : IDisposable
             if (!type.IsValueType)
                 return;
 
+            if (IsNullable(type))
+            {
+                TranslateBoxNullable(type);
+                return;
+            }
+
             _parent.MarkTypeUsed(type);
 
             var value = PopMaterialised();
@@ -2958,6 +2964,133 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(ptr, IRType.Pointer));
         }
 
+        private static bool IsNullable(EcmaType type) =>
+            type.Assembly == type.Context.CoreAssembly
+            && type.TypeArguments.Length == 1
+            && type.DefinitionFullName == "System.Nullable`1";
+
+        /// <summary>
+        /// Emit a diamond split on the i1 `condVreg`: `emitTrue` / `emitFalse` fill the two arms and
+        /// continue in the merge block. With `hasResult` each arm returns the ptr vreg it passes to
+        /// the merge block as its parameter (the returned vreg); otherwise they return null.
+        /// </summary>
+        private int? EmitDiamond(int condVreg, Func<int?> emitTrue, Func<int?> emitFalse, bool hasResult)
+        {
+            var trueLeg = _function.CreateBlock();
+            var falseLeg = _function.CreateBlock();
+            var merge = _function.CreateBlock();
+
+            var resultVreg = 0;
+            if (hasResult)
+            {
+                resultVreg = _function.CreateVirtualRegister(IRType.Pointer);
+                merge.Parameters.Add(resultVreg);
+            }
+
+            _builder.SetInsertionPointAtEnd(_currentBlock);
+            _builder.BuildInstruction(
+                CfDialect.OpRef(CfOp.CondBr),
+                new VirtualReg(condVreg, IsDefinition: false),
+                new BlockTarget(trueLeg, []),
+                new BlockTarget(falseLeg, []));
+
+            foreach (var (leg, emit) in new[] { (trueLeg, emitTrue), (falseLeg, emitFalse) })
+            {
+                _builder.SetInsertionPointAtEnd(leg);
+                var result = emit();
+                _builder.BuildInstruction(
+                    CfDialect.OpRef(CfOp.Br),
+                    new BlockTarget(merge, hasResult ? [new VirtualReg(result!.Value, IsDefinition: false)] : []));
+            }
+
+            _builder.SetInsertionPointAtEnd(merge);
+            _currentBlock = merge;
+            return hasResult ? resultVreg : null;
+        }
+
+        /// <summary>
+        /// box Nullable&lt;T&gt; → null when it has no value, otherwise a boxed T (a Nullable is never
+        /// boxed as itself, so `o is int` and `(int)o` see the underlying value). The struct on the
+        /// stack is its address.
+        /// </summary>
+        private void TranslateBoxNullable(EcmaType type)
+        {
+            var underlying = type.Assembly.AsEcmaType(type.TypeArguments[0]);
+            MaterialiseStackCompares();
+            var source = AsAddress(_stack.Pop());
+
+            _builder.SetInsertionPointAtEnd(_currentBlock);
+            var hasValue = _function.CreateVirtualRegister(IRType.I8);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadI8),
+                new VirtualReg(hasValue, IsDefinition: true),
+                new VirtualReg(EmitFieldAddress(source.Vreg, type.GetField("hasValue").Offset), IsDefinition: false));
+            var cond = _builder.BuildCmpI(ArithCmpPredicate.Ne, hasValue, _builder.BuildConstant(IRType.I8, 0));
+
+            var boxed = EmitDiamond(
+                cond,
+                () =>
+                {
+                    _stack.Push(new StackValue(EmitFieldAddress(source.Vreg, type.GetField("value").Offset), IRType.Pointer));
+                    TranslateLdobj(underlying);
+                    TranslateBox(underlying);
+                    return _stack.Pop().Vreg;
+                },
+                () => BuildZero(_builder, IRType.Pointer),
+                hasResult: true);
+
+            _stack.Push(new StackValue(boxed!.Value, IRType.Pointer));
+        }
+
+        /// <summary>
+        /// unbox.any Nullable&lt;T&gt; → a null object is an empty Nullable; otherwise the object must be
+        /// a boxed T, which is copied into a temporary Nullable (pushed as its address).
+        /// </summary>
+        private void TranslateUnboxNullable(EcmaType type)
+        {
+            var underlying = type.Assembly.AsEcmaType(type.TypeArguments[0]);
+            MaterialiseStackCompares();
+            var obj = AsAddress(_stack.Pop());
+
+            // A temporary slot, numbered after the locals (slot indexes are shared with them).
+            var slotIndex = _localTypes.Length + _temporarySlotCount++;
+            _function.FrameSlots.Add(new FrameSlot(
+                Index:      slotIndex,
+                Type:       new IntegerType(type.InstanceSize * 8),
+                SymbolName: $"{_function.Name}_local{slotIndex}"));
+
+            _builder.SetInsertionPointAtEnd(_currentBlock);
+            var slot = _builder.BuildFrameAddr(slotIndex);
+            var isNull = _builder.BuildCmpI(ArithCmpPredicate.Eq, AsInteger(obj).Vreg, _builder.BuildConstant(IRType.I16, 0));
+
+            EmitDiamond(
+                isNull,
+                () =>
+                {
+                    _builder.BuildInstruction(MemDialect.OpRef(MemOp.Fill),
+                        new VirtualReg(slot, IsDefinition: false),
+                        new VirtualReg(_builder.BuildConstant(IRType.I8, 0), IsDefinition: false),
+                        new Immediate(type.InstanceSize));
+                    return null;
+                },
+                () =>
+                {
+                    _stack.Push(new StackValue(EmitFieldAddress(slot, type.GetField("value").Offset), IRType.Pointer));
+                    _stack.Push(obj);
+                    TranslateTypeTest(underlying, "CastClass");
+                    TranslateLdobj(underlying);
+                    TranslateStobj(underlying);
+                    _builder.BuildInstruction(MemDialect.OpRef(MemOp.StoreI8),
+                        new VirtualReg(EmitFieldAddress(slot, type.GetField("hasValue").Offset), IsDefinition: false),
+                        new VirtualReg(_builder.BuildConstant(IRType.I8, 1), IsDefinition: false));
+                    return null;
+                },
+                hasResult: false);
+
+            _stack.Push(new StackValue(slot, IRType.Pointer));
+        }
+
+        private int _temporarySlotCount;
+
         /// <summary>
         /// unbox.any &lt;T&gt; → for a reference type a castclass; for a value type, check that
         /// the object is a boxed T and read the value out (a struct stays in the box and
@@ -2966,6 +3099,12 @@ internal sealed class IlToMirTranslator : IDisposable
         private void TranslateUnboxAny(EntityHandle typeHandle)
         {
             var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
+            if (IsNullable(type))
+            {
+                TranslateUnboxNullable(type);
+                return;
+            }
+
             TranslateTypeTest(type, "CastClass");
             if (!type.IsValueType || !TryGetScalar(type, out var irType, out var signed))
                 return;
@@ -3076,9 +3215,11 @@ internal sealed class IlToMirTranslator : IDisposable
         /// stobj &lt;T&gt; → store a T through a pointer. Stack layout (top first): value, destination.
         /// A struct value is its address, so it is copied byte by byte.
         /// </summary>
-        private void TranslateStobj(EntityHandle typeHandle)
+        private void TranslateStobj(EntityHandle typeHandle) =>
+            TranslateStobj(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation));
+
+        private void TranslateStobj(EcmaType type)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             if (IsReferenceLike(type))
                 TranslateStind(IRType.Pointer);
             else if (TryGetScalar(type, out var irType, out _))

@@ -25,6 +25,12 @@ public static partial class Console
         PutChar(13);
     }
 
+    /// <summary>The object's <c>ToString()</c>; nothing but the newline for null.</summary>
+    public static void WriteLine(object value)
+    {
+        WriteLine(value == null ? "" : value.ToString());
+    }
+
     public static void WriteLine(char value)
     {
         PutChar((byte)value);

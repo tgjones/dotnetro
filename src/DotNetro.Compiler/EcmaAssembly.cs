@@ -249,7 +249,7 @@ internal sealed class EcmaAssembly : IDisposable
     /// A type specification can decode to a primitive (<c>!0</c> with T = int), which the translator's
     /// type-token operations (box, sizeof, ...) expect as the corelib struct of the same name.
     /// </summary>
-    private EcmaType AsEcmaType(TypeDescription type) => type switch
+    public EcmaType AsEcmaType(TypeDescription type) => type switch
     {
         EcmaType ecmaType => ecmaType,
         PrimitiveType primitive => Context.CoreAssembly.GetType("System", primitive.PrimitiveTypeCode.ToString()),
