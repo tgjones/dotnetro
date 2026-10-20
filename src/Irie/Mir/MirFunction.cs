@@ -22,6 +22,13 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
     public Irie.Target.FunctionConvention? Convention { get; set; }
 
     /// <summary>
+    /// `func noinline @f`: the function stays a callable unit of its own, which the InliningPass
+    /// neither inlines nor removes (for a test of calls, or irie-exec's function under test).
+    /// Not part of the binary format.
+    /// </summary>
+    public bool NoInline { get; set; }
+
+    /// <summary>
     /// Interprocedural property set by ReentrancyAnalysis: true iff this function
     /// can never be active on the call stack more than once at a time (its call-
     /// graph SCC is a singleton, it doesn't self-recurse, and it isn't reachable

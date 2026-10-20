@@ -641,8 +641,10 @@ internal sealed class PlacementChecker(MOS6502Placer placer)
                     for (var r = 0; r < 3; r++) s.R[r] = Returned(s.Calls, r);
                     s.C = Unknown();
                     s.Nz = Unknown();
-                    for (var n = 2; n < 20; n++)
-                        s.Memory[MOS6502Registers.RC(n)] = Returned(s.Calls, MOS6502Registers.RC(n));
+                    // A ROM call (a fixed address) keeps off the zero page: only A, X, Y and the flags change.
+                    if (o[0] is Symbol)
+                        for (var n = 2; n < 20; n++)
+                            s.Memory[MOS6502Registers.RC(n)] = Returned(s.Calls, MOS6502Registers.RC(n));
                     break;
                 }
                 case MOS6502Op.Rts:

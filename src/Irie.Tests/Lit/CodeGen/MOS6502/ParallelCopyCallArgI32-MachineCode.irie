@@ -20,7 +20,7 @@
 ; CHECK:     JMP SinkI32
 ; Byte 0 is loaded into $a last, just before the call.
 
-func @SinkI32 : (i32) -> void {
+func noinline @SinkI32 : (i32) -> void {
 bb0(%0 : i32):
     core.return
 }

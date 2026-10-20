@@ -11,7 +11,7 @@
 ; CHECK:     LDA #$34
 ; CHECK:     JMP SinkI16
 
-func @SinkI16 : (i16) -> void {
+func noinline @SinkI16 : (i16) -> void {
 bb0(%0 : i16):
     core.return
 }

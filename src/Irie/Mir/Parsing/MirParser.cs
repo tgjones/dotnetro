@@ -117,6 +117,9 @@ internal sealed class MirParser
         var funcKeyword = Expect(MirTokenKind.Identifier);
         if (funcKeyword.Text != "func")
             throw Fail(funcKeyword, $"Expected 'func', got '{funcKeyword.Text}'");
+        var noInline = _current.Kind == MirTokenKind.Identifier && _current.Text == "noinline";
+        if (noInline)
+            Advance();
         Expect(MirTokenKind.At);
         var name = Expect(MirTokenKind.Identifier).Text!;
         Expect(MirTokenKind.Colon);
@@ -125,7 +128,7 @@ internal sealed class MirParser
         var returnType = ParseType();
         Expect(MirTokenKind.LBrace);
 
-        var function = new MirFunction(name, paramTypes, returnType);
+        var function = new MirFunction(name, paramTypes, returnType) { NoInline = noInline };
 
         // Optional `frame_slot N : type @name` declarations before the first
         // block. The frontend reserves one slot per address-taken local; the

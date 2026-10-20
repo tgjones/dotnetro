@@ -18,7 +18,7 @@
 ; CHECK:     JMP SinkI16x2
 ; The first argument's low byte is loaded into $a last.
 
-func @SinkI16x2 : (i16, i16) -> void {
+func noinline @SinkI16x2 : (i16, i16) -> void {
 bb0(%0 : i16, %1 : i16):
     core.return
 }

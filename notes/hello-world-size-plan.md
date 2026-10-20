@@ -39,7 +39,8 @@ src/DotNetro.Compiler.Driver/bin/Debug/net10.0/dnrc --assembly /tmp/hw.dll --emi
 Savings are hand counts from the listing, not measurements. Do them in this order unless a step
 turns out to depend on another.
 
-- [ ] **1. Inliner (~25 instructions, the biggest)**. Details below.
+- [x] **1. Inliner (~25 instructions, the biggest)**. Done: hello world 113 → 76 instructions, 241 → 172 bytes
+  (the estimate of 25 was low: single-call-site callees move into `__entry`). Details below.
 - [ ] **2. Fold `global + constant` into one symbol-relative immediate (~7)**. `Main` builds
   `string0000+2` at run time: `CLC / LDA #<s / ADC #2 / STA $1A / LDA #>s / ADC #0 / TAX / LDA $1A`.
   It should be `LDA #<(s+2) / LDX #>(s+2)`. Applies to every string literal, vtable and static field.
@@ -145,6 +146,22 @@ unrelated uses).
   and after. Success: hello world drops by about 25 instructions and no lit program grows in bytes.
 - [ ] Tune N and the single-call-site rule against the same totals; the heuristic is expected to be
   revisited (cost model with call-site count, size of the body vs the call overhead, loop-aware).
+
+### Result (idea 1, 2026-10-20)
+
+- Hello world: 113 → 76 instructions, 241 → 172 bytes. All `Lit/*.cs` (116 programs): 133,244 → 127,475 bytes
+  (-4.3%), none larger. `InlineHelpers.cs` is new (1,367 bytes, not in those totals).
+- Heuristic as built: single call site and not address-taken (no size cap), or a body of at most
+  `MaxSharedBodyCost` = 3 estimated bytes. The estimate weights ops by operand bytes (a call is 3 + its values).
+  The first op-count model (N ≈ 8 ops) grew 21 programs: `WriteLine(bool)` (3 blocks, 14 sites) and the like
+  are bigger inlined. Cost 6 saves another 0.6% in total (also inlines `PutChar`, 3 bytes in hello world)
+  but grows `StringLength` by 19 bytes (four `get_Length` sites), so it is left for tuning.
+- Needed on the way: `func noinline @f` in the MIR text (`MirFunction.NoInline`; irie-exec sets it on the function
+  under test, a dozen call-focused lit tests use it); `PlacementChecker` no longer treats a ROM `jsr.abs $addr`
+  as clobbering the zero page; and a `ValueRangeAnalysis` bug fix: `udivi`/`urem` ranges were not wrapped into the
+  signed reading, so `(int)(a / b) < 0` was folded to false once inlining exposed it (`RangeFold.irie`).
+- Not done: honouring `MethodImplOptions.NoInlining` in the IL translator; `HeapStart` and the trampoline still ship
+  (idea 6).
 
 ## Order of work
 

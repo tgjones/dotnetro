@@ -428,13 +428,13 @@ public static class ValueRangeAnalysis
                 // Division by zero is undefined, so the divisor is at least 1.
                 var smallest = Int128.Max(divisor.Lo, 1);
                 var largest = Int128.Max(divisor.Hi, 1);
-                return new ValueRange(dividend.Lo / largest, dividend.Hi / smallest);
+                return Wrap(dividend.Lo / largest, dividend.Hi / smallest, bits);
             }
             case ArithOp.URemI:
             {
                 var dividend = ToUnsigned(a, bits);
                 var divisor = ToUnsigned(b, bits);
-                return new ValueRange(0, Int128.Min(dividend.Hi, Int128.Max(divisor.Hi, 1) - 1));
+                return Wrap(0, Int128.Min(dividend.Hi, Int128.Max(divisor.Hi, 1) - 1), bits);
             }
         }
 

@@ -178,6 +178,7 @@ static ulong[]? RunCompiled(string text, ExecDirective directive, List<ulong[]> 
     var module = MirModule.Parse(new StringReader(text));
     var functionName = directive.Function;
     var function = module.Functions.First(f => f.Name == functionName);
+    function.NoInline = true; // measured and called by address: it must stay a function of its own
     KeepReachable(module, function);
     var bufferSymbols = AddBuffers(module, directive);
     DriverBuilder.AddDriver(module, function, vectors, execTarget, bufferSymbols);

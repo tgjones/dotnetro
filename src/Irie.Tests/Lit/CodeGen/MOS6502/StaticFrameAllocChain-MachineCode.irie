@@ -43,7 +43,7 @@
 ; CHECK:     STA $17
 ; CHECK:     RTS
 
-func @leaf_a : () -> void {
+func noinline @leaf_a : () -> void {
   frame_slot 0 : i16 @leaf_a_local0
   bb0():
     %0 : ptr = mem.frame_addr 0
@@ -52,7 +52,7 @@ func @leaf_a : () -> void {
     core.return
 }
 
-func @leaf_b : () -> void {
+func noinline @leaf_b : () -> void {
   frame_slot 0 : i16 @leaf_b_local0
   bb0():
     %0 : ptr = mem.frame_addr 0

@@ -21,7 +21,7 @@
 ; CHECK:     TYA
 ; CHECK:     RTS
 
-func @g : (i16) -> i16 {
+func noinline @g : (i16) -> i16 {
 bb0(%0 : i16):
     core.return %0
 }

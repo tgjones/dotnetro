@@ -29,7 +29,7 @@
 ; CHECK:     LDA #<owner_local0
 ; CHECK:     JMP sink
 
-func @sink : (ptr) -> void {
+func noinline @sink : (ptr) -> void {
   bb0(%0 : ptr):
     core.return
 }
