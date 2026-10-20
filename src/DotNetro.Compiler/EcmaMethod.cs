@@ -21,7 +21,7 @@ internal sealed class EcmaMethodBody
         if (!MethodBodyBlock.LocalSignature.IsNil)
         {
             var localSignature = method.MetadataReader.GetStandaloneSignature(MethodBodyBlock.LocalSignature);
-            var localTypes = localSignature.DecodeLocalSignature(declaringType.Assembly.SignatureTypeProvider, Instantiation.Empty);
+            var localTypes = localSignature.DecodeLocalSignature(declaringType.Assembly.SignatureTypeProvider, method.Instantiation);
             var localOffset = 0;
             var localsBuilder = ImmutableArray.CreateBuilder<LocalVariable>(localTypes.Length);
             for (var i = 0; i < localTypes.Length; i++)
@@ -43,6 +43,12 @@ internal sealed class EcmaMethodBody
 internal sealed class EcmaMethod
 {
     public EcmaType DeclaringType { get; }
+
+    /// <summary>The method arguments of a generic method instance (empty for a non-generic method).</summary>
+    public ImmutableArray<TypeDescription> MethodArguments { get; }
+
+    /// <summary>The generic context the signature and body are decoded under: the declaring type's arguments plus <see cref="MethodArguments"/>.</summary>
+    public Instantiation Instantiation { get; }
 
     public MethodDefinition MethodDefinition { get; }
 
@@ -85,9 +91,18 @@ internal sealed class EcmaMethod
     public bool IsAggressiveInlining =>
         MethodDefinition.ImplAttributes.HasFlag(MethodImplAttributes.AggressiveInlining);
 
-    public EcmaMethod(EcmaType declaringType, in MethodDefinition methodDefinition)
+    /// <summary>Only <see cref="EcmaAssembly.GetMethod(MethodDefinitionHandle, ImmutableArray{TypeDescription}, ImmutableArray{TypeDescription})"/> may call this: methods are interned.</summary>
+    internal EcmaMethod(EcmaType declaringType, in MethodDefinition methodDefinition, ImmutableArray<TypeDescription> methodArguments)
     {
         DeclaringType = declaringType;
+        MethodArguments = methodArguments;
+        Instantiation = new Instantiation(declaringType.TypeArguments, methodArguments);
+
+        var arity = methodDefinition.GetGenericParameters().Count;
+        if (arity != methodArguments.Length)
+            throw new NotSupportedException(
+                $"{declaringType.FullName}::{declaringType.Assembly.MetadataReader.GetString(methodDefinition.Name)} "
+                + $"takes {arity} method type arguments but was given {methodArguments.Length} (open generic methods are never compiled).");
 
         MetadataReader = declaringType.Assembly.MetadataReader;
 
@@ -98,7 +113,7 @@ internal sealed class EcmaMethod
             MethodBody = new EcmaMethodBody(declaringType, this);
         }
 
-        MethodSignature = MethodDefinition.DecodeSignature(declaringType.Assembly.SignatureTypeProvider, Instantiation.Empty);
+        MethodSignature = MethodDefinition.DecodeSignature(declaringType.Assembly.SignatureTypeProvider, Instantiation);
 
         var parameterOffset = 0;
         var parametersBuilder = ImmutableArray.CreateBuilder<Parameter>(MethodSignature.ParameterTypes.Length);
@@ -122,7 +137,8 @@ internal sealed class EcmaMethod
         Parameters = parametersBuilder.ToImmutable();
 
         Name = MetadataReader.GetString(MethodDefinition.Name);
-        UniqueName = $"{MakeSafeName(DeclaringType.FullName)}_{MakeSafeName(Name)}";
+        UniqueName = $"{MakeSafeName(DeclaringType.DefinitionFullName)}{Instantiation.EncodeArguments(DeclaringType.TypeArguments)}"
+            + $"_{MakeSafeName(Name)}{Instantiation.EncodeArguments(MethodArguments)}";
 
         foreach (var parameterType in MethodSignature.ParameterTypes)
         {
@@ -137,6 +153,7 @@ internal sealed class EcmaMethod
             .Replace('$', '_')
             .Replace('<', '_')
             .Replace('>', '_')
-            .Replace('|', '_');
+            .Replace('|', '_')
+            .Replace('`', '_');
     }
 }

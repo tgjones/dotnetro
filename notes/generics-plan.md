@@ -139,7 +139,7 @@ currently throw); that gets its own plan, after G3. Generics make it more tracta
 
 ## Stages (each lands with lit tests: `RUN-dotnet` vs `RUN-emulated`, `DIFF: dotnet emulated`)
 
-- [ ] **G0 – plumbing.** `Instantiation` value equality (+ unit test that equal instantiations intern to one
+- [x] **G0 – plumbing.** `Instantiation` value equality (+ unit test that equal instantiations intern to one
       `EcmaType`); type args on `EcmaType`, type+method args on `EcmaMethod`; context-aware decode in
       `SignatureTypeProvider`; `Resolve*` take a context and handle `TypeSpec` / `MethodSpec` / memberref-
       with-typespec; naming; depth limit. Non-generic code must be byte-identical (run the full suites; the

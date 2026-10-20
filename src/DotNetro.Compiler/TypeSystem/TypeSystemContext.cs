@@ -24,9 +24,7 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
     private readonly ConcurrentDictionary<PrimitiveTypeCode, TypeDescription> _primitiveTypes = new();
     private readonly ConcurrentDictionary<TypeDescription, SZArrayType> _szArrayTypes = new();
     private readonly ConcurrentDictionary<WellKnownType, TypeDescription> _wellKnownTypes = new();
-    private readonly ConcurrentDictionary<(Instantiation, int), GenericParameter> _genericMethodParameters = new();
-    private readonly ConcurrentDictionary<(Instantiation, int), GenericParameter> _genericTypeParameters = new();
-    private readonly ConcurrentDictionary<(TypeDescription, Instantiation), InstantiatedType> _instantiatedTypes = new();
+    private readonly ConcurrentDictionary<int, GenericParameter> _genericMethodParameters = new();
 
     /// <summary>Simple name of DotNetro's own core library (see <c>src/DotNetro.CoreLib</c>).</summary>
     public const string CoreLibraryName = WellKnownAssemblies.CoreLib;
@@ -73,11 +71,6 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
         return _byReferenceTypes.GetOrAdd(elementType, x => new ByReferenceType(this, x));
     }
 
-    public InstantiatedType GetInstantiatedType(TypeDescription genericType, Instantiation instantiation)
-    {
-        return _instantiatedTypes.GetOrAdd((genericType, instantiation), x => new InstantiatedType(this, (EcmaType)genericType, instantiation));
-    }
-
     public PointerType GetPointerType(TypeDescription elementType)
     {
         return _pointerTypes.GetOrAdd(elementType, x => new PointerType(this, x));
@@ -98,14 +91,9 @@ internal sealed class TypeSystemContext(int pointerSize, IAssemblyResolver resol
         return _wellKnownTypes.GetOrAdd(wellKnownType, x => CoreAssembly.GetType("System", wellKnownType.ToString()));
     }
 
-    public GenericParameter GetGenericMethodParameter(Instantiation context, int index)
+    public GenericParameter GetGenericMethodParameter(int index)
     {
-        return _genericMethodParameters.GetOrAdd((context, index), x => new GenericParameter(this, GenericParameterKind.Method, index));
-    }
-
-    public GenericParameter GetGenericTypeParameter(Instantiation context, int index)
-    {
-        return _genericTypeParameters.GetOrAdd((context, index), x => new GenericParameter(this, GenericParameterKind.Type, index));
+        return _genericMethodParameters.GetOrAdd(index, x => new GenericParameter(this, x));
     }
 
     public EcmaAssembly ResolveAssembly(string assemblyPath)

@@ -229,7 +229,11 @@ internal sealed class IlToMirTranslator : IDisposable
             if (!methodDefinition.Attributes.HasFlag(MethodAttributes.Virtual))
                 continue;
 
-            var method = type.Assembly.GetMethod(methodDefinitionHandle);
+            if (methodDefinition.GetGenericParameters().Count > 0)
+                throw new NotSupportedException(
+                    $"IL→MIR: generic virtual method {type.Assembly.MetadataReader.GetString(methodDefinition.Name)} on {type.FullName} is not supported.");
+
+            var method = type.Assembly.GetMethod(methodDefinitionHandle, type.TypeArguments);
             if (methodDefinition.Attributes.HasFlag(MethodAttributes.NewSlot))
             {
                 slots.Add(method);
@@ -2305,8 +2309,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateLdsfld(EntityHandle fieldHandle)
         {
-            var field = _method.DeclaringType.Assembly.GetField(
-                (FieldDefinitionHandle)fieldHandle);
+            var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
             var name = _parent.RegisterStaticFieldGlobal(field);
             var type = ToIRType(field.Type);
 
@@ -2324,8 +2327,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateStsfld(EntityHandle fieldHandle)
         {
-            var field = _method.DeclaringType.Assembly.GetField(
-                (FieldDefinitionHandle)fieldHandle);
+            var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
             var name = _parent.RegisterStaticFieldGlobal(field);
             var type = ToIRType(field.Type);
 
@@ -2342,8 +2344,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateLdfld(EntityHandle fieldHandle)
         {
-            var field = _method.DeclaringType.Assembly.GetField(
-                (FieldDefinitionHandle)fieldHandle);
+            var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
             var type = ToIRType(field.Type);
 
             var obj = AsAddress(_stack.Pop());
@@ -2361,8 +2362,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateLdflda(EntityHandle fieldHandle)
         {
-            var field = _method.DeclaringType.Assembly.GetField(
-                (FieldDefinitionHandle)fieldHandle);
+            var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
 
             var obj = AsAddress(_stack.Pop());
             var addr = EmitFieldAddress(obj.Vreg, field.Offset);
@@ -2375,8 +2375,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateStfld(EntityHandle fieldHandle)
         {
-            var field = _method.DeclaringType.Assembly.GetField(
-                (FieldDefinitionHandle)fieldHandle);
+            var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
             var type = ToIRType(field.Type);
 
             var value = Resize(PopMaterialised(), type);
@@ -2390,7 +2389,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// <summary>initobj &lt;type&gt; → zero the &lt;size&gt; bytes at the pointer on top of stack.</summary>
         private void TranslateInitobj(EntityHandle typeHandle)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             var ptr = AsAddress(_stack.Pop());
             var zero = _builder.BuildConstant(IRType.I8, 0);
             _builder.BuildInstruction(MemDialect.OpRef(MemOp.Fill),
@@ -2488,7 +2487,7 @@ internal sealed class IlToMirTranslator : IDisposable
         };
 
         private void TranslateCall(Handle methodHandle) =>
-            TranslateDirectCall(_method.DeclaringType.Assembly.ResolveMethod(methodHandle));
+            TranslateDirectCall(_method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation));
 
         /// <summary>
         /// A direct (non-virtual) call: pop the args (including `this` for instance
@@ -2566,7 +2565,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateLdftn(Handle methodHandle)
         {
-            var method = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
+            var method = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
             string symbol;
             if (method.IsInternalCall)
             {
@@ -2599,7 +2598,7 @@ internal sealed class IlToMirTranslator : IDisposable
             var assembly = _method.DeclaringType.Assembly;
             var signature = assembly.MetadataReader
                 .GetStandaloneSignature((StandaloneSignatureHandle)signatureHandle)
-                .DecodeMethodSignature(assembly.SignatureTypeProvider, Instantiation.Empty);
+                .DecodeMethodSignature(assembly.SignatureTypeProvider, _method.Instantiation);
 
             if (signature.Header.CallingConvention == SignatureCallingConvention.VarArgs)
                 throw new NotSupportedException(
@@ -2667,7 +2666,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateCallvirt(Handle methodHandle)
         {
-            var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
+            var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
 
             // A non-virtual method, a final one, or one of a sealed type (a string has
             // no vtable to dispatch through) has exactly one possible target.
@@ -2712,7 +2711,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateNewobj(EntityHandle methodHandle)
         {
-            var constructor = _method.DeclaringType.Assembly.ResolveMethod(methodHandle);
+            var constructor = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
             var type = constructor.DeclaringType;
             _parent.MarkTypeUsed(type);
 
@@ -2780,7 +2779,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateBox(EntityHandle typeHandle)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             if (!type.IsValueType)
                 return;
 
@@ -2815,7 +2814,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateUnboxAny(EntityHandle typeHandle)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             TranslateTypeTest(type, "CastClass");
             if (!type.IsValueType || !TryGetScalar(type, out var irType, out var signed))
                 return;
@@ -2829,7 +2828,7 @@ internal sealed class IlToMirTranslator : IDisposable
         }
 
         private void TranslateTypeTest(EntityHandle typeHandle, string helperName) =>
-            TranslateTypeTest(_method.DeclaringType.Assembly.ResolveType(typeHandle), helperName);
+            TranslateTypeTest(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation), helperName);
 
         /// <summary>
         /// isinst / castclass &lt;T&gt;: the object (or null) if it is a T, else null (isinst) or
@@ -2875,7 +2874,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateSizeof(EntityHandle typeHandle)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             var vreg = _builder.BuildConstant(IRType.I32, type.Size);
             _stack.Push(new StackValue(vreg, IRType.I32));
         }
@@ -2931,7 +2930,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// single value field gives them their size; reference types are pointers.
         /// </summary>
         private int ElementSize(EntityHandle typeHandle) =>
-            _method.DeclaringType.Assembly.ResolveType(typeHandle).Size;
+            _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation).Size;
 
         /// <summary>newarr &lt;T&gt; → %arr = call @ManagedHeap_AllocArray(length, length * sizeof(T))</summary>
         private void TranslateNewarr(EntityHandle typeHandle)
@@ -3030,7 +3029,7 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateLdelem(EntityHandle typeHandle)
         {
-            var elementType = _method.DeclaringType.Assembly.ResolveType(typeHandle);
+            var elementType = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             var type = ElementIRType(elementType, "ldelem");
             var signed = elementType.Assembly.Context.CoreAssembly == elementType.Assembly
                 && elementType.FullName is "System.SByte" or "System.Int16" or "System.Int32" or "System.Int64";
@@ -3069,7 +3068,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
         private void TranslateStelem(EntityHandle typeHandle)
         {
-            TranslateStelem(ElementIRType(_method.DeclaringType.Assembly.ResolveType(typeHandle), "stelem"));
+            TranslateStelem(ElementIRType(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation), "stelem"));
         }
 
         /// <summary>

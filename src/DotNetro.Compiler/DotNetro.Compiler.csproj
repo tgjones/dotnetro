@@ -8,4 +8,8 @@
     <ProjectReference Include="..\Irie\Irie.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetro.Compiler.Tests" />
+  </ItemGroup>
+
 </Project>

@@ -21,9 +21,10 @@ internal abstract class TypeDescription(TypeSystemContext context)
 
     public abstract string EncodedName { get; }
 
-    public ByReferenceType MakeByReferenceType() => Context.GetByReferenceType(this);
+    /// <summary>How deeply generic arguments nest in this type (0 when it has none); see <see cref="Instantiation.MaxDepth"/>.</summary>
+    public virtual int InstantiationDepth => 0;
 
-    public InstantiatedType MakeInstantiatedType(Instantiation instantiation) => Context.GetInstantiatedType(this, instantiation);
+    public ByReferenceType MakeByReferenceType() => Context.GetByReferenceType(this);
 
     public PointerType MakePointerType() => Context.GetPointerType(this);
 

@@ -7,5 +7,5 @@ internal sealed class ByReferenceType(TypeSystemContext context, TypeDescription
 
     public override bool IsPointerLike { get; } = true;
 
-    public override string EncodedName => throw new NotImplementedException();
+    public override string EncodedName => $"{ElementType.EncodedName}_ByRef";
 }

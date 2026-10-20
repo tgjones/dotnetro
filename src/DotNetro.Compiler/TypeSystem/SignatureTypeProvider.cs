@@ -20,17 +20,28 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
 
     public TypeDescription GetGenericInstantiation(TypeDescription genericType, ImmutableArray<TypeDescription> typeArguments)
     {
-        return genericType.MakeInstantiatedType(new Instantiation([.. typeArguments]));
+        if (genericType is not EcmaType { IsGenericDefinition: true } definition)
+            throw new InvalidOperationException($"{genericType.EncodedName} is not an open generic type definition.");
+
+        return definition.Instantiate(typeArguments);
     }
 
     public TypeDescription GetGenericMethodParameter(Instantiation genericContext, int index)
     {
-        return assembly.Context.GetGenericMethodParameter(genericContext, index);
+        if (index >= genericContext.MethodArgs.Length)
+            throw new NotSupportedException(
+                $"Generic method parameter !!{index} used outside an instantiation (open generic methods are never compiled).");
+
+        return genericContext.MethodArgs[index];
     }
 
     public TypeDescription GetGenericTypeParameter(Instantiation genericContext, int index)
     {
-        return assembly.Context.GetGenericTypeParameter(genericContext, index);
+        if (index >= genericContext.TypeArgs.Length)
+            throw new NotSupportedException(
+                $"Generic type parameter !{index} used outside an instantiation (open generic types are never compiled).");
+
+        return genericContext.TypeArgs[index];
     }
 
     public TypeDescription GetModifiedType(TypeDescription modifier, TypeDescription unmodifiedType, bool isRequired) =>
@@ -68,11 +79,12 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
     /// needed by `box` &amp; co, which take a type token and so never come through here.
     /// </summary>
     private static TypeDescription Underlying(EcmaType type) =>
-        type.IsEnum ? type.EnumUnderlyingType : type;
+        // An open generic definition only ever heads a generic instantiation; it is never an enum.
+        !type.IsGenericDefinition && type.IsEnum ? type.EnumUnderlyingType : type;
 
     public TypeDescription GetTypeFromSpecification(MetadataReader reader, Instantiation genericContext, TypeSpecificationHandle handle, byte rawTypeKind)
     {
         Debug.Assert(reader == assembly.MetadataReader);
-        throw new NotImplementedException();
+        return assembly.MetadataReader.GetTypeSpecification(handle).DecodeSignature(this, genericContext);
     }
 }
