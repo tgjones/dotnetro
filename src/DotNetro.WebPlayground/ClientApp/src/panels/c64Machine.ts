@@ -41,6 +41,7 @@ export class C64Machine implements Machine {
   private running = false;
   private disposed = false;
   private resizeObserver: ResizeObserver | undefined;
+  private fit: (() => void) | undefined;
 
   constructor(private readonly screen: HTMLCanvasElement) {}
 
@@ -54,8 +55,12 @@ export class C64Machine implements Machine {
     if (this.started) {
       module.cwrap('system_restart', '', [])();
     } else {
+      // The core sizes its render target from the canvas's on-screen size when it starts, so lay the canvas out first.
+      this.fit?.();
       module.callMain([gamePath]);
       this.started = true;
+      // A restart is what makes a reset work reliably; the first start otherwise can leave the screen blank.
+      requestAnimationFrame(() => { if (!this.disposed) module.cwrap('system_restart', '', [])(); });
     }
     this.run();
   }
@@ -88,6 +93,8 @@ export class C64Machine implements Machine {
       const h = Math.floor(w / DisplayAspect);
       Object.assign(screen.style, { width: `${w}px`, height: `${h}px`, inset: 'auto', left: `${Math.floor((width - w) / 2)}px`, top: `${Math.floor((height - h) / 2)}px` });
     };
+    this.fit = fit;
+    fit();
     this.resizeObserver = new ResizeObserver(fit);
     this.resizeObserver.observe(wrap);
   }
