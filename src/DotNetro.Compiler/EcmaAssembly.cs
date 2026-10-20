@@ -226,6 +226,13 @@ internal sealed class EcmaAssembly : IDisposable
     /// generic parameter comes back as the concrete argument.
     /// </summary>
     public EcmaType ResolveType(in EntityHandle handle, Instantiation context)
+        => AsEcmaType(ResolveTypeDescription(handle, context));
+
+    /// <summary>
+    /// Like <see cref="ResolveType(in EntityHandle, Instantiation)"/> but keeps what a type specification
+    /// decodes to as it is, so an array (<c>int[]</c>) stays an <see cref="SZArrayType"/>.
+    /// </summary>
+    public TypeDescription ResolveTypeDescription(in EntityHandle handle, Instantiation context)
     {
         switch (handle.Kind)
         {
@@ -237,8 +244,8 @@ internal sealed class EcmaAssembly : IDisposable
                 return ResolveType((TypeReferenceHandle)handle);
 
             case HandleKind.TypeSpecification:
-                return AsEcmaType(MetadataReader.GetTypeSpecification((TypeSpecificationHandle)handle)
-                    .DecodeSignature(SignatureTypeProvider, context));
+                return MetadataReader.GetTypeSpecification((TypeSpecificationHandle)handle)
+                    .DecodeSignature(SignatureTypeProvider, context);
 
             default:
                 throw new NotImplementedException($"Unsupported type token kind {handle.Kind}.");
@@ -247,12 +254,14 @@ internal sealed class EcmaAssembly : IDisposable
 
     /// <summary>
     /// A type specification can decode to a primitive (<c>!0</c> with T = int), which the translator's
-    /// type-token operations (box, sizeof, ...) expect as the corelib struct of the same name.
+    /// type-token operations (box, sizeof, ...) expect as the corelib struct of the same name. An array
+    /// (<c>int[]</c>) is a reference to a heap object like any class, so it stands for <c>System.Array</c>.
     /// </summary>
     public EcmaType AsEcmaType(TypeDescription type) => type switch
     {
         EcmaType ecmaType => ecmaType,
         PrimitiveType primitive => Context.CoreAssembly.GetType("System", primitive.PrimitiveTypeCode.ToString()),
+        SZArrayType => Context.CoreAssembly.GetType("System", "Array"),
         _ => throw new NotSupportedException($"A type token of kind {type.GetType().Name} ({type.EncodedName}) is not supported here."),
     };
 

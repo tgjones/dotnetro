@@ -3218,6 +3218,9 @@ internal sealed class IlToMirTranslator : IDisposable
                 return;
             }
 
+            if (_method.DeclaringType.Assembly.ResolveTypeDescription(typeHandle, _method.Instantiation) is SZArrayType)
+                return;
+
             TranslateTypeTest(type, "CastClass");
             if (!type.IsValueType || !TryGetScalar(type, out var irType, out var signed))
                 return;
@@ -3230,8 +3233,21 @@ internal sealed class IlToMirTranslator : IDisposable
             _stack.Push(new StackValue(value, irType, signed));
         }
 
-        private void TranslateTypeTest(EntityHandle typeHandle, string helperName) =>
-            TranslateTypeTest(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation), helperName);
+        private void TranslateTypeTest(EntityHandle typeHandle, string helperName)
+        {
+            var description = _method.DeclaringType.Assembly.ResolveTypeDescription(typeHandle, _method.Instantiation);
+            if (description is SZArrayType)
+            {
+                // An array has no vtable to test against: a castclass trusts the program (as it does for
+                // the verified IL of a generic instantiated over an array), an isinst cannot be answered.
+                if (helperName != "CastClass")
+                    throw new NotSupportedException(
+                        $"IL→MIR: {helperName} against the array type {description.EncodedName} is not supported yet (method {_method.UniqueName}).");
+                return;
+            }
+
+            TranslateTypeTest(_method.DeclaringType.Assembly.AsEcmaType(description), helperName);
+        }
 
         /// <summary>
         /// isinst / castclass &lt;T&gt;: the object (or null) if it is a T, else null (isinst) or
