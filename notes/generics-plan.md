@@ -144,7 +144,7 @@ currently throw); that gets its own plan, after G3. Generics make it more tracta
       `SignatureTypeProvider`; `Resolve*` take a context and handle `TypeSpec` / `MethodSpec` / memberref-
       with-typespec; naming; depth limit. Non-generic code must be byte-identical (run the full suites; the
       goldens must not change).
-- [ ] **G1 – generic methods.** `static T Max<T>(T a, T b)` with `int`/`byte`/`long`/ref types; `Swap<T>(ref T, ref T)`;
+- [x] **G1 – generic methods.** `static T Max<T>(T a, T b)` with `int`/`byte`/`long`/ref types; `Swap<T>(ref T, ref T)`;
       generic method calling another generic method with its own `T`; generic method over a struct.
       Tests: `GenericMethodInt`, `GenericMethodRef`, `GenericSwap`, `GenericMethodNested`.
 - [ ] **G2 – generic classes/structs.** `Box<T>`, `Pair<A,B>` (class and struct), `T[]` fields, static fields and

@@ -964,6 +964,12 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateDup();
                         break;
 
+                    case ILOpCode.Ldobj:
+                        TranslateLdobj(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Stobj:
+                        TranslateStobj(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
                     case ILOpCode.Box:
                         TranslateBox(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
@@ -1499,6 +1505,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 case ILOpCode.Isinst: case ILOpCode.Ldtoken: case ILOpCode.Initobj:
                 case ILOpCode.Sizeof: case ILOpCode.Ldftn: case ILOpCode.Ldvirtftn:
                 case ILOpCode.Ldelem: case ILOpCode.Stelem: case ILOpCode.Ldelema:
+                case ILOpCode.Ldobj: case ILOpCode.Stobj:
                     reader.ReadInt32();
                     break;
                 case ILOpCode.Ldc_i8:
@@ -2903,6 +2910,39 @@ internal sealed class IlToMirTranslator : IDisposable
                 new VirtualReg(value, IsDefinition: true),
                 new VirtualReg(addr.Vreg, IsDefinition: false));
             _stack.Push(new StackValue(value, type, signed));
+        }
+
+        /// <summary>
+        /// ldobj &lt;T&gt; → load a T through the pointer on top of the stack: a pointer for a reference
+        /// type, the integer for a scalar, and for a struct nothing (a struct on the stack is its
+        /// address, and a copy is made where it is stored).
+        /// </summary>
+        private void TranslateLdobj(EntityHandle typeHandle)
+        {
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
+            if (IsReferenceLike(type))
+                TranslateLdind(IRType.Pointer, signed: false);
+            else if (TryGetScalar(type, out var irType, out var signed))
+                TranslateLdind(irType, signed);
+        }
+
+        /// <summary>
+        /// stobj &lt;T&gt; → store a T through a pointer. Stack layout (top first): value, destination.
+        /// A struct value is its address, so it is copied byte by byte.
+        /// </summary>
+        private void TranslateStobj(EntityHandle typeHandle)
+        {
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
+            if (IsReferenceLike(type))
+                TranslateStind(IRType.Pointer);
+            else if (TryGetScalar(type, out var irType, out _))
+                TranslateStind(irType);
+            else
+            {
+                var value = AsAddress(_stack.Pop());
+                var destination = AsAddress(_stack.Pop());
+                EmitStructCopy(destination.Vreg, value.Vreg, type.InstanceSize);
+            }
         }
 
         /// <summary>
