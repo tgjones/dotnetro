@@ -151,7 +151,7 @@ currently throw); that gets its own plan, after G3. Generics make it more tracta
       cctor per instantiation, virtual methods and `class D : B<int>` overrides, generic nested use
       (`Box<Pair<int,byte>>`), `Nullable<int>` construction + `.Value`/`.HasValue`. Tests: `GenericClass`,
       `GenericStruct`, `GenericStatics`, `GenericInheritance`, `GenericNested`, `NullableInt`.
-- [ ] **G3 – generic-aware ops.** `constrained.` call; `default(T)`/`initobj !T`; `isinst`/`castclass`/`box`/
+- [x] **G3 – generic-aware ops.** `constrained.` call; `default(T)`/`initobj !T`; `isinst`/`castclass`/`box`/
       `unbox.any` with `T` and with generic instances (`o is Box<int>` vs `o is Box<byte>` distinguishes vtables);
       `sizeof(T)`. Update `il-support.md` (`dotnet run --project src/DotNetro.Tools.ILSupport`).
 - [ ] **G4 – corelib uptake.** Switch `Nullable<T>` from stub to real; remove "no generic instantiation"

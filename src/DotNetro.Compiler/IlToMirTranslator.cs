@@ -659,6 +659,9 @@ internal sealed class IlToMirTranslator : IDisposable
         /// memory (mem.frame_addr + mem.load/store, or a struct byte copy).
         /// </summary>
         private TypeDescription[] _localClrTypes = [];
+
+        /// <summary>The type of a pending `constrained.` prefix, consumed by the next callvirt.</summary>
+        private EcmaType? _constrainedType;
         private bool[] _localIsFrameSlot = [];
 
         /// <summary>
@@ -687,7 +690,8 @@ internal sealed class IlToMirTranslator : IDisposable
             _argLocal = new int[_method.Parameters.Length];
             Array.Fill(_argLocal, -1);
             var localCount = locals.Length;
-            foreach (var arg in ScanStargParameters().Order())
+            var addressTakenArgs = ScanAddressTakenParameters();
+            foreach (var arg in ScanStargParameters().Union(addressTakenArgs).Order())
             {
                 if (arg >= _argLocal.Length || _method.Parameters[arg].Type is EcmaType { IsValueType: true })
                     throw new NotSupportedException(
@@ -741,6 +745,19 @@ internal sealed class IlToMirTranslator : IDisposable
                 }
             }
 
+            // An address-taken parameter (`ldarga`) lives in a frame slot, seeded from the
+            // argument at entry, like an address-taken local.
+            foreach (var arg in addressTakenArgs)
+            {
+                var index = _argLocal[arg];
+                _localIsFrameSlot[index] = true;
+                _function.FrameSlots.Add(new FrameSlot(
+                    Index:      index,
+                    Type:       ToIRType(_method.Parameters[arg].Type),
+                    SymbolName: $"{_function.Name}_local{index}"));
+                _localTypes[index] = IRType.I16; // placeholder; unused for slots
+            }
+
             DiscoverBlocks();
 
             var entryBlock = _ilOffsetToBlock[0];
@@ -769,6 +786,14 @@ internal sealed class IlToMirTranslator : IDisposable
                 {
                     // Shadow local of an assigned parameter: starts as the argument.
                     var arg = Array.IndexOf(_argLocal, i);
+                    if (_localIsFrameSlot[i])
+                    {
+                        var parameterType = ToIRType(_method.Parameters[arg].Type);
+                        _builder.BuildInstruction(MemDialect.OpRef(StoreOpFor(parameterType)),
+                            new VirtualReg(_builder.BuildFrameAddr(i), IsDefinition: false),
+                            new VirtualReg(paramVregs[arg], IsDefinition: false));
+                        continue;
+                    }
                     _locals[i] = new StackValue(paramVregs[arg], _localTypes[i]);
                     continue;
                 }
@@ -834,6 +859,12 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Readonly:
                         break;
 
+                    // constrained. T prefix: remembered for the callvirt that follows.
+                    case ILOpCode.Constrained:
+                        _constrainedType = _method.DeclaringType.Assembly.ResolveType(
+                            MetadataTokens.EntityHandle(ilReader.ReadInt32()), _method.Instantiation);
+                        break;
+
                     case ILOpCode.Ldnull:
                         _stack.Push(new StackValue(BuildZero(_builder, IRType.Pointer), IRType.Pointer));
                         break;
@@ -887,6 +918,7 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Ldloc_s: TranslateLdloc(ilReader.ReadByte()); break;
 
                     case ILOpCode.Ldloca_s: TranslateLdloca(ilReader.ReadByte()); break;
+                    case ILOpCode.Ldarga_s: TranslateLdarga(ilReader.ReadByte()); break;
 
                     case ILOpCode.Ldfld:
                         TranslateLdfld(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
@@ -1224,6 +1256,7 @@ internal sealed class IlToMirTranslator : IDisposable
                         case ILOpCode.Ldarg_2: RecordArgUse(2, ube, def); break;
                         case ILOpCode.Ldarg_3: RecordArgUse(3, ube, def); break;
                         case ILOpCode.Ldarg_s: RecordArgUse(scan.ReadByte(), ube, def); break;
+                        case ILOpCode.Ldarga_s: RecordArgUse(scan.ReadByte(), ube, def); break;
                         case ILOpCode.Starg_s: def.Add(_argLocal[scan.ReadByte()]); break;
 
                         case ILOpCode.Stloc_0: def.Add(0); break;
@@ -1505,7 +1538,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 case ILOpCode.Isinst: case ILOpCode.Ldtoken: case ILOpCode.Initobj:
                 case ILOpCode.Sizeof: case ILOpCode.Ldftn: case ILOpCode.Ldvirtftn:
                 case ILOpCode.Ldelem: case ILOpCode.Stelem: case ILOpCode.Ldelema:
-                case ILOpCode.Ldobj: case ILOpCode.Stobj:
+                case ILOpCode.Ldobj: case ILOpCode.Stobj: case ILOpCode.Constrained:
                     reader.ReadInt32();
                     break;
                 case ILOpCode.Ldc_i8:
@@ -1769,6 +1802,14 @@ internal sealed class IlToMirTranslator : IDisposable
                     $"IL→MIR: ldloca of non-FrameSlot local {index} (method {_method.UniqueName}).");
             var addr = _builder.BuildFrameAddr(index);
             _stack.Push(new StackValue(addr, IRType.Pointer));
+        }
+
+        private void TranslateLdarga(int index)
+        {
+            if (index >= _argLocal.Length || _argLocal[index] < 0)
+                throw new NotSupportedException(
+                    $"IL→MIR: ldarga {index} out of range (method {_method.UniqueName}).");
+            TranslateLdloca(_argLocal[index]);
         }
 
         /// <summary>Local that shadows each parameter assigned by `starg` (-1: never assigned).</summary>
@@ -2420,7 +2461,7 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(MemDialect.OpRef(MemOp.Fill),
                 new VirtualReg(ptr.Vreg, IsDefinition: false),
                 new VirtualReg(zero, IsDefinition: false),
-                new Immediate(type.InstanceSize));
+                new Immediate(type.Size));
         }
 
         /// <summary>
@@ -2464,6 +2505,22 @@ internal sealed class IlToMirTranslator : IDisposable
             {
                 var opCode = ReadOpCode(ref scan);
                 if (opCode == ILOpCode.Starg_s)
+                    result.Add(scan.ReadByte());
+                else
+                    SkipBranchOrOperand(ref scan, opCode);
+            }
+            return result;
+        }
+
+        /// <summary>Pre-scan the IL for the parameters whose address is taken with `ldarga`.</summary>
+        private HashSet<int> ScanAddressTakenParameters()
+        {
+            var result = new HashSet<int>();
+            var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            while (scan.RemainingBytes > 0)
+            {
+                var opCode = ReadOpCode(ref scan);
+                if (opCode == ILOpCode.Ldarga_s)
                     result.Add(scan.ReadByte());
                 else
                     SkipBranchOrOperand(ref scan, opCode);
@@ -2548,9 +2605,11 @@ internal sealed class IlToMirTranslator : IDisposable
         /// push the return value (if any). The symbol may differ from the callee's
         /// UniqueName (special-cased BCL methods, InternalCall runtime wrappers).
         /// </summary>
-        private void EmitDirectCall(EcmaMethod callee, string symbolName)
+        private void EmitDirectCall(EcmaMethod callee, string symbolName) =>
+            EmitDirectCall(callee, symbolName, PopCallArgs(callee));
+
+        private void EmitDirectCall(EcmaMethod callee, string symbolName, int[] argVregs)
         {
-            var argVregs = PopCallArgs(callee);
             var returnType = ToIRType(callee.MethodSignature.ReturnType);
             var returnTypes = returnType is VoidType ? Array.Empty<IRType>() : [returnType];
 
@@ -2693,6 +2752,14 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
 
+            if (_constrainedType != null)
+            {
+                var constrainedType = _constrainedType;
+                _constrainedType = null;
+                TranslateConstrainedCallvirt(callee, constrainedType);
+                return;
+            }
+
             // A non-virtual method, a final one, or one of a sealed type (a string has
             // no vtable to dispatch through) has exactly one possible target.
             if (!callee.IsVirtual || callee.IsFinal || callee.DeclaringType.IsSealed)
@@ -2701,7 +2768,64 @@ internal sealed class IlToMirTranslator : IDisposable
                 return;
             }
 
+            EmitVirtualCall(callee, PopCallArgs(callee));
+        }
+
+        /// <summary>
+        /// `constrained. T; callvirt M`: the `this` on the stack is a managed pointer to a T. In a
+        /// monomorphized body T is concrete, so the call is resolved here:
+        ///   - a reference type: load the reference and callvirt as usual;
+        ///   - a value type that itself overrides M: call the override directly on the pointer;
+        ///   - any other value type: box a copy and callvirt the base method.
+        /// </summary>
+        private void TranslateConstrainedCallvirt(EcmaMethod callee, EcmaType constrainedType)
+        {
             var argVregs = PopCallArgs(callee);
+
+            if (!constrainedType.IsValueType)
+            {
+                var reference = _function.CreateVirtualRegister(IRType.Pointer);
+                _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
+                    new VirtualReg(reference, IsDefinition: true),
+                    new VirtualReg(argVregs[0], IsDefinition: false));
+                argVregs[0] = reference;
+            }
+            else if (callee.IsVirtual
+                && constrainedType.TryGetMethod(callee.Name, callee.MethodSignature, out var overrideMethod)
+                && overrideMethod.DeclaringType == constrainedType)
+            {
+                _parent.EnqueueMethod(overrideMethod);
+                EmitDirectCall(overrideMethod, overrideMethod.UniqueName, argVregs);
+                return;
+            }
+            else if (!callee.IsVirtual || callee.DeclaringType == constrainedType)
+            {
+                // A non-virtual method, or one the value type declares: it is called on the pointer.
+                _parent.EnqueueMethod(callee);
+                EmitDirectCall(callee, callee.UniqueName, argVregs);
+                return;
+            }
+            else
+            {
+                _stack.Push(new StackValue(argVregs[0], IRType.Pointer));
+                TranslateLdobj(constrainedType);
+                TranslateBox(constrainedType);
+                argVregs[0] = _stack.Pop().Vreg;
+            }
+
+            if (!callee.IsVirtual || callee.IsFinal || callee.DeclaringType.IsSealed)
+            {
+                _parent.EnqueueMethod(callee);
+                EmitDirectCall(callee, callee.UniqueName, argVregs);
+                return;
+            }
+
+            EmitVirtualCall(callee, argVregs);
+        }
+
+        /// <summary>Dispatch `callee` through the vtable of the object in <c>argVregs[0]</c>.</summary>
+        private void EmitVirtualCall(EcmaMethod callee, int[] argVregs)
+        {
             var thisPtr = argVregs[0];
 
             var returnType = ToIRType(callee.MethodSignature.ReturnType);
@@ -2802,9 +2926,11 @@ internal sealed class IlToMirTranslator : IDisposable
         ///   %obj = call.func @ManagedHeap_Alloc(sizeof(T), &amp;Vtable_&lt;T&gt;)
         ///   store the value (or copy the struct) into %obj
         /// </summary>
-        private void TranslateBox(EntityHandle typeHandle)
+        private void TranslateBox(EntityHandle typeHandle) =>
+            TranslateBox(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation));
+
+        private void TranslateBox(EcmaType type)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             if (!type.IsValueType)
                 return;
 
@@ -2935,9 +3061,11 @@ internal sealed class IlToMirTranslator : IDisposable
         /// type, the integer for a scalar, and for a struct nothing (a struct on the stack is its
         /// address, and a copy is made where it is stored).
         /// </summary>
-        private void TranslateLdobj(EntityHandle typeHandle)
+        private void TranslateLdobj(EntityHandle typeHandle) =>
+            TranslateLdobj(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation));
+
+        private void TranslateLdobj(EcmaType type)
         {
-            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
             if (IsReferenceLike(type))
                 TranslateLdind(IRType.Pointer, signed: false);
             else if (TryGetScalar(type, out var irType, out var signed))

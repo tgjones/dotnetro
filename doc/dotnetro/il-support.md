@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 149
-- **Implemented and lit-covered:** 145
+- **Implemented:** 151
+- **Implemented and lit-covered:** 147
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -58,7 +58,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ckfinite` | ❌ | — |
 | `clt` | ✅ | ✅ |
 | `clt.un` | ✅ | ✅ |
-| `constrained` | ❌ | — |
+| `constrained` | ✅ | ✅ |
 | `conv.i` | ✅ | ✅ |
 | `conv.i1` | ✅ | ✅ |
 | `conv.i2` | ✅ | ✅ |
@@ -110,7 +110,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldarg.3` | ✅ | ✅ |
 | `ldarg.s` | ✅ | ✅ |
 | `ldarga` | ❌ | — |
-| `ldarga.s` | ❌ | — |
+| `ldarga.s` | ✅ | ✅ |
 | `ldc.i4` | ✅ | ✅ |
 | `ldc.i4.0` | ✅ | ✅ |
 | `ldc.i4.1` | ✅ | ✅ |
