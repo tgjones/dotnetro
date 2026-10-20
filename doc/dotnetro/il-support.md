@@ -9,7 +9,7 @@ lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
 - **Implemented:** 149
-- **Implemented and lit-covered:** 142
+- **Implemented and lit-covered:** 145
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -126,7 +126,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldc.i8` | ✅ | ✅ |
 | `ldc.r4` | ❌ | — |
 | `ldc.r8` | ❌ | — |
-| `ldelem` | ✅ | ❌ |
+| `ldelem` | ✅ | ✅ |
 | `ldelem.i` | ✅ | ❌ |
 | `ldelem.i1` | ✅ | ✅ |
 | `ldelem.i2` | ✅ | ✅ |
@@ -140,7 +140,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldelem.u4` | ✅ | ❌ |
 | `ldelema` | ✅ | ✅ |
 | `ldfld` | ✅ | ✅ |
-| `ldflda` | ✅ | ❌ |
+| `ldflda` | ✅ | ✅ |
 | `ldftn` | ✅ | ✅ |
 | `ldind.i` | ✅ | ✅ |
 | `ldind.i1` | ✅ | ✅ |
@@ -196,7 +196,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `sizeof` | ✅ | ✅ |
 | `starg` | ❌ | — |
 | `starg.s` | ✅ | ✅ |
-| `stelem` | ✅ | ❌ |
+| `stelem` | ✅ | ✅ |
 | `stelem.i` | ✅ | ❌ |
 | `stelem.i1` | ✅ | ✅ |
 | `stelem.i2` | ✅ | ✅ |

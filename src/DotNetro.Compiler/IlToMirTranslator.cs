@@ -2352,6 +2352,15 @@ internal sealed class IlToMirTranslator : IDisposable
         private void TranslateLdfld(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
+
+            if (field.Type is EcmaType { IsValueType: true })
+            {
+                // A struct-typed field is part of its owner's bytes; as a struct on the stack is its
+                // address, loading it is taking its address (copied where it is stored).
+                TranslateLdflda(fieldHandle);
+                return;
+            }
+
             var type = ToIRType(field.Type);
 
             var obj = AsAddress(_stack.Pop());
@@ -2383,6 +2392,15 @@ internal sealed class IlToMirTranslator : IDisposable
         private void TranslateStfld(EntityHandle fieldHandle)
         {
             var field = _method.DeclaringType.Assembly.ResolveField(fieldHandle, _method.Instantiation);
+
+            if (field.Type is EcmaType { IsValueType: true } structType)
+            {
+                var source = AsAddress(_stack.Pop());
+                var owner = AsAddress(_stack.Pop());
+                EmitStructCopy(EmitFieldAddress(owner.Vreg, field.Offset), source.Vreg, structType.InstanceSize);
+                return;
+            }
+
             var type = ToIRType(field.Type);
 
             var value = Resize(PopMaterialised(), type);
