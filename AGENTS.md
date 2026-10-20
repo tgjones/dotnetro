@@ -28,12 +28,19 @@ dotnet test --project src/Irie.Tests --treenode-filter "/*/*/RegisterAllocatorTe
 dotnet test --project src/Irie.Tests --treenode-filter "/*/*/*/AAndXLiveAcrossCopy_PicksY"
 ```
 
-**You cannot target an individual lit test with --treenode-filter.** Lit tests are
-parameterized as `LitTest(Lit/CodeGen/.../Foo·irie)`, and the path argument contains
-`/` (parsed as tree-node separators) and `()` (parsed as grouping operators), so any
-attempt to narrow by filename either matches every lit test or none. Don't fight it —
-just run the whole project. Both lit suites are fast (Irie.Tests ~3–5s,
-DotNetro.Compiler.Tests ~2 min, since every lit test runs Roslyn three times):
+**To run an individual lit test**, filter on its `Category`, which is the file name without
+its extension (`--treenode-filter` cannot see the file in the test's display name, which is why
+each test row carries it as a category; files with the same name in different folders both run):
+
+```bash
+dotnet test --project src/DotNetro.Compiler.Tests --treenode-filter "/*/*/*/*[Category=StructByValue]"
+dotnet test --project src/Irie.Tests --treenode-filter "/*/*/*/*[Category=crc8]"
+```
+
+Both lit suites are fast (Irie.Tests ~3s, DotNetro.Compiler.Tests ~9s; the whole solution
+~12s). They are fast because a `RUN` pipeline of our own tools (`@iriec`, `@dnrc`,
+`@cs_compiler`, `@emulator`, …) runs **in the test process**, not as one process per tool
+(see "In-process tools" below):
 
 ```bash
 dotnet test --project src/Irie.Tests              # all Irie tests incl. every .irie/.s lit test
@@ -91,7 +98,35 @@ Two layers:
 
 ### Test Framework
 
-`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each runs with the default (beam) placement (`LitTest`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
+`DotNetro.Compiler.Tests` runs the `.cs` lit tests in `src/DotNetro.Compiler.Tests/Lit/` (`LitTests.cs`). Each is a small C# program with two `RUN` lines and a `DIFF`: one compiles it with Roslyn and runs it under the host .NET runtime (`dotnet_runner`, in a collectible `AssemblyLoadContext`); the other compiles it with `dnrc` and executes the 6502 binary in the Aemula emulator with BBC Micro OS stubs (`emulator`). `DIFF: dotnet emulated` asserts the two outputs match. Each runs with the default (beam) placement (`LitTest`; see `src/Irie/AGENTS.md`). These are the **only tests that execute generated code**; `Irie.Tests` `.irie`/`.s` lit tests are text goldens. (`DotNetCompilerTests.cs` is legacy and almost entirely commented out.)
+
+#### In-process tools
+
+`LitTestExecutor` splits a `RUN` line into a pipeline (`CommandLine.TryParsePipeline`). When
+every stage names a tool with a managed assembly beside it (`<path>.dll`) whose entry-point
+class has `public static int Run(string[] args, Stream stdin, Stream stdout)`, the pipeline
+runs in-process (`InProcessTool`) with the console bound to in-memory streams (`ToolConsole`),
+so JIT and runtime start-up are paid once per test run instead of once per tool launch.
+Anything else (`echo`, `cat`, redirects, …) goes through `/bin/sh` as before. The tools do
+**not** reference DotLit; a tool is runnable this way when:
+
+- its top-level `Main` just calls `Run` with `Console.OpenStandardInput()` / `OpenStandardOutput()`,
+  and `Run` reads and writes its binary stdin/stdout through the streams it is given (text
+  through `Console.Out`/`Error`/`In` is routed per run automatically);
+- it returns an exit code instead of calling `Environment.Exit`;
+- it is safe to run on several threads at once (the lit tests run in parallel), so no
+  unsynchronised static state.
+
+A tool that runs another tool (`irie-exec` runs the emulator) finds the in-process runner as
+the `"DotLit.RunTool"` `AppContext` value and falls back to launching a process when it is
+absent (standalone use). `dotnet_runner` is the one tool that references DotLit, since it has
+to bind the console of the program it runs (`ToolConsole.Run`).
+
+`cs_compiler` caches its output per (source, assembly name, `--optimize`), since every lit
+test compiles the same file once per `RUN` line. The test projects also set `TieredPGO` off
+and Server GC on (`System.GC.Server`), and `Irie` / `DotNetro.Compiler` are built with
+`Optimize` on even in Debug (the JIT never optimizes a Debug assembly): each is worth seconds
+on the parallel run. Pass `-p:Optimize=false` to step through the compiler in a debugger.
 
 #### Lit `CHECK` blocks: keep them strict (complete listings)
 

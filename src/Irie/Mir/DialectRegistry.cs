@@ -1,4 +1,4 @@
-namespace Irie.Mir;
+﻿namespace Irie.Mir;
 
 /// <summary>
 /// Process-global table of registered dialects. IDs are dense ints assigned in
@@ -7,15 +7,17 @@ namespace Irie.Mir;
 /// <remarks>
 /// Thread-safe: target dialects register lazily from their target's
 /// constructor, so multiple threads can race to register the same prefix on
-/// first use. All access is guarded by _lock, and
-/// Register calls OnRegistered (which publishes the dialect's static Id) before
-/// the dialect becomes observable via _byPrefix/_byId — so no thread can ever
-/// see a dialect as "registered" while its static Id is still its default.
+/// first use. Registration is guarded by _lock and publishes new immutable
+/// snapshots of the lookup tables, so lookups (which every pass makes per
+/// instruction) take no lock. Register calls OnRegistered (which publishes the
+/// dialect's static Id) before the dialect becomes observable via the
+/// snapshots — so no thread can ever see a dialect as "registered" while its
+/// static Id is still its default.
 /// </remarks>
 public static class DialectRegistry
 {
-    private static readonly List<Dialect> _byId = [];
-    private static readonly Dictionary<string, Dialect> _byPrefix = [];
+    private static volatile Dialect[] _byId = [];
+    private static volatile Dictionary<string, Dialect> _byPrefix = [];
     private static readonly object _lock = new();
 
     public static DialectId Register(Dialect dialect)
@@ -54,34 +56,23 @@ public static class DialectRegistry
 
     /// <summary>
     /// Caller must hold _lock. Publishes the static Id (via OnRegistered) before
-    /// adding to the lookup tables so the dialect is never visible as registered
+    /// publishing the lookup tables so the dialect is never visible as registered
     /// with a stale Id.
     /// </summary>
     private static DialectId RegisterUnlocked(Dialect dialect)
     {
-        var id = new DialectId(_byId.Count);
+        var id = new DialectId(_byId.Length);
         dialect.Id = id;
         dialect.OnRegistered(id);
-        _byId.Add(dialect);
-        _byPrefix[dialect.Prefix] = dialect;
+        _byId = [.. _byId, dialect];
+        _byPrefix = new Dictionary<string, Dialect>(_byPrefix) { [dialect.Prefix] = dialect };
         return id;
     }
 
-    public static Dialect ById(DialectId id)
-    {
-        lock (_lock)
-            return _byId[id.Index];
-    }
+    public static Dialect ById(DialectId id) => _byId[id.Index];
 
-    public static Dialect ByPrefix(string prefix)
-    {
-        lock (_lock)
-            return _byPrefix[prefix];
-    }
+    public static Dialect ByPrefix(string prefix) => _byPrefix[prefix];
 
-    public static bool TryByPrefix(string prefix, out Dialect dialect)
-    {
-        lock (_lock)
-            return _byPrefix.TryGetValue(prefix, out dialect!);
-    }
+    public static bool TryByPrefix(string prefix, out Dialect dialect) =>
+        _byPrefix.TryGetValue(prefix, out dialect!);
 }

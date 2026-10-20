@@ -1,116 +1,124 @@
 using System.CommandLine;
 
-var programFileArgument = new Argument<string?>("program-file") { Description = "Path to a raw 6502 program file, or - for stdin.", Arity = ArgumentArity.ZeroOrOne };
-var targetSystemOption = new Option<string>("--target-system") { Description = "Target system. One of: bbcmicro (default), c64.", DefaultValueFactory = _ => "bbcmicro" };
-var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
-var maxTicksOption = new Option<int>("--max-ticks") { Description = "Tick budget before the run is aborted as a runaway. Default: 1,000,000.", DefaultValueFactory = _ => 1_000_000 };
-var measureOption = new Option<string?>("--measure") { Description = "Address (hex) of a function to count the cycles of; the total and the number of calls are written to stderr as 'cycles <n> calls <m>'." };
-var dumpOption = new Option<string[]>("--dump") { Description = "A memory range, ADDR:LENGTH in hex; once the program completes its contents are written to stderr as 'dump <addr> <hex bytes>'. May be repeated.", AllowMultipleArgumentsPerToken = false };
-var traceOption = new Option<FileInfo?>("--trace") { Description = "Write a per-instruction PC/A/X/Y/P/SP trace to file." };
+return Program.Run(args, Console.OpenStandardInput(), Console.OpenStandardOutput());
 
-var rootCommand = new RootCommand("DotNetro 6502 emulator");
-rootCommand.Arguments.Add(programFileArgument);
-rootCommand.Options.Add(targetSystemOption);
-rootCommand.Options.Add(inputOption);
-rootCommand.Options.Add(maxTicksOption);
-rootCommand.Options.Add(measureOption);
-rootCommand.Options.Add(dumpOption);
-rootCommand.Options.Add(traceOption);
-
-rootCommand.SetAction(parseResult =>
+partial class Program
 {
-    var programFile = parseResult.GetValue(programFileArgument);
-    var targetSystemName = parseResult.GetValue(targetSystemOption)!;
-    var inputString = parseResult.GetValue(inputOption);
-    var maxTicks = parseResult.GetValue(maxTicksOption);
-    var traceFile = parseResult.GetValue(traceOption);
-    var dumps = parseResult.GetValue(dumpOption) ?? [];
-    var measureAddress = parseResult.GetValue(measureOption);
-    var meter = measureAddress is null ? null : new CycleMeter(Convert.ToUInt16(measureAddress.TrimStart('$'), 16));
-
-    byte[] programBytes;
-    try
+    public static int Run(string[] args, Stream stdin, Stream stdout)
     {
-        if (programFile == null || programFile == "-")
+        var programFileArgument = new Argument<string?>("program-file") { Description = "Path to a raw 6502 program file, or - for stdin.", Arity = ArgumentArity.ZeroOrOne };
+        var targetSystemOption = new Option<string>("--target-system") { Description = "Target system. One of: bbcmicro (default), c64.", DefaultValueFactory = _ => "bbcmicro" };
+        var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
+        var maxTicksOption = new Option<int>("--max-ticks") { Description = "Tick budget before the run is aborted as a runaway. Default: 1,000,000.", DefaultValueFactory = _ => 1_000_000 };
+        var measureOption = new Option<string?>("--measure") { Description = "Address (hex) of a function to count the cycles of; the total and the number of calls are written to stderr as 'cycles <n> calls <m>'." };
+        var dumpOption = new Option<string[]>("--dump") { Description = "A memory range, ADDR:LENGTH in hex; once the program completes its contents are written to stderr as 'dump <addr> <hex bytes>'. May be repeated.", AllowMultipleArgumentsPerToken = false };
+        var traceOption = new Option<FileInfo?>("--trace") { Description = "Write a per-instruction PC/A/X/Y/P/SP trace to file." };
+
+        var rootCommand = new RootCommand("DotNetro 6502 emulator");
+        rootCommand.Arguments.Add(programFileArgument);
+        rootCommand.Options.Add(targetSystemOption);
+        rootCommand.Options.Add(inputOption);
+        rootCommand.Options.Add(maxTicksOption);
+        rootCommand.Options.Add(measureOption);
+        rootCommand.Options.Add(dumpOption);
+        rootCommand.Options.Add(traceOption);
+
+        rootCommand.SetAction(parseResult =>
         {
-            using var ms = new MemoryStream();
-            Console.OpenStandardInput().CopyTo(ms);
-            programBytes = ms.ToArray();
-        }
-        else
-        {
-            programBytes = File.ReadAllBytes(programFile);
-        }
-    }
-    catch (Exception ex)
-    {
-        Console.Error.WriteLine($"Error reading program: {ex.Message}");
-        return 1;
-    }
+            var programFile = parseResult.GetValue(programFileArgument);
+            var targetSystemName = parseResult.GetValue(targetSystemOption)!;
+            var inputString = parseResult.GetValue(inputOption);
+            var maxTicks = parseResult.GetValue(maxTicksOption);
+            var traceFile = parseResult.GetValue(traceOption);
+            var dumps = parseResult.GetValue(dumpOption) ?? [];
+            var measureAddress = parseResult.GetValue(measureOption);
+            var meter = measureAddress is null ? null : new CycleMeter(Convert.ToUInt16(measureAddress.TrimStart('$'), 16));
 
-    ITargetSystem target;
-    try
-    {
-        target = targetSystemName switch
-        {
-            "bbcmicro" => new BbcMicroTargetSystem(),
-            "c64" => new C64TargetSystem(),
-            _ => throw new ArgumentException($"Unknown --target-system '{targetSystemName}'."),
-        };
-    }
-    catch (ArgumentException ex)
-    {
-        Console.Error.WriteLine(ex.Message);
-        return 1;
-    }
-
-    if (programBytes.Length > 0x10000 - target.LoadAddress)
-    {
-        Console.Error.WriteLine($"Program too large: {programBytes.Length} bytes doesn't fit at ${target.LoadAddress:X4}.");
-        return 1;
-    }
-
-    var memory = new byte[0x10000];
-    programBytes.CopyTo(memory, target.LoadAddress);
-    target.InitialiseMemory(memory);
-
-    var inputReader = new StringReader(inputString?.Replace("\\r", "\r") ?? string.Empty);
-
-    StreamWriter? traceWriter = null;
-    if (traceFile != null)
-    {
-        traceWriter = new StreamWriter(traceFile.OpenWrite());
-    }
-
-    try
-    {
-        var result = target.Run(memory, inputReader, traceWriter, maxTicks, meter);
-        Console.Write(result.Output);
-        if (result.Message is not null)
-            Console.Error.WriteLine(result.Message);
-        if (result.Status == EmulationStatus.Completed)
-            foreach (var dump in dumps)
+            byte[] programBytes;
+            try
             {
-                var parts = dump.Split(':');
-                var address = Convert.ToInt32(parts[0].TrimStart('$'), 16);
-                var length = Convert.ToInt32(parts[1], 16);
-                Console.Error.WriteLine($"dump {address:X4} {Convert.ToHexString(memory, address, length)}");
+                if (programFile == null || programFile == "-")
+                {
+                    using var ms = new MemoryStream();
+                    stdin.CopyTo(ms);
+                    programBytes = ms.ToArray();
+                }
+                else
+                {
+                    programBytes = File.ReadAllBytes(programFile);
+                }
             }
-        if (meter is not null)
-            Console.Error.WriteLine($"cycles {meter.Cycles} calls {meter.Calls}");
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Error reading program: {ex.Message}");
+                return 1;
+            }
 
-        return result.Status switch
-        {
-            EmulationStatus.Completed => 0,
-            EmulationStatus.RunawayTimeout => 2,
-            EmulationStatus.Fault => 4,
-            _ => 3,
-        };
-    }
-    finally
-    {
-        traceWriter?.Dispose();
-    }
-});
+            ITargetSystem target;
+            try
+            {
+                target = targetSystemName switch
+                {
+                    "bbcmicro" => new BbcMicroTargetSystem(),
+                    "c64" => new C64TargetSystem(),
+                    _ => throw new ArgumentException($"Unknown --target-system '{targetSystemName}'."),
+                };
+            }
+            catch (ArgumentException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                return 1;
+            }
 
-return await rootCommand.Parse(args).InvokeAsync();
+            if (programBytes.Length > 0x10000 - target.LoadAddress)
+            {
+                Console.Error.WriteLine($"Program too large: {programBytes.Length} bytes doesn't fit at ${target.LoadAddress:X4}.");
+                return 1;
+            }
+
+            var memory = new byte[0x10000];
+            programBytes.CopyTo(memory, target.LoadAddress);
+            target.InitialiseMemory(memory);
+
+            var inputReader = new StringReader(inputString?.Replace("\\r", "\r") ?? string.Empty);
+
+            StreamWriter? traceWriter = null;
+            if (traceFile != null)
+            {
+                traceWriter = new StreamWriter(traceFile.OpenWrite());
+            }
+
+            try
+            {
+                var result = target.Run(memory, inputReader, traceWriter, maxTicks, meter);
+                Console.Write(result.Output);
+                if (result.Message is not null)
+                    Console.Error.WriteLine(result.Message);
+                if (result.Status == EmulationStatus.Completed)
+                    foreach (var dump in dumps)
+                    {
+                        var parts = dump.Split(':');
+                        var address = Convert.ToInt32(parts[0].TrimStart('$'), 16);
+                        var length = Convert.ToInt32(parts[1], 16);
+                        Console.Error.WriteLine($"dump {address:X4} {Convert.ToHexString(memory, address, length)}");
+                    }
+                if (meter is not null)
+                    Console.Error.WriteLine($"cycles {meter.Cycles} calls {meter.Calls}");
+
+                return result.Status switch
+                {
+                    EmulationStatus.Completed => 0,
+                    EmulationStatus.RunawayTimeout => 2,
+                    EmulationStatus.Fault => 4,
+                    _ => 3,
+                };
+            }
+            finally
+            {
+                traceWriter?.Dispose();
+            }
+        });
+
+        return rootCommand.Parse(args).InvokeAsync().GetAwaiter().GetResult();
+    }
+}

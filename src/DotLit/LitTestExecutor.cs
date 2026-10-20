@@ -112,7 +112,43 @@ internal static class LitTestExecutor
         return output;
     }
 
-    private static (string Output, int ExitCode) RunProcess(string commandLine)
+    /// <summary>
+    /// Runs the command line in-process when it is a plain pipeline of tools that can be (see
+    /// <see cref="InProcessTool"/>), and through the shell otherwise (<c>echo</c>, <c>cat</c>, …).
+    /// </summary>
+    private static (string Output, int ExitCode) RunProcess(string commandLine) =>
+        CommandLine.TryParsePipeline(commandLine) is { } stages && stages.All(stage => InProcessTool.CanRun(stage[0]))
+            ? RunPipeline(stages)
+            : RunShell(commandLine);
+
+    private static (string Output, int ExitCode) RunPipeline(IReadOnlyList<IReadOnlyList<string>> stages)
+    {
+        // Every stage's stderr and the last stage's stdout share one stream, in the order written.
+        var combined = new MemoryStream();
+        Stream input = new MemoryStream();
+        var exitCode = 0;
+
+        for (var i = 0; i < stages.Count; i++)
+        {
+            var isLast = i == stages.Count - 1;
+            var stdout = isLast ? combined : new MemoryStream();
+            exitCode = InProcessTool.Run(stages[i][0], [.. stages[i].Skip(1)], input, stdout, combined);
+            if (!isLast)
+            {
+                stdout.Position = 0;
+                input = stdout;
+            }
+        }
+
+        // A process's output arrives line by line, each given a line ending: do the same.
+        using var reader = new StringReader(System.Text.Encoding.UTF8.GetString(combined.GetBuffer(), 0, (int)combined.Length));
+        var output = new System.Text.StringBuilder();
+        while (reader.ReadLine() is { } line)
+            output.Append(line).Append(Environment.NewLine);
+        return (output.ToString(), exitCode);
+    }
+
+    private static (string Output, int ExitCode) RunShell(string commandLine)
     {
         using var process = new Process();
 
@@ -131,7 +167,6 @@ internal static class LitTestExecutor
         process.StartInfo.ArgumentList.Add(commandLine);
 
         var outputBuilder = new System.Text.StringBuilder();
-        var outputLock = new object();
 
         process.OutputDataReceived += (sender, e) =>
         {

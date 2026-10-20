@@ -4,7 +4,14 @@
     <TargetFramework>$(DotNetVersion)</TargetFramework>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Instrumenting tier-0 code for PGO makes the first, JIT-heavy seconds of a test run several times slower, and the lit tests run the compiler in-process. -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The lit tests compile in parallel and allocate heavily; workstation GC leaves most cores idle waiting for collections. -->
+    <RuntimeHostConfigurationOption Include="System.GC.Server" Value="true" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />

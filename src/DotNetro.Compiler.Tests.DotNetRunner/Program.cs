@@ -2,58 +2,63 @@
 // feeding optional console input.
 
 using System.CommandLine;
-using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.Loader;
+using System.Text;
+using DotLit;
 
-var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
+return Program.Run(args, Console.OpenStandardInput(), Console.OpenStandardOutput());
 
-var rootCommand = new RootCommand("DotNetro .NET runner for Lit tests");
-rootCommand.Options.Add(inputOption);
-
-rootCommand.SetAction(parseResult =>
+partial class Program
 {
-    var inputString = parseResult.GetValue(inputOption);
-
-    var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-    Directory.CreateDirectory(tempDir);
-
-    try
+    public static int Run(string[] args, Stream stdin, Stream stdout)
     {
-        var dllPath = Path.Combine(tempDir, "program.dll");
+        var inputOption = new Option<string?>("--input") { Description = "Console input. Use \\r to separate lines." };
 
-        using (var fs = File.OpenWrite(dllPath))
-            Console.OpenStandardInput().CopyTo(fs);
+        var rootCommand = new RootCommand("DotNetro .NET runner for Lit tests");
+        rootCommand.Options.Add(inputOption);
 
-        // Copy our own runtimeconfig.json so the child process uses the same runtime.
-        var myRuntimeConfig = Path.Combine(AppContext.BaseDirectory,
-            "DotNetro.Compiler.Tests.DotNetRunner.runtimeconfig.json");
-        File.Copy(myRuntimeConfig, Path.Combine(tempDir, "program.runtimeconfig.json"));
-
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo("dotnet", dllPath)
+        rootCommand.SetAction(parseResult =>
         {
-            UseShellExecute = false,
-            // Redirect only stdin so we can feed --input. Leave stdout/stderr
-            // unredirected so the child writes directly through our own stdout/stderr
-            // to the executor's pipe — no double-buffering.
-            RedirectStandardInput = true,
-            CreateNoWindow = true,
-        };
+            var inputString = parseResult.GetValue(inputOption);
 
-        process.Start();
+            using var assemblyStream = new MemoryStream();
+            stdin.CopyTo(assemblyStream);
+            assemblyStream.Position = 0;
 
-        // Replace the \r escape with a newline so ReadLine() in the child process
-        // receives separate lines, matching the emulator's --input convention.
-        if (inputString != null)
-            process.StandardInput.Write(inputString.Replace("\\r", "\n"));
-        process.StandardInput.Close();
+            // Run the program in-process, in a context of its own so it can be unloaded afterwards.
+            var context = new AssemblyLoadContext("program", isCollectible: true);
+            try
+            {
+                var entryPoint = context.LoadFromStream(assemblyStream).EntryPoint
+                    ?? throw new InvalidOperationException("The assembly has no entry point.");
 
-        process.WaitForExit();
-        return process.ExitCode;
+                // Replace the \r escape with a newline so ReadLine() in the program
+                // receives separate lines, matching the emulator's --input convention.
+                var programInput = new MemoryStream(Encoding.UTF8.GetBytes(inputString?.Replace("\\r", "\n") ?? ""));
+
+                return ToolConsole.Run(programInput, ToolConsole.OpenStandardOutput(), ToolConsole.OpenStandardError(), () =>
+                {
+                    try
+                    {
+                        var result = entryPoint.Invoke(null, entryPoint.GetParameters().Length == 0 ? [] : [Array.Empty<string>()]);
+                        if (result is Task task)
+                            task.GetAwaiter().GetResult();
+                        return result is int exitCode ? exitCode : result is Task<int> t ? t.Result : 0;
+                    }
+                    catch (TargetInvocationException exception)
+                    {
+                        Console.Error.WriteLine($"Unhandled exception. {exception.InnerException}");
+                        return 134;
+                    }
+                });
+            }
+            finally
+            {
+                context.Unload();
+            }
+        });
+
+        return rootCommand.Parse(args).InvokeAsync().GetAwaiter().GetResult();
     }
-    finally
-    {
-        Directory.Delete(tempDir, recursive: true);
-    }
-});
-
-return await rootCommand.Parse(args).InvokeAsync();
+}

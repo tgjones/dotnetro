@@ -11,13 +11,13 @@ public sealed class LitTests
         LitTestRunner.Run(filePath, LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration()));
     }
 
-    public static IEnumerable<Func<string>> LitTestSource()
+    public static IEnumerable<Func<TestDataRow<string>>> LitTestSource()
     {
-        var result = new List<Func<string>>();
+        var result = new List<Func<TestDataRow<string>>>();
 
         foreach (var pattern in new[] { "*.irie", "*.mir", "*.s" })
         foreach (var litTestFile in Directory.EnumerateFiles("Lit", pattern, SearchOption.AllDirectories))
-            result.Add(() => litTestFile);
+            result.Add(() => new TestDataRow<string>(litTestFile, Categories: [Path.GetFileNameWithoutExtension(litTestFile)]));
 
         return result;
     }

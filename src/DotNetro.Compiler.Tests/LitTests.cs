@@ -1,19 +1,7 @@
-using DotLit;
-using TUnit.Core.Interfaces;
+﻿using DotLit;
 
 namespace DotNetro.Compiler.Tests;
 
-/// <summary>
-/// Each lit test spawns several processes (a Roslyn compile per RUN line, dnrc, the
-/// emulator), so TUnit's default of four tests per core oversubscribes the machine
-/// until the run looks hung. Keep one test per core.
-/// </summary>
-public sealed class LitParallelLimit : IParallelLimit
-{
-    public int Limit => Environment.ProcessorCount;
-}
-
-[ParallelLimiter<LitParallelLimit>]
 public sealed class LitTests
 {
     [Test]
@@ -23,9 +11,9 @@ public sealed class LitTests
         LitTestRunner.Run(filePath, LitConfig.Load(filePath, LitConfig.CurrentBuildConfiguration()));
     }
 
-    public static IEnumerable<Func<string>> LitTestSource()
+    public static IEnumerable<Func<TestDataRow<string>>> LitTestSource()
     {
-        var result = new List<Func<string>>();
+        var result = new List<Func<TestDataRow<string>>>();
 
         var litTestFiles = Directory.EnumerateFiles(
             "Lit",
@@ -34,7 +22,7 @@ public sealed class LitTests
 
         foreach (var litTestFile in litTestFiles)
         {
-            result.Add(() => litTestFile);
+            result.Add(() => new TestDataRow<string>(litTestFile, Categories: [Path.GetFileNameWithoutExtension(litTestFile)]));
         }
 
         return result;

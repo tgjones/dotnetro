@@ -5,233 +5,242 @@ using Irie.Passes;
 using Irie.Target;
 using Irie.Target.MOS6502;
 
-var inputArgument = new Argument<string?>("input")
+return Program.Run(args, Console.OpenStandardInput(), Console.OpenStandardOutput());
+
+partial class Program
 {
-    Description = "Path to the input MIR file, or - for stdin",
-    Arity = ArgumentArity.ZeroOrOne,
-};
-
-var targetOption = new Option<string>("--target") { Description = "Target architecture ('mos6502', 'mos6502-bbcmicro' or 'mos6502-c64')" };
-
-var stopAfter = new Option<string>("--stop-after") { Description = "Stop after the specified pass (for debugging)" };
-
-var startAt = new Option<string>("--start-at") { Description = "Start at the specified pass (skips earlier passes)" };
-
-var runPass = new Option<string>("--run-pass") { Description = "Run only the specified pass (shorthand for --start-at X --stop-after X); use 'none' to parse and reprint with no passes" };
-
-var emitOption = new Option<string>("--emit") { Description = "Output form: 'mir' (default) writes post-pipeline MIR text; 'asm' writes target assembly text; 'mc' writes structured MachineCode binary to stdout; 'bin' writes flat machine-code bytes (optionally packaged by the target) to stdout" };
-
-var printAfterAll = new Option<bool>("--print-after-all") { Description = "Print the MIR to stderr after every pass (for debugging)" };
-
-var printChanged = new Option<bool>("--print-changed") { Description = "Like --print-after-all, but print to stderr only after a pass that changed the MIR" };
-
-var beamWidthOption = new Option<int?>("--beam-width")
-{
-    Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
-};
-
-var chooseConventionsOption = new Option<bool>("--choose-conventions")
-{
-    Description = "Let the placement of a function that is only called directly choose which of A and X its arguments arrive in and its results leave in (default: every function uses the default calling convention)",
-};
-
-var tuneOption = new Option<string?>("--tune")
-{
-    Description = "Placement search knobs, comma separated: beam=N (0 keeps every state: the oracle), size-weight=N, speed-weight=N, lookahead=N, freq-base=N, choose-conventions",
-};
-
-var optimizeSizeOption = new Option<bool>("--optimize-size") { Description = "Weigh bytes over cycles in the placement search (size-weight=8, speed-weight=1)" };
-
-var optimizeSpeedOption = new Option<bool>("--optimize-speed") { Description = "Weigh cycles over bytes in the placement search (size-weight=1, speed-weight=8)" };
-
-var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
-
-var originOption = new Option<string?>("--origin")
-{
-    Description = "Origin (load address) for --emit=bin, as hex (0x1900) or decimal. " +
-                  "Defaults to the target's DefaultOrigin if specified."
-};
-
-var rootCommand = new RootCommand("Irie lowering tool — translates MIR to target machine code");
-rootCommand.Arguments.Add(inputArgument);
-rootCommand.Options.Add(targetOption);
-rootCommand.Options.Add(stopAfter);
-rootCommand.Options.Add(startAt);
-rootCommand.Options.Add(runPass);
-rootCommand.Options.Add(emitOption);
-rootCommand.Options.Add(originOption);
-rootCommand.Options.Add(beamWidthOption);
-rootCommand.Options.Add(chooseConventionsOption);
-rootCommand.Options.Add(tuneOption);
-rootCommand.Options.Add(optimizeSizeOption);
-rootCommand.Options.Add(optimizeSpeedOption);
-rootCommand.Options.Add(statsOption);
-rootCommand.Options.Add(printAfterAll);
-rootCommand.Options.Add(printChanged);
-
-rootCommand.SetAction(parseResult =>
-{
-    var input         = parseResult.GetValue(inputArgument);
-    var targetName    = parseResult.GetValue(targetOption) ?? "mos6502";
-    var runPassName   = parseResult.GetValue(runPass);
-    var stopAfterPass = runPassName ?? parseResult.GetValue(stopAfter);
-    var startAtPass   = runPassName ?? parseResult.GetValue(startAt);
-    var emit          = parseResult.GetValue(emitOption) ?? "mir";
-    var printAll      = parseResult.GetValue(printAfterAll);
-    var printDiff     = parseResult.GetValue(printChanged);
-
-    var inputReader = (input == null || input == "-")
-        ? Console.In
-        : new StreamReader(input);
-
-    Target target = targetName switch
+    public static int Run(string[] args, Stream stdin, Stream stdout)
     {
-        "mos6502"          => new MOS6502Target(),
-        "mos6502-bbcmicro" => new MOS6502BbcMicroTarget(),
-        "mos6502-c64"      => new MOS6502C64Target(),
-        _ => throw new ArgumentException($"Unknown --target '{targetName}'."),
-    };
-
-    var module = MirModule.Parse(inputReader);
-    var context = new CompilationContext(module);
-
-    var passMgr = new PassManager(stopAfterPass, startAtPass);
-    PipelineBuilder.AddStandardPipeline(passMgr, target,
-        PlacementTuningCli.Resolve(parseResult.GetValue(tuneOption), parseResult.GetValue(optimizeSizeOption), parseResult.GetValue(optimizeSpeedOption), parseResult.GetValue(beamWidthOption), parseResult.GetValue(chooseConventionsOption)));
-
-    if (printAll || printDiff)
-    {
-        string Render()
+        var inputArgument = new Argument<string?>("input")
         {
-            var sw = new StringWriter();
-            module.Write(sw, target.GetRegisterName);
-            return sw.ToString();
-        }
+            Description = "Path to the input MIR file, or - for stdin",
+            Arity = ArgumentArity.ZeroOrOne,
+        };
 
-        var previous = printDiff ? Render() : null;
+        var targetOption = new Option<string>("--target") { Description = "Target architecture ('mos6502', 'mos6502-bbcmicro' or 'mos6502-c64')" };
 
-        passMgr.AfterEachPass = (pass, _) =>
+        var stopAfter = new Option<string>("--stop-after") { Description = "Stop after the specified pass (for debugging)" };
+
+        var startAt = new Option<string>("--start-at") { Description = "Start at the specified pass (skips earlier passes)" };
+
+        var runPass = new Option<string>("--run-pass") { Description = "Run only the specified pass (shorthand for --start-at X --stop-after X); use 'none' to parse and reprint with no passes" };
+
+        var emitOption = new Option<string>("--emit") { Description = "Output form: 'mir' (default) writes post-pipeline MIR text; 'asm' writes target assembly text; 'mc' writes structured MachineCode binary to stdout; 'bin' writes flat machine-code bytes (optionally packaged by the target) to stdout" };
+
+        var printAfterAll = new Option<bool>("--print-after-all") { Description = "Print the MIR to stderr after every pass (for debugging)" };
+
+        var printChanged = new Option<bool>("--print-changed") { Description = "Like --print-after-all, but print to stderr only after a pass that changed the MIR" };
+
+        var beamWidthOption = new Option<int?>("--beam-width")
         {
-            var current = Render();
-            var changed = current != previous;
-            previous = current;
+            Description = "States the placement search keeps per operation (default 8; 1 is a greedy placement)",
+        };
 
-            // --print-changed (without --print-after-all) lists every pass but
-            // only dumps the MIR for passes that changed it; unchanged passes
-            // collapse to a one-line marker, mirroring clang's -print-changed so
-            // the full pass order stays visible. --print-after-all always dumps.
-            if (printDiff && !printAll && !changed)
+        var chooseConventionsOption = new Option<bool>("--choose-conventions")
+        {
+            Description = "Let the placement of a function that is only called directly choose which of A and X its arguments arrive in and its results leave in (default: every function uses the default calling convention)",
+        };
+
+        var tuneOption = new Option<string?>("--tune")
+        {
+            Description = "Placement search knobs, comma separated: beam=N (0 keeps every state: the oracle), size-weight=N, speed-weight=N, lookahead=N, freq-base=N, choose-conventions",
+        };
+
+        var optimizeSizeOption = new Option<bool>("--optimize-size") { Description = "Weigh bytes over cycles in the placement search (size-weight=8, speed-weight=1)" };
+
+        var optimizeSpeedOption = new Option<bool>("--optimize-speed") { Description = "Weigh cycles over bytes in the placement search (size-weight=1, speed-weight=8)" };
+
+        var statsOption = new Option<bool>("--stats") { Description = "Print what the passes report about the program (zero-page use, …) to stderr" };
+
+        var originOption = new Option<string?>("--origin")
+        {
+            Description = "Origin (load address) for --emit=bin, as hex (0x1900) or decimal. " +
+                          "Defaults to the target's DefaultOrigin if specified."
+        };
+
+        var rootCommand = new RootCommand("Irie lowering tool — translates MIR to target machine code");
+        rootCommand.Arguments.Add(inputArgument);
+        rootCommand.Options.Add(targetOption);
+        rootCommand.Options.Add(stopAfter);
+        rootCommand.Options.Add(startAt);
+        rootCommand.Options.Add(runPass);
+        rootCommand.Options.Add(emitOption);
+        rootCommand.Options.Add(originOption);
+        rootCommand.Options.Add(beamWidthOption);
+        rootCommand.Options.Add(chooseConventionsOption);
+        rootCommand.Options.Add(tuneOption);
+        rootCommand.Options.Add(optimizeSizeOption);
+        rootCommand.Options.Add(optimizeSpeedOption);
+        rootCommand.Options.Add(statsOption);
+        rootCommand.Options.Add(printAfterAll);
+        rootCommand.Options.Add(printChanged);
+
+        rootCommand.SetAction(parseResult =>
+        {
+            var input         = parseResult.GetValue(inputArgument);
+            var targetName    = parseResult.GetValue(targetOption) ?? "mos6502";
+            var runPassName   = parseResult.GetValue(runPass);
+            var stopAfterPass = runPassName ?? parseResult.GetValue(stopAfter);
+            var startAtPass   = runPassName ?? parseResult.GetValue(startAt);
+            var emit          = parseResult.GetValue(emitOption) ?? "mir";
+            var printAll      = parseResult.GetValue(printAfterAll);
+            var printDiff     = parseResult.GetValue(printChanged);
+
+            var inputReader = (input == null || input == "-")
+                ? Console.In
+                : new StreamReader(input);
+
+            Target target = targetName switch
             {
-                Console.Error.WriteLine($"; *** MIR Dump After {pass.Name} omitted because no change ***");
-                return;
+                "mos6502"          => new MOS6502Target(),
+                "mos6502-bbcmicro" => new MOS6502BbcMicroTarget(),
+                "mos6502-c64"      => new MOS6502C64Target(),
+                _ => throw new ArgumentException($"Unknown --target '{targetName}'."),
+            };
+
+            var module = MirModule.Parse(inputReader);
+            var context = new CompilationContext(module);
+
+            var passMgr = new PassManager(stopAfterPass, startAtPass);
+            PipelineBuilder.AddStandardPipeline(passMgr, target,
+                PlacementTuningCli.Resolve(parseResult.GetValue(tuneOption), parseResult.GetValue(optimizeSizeOption), parseResult.GetValue(optimizeSpeedOption), parseResult.GetValue(beamWidthOption), parseResult.GetValue(chooseConventionsOption)));
+
+            if (printAll || printDiff)
+            {
+                string Render()
+                {
+                    var sw = new StringWriter();
+                    module.Write(sw, target.GetRegisterName);
+                    return sw.ToString();
+                }
+
+                var previous = printDiff ? Render() : null;
+
+                passMgr.AfterEachPass = (pass, _) =>
+                {
+                    var current = Render();
+                    var changed = current != previous;
+                    previous = current;
+
+                    // --print-changed (without --print-after-all) lists every pass but
+                    // only dumps the MIR for passes that changed it; unchanged passes
+                    // collapse to a one-line marker, mirroring clang's -print-changed so
+                    // the full pass order stays visible. --print-after-all always dumps.
+                    if (printDiff && !printAll && !changed)
+                    {
+                        Console.Error.WriteLine($"; *** MIR Dump After {pass.Name} omitted because no change ***");
+                        return;
+                    }
+
+                    Console.Error.WriteLine($"; *** MIR Dump After {pass.Name} ***");
+                    Console.Error.Write(current);
+                    if (!current.EndsWith('\n'))
+                        Console.Error.WriteLine();
+                };
             }
 
-            Console.Error.WriteLine($"; *** MIR Dump After {pass.Name} ***");
-            Console.Error.Write(current);
-            if (!current.EndsWith('\n'))
-                Console.Error.WriteLine();
-        };
+            passMgr.Run(context);
+
+            if (parseResult.GetValue(statsOption))
+                foreach (var (name, value) in context.Statistics.OrderBy(s => s.Key))
+                    Console.Error.WriteLine($"{name}: {value}");
+
+            switch (emit)
+            {
+                case "mir":
+                    module.Write(Console.Out, target.GetRegisterName);
+                    break;
+                case "asm":
+                {
+                    var mc = target.MachineCodeEmitter.Emit(module);
+                    // MOS6502 is the only target today; if a second target lands this
+                    // hardcoded writer choice becomes a switch on targetName.
+                    MOS6502AssemblyWriter.Write(mc, Console.Out);
+                    break;
+                }
+                case "mc":
+                {
+                    var mc = target.MachineCodeEmitter.Emit(module);
+                    using var bw = new BinaryWriter(stdout, Encoding.UTF8, leaveOpen: true);
+                    mc.Write(bw);
+                    break;
+                }
+                case "bin":
+                {
+                    var originValue = ResolveOrigin(parseResult.GetValue(originOption), target.DefaultOrigin);
+                    var bytes  = target.BuildProgram(module, originValue);
+                    var image  = target.PackageImage(bytes, originValue);
+                    stdout.Write(image, 0, image.Length);
+                    stdout.Flush();
+                    break;
+                }
+                default:
+                    throw new ArgumentException($"Unknown --emit '{emit}' (expected 'mir', 'asm', 'mc', or 'bin').");
+            }
+
+            if (inputReader != Console.In)
+                inputReader.Dispose();
+        });
+
+        return rootCommand.Parse(args).InvokeAsync().GetAwaiter().GetResult();
     }
 
-    passMgr.Run(context);
 
-    if (parseResult.GetValue(statsOption))
-        foreach (var (name, value) in context.Statistics.OrderBy(s => s.Key))
-            Console.Error.WriteLine($"{name}: {value}");
-
-    switch (emit)
+    static int ResolveOrigin(string? originText, int? defaultOrigin)
     {
-        case "mir":
-            module.Write(Console.Out, target.GetRegisterName);
-            break;
-        case "asm":
+        if (originText != null)
+            return ParseOrigin(originText);
+        if (defaultOrigin is int d)
+            return d;
+        throw new ArgumentException("--origin is required for --emit=bin with this target (no default origin).");
+    }
+
+    static int ParseOrigin(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            throw new ArgumentException($"--origin value is empty.");
+
+        var s = text.Trim();
+        int @base;
+        string digits;
+
+        if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
         {
-            var mc = target.MachineCodeEmitter.Emit(module);
-            // MOS6502 is the only target today; if a second target lands this
-            // hardcoded writer choice becomes a switch on targetName.
-            MOS6502AssemblyWriter.Write(mc, Console.Out);
-            break;
+            @base = 16;
+            digits = s[2..];
         }
-        case "mc":
+        else if (s.StartsWith('$'))
         {
-            var mc = target.MachineCodeEmitter.Emit(module);
-            using var bw = new BinaryWriter(Console.OpenStandardOutput(), Encoding.UTF8, leaveOpen: true);
-            mc.Write(bw);
-            break;
+            @base = 16;
+            digits = s[1..];
         }
-        case "bin":
+        else
         {
-            var originValue = ResolveOrigin(parseResult.GetValue(originOption), target.DefaultOrigin);
-            var bytes  = target.BuildProgram(module, originValue);
-            var image  = target.PackageImage(bytes, originValue);
-            using var stdout = Console.OpenStandardOutput();
-            stdout.Write(image, 0, image.Length);
-            break;
+            @base = 10;
+            digits = s;
         }
-        default:
-            throw new ArgumentException($"Unknown --emit '{emit}' (expected 'mir', 'asm', 'mc', or 'bin').");
+
+        if (digits.Length == 0)
+            throw new ArgumentException($"--origin value '{text}' has no digits after the prefix.");
+
+        try
+        {
+            return Convert.ToInt32(digits, @base);
+        }
+        catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException)
+        {
+            throw new ArgumentException($"--origin value '{text}' is not a valid integer.", ex);
+        }
     }
 
-    if (inputReader != Console.In)
-        inputReader.Dispose();
-});
-
-return await rootCommand.Parse(args).InvokeAsync();
-
-static int ResolveOrigin(string? originText, int? defaultOrigin)
-{
-    if (originText != null)
-        return ParseOrigin(originText);
-    if (defaultOrigin is int d)
-        return d;
-    throw new ArgumentException("--origin is required for --emit=bin with this target (no default origin).");
-}
-
-static int ParseOrigin(string text)
-{
-    if (string.IsNullOrWhiteSpace(text))
-        throw new ArgumentException($"--origin value is empty.");
-
-    var s = text.Trim();
-    int @base;
-    string digits;
-
-    if (s.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+    static class PlacementTuningCli
     {
-        @base = 16;
-        digits = s[2..];
-    }
-    else if (s.StartsWith('$'))
-    {
-        @base = 16;
-        digits = s[1..];
-    }
-    else
-    {
-        @base = 10;
-        digits = s;
-    }
-
-    if (digits.Length == 0)
-        throw new ArgumentException($"--origin value '{text}' has no digits after the prefix.");
-
-    try
-    {
-        return Convert.ToInt32(digits, @base);
-    }
-    catch (Exception ex) when (ex is FormatException or OverflowException or ArgumentException)
-    {
-        throw new ArgumentException($"--origin value '{text}' is not a valid integer.", ex);
-    }
-}
-
-static class PlacementTuningCli
-{
-    /// <summary>--tune is applied over the presets, and --beam-width and --choose-conventions over it.</summary>
-    public static Irie.Target.PlacementTuning Resolve(string? tune, bool size, bool speed, int? beamWidth, bool chooseConventions)
-    {
-        var tuning = size ? Irie.Target.PlacementTuning.Size : speed ? Irie.Target.PlacementTuning.Speed : new Irie.Target.PlacementTuning();
-        tuning = Irie.Target.PlacementTuning.Parse(tune, tuning);
-        return tuning with { BeamWidth = beamWidth ?? tuning.BeamWidth, ChooseConventions = tuning.ChooseConventions || chooseConventions };
+        /// <summary>--tune is applied over the presets, and --beam-width and --choose-conventions over it.</summary>
+        public static Irie.Target.PlacementTuning Resolve(string? tune, bool size, bool speed, int? beamWidth, bool chooseConventions)
+        {
+            var tuning = size ? Irie.Target.PlacementTuning.Size : speed ? Irie.Target.PlacementTuning.Speed : new Irie.Target.PlacementTuning();
+            tuning = Irie.Target.PlacementTuning.Parse(tune, tuning);
+            return tuning with { BeamWidth = beamWidth ?? tuning.BeamWidth, ChooseConventions = tuning.ChooseConventions || chooseConventions };
+        }
     }
 }

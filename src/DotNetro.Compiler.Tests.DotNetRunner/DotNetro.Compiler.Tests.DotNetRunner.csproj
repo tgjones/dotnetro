@@ -8,4 +8,8 @@
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotLit\DotLit.csproj" />
+  </ItemGroup>
+
 </Project>

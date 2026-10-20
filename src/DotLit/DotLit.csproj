@@ -10,4 +10,8 @@
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotLit.Tests" />
+  </ItemGroup>
+
 </Project>
