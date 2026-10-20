@@ -17,24 +17,48 @@ public readonly struct Boolean
     public override int GetHashCode() => m_value ? 1 : 0;
 }
 
-public readonly struct Byte { private readonly byte m_value; }
+public readonly struct Byte
+{
+    private readonly byte m_value;
+
+    public override string ToString() => Int32.Format(m_value);
+}
 
 public readonly struct SByte { private readonly sbyte m_value; }
 
-public readonly struct Int16 { private readonly short m_value; }
+public readonly struct Int16
+{
+    private readonly short m_value;
+
+    public override string ToString() => Int32.Format(m_value);
+}
 
 public readonly struct UInt16 { private readonly ushort m_value; }
 
-public readonly struct Char { private readonly char m_value; }
+public readonly struct Char
+{
+    private readonly char m_value;
+
+    /// <summary>A one-character string; a character above 0xFF becomes '?', as in `ldstr`.</summary>
+    public override unsafe string ToString()
+    {
+        var result = String.AllocateString(1);
+        *result.GetChars() = m_value > 0xFF ? (byte)'?' : (byte)m_value;
+        return result;
+    }
+}
 
 public readonly struct Int32
 {
     private readonly int m_value;
 
-    public override unsafe string ToString()
+    public override string ToString() => Format(m_value);
+
+    /// <summary>The decimal text of `value`; also used by Byte and Int16, which widen to int.</summary>
+    internal static unsafe string Format(int value)
     {
-        var negative = m_value < 0;
-        var magnitude = negative ? (uint)-m_value : (uint)m_value;
+        var negative = value < 0;
+        var magnitude = negative ? (uint)-value : (uint)value;
 
         var digits = 1;
         for (var rest = magnitude; rest >= 10; rest /= 10)

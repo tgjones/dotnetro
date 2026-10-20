@@ -110,10 +110,17 @@ public sealed class String
             return p;
     }
 
-    private static nint LengthOf(string value) => (object)value == null ? 0 : value._length;
+    /// <summary>Lowers the length to `length` (at most the current one) and re-terminates the string.</summary>
+    internal unsafe void Trim(nint length)
+    {
+        _length = (ushort)length;
+        GetChars()[length] = 0;
+    }
 
-    /// <summary>Copies the characters of `value` (null is empty) to `destination`; returns the address after them.</summary>
-    private static unsafe byte* Append(byte* start, string value)
+    internal static nint LengthOf(string value) => (object)value == null ? 0 : value._length;
+
+    /// <summary>Copies the characters of `value` (null is empty) to `start`; returns the address after them.</summary>
+    internal static unsafe byte* Append(byte* start, string value)
     {
         var destination = start;
         if ((object)value != null)

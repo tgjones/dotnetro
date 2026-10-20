@@ -89,22 +89,22 @@ code reached via a struct instance call*), fix it in the generics machinery, not
 
 ## Stages
 
-- [ ] **I0 – failing test.** Add `src/DotNetro.Compiler.Tests/Lit/InterpolatedString.cs` with the standard
+- [x] **I0 – failing test.** Add `src/DotNetro.Compiler.Tests/Lit/InterpolatedString.cs` with the standard
       `RUN-dotnet` / `RUN-emulated` / `RUN-emulated-c64` and the two `DIFF` lines. Start with the issue's example
       (`i = 0`); confirm it fails with the error above before any change.
-- [ ] **I1 – `ToString` for `Byte`, `Int16`, `Char`.** Shared digit helper on `Int32`; a small lit test
+- [x] **I1 – `ToString` for `Byte`, `Int16`, `Char`.** Shared digit helper on `Int32`; a small lit test
       (`ToStringPrimitives.cs`) calling `.ToString()` on each of int/short/byte/char/bool, incl. negatives and
       min/max values (`short.MinValue`, `byte.MaxValue`).
-- [ ] **I2 – handler skeleton.** `String` trim and shared-copy helpers; the handler type with ctor,
+- [x] **I2 – handler skeleton.** `String` trim and shared-copy helpers; the handler type with ctor,
       `AppendLiteral`, `AppendFormatted(string)`, `ToStringAndClear`, no generic yet. Test: string-only
       interpolation (`$"a{s}b{t}"`).
-- [ ] **I3 – generic `AppendFormatted<T>`.** The issue's example passes; then int (positive, negative, zero,
+- [x] **I3 – generic `AppendFormatted<T>`.** The issue's example passes; then int (positive, negative, zero,
       `int.MinValue`), bool, char, short, byte holes.
-- [ ] **I4 – edge cases.** Null `string` hole; several holes in a row and holes at the very start/end; a hole whose
+- [x] **I4 – edge cases.** Null `string` hole; several holes in a row and holes at the very start/end; a hole whose
       value is a method call or expression; an empty literal; a result longer than the size hint (a long `string`
       hole forces the growth path); the same interpolation in a loop (heap use grows per iteration, no GC: keep
       the iteration count small); an interpolated string passed as an argument (`Print($"…")`).
-- [ ] **I5 – verify and document.**
+- [x] **I5 – verify and document.**
       - `dotnet test --solution src` in Debug and Release. The lit tests run Roslyn in Debug and optimised
         modes, so both IL shapes (the Release `constrained.` form in particular) are covered.
       - Size check with `notes/measure-lit-sizes.sh`: `HelloWorld` and every existing test must not grow (the
