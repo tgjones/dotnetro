@@ -140,7 +140,7 @@ public sealed class InliningPass : Pass
     }
 
     /// <summary>Only generic dialect operations on typed vregs: nothing a target already lowered.</summary>
-    private static bool IsPlainGeneric(MirFunction function)
+    internal static bool IsPlainGeneric(MirFunction function)
     {
         foreach (var block in function.Blocks)
         {

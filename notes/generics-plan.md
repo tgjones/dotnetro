@@ -163,9 +163,16 @@ currently throw); that gets its own plan, after G3. Generics make it more tracta
       returns `default` (no exceptions yet). `box` / `unbox.any` of
       `Nullable<T>` follow the CLR (null when empty, else the boxed `T`), covered by `NullableBoxing`;
       `Console.WriteLine(object)` was added so a boxed `int?` can be printed.
-- [ ] **G5 – code size.** Count instantiated bodies on a `List<T>`-heavy sample; implement MIR-level ICF
+- [~] **G5 – code size.** Count instantiated bodies on a `List<T>`-heavy sample; implement MIR-level ICF
       (hash the printed body with its own name normalised; redirect call sites/vtable slots/`ldftn` to the
       survivor); only consider canonical sharing if the numbers say ICF isn't enough.
+      *Done:* `IdenticalFunctionFoldingPass` (Irie), always on, before inlining: structural hash of the MIR
+      (vregs numbered by first appearance, callees through their fold target), full lockstep comparison inside
+      a bucket, iterated to a fixpoint so callers of folded callees fold too; redirects calls, `mem.symbol` and
+      vtable slots. Lit: `FunctionFolding-Basic.irie`, `GenericFolding.cs`. Measured on a `Stack<T>` over three
+      classes and `string` (each method called twice): 2795 -> 1492 asm lines, 16 functions folded; across the
+      existing lit corpus the saving is ~0.3%. Not done: counting instantiations on a larger `List<T>`-heavy
+      sample, and deciding about canonical sharing (needs that sample).
 
 ## Risks
 

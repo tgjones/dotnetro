@@ -10,7 +10,7 @@ namespace Irie.Passes;
 /// The stages, in order (each pass documents itself; the comments below say why the
 /// order matters):
 ///   1. Generic SSA clean-up and verification: GenericMirVerifierPass,
-///      ArithSimplifyPass, InliningPass, RangeNarrowingPass, RangeFoldPass, ArithSimplifyPass (again, on the constants RangeFold made),
+///      ArithSimplifyPass, IdenticalFunctionFoldingPass, InliningPass, RangeNarrowingPass, RangeFoldPass, ArithSimplifyPass (again, on the constants RangeFold made),
 ///      ConstantBranchFoldPass,
 ///      UnreachableBlockEliminationPass,
 ///      SinglePredecessorBlockParamsPass, HoistCommonCodePass,
@@ -38,6 +38,9 @@ public static class PipelineBuilder
     {
         passMgr.AddPass(new GenericMirVerifierPass());
         passMgr.AddPass(new ArithSimplifyPass());
+        // Fold identical functions before inlining: the survivor of a fold has several callers, so it stays one
+        // shared body rather than a single-call-site function pasted into its caller (and then unfoldable).
+        passMgr.AddPass(new IdenticalFunctionFoldingPass());
         // Inline before range analysis, so values are narrowed in the context of their caller.
         passMgr.AddPass(new InliningPass());
         passMgr.AddPass(new RangeNarrowingPass());
