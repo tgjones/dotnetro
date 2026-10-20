@@ -498,7 +498,11 @@ internal sealed class IlToMirTranslator : IDisposable
             .ToArray();
         var returnType = ToIRType(method.MethodSignature.ReturnType);
 
-        var function = new MirFunction(method.UniqueName, paramTypes, returnType);
+        var function = new MirFunction(method.UniqueName, paramTypes, returnType) 
+        {
+            NoInline = method.IsNoInlining,
+            AlwaysInline = method.IsAggressiveInlining,
+        };
         var methodTranslator = new MethodTranslator(this, method, function);
         methodTranslator.Translate();
         return function;

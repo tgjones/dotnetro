@@ -133,7 +133,7 @@ public sealed class InliningPass : Pass
             || !IsPlainGeneric(callee))
             return false;
 
-        if (callSites[calleeIndex] == 1 && !graph.AddressTaken[calleeIndex])
+        if (callee.AlwaysInline || callSites[calleeIndex] == 1 && !graph.AddressTaken[calleeIndex])
             return true;
 
         return callee.Blocks.Count <= MaxSharedBodyBlocks && LiveCost(callee) <= MaxSharedBodyCost;

@@ -103,7 +103,7 @@ internal sealed class MirWriter
     private void WriteFunction(MirFunction function, TextWriter writer)
     {
         var paramStr = string.Join(", ", function.ParameterTypes.Select(FormatType));
-        writer.WriteLine($"func {(function.NoInline ? "noinline " : "")}@{function.Name} : ({paramStr}) -> {FormatType(function.ReturnType)} {{");
+        writer.WriteLine($"func {(function.AlwaysInline ? "alwaysinline " : "")}{(function.NoInline ? "noinline " : "")}@{function.Name} : ({paramStr}) -> {FormatType(function.ReturnType)} {{");
 
         foreach (var slot in function.FrameSlots)
         {

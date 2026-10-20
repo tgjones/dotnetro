@@ -1,0 +1,76 @@
+; RUN: @iriec --target mos6502 --run-pass Inlining @file
+
+; A callee with a loop and two call sites is too big to share by default; `alwaysinline` inlines it at both.
+func alwaysinline @SumTo : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = arith.constant 0
+    cf.br bb1(%1, %0)
+bb1(%2 : i16, %3 : i16):
+    %4 : i16 = arith.constant 0
+    %5 : i1 = arith.cmpi eq, %3, %4
+    cf.cond_br %5, bb3, bb2
+bb2():
+    %6 : i16 = arith.addi %2, %3
+    %7 : i16 = arith.constant 1
+    %8 : i16 = arith.subi %3, %7
+    cf.br bb1(%6, %8)
+bb3():
+    core.return %2
+}
+
+func @TwoCalls : (i16, i16) -> i16 {
+bb0(%0 : i16, %1 : i16):
+    %2 : i16 = call.func @SumTo, %0
+    %3 : i16 = call.func @SumTo, %1
+    %4 : i16 = arith.addi %2, %3
+    core.return %4
+}
+
+; `noinline` wins over `alwaysinline`.
+func noinline alwaysinline @Kept : (i16) -> i16 {
+bb0(%0 : i16):
+    core.return %0
+}
+
+func @CallsKept : (i16) -> i16 {
+bb0(%0 : i16):
+    %1 : i16 = call.func @Kept, %0
+    core.return %1
+}
+
+; CHECK: func @TwoCalls : (i16, i16) -> i16 {
+; CHECK: bb0(%0 : i16, %1 : i16):
+; CHECK:     %6 : i16 = arith.constant 0
+; CHECK:     cf.br bb1(%6, %0)
+; CHECK: bb1(%7 : i16, %8 : i16):
+; CHECK:     %9 : i16 = arith.constant 0
+; CHECK:     %10 : i1 = arith.cmpi eq, %8, %9
+; CHECK:     cf.cond_br %10, bb3, bb2
+; CHECK: bb2():
+; CHECK:     %11 : i16 = arith.addi %7, %8
+; CHECK:     %12 : i16 = arith.constant 1
+; CHECK:     %13 : i16 = arith.subi %8, %12
+; CHECK:     cf.br bb1(%11, %13)
+; CHECK: bb3():
+; CHECK:     %15 : i16 = arith.constant 0
+; CHECK:     cf.br bb4(%15, %1)
+; CHECK: bb4(%16 : i16, %17 : i16):
+; CHECK:     %18 : i16 = arith.constant 0
+; CHECK:     %19 : i1 = arith.cmpi eq, %17, %18
+; CHECK:     cf.cond_br %19, bb6, bb5
+; CHECK: bb5():
+; CHECK:     %20 : i16 = arith.addi %16, %17
+; CHECK:     %21 : i16 = arith.constant 1
+; CHECK:     %22 : i16 = arith.subi %17, %21
+; CHECK:     cf.br bb4(%20, %22)
+; CHECK: bb6():
+; CHECK:     %4 : i16 = arith.addi %7, %16
+; CHECK:     core.return %4
+; CHECK: }
+; CHECK:
+; CHECK: func alwaysinline noinline @Kept : (i16) -> i16 {
+; CHECK: bb0(%0 : i16):
+; CHECK:     core.return %0
+; CHECK: }
+; CHECK:
+; CHECK: func @CallsKept : (i16) -> i16 {

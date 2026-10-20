@@ -29,6 +29,14 @@ public sealed class MirFunction(string name, IRType[] paramTypes, IRType returnT
     public bool NoInline { get; set; }
 
     /// <summary>
+    /// `func alwaysinline @f`: the InliningPass inlines every direct call to the function whatever its
+    /// size or call-site count, as long as inlining it is possible at all (not recursive, not
+    /// address-taken-only, plain generic body). Ignored when <see cref="NoInline"/> is set.
+    /// Not part of the binary format.
+    /// </summary>
+    public bool AlwaysInline { get; set; }
+
+    /// <summary>
     /// Interprocedural property set by ReentrancyAnalysis: true iff this function
     /// can never be active on the call stack more than once at a time (its call-
     /// graph SCC is a singleton, it doesn't self-recurse, and it isn't reachable

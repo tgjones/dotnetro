@@ -71,6 +71,20 @@ internal sealed class EcmaMethod
     public bool IsInternalCall =>
         MethodDefinition.ImplAttributes.HasFlag(MethodImplAttributes.InternalCall);
 
+    /// <summary>
+    /// [MethodImpl(MethodImplOptions.NoInlining)]: the translator marks the MIR function
+    /// `noinline`, so the Irie InliningPass leaves it a callable unit of its own.
+    /// </summary>
+    public bool IsNoInlining =>
+        MethodDefinition.ImplAttributes.HasFlag(MethodImplAttributes.NoInlining);
+
+    /// <summary>
+    /// [MethodImpl(MethodImplOptions.AggressiveInlining)]: the translator marks the MIR function
+    /// `alwaysinline`, so the InliningPass inlines every direct call to it where it can.
+    /// </summary>
+    public bool IsAggressiveInlining =>
+        MethodDefinition.ImplAttributes.HasFlag(MethodImplAttributes.AggressiveInlining);
+
     public EcmaMethod(EcmaType declaringType, in MethodDefinition methodDefinition)
     {
         DeclaringType = declaringType;
