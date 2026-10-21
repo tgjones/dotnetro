@@ -67,9 +67,9 @@ rewritten to its absolute twin (`lda.zp` to `lda.abs`, …).
 
 `libcalls.s` is hand-written MOS6502 assembly, an embedded resource parsed at use by
 `MOS6502AssemblyParser` (`__rcN` names imaginary register N). It holds the multiply,
-divide/remainder and variable-shift routines the legalizer calls; its header states the
+divide/remainder, variable-shift, `memcpy` and `memset` routines the legalizer calls (`mem.copy` and `mem.set`, the run-time-count block copy and fill of IL `cpblk` / `initblk`, become calls); its header states the
 register contract. `Target.EmitProgram` links in the routines a program references.
-`Lit/CodeGen/MOS6502/Libcalls-Exec.irie` runs every routine against the interpreter.
+`Lit/CodeGen/MOS6502/Libcalls-Exec.irie` (and `MemCopy-Exec.irie` / `MemSet-Exec.irie`) run the routines against the interpreter.
 
 ## Tests
 

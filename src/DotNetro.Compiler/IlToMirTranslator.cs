@@ -59,6 +59,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
     /// <summary>Cached vtable layouts (slot index → method to dispatch). See GetVtableLayout.</summary>
     private readonly Dictionary<EcmaType, List<EcmaMethod>> _vtableLayouts = [];
+    private readonly Dictionary<string, MirFunction> _delegateThunks = [];
 
     /// <summary>
     /// Types whose static fields are touched (ldsfld/stsfld); their `.cctor`
@@ -133,6 +134,8 @@ internal sealed class IlToMirTranslator : IDisposable
         // once the static-constructor list is known.
         module.Functions.Insert(0, BuildEntryFunction(entryPointMethod, startupMethod));
 
+        module.Functions.AddRange(_delegateThunks.Values);
+
         // Append the runtime functions (the indirect-call trampoline, …).
         module.Functions.AddRange(runtimeModule.Functions);
 
@@ -147,6 +150,47 @@ internal sealed class IlToMirTranslator : IDisposable
     }
 
     internal void MarkTypeUsed(EcmaType type) => _usedTypes.Add(type);
+
+    /// <summary>
+    /// The symbol of a function that takes the delegate's target as an extra leading `this` and calls
+    /// the static method `target` without it, so a delegate over a static method is invoked like one
+    /// over an instance method (target first). Built on first request and added to the module.
+    /// </summary>
+    /// <remarks>
+    /// The extra argument is a ptr, which the callee's own arguments follow in the same registers a
+    /// direct call would give them after a leading ptr; the thunk shuffles them down.
+    /// </remarks>
+    internal string GetStaticDelegateThunk(EcmaMethod target)
+    {
+        var name = $"{target.UniqueName}_delegate_thunk";
+        if (!_delegateThunks.TryAdd(name, null!))
+            return name;
+
+        EnqueueMethod(target);
+        var sret = IsStruct(target.MethodSignature.ReturnType);
+        var returnType = ReturnIRType(target.MethodSignature.ReturnType);
+        var paramTypes = (sret ? [IRType.Pointer] : Array.Empty<IRType>())
+            .Append(IRType.Pointer)
+            .Concat(target.Parameters.Select(p => ParameterIRType(p.Type)))
+            .ToArray();
+
+        var function = new MirFunction(name, paramTypes, returnType);
+        var block = function.CreateBlock();
+        var builder = new MirBuilder(function);
+        var vregs = paramTypes.Select(t => function.CreateVirtualRegister(t)).ToArray();
+        block.Parameters.AddRange(vregs);
+        builder.SetInsertionPointAtEnd(block);
+
+        // Drop the `this` (after the struct-return pointer, if any).
+        var thisIndex = sret ? 1 : 0;
+        var callArgs = vregs.Where((_, i) => i != thisIndex).ToArray();
+        var defs = builder.BuildCall(target.UniqueName, returnType is VoidType ? [] : [returnType], callArgs);
+        builder.BuildInstruction(CoreDialect.OpRef(CoreOp.Return),
+            returnType is VoidType ? [] : [new VirtualReg(defs[0], IsDefinition: false)]);
+
+        _delegateThunks[name] = function;
+        return name;
+    }
 
     /// <summary>
     /// ManagedHeap.Alloc(IntPtr size, IntPtr vtablePtr) → IntPtr. Resolved on
@@ -184,6 +228,10 @@ internal sealed class IlToMirTranslator : IDisposable
                 [_typeSystemContext.IntPtr, _typeSystemContext.IntPtr]));
         return _allocArrayMethod;
     }
+
+    /// <summary>A static method of DotNetro.Runtime.ManagedHeap, by (unique) name.</summary>
+    internal EcmaMethod GetManagedHeapMethod(string name) =>
+        _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "ManagedHeap").GetMethod(name);
 
     /// <summary>
     /// DotNetro.Runtime.TypeCheck.&lt;name&gt;(object, vtable) → object, the run-time half of
@@ -357,7 +405,7 @@ internal sealed class IlToMirTranslator : IDisposable
             var hasInstances = _usedTypes.Contains(type);
             foreach (var method in slots)
             {
-                items.Add(hasInstances
+                items.Add(hasInstances && !method.IsRuntimeManaged
                     ? new DataSymbolRef(method.UniqueName)
                     : new DataBytes(new byte[PointerSize]));
             }
@@ -431,6 +479,27 @@ internal sealed class IlToMirTranslator : IDisposable
         return name;
     }
 
+    /// <summary>
+    /// Register the initial data of a field with a FieldRVA (the bytes of a constant array, as C#
+    /// puts them in `&lt;PrivateImplementationDetails&gt;`) as a global and return its symbol name.
+    /// </summary>
+    private string RegisterFieldDataGlobal(EcmaField field, int size)
+    {
+        var name = $"{field.Owner.EncodedName}_{field.Name}";
+        if (!_globals.ContainsKey(name))
+        {
+            var rva = field.Definition.GetRelativeVirtualAddress();
+            var bytes = field.Owner.Assembly.PEReader.GetSectionData(rva).GetContent(0, size).ToArray();
+            _globals[name] = new MirGlobal(
+                SymbolName:  name,
+                Type:        IRType.I8,
+                SizeInBytes: size,
+                Initializer: new MirInitializer([new DataBytes(bytes)]));
+        }
+
+        return name;
+    }
+
     private EcmaMethod? FindMethod(string methodName)
     {
         foreach (var methodDefinitionHandle in _rootAssemblyContext.MetadataReader.MethodDefinitions)
@@ -445,7 +514,7 @@ internal sealed class IlToMirTranslator : IDisposable
 
     private void EnqueueMethod(EcmaMethod method)
     {
-        if (_runtimeFunctionNames.Contains(method.UniqueName))
+        if (_runtimeFunctionNames.Contains(method.UniqueName) || method.IsRuntimeManaged)
             return;
         if (_visitedMethods.Add(method))
             _methodsToVisit.Enqueue(method);
@@ -470,7 +539,9 @@ internal sealed class IlToMirTranslator : IDisposable
         builder.BuildCall(startupMethod.UniqueName, []);
 
         // Run static constructors before Main (e.g. ManagedHeap's s_heapPtr). They are void and parameterless (.cctor).
-        foreach (var cctor in _staticConstructors)
+        // The heap's goes first, as any other static constructor may allocate.
+        var heapType = _typeSystemContext.RuntimeAssembly.GetType("DotNetro.Runtime", "ManagedHeap");
+        foreach (var cctor in _staticConstructors.OrderBy(c => c.DeclaringType == heapType ? 0 : 1))
             builder.BuildCall(cctor.UniqueName, []);
 
         // Top-level statements compile to `<Main>$(string[] args)`. The args
@@ -698,6 +769,12 @@ internal sealed class IlToMirTranslator : IDisposable
 
         /// <summary>The type of a pending `constrained.` prefix, consumed by the next callvirt.</summary>
         private EcmaType? _constrainedType;
+
+        /// <summary>The method each `ldftn` result vreg is the address of, so a delegate's newobj can tell a static target.</summary>
+        private readonly Dictionary<int, EcmaMethod> _ldftnMethods = [];
+
+        /// <summary>The vregs `ldnull` produced.</summary>
+        private readonly HashSet<int> _nullVregs = [];
         private bool[] _localIsFrameSlot = [];
 
         /// <summary>
@@ -848,7 +925,14 @@ internal sealed class IlToMirTranslator : IDisposable
                 _locals[i] = new StackValue(zero, _localTypes[i]);
             }
 
-            var ilReader = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            if (UsesLocalloc())
+            {
+                var mark = _parent.GetManagedHeapMethod("LocalAllocMark");
+                _parent.EnqueueMethod(mark);
+                _localAllocMark = _builder.BuildCall(mark.UniqueName, [IRType.Pointer])[0];
+            }
+
+            var ilReader = _method.MethodBody!.GetILReader();
             _currentBlock = entryBlock;
             _ilBlock = entryBlock;
 
@@ -896,6 +980,14 @@ internal sealed class IlToMirTranslator : IDisposable
                         ilReader.ReadByte();
                         break;
 
+                    // tail. prefix: the following call is in tail position, so
+                    // the caller's frame may be dropped. That is an optimisation
+                    // (it only bounds stack growth in deep recursion), so the
+                    // call is compiled as an ordinary call and the prefix needs
+                    // no translation.
+                    case ILOpCode.Tail:
+                        break;
+
                     // readonly. prefix on ldelema: the result is only read, so the
                     // array-covariance type check may be skipped. We emit no
                     // covariance check for ldelema, so it is a no-op.
@@ -909,7 +1001,9 @@ internal sealed class IlToMirTranslator : IDisposable
                         break;
 
                     case ILOpCode.Ldnull:
-                        _stack.Push(new StackValue(BuildZero(_builder, IRType.Pointer), IRType.Pointer));
+                        var nullVreg = BuildZero(_builder, IRType.Pointer);
+                        _nullVregs.Add(nullVreg);
+                        _stack.Push(new StackValue(nullVreg, IRType.Pointer));
                         break;
 
                     case ILOpCode.Ldc_i4_0: PushConstant(0); break;
@@ -953,15 +1047,19 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Stloc_2: TranslateStloc(2); break;
                     case ILOpCode.Stloc_3: TranslateStloc(3); break;
                     case ILOpCode.Stloc_s: TranslateStloc(ilReader.ReadByte()); break;
+                    case ILOpCode.Stloc: TranslateStloc(ilReader.ReadUInt16()); break;
 
                     case ILOpCode.Ldloc_0: TranslateLdloc(0); break;
                     case ILOpCode.Ldloc_1: TranslateLdloc(1); break;
                     case ILOpCode.Ldloc_2: TranslateLdloc(2); break;
                     case ILOpCode.Ldloc_3: TranslateLdloc(3); break;
                     case ILOpCode.Ldloc_s: TranslateLdloc(ilReader.ReadByte()); break;
+                    case ILOpCode.Ldloc: TranslateLdloc(ilReader.ReadUInt16()); break;
 
                     case ILOpCode.Ldloca_s: TranslateLdloca(ilReader.ReadByte()); break;
+                    case ILOpCode.Ldloca: TranslateLdloca(ilReader.ReadUInt16()); break;
                     case ILOpCode.Ldarga_s: TranslateLdarga(ilReader.ReadByte()); break;
+                    case ILOpCode.Ldarga: TranslateLdarga(ilReader.ReadUInt16()); break;
 
                     case ILOpCode.Ldfld:
                         TranslateLdfld(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
@@ -977,11 +1075,13 @@ internal sealed class IlToMirTranslator : IDisposable
                         break;
 
                     case ILOpCode.Starg_s: TranslateStarg(ilReader.ReadByte()); break;
+                    case ILOpCode.Starg: TranslateStarg(ilReader.ReadUInt16()); break;
                     case ILOpCode.Ldarg_0: TranslateLdarg(0); break;
                     case ILOpCode.Ldarg_1: TranslateLdarg(1); break;
                     case ILOpCode.Ldarg_2: TranslateLdarg(2); break;
                     case ILOpCode.Ldarg_3: TranslateLdarg(3); break;
                     case ILOpCode.Ldarg_s: TranslateLdarg(ilReader.ReadByte()); break;
+                    case ILOpCode.Ldarg: TranslateLdarg(ilReader.ReadUInt16()); break;
 
                     case ILOpCode.Br_s:
                         TranslateBr(_currentBlock, ilReader.ReadSByte() + ilReader.Offset);
@@ -1027,8 +1127,16 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateCalli(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
 
+                    case ILOpCode.Ldtoken:
+                        TranslateLdtoken(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+
                     case ILOpCode.Ldftn:
                         TranslateLdftn(MetadataTokens.Handle(ilReader.ReadInt32()));
+                        break;
+
+                    case ILOpCode.Ldvirtftn:
+                        TranslateLdvirtftn(MetadataTokens.Handle(ilReader.ReadInt32()));
                         break;
 
                     case ILOpCode.Newobj:
@@ -1045,8 +1153,33 @@ internal sealed class IlToMirTranslator : IDisposable
                     case ILOpCode.Stobj:
                         TranslateStobj(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
+                    case ILOpCode.Mkrefany:
+                        TranslateMkrefany(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Refanytype:
+                        TranslateRefanytype();
+                        break;
+                    case ILOpCode.Refanyval:
+                        TranslateRefanyval();
+                        ilReader.ReadInt32();
+                        break;
+                    case ILOpCode.Cpobj:
+                        TranslateCpobj(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
                     case ILOpCode.Box:
                         TranslateBox(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
+                        break;
+                    case ILOpCode.Localloc:
+                        TranslateLocalloc();
+                        break;
+                    case ILOpCode.Cpblk:
+                        TranslateCpblk();
+                        break;
+                    case ILOpCode.Initblk:
+                        TranslateInitblk();
+                        break;
+                    case ILOpCode.Unbox:
+                        TranslateUnbox(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
                         break;
                     case ILOpCode.Unbox_any:
                         TranslateUnboxAny(MetadataTokens.EntityHandle(ilReader.ReadInt32()));
@@ -1131,6 +1264,14 @@ internal sealed class IlToMirTranslator : IDisposable
                         TranslateRet();
                         break;
 
+                    // jmp <method>: transfer to the method with this method's incoming
+                    // arguments, which then returns to our caller. Compiled as a call
+                    // that forwards every argument followed by a return (no frame is
+                    // dropped, as with the tail. prefix).
+                    case ILOpCode.Jmp:
+                        TranslateJmp(MetadataTokens.Handle(ilReader.ReadInt32()));
+                        break;
+
                     case ILOpCode.Switch:
                         TranslateSwitch(_currentBlock, ReadSwitchTargets(ref ilReader));
                         break;
@@ -1173,7 +1314,7 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var leaders = new SortedSet<int> { 0 };
 
-            var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            var scan = _method.MethodBody!.GetILReader();
             while (scan.RemainingBytes > 0)
             {
                 var opCode = ReadOpCode(ref scan);
@@ -1280,7 +1421,7 @@ internal sealed class IlToMirTranslator : IDisposable
                 var endsWithUncondBranch = false;
                 var endsWithReturn = false;
 
-                var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+                var scan = _method.MethodBody!.GetILReader();
                 AdvanceTo(ref scan, start);
                 while (scan.RemainingBytes > 0 && scan.Offset < end)
                 {
@@ -1292,21 +1433,27 @@ internal sealed class IlToMirTranslator : IDisposable
                         case ILOpCode.Ldloc_2: RecordUse(2, ube, def); break;
                         case ILOpCode.Ldloc_3: RecordUse(3, ube, def); break;
                         case ILOpCode.Ldloc_s: RecordUse(scan.ReadByte(), ube, def); break;
+                        case ILOpCode.Ldloc: RecordUse(scan.ReadUInt16(), ube, def); break;
                         case ILOpCode.Ldloca_s: RecordUse(scan.ReadByte(), ube, def); break;
+                        case ILOpCode.Ldloca: RecordUse(scan.ReadUInt16(), ube, def); break;
 
                         case ILOpCode.Ldarg_0: RecordArgUse(0, ube, def); break;
                         case ILOpCode.Ldarg_1: RecordArgUse(1, ube, def); break;
                         case ILOpCode.Ldarg_2: RecordArgUse(2, ube, def); break;
                         case ILOpCode.Ldarg_3: RecordArgUse(3, ube, def); break;
                         case ILOpCode.Ldarg_s: RecordArgUse(scan.ReadByte(), ube, def); break;
+                        case ILOpCode.Ldarg: RecordArgUse(scan.ReadUInt16(), ube, def); break;
                         case ILOpCode.Ldarga_s: RecordArgUse(scan.ReadByte(), ube, def); break;
+                        case ILOpCode.Ldarga: RecordArgUse(scan.ReadUInt16(), ube, def); break;
                         case ILOpCode.Starg_s: def.Add(_argLocal[scan.ReadByte()]); break;
+                        case ILOpCode.Starg: def.Add(_argLocal[scan.ReadUInt16()]); break;
 
                         case ILOpCode.Stloc_0: def.Add(0); break;
                         case ILOpCode.Stloc_1: def.Add(1); break;
                         case ILOpCode.Stloc_2: def.Add(2); break;
                         case ILOpCode.Stloc_3: def.Add(3); break;
                         case ILOpCode.Stloc_s: def.Add(scan.ReadByte()); break;
+                        case ILOpCode.Stloc: def.Add(scan.ReadUInt16()); break;
 
                         case ILOpCode.Br_s:
                             succ.Add(scan.ReadSByte() + scan.Offset);
@@ -1325,6 +1472,10 @@ internal sealed class IlToMirTranslator : IDisposable
                             succ.Add(scan.ReadInt32() + scan.Offset);
                             break;
                         case ILOpCode.Ret:
+                            endsWithReturn = true;
+                            break;
+                        case ILOpCode.Jmp:
+                            scan.ReadInt32();
                             endsWithReturn = true;
                             break;
                         case var _ when TryGetCompareBranch(opCode, out _, out var cmpShort):
@@ -1573,15 +1724,20 @@ internal sealed class IlToMirTranslator : IDisposable
                 case ILOpCode.Starg_s: case ILOpCode.Unaligned:
                     reader.ReadByte();
                     break;
-                case ILOpCode.Ldc_i4: case ILOpCode.Call: case ILOpCode.Callvirt: case ILOpCode.Calli:
+                case ILOpCode.Ldloc: case ILOpCode.Ldloca: case ILOpCode.Stloc:
+                case ILOpCode.Ldarg: case ILOpCode.Ldarga: case ILOpCode.Starg:
+                    reader.ReadUInt16();
+                    break;
+                case ILOpCode.Ldc_i4: case ILOpCode.Call: case ILOpCode.Callvirt: case ILOpCode.Calli: case ILOpCode.Jmp:
                 case ILOpCode.Ldstr: case ILOpCode.Ldsfld: case ILOpCode.Stsfld:
                 case ILOpCode.Newobj: case ILOpCode.Ldfld: case ILOpCode.Stfld:
                 case ILOpCode.Ldsflda: case ILOpCode.Ldflda: case ILOpCode.Newarr:
-                case ILOpCode.Box: case ILOpCode.Unbox_any: case ILOpCode.Castclass:
+                case ILOpCode.Box: case ILOpCode.Unbox: case ILOpCode.Unbox_any: case ILOpCode.Castclass:
                 case ILOpCode.Isinst: case ILOpCode.Ldtoken: case ILOpCode.Initobj:
                 case ILOpCode.Sizeof: case ILOpCode.Ldftn: case ILOpCode.Ldvirtftn:
                 case ILOpCode.Ldelem: case ILOpCode.Stelem: case ILOpCode.Ldelema:
-                case ILOpCode.Ldobj: case ILOpCode.Stobj: case ILOpCode.Constrained:
+                case ILOpCode.Ldobj: case ILOpCode.Stobj: case ILOpCode.Cpobj: case ILOpCode.Constrained:
+                case ILOpCode.Mkrefany: case ILOpCode.Refanyval:
                     reader.ReadInt32();
                     break;
                 case ILOpCode.Ldc_i8:
@@ -2558,12 +2714,12 @@ internal sealed class IlToMirTranslator : IDisposable
         private HashSet<int> ScanStargParameters()
         {
             var result = new HashSet<int>();
-            var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            var scan = _method.MethodBody!.GetILReader();
             while (scan.RemainingBytes > 0)
             {
                 var opCode = ReadOpCode(ref scan);
-                if (opCode == ILOpCode.Starg_s)
-                    result.Add(scan.ReadByte());
+                if (opCode is ILOpCode.Starg_s or ILOpCode.Starg)
+                    result.Add(opCode == ILOpCode.Starg_s ? scan.ReadByte() : scan.ReadUInt16());
                 else
                     SkipBranchOrOperand(ref scan, opCode);
             }
@@ -2574,12 +2730,12 @@ internal sealed class IlToMirTranslator : IDisposable
         private HashSet<int> ScanAddressTakenParameters()
         {
             var result = new HashSet<int>();
-            var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            var scan = _method.MethodBody!.GetILReader();
             while (scan.RemainingBytes > 0)
             {
                 var opCode = ReadOpCode(ref scan);
-                if (opCode == ILOpCode.Ldarga_s)
-                    result.Add(scan.ReadByte());
+                if (opCode is ILOpCode.Ldarga_s or ILOpCode.Ldarga)
+                    result.Add(opCode == ILOpCode.Ldarga_s ? scan.ReadByte() : scan.ReadUInt16());
                 else
                     SkipBranchOrOperand(ref scan, opCode);
             }
@@ -2594,12 +2750,12 @@ internal sealed class IlToMirTranslator : IDisposable
         private HashSet<int> ScanAddressTakenLocals()
         {
             var result = new HashSet<int>();
-            var scan = _method.MethodBody!.MethodBodyBlock!.GetILReader();
+            var scan = _method.MethodBody!.GetILReader();
             while (scan.RemainingBytes > 0)
             {
                 var opCode = ReadOpCode(ref scan);
-                if (opCode == ILOpCode.Ldloca_s)
-                    result.Add(scan.ReadByte());
+                if (opCode is ILOpCode.Ldloca_s or ILOpCode.Ldloca)
+                    result.Add(opCode == ILOpCode.Ldloca_s ? scan.ReadByte() : scan.ReadUInt16());
                 else
                     SkipBranchOrOperand(ref scan, opCode);
             }
@@ -2747,6 +2903,54 @@ internal sealed class IlToMirTranslator : IDisposable
         /// compiled; ldftn'd methods follow the same ABI as vtable slots, so they
         /// are valid call.indirect targets as they stand.
         /// </summary>
+        /// <summary>
+        /// ldtoken &lt;type&gt; → a RuntimeTypeHandle (a struct, so on the stack its address) holding the
+        /// type's vtable address, which is how a type is identified at run time (see TypeCheck). It
+        /// is what `typeof` starts from. Arrays, interfaces, strings and pointers have no vtable and
+        /// are not supported.
+        /// ldtoken &lt;field&gt; → a RuntimeFieldHandle for a field with initial data (FieldRVA), as C#
+        /// array initializers use with RuntimeHelpers.InitializeArray: the data lives in a global,
+        /// and the handle holds its address and size. Method handles are not supported.
+        /// </summary>
+        private void TranslateLdtoken(EntityHandle handle)
+        {
+            if (handle.Kind is HandleKind.TypeDefinition or HandleKind.TypeReference or HandleKind.TypeSpecification)
+            {
+                var description = _method.DeclaringType.Assembly.ResolveTypeDescription(handle, _method.Instantiation);
+                if (!TryBuildVtableAddress(description, out var vtable))
+                    throw new NotSupportedException(
+                        $"IL→MIR: ldtoken of {description.EncodedName} (an array, interface, string or pointer type) is not supported yet (method {_method.UniqueName}).");
+                _stack.Push(new StackValue(EmitTypeHandle(vtable), IRType.Pointer));
+                return;
+            }
+
+            if (handle.Kind != HandleKind.FieldDefinition && handle.Kind != HandleKind.MemberReference)
+                throw new NotSupportedException(
+                    $"IL→MIR: ldtoken of a {handle.Kind} (method handles) is not supported yet (method {_method.UniqueName}).");
+
+            var field = _method.DeclaringType.Assembly.ResolveField(handle, _method.Instantiation);
+            if (field.Definition.GetRelativeVirtualAddress() == 0)
+                throw new NotSupportedException(
+                    $"IL→MIR: ldtoken of the field {field.Owner.FullName}::{field.Name}, which has no initial data, is not supported (method {_method.UniqueName}).");
+
+            // Roslyn types the data field as a struct of the data's size (`__StaticArrayInitTypeSize=N`),
+            // or as a primitive when that is 1, 2, 4 or 8 bytes.
+            var size = field.Type is EcmaType { IsValueType: true } dataType && dataType.TypeDefinition.GetLayout().Size > 0
+                ? dataType.TypeDefinition.GetLayout().Size
+                : field.Type.Size;
+            var data = _parent.RegisterFieldDataGlobal(field, size);
+
+            var handleType = _method.DeclaringType.Context.CoreAssembly.GetType("System", "RuntimeFieldHandle");
+            var temporary = AllocateTemporary(handleType.InstanceSize);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.StorePtr),
+                new VirtualReg(EmitFieldAddress(temporary, handleType.GetField("Address").Offset), IsDefinition: false),
+                new VirtualReg(_builder.BuildMemSymbol(data), IsDefinition: false));
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.StoreI16),
+                new VirtualReg(EmitFieldAddress(temporary, handleType.GetField("Size").Offset), IsDefinition: false),
+                new VirtualReg(_builder.BuildConstant(IRType.I16, size), IsDefinition: false));
+            _stack.Push(new StackValue(temporary, IRType.Pointer));
+        }
+
         private void TranslateLdftn(Handle methodHandle)
         {
             var method = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
@@ -2764,7 +2968,9 @@ internal sealed class IlToMirTranslator : IDisposable
                 _parent.EnqueueMethod(method);
                 symbol = method.UniqueName;
             }
-            _stack.Push(new StackValue(_builder.BuildMemSymbol(symbol), IRType.Pointer));
+            var address = _builder.BuildMemSymbol(symbol);
+            _ldftnMethods[address] = method;
+            _stack.Push(new StackValue(address, IRType.Pointer));
         }
 
         /// <summary>
@@ -2860,6 +3066,12 @@ internal sealed class IlToMirTranslator : IDisposable
                 return;
             }
 
+            if (callee.IsRuntimeManaged && callee.Name == "Invoke" && IsDelegateType(callee.DeclaringType))
+            {
+                EmitDelegateInvoke(callee, PopCallArgs(callee));
+                return;
+            }
+
             // A non-virtual method, a final one, or one of a sealed type (a string has
             // no vtable to dispatch through) has exactly one possible target.
             if (!callee.IsVirtual || callee.IsFinal || callee.DeclaringType.IsSealed)
@@ -2934,6 +3146,15 @@ internal sealed class IlToMirTranslator : IDisposable
 
             // The object header (the vtable pointer) sits PointerSize bytes below
             // the object reference.
+            var fptr = EmitVtableSlotLoad(thisPtr, callee);
+
+            var defs = _builder.BuildCallIndirect(fptr, returnTypes, argVregs);
+            PushCallResult(callee, sret, returnTypes.Length > 0 ? defs[0] : 0);
+        }
+
+        /// <summary>Load the code address of `callee`'s vtable slot from the vtable of the object `thisPtr`.</summary>
+        private int EmitVtableSlotLoad(int thisPtr, EcmaMethod callee)
+        {
             var headerAddr = EmitPointerSub(thisPtr, PointerSize);
             var vtablePtr = _function.CreateVirtualRegister(IRType.Pointer);
             _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
@@ -2946,9 +3167,27 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
                 new VirtualReg(fptr, IsDefinition: true),
                 new VirtualReg(slotAddr, IsDefinition: false));
+            return fptr;
+        }
 
-            var defs = _builder.BuildCallIndirect(fptr, returnTypes, argVregs);
-            PushCallResult(callee, sret, returnTypes.Length > 0 ? defs[0] : 0);
+        /// <summary>
+        /// ldvirtftn &lt;method&gt; → pop an object reference and push the address of the code that a
+        /// callvirt of the method would run on it: the vtable slot for a virtual method, the
+        /// method itself when there is only one possible target (as for callvirt). The object is
+        /// popped either way. Like ldftn, the result is a valid calli target.
+        /// </summary>
+        private void TranslateLdvirtftn(Handle methodHandle)
+        {
+            var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
+            var thisPtr = PopMaterialised();
+
+            if (!callee.IsVirtual || callee.IsFinal || callee.DeclaringType.IsSealed)
+            {
+                TranslateLdftn(methodHandle);
+                return;
+            }
+
+            _stack.Push(new StackValue(EmitVtableSlotLoad(thisPtr.Vreg, callee), IRType.Pointer));
         }
 
         /// <summary>
@@ -2962,6 +3201,12 @@ internal sealed class IlToMirTranslator : IDisposable
         {
             var constructor = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
             var type = constructor.DeclaringType;
+
+            if (IsDelegateType(type))
+            {
+                TranslateNewDelegate(type);
+                return;
+            }
 
             // Constructor args, excluding the `this` at Parameters[0] (we supply
             // the freshly-allocated pointer for that). Popped before the Alloc so
@@ -3008,6 +3253,74 @@ internal sealed class IlToMirTranslator : IDisposable
             _builder.BuildCall(constructor.UniqueName, [], ctorArgs);
 
             _stack.Push(new StackValue(ptr, IRType.Pointer));
+        }
+
+        private static bool IsDelegateType(EcmaType type) =>
+            type.BaseType is { } baseType && baseType.Assembly == type.Context.CoreAssembly
+            && baseType.FullName == "System.MulticastDelegate";
+
+        /// <summary>
+        /// newobj of a delegate type, whose constructor <c>(object target, native int method)</c> has
+        /// no body: allocate the delegate and store the target and the code address in the fields of
+        /// System.Delegate. The code address is always called with the target as its first argument,
+        /// so for a static method (which has no `this`) it is a thunk that drops the target.
+        /// </summary>
+        private void TranslateNewDelegate(EcmaType type)
+        {
+            var methodPtr = PopMaterialised();
+            var target = PopMaterialised();
+
+            if (_ldftnMethods.TryGetValue(methodPtr.Vreg, out var method) && method.MethodDefinition.Attributes.HasFlag(MethodAttributes.Static))
+            {
+                if (!_nullVregs.Contains(target.Vreg))
+                    throw new NotSupportedException(
+                        $"IL→MIR: a delegate closed over its first argument ({method.UniqueName}) is not supported (method {_method.UniqueName}).");
+                methodPtr = new StackValue(_builder.BuildMemSymbol(_parent.GetStaticDelegateThunk(method)), IRType.Pointer);
+            }
+
+            _parent.MarkTypeUsed(type);
+            var size = _builder.BuildConstant(IRType.I16, type.InstanceSize);
+            var vtablePtr = _builder.BuildMemSymbol(IlToMirTranslator.VtableName(type));
+            var allocMethod = _parent.GetAllocMethod();
+            _parent.EnqueueMethod(allocMethod);
+            var ptr = _builder.BuildCall(allocMethod.UniqueName, [IRType.Pointer], size, vtablePtr)[0];
+
+            var delegateType = type.Context.CoreAssembly.GetType("System", "Delegate");
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.StorePtr),
+                new VirtualReg(EmitFieldAddress(ptr, delegateType.GetField("_target").Offset), IsDefinition: false),
+                new VirtualReg(AsAddress(target).Vreg, IsDefinition: false));
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.StorePtr),
+                new VirtualReg(EmitFieldAddress(ptr, delegateType.GetField("_methodPtr").Offset), IsDefinition: false),
+                new VirtualReg(AsAddress(methodPtr).Vreg, IsDefinition: false));
+            _stack.Push(new StackValue(ptr, IRType.Pointer));
+        }
+
+        /// <summary>
+        /// callvirt D::Invoke on a delegate: load the target and code address from the delegate and
+        /// call the address with the target in place of the delegate as `this`.
+        /// </summary>
+        private void EmitDelegateInvoke(EcmaMethod invoke, int[] argVregs)
+        {
+            var delegateType = invoke.DeclaringType.Context.CoreAssembly.GetType("System", "Delegate");
+            var delegatePtr = argVregs[0];
+
+            int LoadField(string name)
+            {
+                var value = _function.CreateVirtualRegister(IRType.Pointer);
+                _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
+                    new VirtualReg(value, IsDefinition: true),
+                    new VirtualReg(EmitFieldAddress(delegatePtr, delegateType.GetField(name).Offset), IsDefinition: false));
+                return value;
+            }
+
+            argVregs[0] = LoadField("_target");
+            var fptr = LoadField("_methodPtr");
+
+            var sret = AddStructReturnArgument(invoke, ref argVregs);
+            var returnType = ReturnIRType(invoke.MethodSignature.ReturnType);
+            var returnTypes = returnType is VoidType ? Array.Empty<IRType>() : [returnType];
+            var defs = _builder.BuildCallIndirect(fptr, returnTypes, argVregs);
+            PushCallResult(invoke, sret, returnTypes.Length > 0 ? defs[0] : 0);
         }
 
         /// <summary>
@@ -3205,6 +3518,21 @@ internal sealed class IlToMirTranslator : IDisposable
         private int _temporarySlotCount;
 
         /// <summary>
+        /// unbox &lt;T&gt; → check that the object is a boxed T and push the address of the value
+        /// inside the box (a managed pointer). An object points at its first field, so the address
+        /// is the checked object itself.
+        /// </summary>
+        private void TranslateUnbox(EntityHandle typeHandle)
+        {
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
+            if (IsNullable(type))
+                throw new NotSupportedException(
+                    $"IL→MIR: unbox of {type.FullName} is not supported (a box holds the underlying value, not a Nullable; method {_method.UniqueName}).");
+
+            TranslateTypeTest(type, "CastClass");
+        }
+
+        /// <summary>
         /// unbox.any &lt;T&gt; → for a reference type a castclass; for a value type, check that
         /// the object is a boxed T and read the value out (a struct stays in the box and
         /// is pushed as its address, like any struct on the stack).
@@ -3346,6 +3674,101 @@ internal sealed class IlToMirTranslator : IDisposable
         /// </summary>
         private void TranslateStobj(EntityHandle typeHandle) =>
             TranslateStobj(_method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation));
+
+        /// <summary>
+        /// The address of the vtable that identifies `type`, if it has one: a class or struct of the
+        /// program or library (not an array, interface, string or pointer).
+        /// </summary>
+        private bool TryBuildVtableAddress(TypeDescription type, out int address)
+        {
+            address = 0;
+            if (type is not EcmaType { IsInterface: false } ecmaType
+                || (ecmaType.Assembly == ecmaType.Context.CoreAssembly && ecmaType.FullName == "System.String"))
+                return false;
+
+            _parent.RequireVtable(ecmaType);
+            address = _builder.BuildMemSymbol(IlToMirTranslator.VtableName(ecmaType));
+            return true;
+        }
+
+        /// <summary>A System.RuntimeTypeHandle holding `value` (a vtable address): a struct, so its address.</summary>
+        private int EmitTypeHandle(int value)
+        {
+            var type = _method.DeclaringType.Context.CoreAssembly.GetType("System", "RuntimeTypeHandle");
+            var temporary = AllocateTemporary(type.InstanceSize);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.StorePtr),
+                new VirtualReg(EmitFieldAddress(temporary, type.GetField("Value").Offset), IsDefinition: false),
+                new VirtualReg(value, IsDefinition: false));
+            return temporary;
+        }
+
+        /// <summary>
+        /// mkrefany &lt;T&gt; → pop a managed pointer and push a System.TypedReference holding it and T's
+        /// type handle (a struct, so on the stack its address). A T with no vtable (an array,
+        /// interface, string) records no type.
+        /// </summary>
+        private void TranslateMkrefany(EntityHandle typeHandle)
+        {
+            var pointer = AsAddress(_stack.Pop());
+            var type = _method.DeclaringType.Context.CoreAssembly.GetType("System", "TypedReference");
+            var temporary = AllocateTemporary(type.InstanceSize);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.Fill),
+                new VirtualReg(temporary, IsDefinition: false),
+                new VirtualReg(_builder.BuildConstant(IRType.I8, 0), IsDefinition: false),
+                new Immediate(type.InstanceSize));
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.StorePtr),
+                new VirtualReg(EmitFieldAddress(temporary, type.GetField("Value").Offset), IsDefinition: false),
+                new VirtualReg(pointer.Vreg, IsDefinition: false));
+            var description = _method.DeclaringType.Assembly.ResolveTypeDescription(typeHandle, _method.Instantiation);
+            if (TryBuildVtableAddress(description, out var vtable))
+                _builder.BuildInstruction(MemDialect.OpRef(MemOp.StorePtr),
+                    new VirtualReg(EmitFieldAddress(temporary, type.GetField("Type").Offset), IsDefinition: false),
+                    new VirtualReg(vtable, IsDefinition: false));
+            _stack.Push(new StackValue(temporary, IRType.Pointer));
+        }
+
+        /// <summary>
+        /// refanytype → pop a TypedReference (its address) and push the RuntimeTypeHandle of the type
+        /// it was made for (a zero handle if that type has no vtable).
+        /// </summary>
+        private void TranslateRefanytype()
+        {
+            var reference = AsAddress(_stack.Pop());
+            var type = _method.DeclaringType.Context.CoreAssembly.GetType("System", "TypedReference");
+            var vtable = _function.CreateVirtualRegister(IRType.Pointer);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
+                new VirtualReg(vtable, IsDefinition: true),
+                new VirtualReg(EmitFieldAddress(reference.Vreg, type.GetField("Type").Offset), IsDefinition: false));
+            _stack.Push(new StackValue(EmitTypeHandle(vtable), IRType.Pointer));
+        }
+
+        /// <summary>
+        /// refanyval &lt;T&gt; → pop a TypedReference (its address) and push the managed pointer it
+        /// holds. The real instruction checks the reference's type against T and throws if they differ;
+        /// there are no exceptions yet, so the pointer is taken on trust.
+        /// </summary>
+        private void TranslateRefanyval()
+        {
+            var reference = AsAddress(_stack.Pop());
+            var type = _method.DeclaringType.Context.CoreAssembly.GetType("System", "TypedReference");
+            var pointer = _function.CreateVirtualRegister(IRType.Pointer);
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.LoadPtr),
+                new VirtualReg(pointer, IsDefinition: true),
+                new VirtualReg(EmitFieldAddress(reference.Vreg, type.GetField("Value").Offset), IsDefinition: false));
+            _stack.Push(new StackValue(pointer, IRType.Pointer));
+        }
+
+        /// <summary>
+        /// cpobj &lt;T&gt; → copy a T from the source address to the destination address. Stack layout
+        /// (top first): source, destination. A load of T followed by a store of T does it, for a
+        /// reference, a scalar or a struct alike (a struct's "value" is its address, copied by the store).
+        /// </summary>
+        private void TranslateCpobj(EntityHandle typeHandle)
+        {
+            var type = _method.DeclaringType.Assembly.ResolveType(typeHandle, _method.Instantiation);
+            TranslateLdobj(type);
+            TranslateStobj(type);
+        }
 
         private void TranslateStobj(EcmaType type)
         {
@@ -3534,8 +3957,89 @@ internal sealed class IlToMirTranslator : IDisposable
         private int EmitPointerSub(int baseVreg, int offset) =>
             EmitFieldAddress(baseVreg, -offset);
 
+        private void TranslateJmp(Handle methodHandle)
+        {
+            var callee = _method.DeclaringType.Assembly.ResolveMethod(methodHandle, _method.Instantiation);
+            for (var i = 0; i < _method.Parameters.Length; i++)
+                TranslateLdarg(i);
+            TranslateDirectCall(callee);
+            TranslateRet();
+        }
+
+        /// <summary>
+        /// The vreg holding the localloc area's top as it was on entry, for a method that uses
+        /// localloc (null otherwise). Every return hands it back to free the method's allocations.
+        /// </summary>
+        private int? _localAllocMark;
+
+        /// <summary>
+        /// cpblk → pop a byte count, a source and a destination address and emit mem.copy, which
+        /// the target lowers (see MemOp.Copy). Unsafe.CopyBlock reaches here too: its body is a cpblk.
+        /// </summary>
+        private void TranslateCpblk()
+        {
+            var count = Resize(PopMaterialised(), IRType.I16);
+            var source = AsAddress(_stack.Pop());
+            var destination = AsAddress(_stack.Pop());
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.Copy),
+                new VirtualReg(destination.Vreg, IsDefinition: false),
+                new VirtualReg(source.Vreg, IsDefinition: false),
+                new VirtualReg(count.Vreg, IsDefinition: false));
+        }
+
+        /// <summary>
+        /// initblk → pop a byte count, a byte value and an address and emit mem.set, which the
+        /// target lowers (see MemOp.Set). Unsafe.InitBlock reaches here too: its body is an initblk.
+        /// </summary>
+        private void TranslateInitblk()
+        {
+            var count = Resize(PopMaterialised(), IRType.I16);
+            var value = Resize(PopMaterialised(), IRType.I8);
+            var address = AsAddress(_stack.Pop());
+            _builder.BuildInstruction(MemDialect.OpRef(MemOp.Set),
+                new VirtualReg(address.Vreg, IsDefinition: false),
+                new VirtualReg(value.Vreg, IsDefinition: false),
+                new VirtualReg(count.Vreg, IsDefinition: false));
+        }
+
+        private bool UsesLocalloc()
+        {
+            var reader = _method.MethodBody!.GetILReader();
+            while (reader.RemainingBytes > 0)
+            {
+                var opCode = ReadOpCode(ref reader);
+                if (opCode == ILOpCode.Localloc)
+                    return true;
+                SkipBranchOrOperand(ref reader, opCode);
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// localloc → pop a size and push a pointer to that many bytes, freed when the method
+        /// returns (see ManagedHeap.LocalAlloc; the 6502 has no room for a dynamic part of the
+        /// static frames). The bytes are zeroed unless the method skips locals init
+        /// ([SkipLocalsInit] clears the flag in the method body header).
+        /// </summary>
+        private void TranslateLocalloc()
+        {
+            var size = Resize(PopMaterialised(), IRType.I16);
+            var alloc = _parent.GetManagedHeapMethod(
+                _method.MethodBody!.LocalVariablesInitialized ? "LocalAlloc" : "LocalAllocUninitialized");
+            _parent.EnqueueMethod(alloc);
+            var result = _builder.BuildCall(alloc.UniqueName, [IRType.Pointer], size.Vreg)[0];
+            _stack.Push(new StackValue(result, IRType.Pointer));
+        }
+
         private void TranslateRet()
         {
+            if (_localAllocMark is { } mark)
+            {
+                var release = _parent.GetManagedHeapMethod("LocalAllocRelease");
+                _parent.EnqueueMethod(release);
+                _builder.BuildCall(release.UniqueName, [], mark);
+            }
+
             if (IsStruct(_method.MethodSignature.ReturnType))
             {
                 var result = AsAddress(_stack.Pop());

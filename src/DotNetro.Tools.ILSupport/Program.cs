@@ -5,7 +5,7 @@
 // Rebuild with:
 //   dotnet run --project src/DotNetro.Tools.ILSupport
 //
-// (Build the solution first so the CsCompiler helper it shells out to exists.)
+// (Build the solution first so the CsCompiler and ILCompiler helpers it shells out to exist.)
 //
 // Optional args:
 //   --output <path>   override the generated markdown path
@@ -111,16 +111,17 @@ static HashSet<string> ReadImplementedOpcodes(string translatorPath)
     return result;
 }
 
-// Compile each Lit/*.cs via the CsCompiler helper in --opcodes mode and union
-// the ILOpCode enum names it reports.
+// Compile each Lit/*.cs (CsCompiler) and Lit/*.il (ILCompiler) helper in --opcodes
+// mode and union the ILOpCode enum names they report.
 static HashSet<string> ReadLitCoverage(string litDir)
 {
-    var csCompiler = FindCsCompiler();
+    var csCompiler = FindTool("DotNetro.Compiler.Tests.CsCompiler");
+    var ilCompiler = FindTool("DotNetro.Compiler.Tests.ILCompiler");
     var covered = new HashSet<string>(StringComparer.Ordinal);
 
-    foreach (var file in Directory.EnumerateFiles(litDir, "*.cs", SearchOption.AllDirectories).OrderBy(f => f))
+    foreach (var file in Directory.EnumerateFiles(litDir, "*", SearchOption.AllDirectories).Where(f => f.EndsWith(".cs") || f.EndsWith(".il")).OrderBy(f => f))
     {
-        var psi = new ProcessStartInfo(csCompiler)
+        var psi = new ProcessStartInfo(file.EndsWith(".il") ? ilCompiler : csCompiler)
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -140,7 +141,7 @@ static HashSet<string> ReadLitCoverage(string litDir)
 
         if (process.ExitCode != 0)
         {
-            Console.Error.WriteLine($"warning: CsCompiler failed for {file}:\n{stderr}");
+            Console.Error.WriteLine($"warning: compiling failed for {file}:\n{stderr}");
             continue;
         }
 
@@ -151,9 +152,9 @@ static HashSet<string> ReadLitCoverage(string litDir)
     return covered;
 }
 
-// Locate the built CsCompiler binary as a sibling project, matching the path
+// Locate a built helper binary as a sibling project, matching the path
 // pattern the lit-test harness uses.
-static string FindCsCompiler()
+static string FindTool(string projectName)
 {
     var config = AppContext.BaseDirectory
         .TrimEnd(Path.DirectorySeparatorChar)
@@ -161,12 +162,12 @@ static string FindCsCompiler()
 
     var path = Path.GetFullPath(Path.Combine(
         AppContext.BaseDirectory,
-        $"../../../../DotNetro.Compiler.Tests.CsCompiler/bin/{config}/net10.0/DotNetro.Compiler.Tests.CsCompiler"));
+        $"../../../../{projectName}/bin/{config}/net10.0/{projectName}"));
 
     var resolved = OperatingSystem.IsWindows() ? path + ".exe" : path;
     if (!File.Exists(resolved))
         throw new FileNotFoundException(
-            $"CsCompiler binary not found at {resolved}. Build the solution first (dotnet build src/DotNetro.slnx).");
+            $"{projectName} binary not found at {resolved}. Build the solution first (dotnet build src/DotNetro.slnx).");
 
     return resolved;
 }

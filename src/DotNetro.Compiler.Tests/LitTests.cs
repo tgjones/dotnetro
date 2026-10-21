@@ -15,10 +15,11 @@ public sealed class LitTests
     {
         var result = new List<Func<TestDataRow<string>>>();
 
-        var litTestFiles = Directory.EnumerateFiles(
+        // .cs tests are compiled by Roslyn; .il tests are assembled by ilasm, for IL that C# cannot produce.
+        var litTestFiles = new[] { "*.cs", "*.il" }.SelectMany(pattern => Directory.EnumerateFiles(
             "Lit",
-            "*.cs",
-            SearchOption.AllDirectories);
+            pattern,
+            SearchOption.AllDirectories));
 
         foreach (var litTestFile in litTestFiles)
         {

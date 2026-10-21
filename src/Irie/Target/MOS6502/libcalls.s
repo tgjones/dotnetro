@@ -1,5 +1,6 @@
 ; MOS6502 libcalls -- the routines the legalizer emits calls to for operations the
-; 6502 cannot do inline: multiply, divide, remainder and variable-count shifts.
+; 6502 cannot do inline: multiply, divide, remainder, variable-count shifts and
+; block copies and fills.
 ; Names follow compiler-rt / llvm RuntimeLibcalls (see MOS6502LegalizerInfo).
 ;
 ; Assembled by MOS6502AssemblyParser at start-up, and linked into a program only
@@ -756,4 +757,61 @@ __divmod64:
 .exit:
     LDA __rc18
     LDX __rc19
+    RTS
+
+; void memcpy(void *dst, const void *src, u16 count): copy count bytes, whole pages
+; first, then the remainder. The blocks must not overlap.
+; dst = A/X (moved to __rc6/7), src = __rc2/3, count = __rc4/5. About 16 cycles a byte.
+memcpy:
+    STA __rc6
+    STX __rc7
+    LDY #$00
+    LDX __rc5
+    BEQ .tail
+.page:
+    LDA (__rc2),Y
+    STA (__rc6),Y
+    INY
+    BNE .page
+    INC __rc3
+    INC __rc7
+    DEX
+    BNE .page
+.tail:
+    LDX __rc4
+    BEQ .done
+.byte:
+    LDA (__rc2),Y
+    STA (__rc6),Y
+    INY
+    DEX
+    BNE .byte
+.done:
+    RTS
+
+; void memset(void *dst, u8 value, u16 count): set count bytes, whole pages first, then
+; the remainder. dst = A/X (moved to __rc5/6), value = __rc2, count = __rc3/4.
+memset:
+    STA __rc5
+    STX __rc6
+    LDA __rc2
+    LDY #$00
+    LDX __rc4
+    BEQ .tail
+.page:
+    STA (__rc5),Y
+    INY
+    BNE .page
+    INC __rc6
+    DEX
+    BNE .page
+.tail:
+    LDX __rc3
+    BEQ .done
+.byte:
+    STA (__rc5),Y
+    INY
+    DEX
+    BNE .byte
+.done:
     RTS

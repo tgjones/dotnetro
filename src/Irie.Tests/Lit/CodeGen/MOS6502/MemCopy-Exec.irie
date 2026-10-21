@@ -1,0 +1,17 @@
+; RUN-exec: @irie-exec @file --target mos6502-bbcmicro --emulator @emulator --exec "copy_prefix(0..8)"
+
+; mem.copy with a run-time byte count, lowered to the memcpy libcall (libcalls.s): copying
+; the first n bytes of @source over @destination leaves the rest of @destination alone.
+; The emulator's result must equal the interpreter's for every n.
+
+global @source : i64 = bytes "\x11\x22\x33\x44\x55\x66\x77\x78"
+global @destination : i64 = bytes "\x61\x62\x63\x64\x65\x66\x67\x68"
+
+func @copy_prefix : (i16) -> i64 {
+bb0(%0 : i16):
+    %1 : ptr = mem.symbol @destination
+    %2 : ptr = mem.symbol @source
+    mem.copy %1, %2, %0
+    %3 : i64 = mem.load.i64 %1
+    core.return %3
+}

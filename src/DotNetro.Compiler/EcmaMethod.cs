@@ -8,19 +8,37 @@ namespace DotNetro.Compiler;
 
 internal sealed class EcmaMethodBody
 {
-    public MethodBodyBlock? MethodBodyBlock { get; }
+    private readonly MethodBodyBlock? _methodBodyBlock;
+
+    /// <summary>The IL of a synthesized (intrinsic) body, pinned for the BlobReader; null for a body from the assembly.</summary>
+    private readonly byte[]? _syntheticIL;
 
     public ImmutableArray<LocalVariable> LocalVariables { get; }
 
     public int LocalsSize { get; }
 
+    /// <summary>The method's `.locals init` flag, which [SkipLocalsInit] clears.</summary>
+    public bool LocalVariablesInitialized => _methodBodyBlock?.LocalVariablesInitialized ?? true;
+
+    public unsafe BlobReader GetILReader() => _syntheticIL is { } il
+        ? new BlobReader((byte*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref il[0]), il.Length)
+        : _methodBodyBlock!.GetILReader();
+
+    /// <summary>The body the compiler supplies for an intrinsic method (see <see cref="IntrinsicBodies"/>): IL with no locals.</summary>
+    public EcmaMethodBody(byte[] il)
+    {
+        _syntheticIL = GC.AllocateArray<byte>(il.Length, pinned: true);
+        il.CopyTo(_syntheticIL, 0);
+        LocalVariables = [];
+    }
+
     public EcmaMethodBody(EcmaType declaringType, EcmaMethod method)
     {
-        MethodBodyBlock = declaringType.Assembly.PEReader.GetMethodBody(method.MethodDefinition.RelativeVirtualAddress);
+        _methodBodyBlock = declaringType.Assembly.PEReader.GetMethodBody(method.MethodDefinition.RelativeVirtualAddress);
 
-        if (!MethodBodyBlock.LocalSignature.IsNil)
+        if (!_methodBodyBlock.LocalSignature.IsNil)
         {
-            var localSignature = method.MetadataReader.GetStandaloneSignature(MethodBodyBlock.LocalSignature);
+            var localSignature = method.MetadataReader.GetStandaloneSignature(_methodBodyBlock.LocalSignature);
             var localTypes = localSignature.DecodeLocalSignature(declaringType.Assembly.SignatureTypeProvider, method.Instantiation);
             var localOffset = 0;
             var localsBuilder = ImmutableArray.CreateBuilder<LocalVariable>(localTypes.Length);
@@ -76,6 +94,14 @@ internal sealed class EcmaMethod
     /// </summary>
     public bool IsInternalCall =>
         MethodDefinition.ImplAttributes.HasFlag(MethodImplAttributes.InternalCall);
+
+    /// <summary>
+    /// A method the runtime implements (<c>runtime managed</c> in IL): it has no body in the assembly.
+    /// The compiler declares these for a delegate type: its constructor and <c>Invoke</c>, which the
+    /// translator expands where they are called.
+    /// </summary>
+    public bool IsRuntimeManaged =>
+        (MethodDefinition.ImplAttributes & MethodImplAttributes.CodeTypeMask) == MethodImplAttributes.Runtime;
 
     /// <summary>
     /// [MethodImpl(MethodImplOptions.NoInlining)]: the translator marks the MIR function
@@ -144,6 +170,9 @@ internal sealed class EcmaMethod
         {
             UniqueName += $"_{parameterType.EncodedName}";
         }
+
+        if (MethodBody == null && !IsInternalCall && IntrinsicBodies.TryGet(declaringType, Name) is { } il)
+            MethodBody = new EcmaMethodBody(il);
     }
 
     private static string MakeSafeName(string name)

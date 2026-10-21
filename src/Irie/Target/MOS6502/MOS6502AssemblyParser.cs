@@ -116,7 +116,7 @@ public static class MOS6502AssemblyParser
             }
             if (inner.EndsWith("),Y", StringComparison.OrdinalIgnoreCase))
             {
-                var value = ParseHex(inner[1..^3], lineNumber);
+                var value = ParseHex(inner[..^3], lineNumber);
                 return (AddressingMode.IndirectY, new MachineCodeOperand.Immediate(value));
             }
             if (inner.EndsWith(')'))

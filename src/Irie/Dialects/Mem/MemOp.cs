@@ -88,4 +88,23 @@ public enum MemOp : ushort
     /// </summary>
     LoadPtr,
     StorePtr,
+
+    /// <summary>
+    /// mem.copy %dst, %src, %count
+    ///   Copy %count bytes from %src to %dst (the blocks must not overlap).
+    ///   use[0] = ptr vreg (destination), use[1] = ptr vreg (source),
+    ///   use[2] = i16 vreg (byte count; unlike mem.fill's, not a constant).
+    ///   Used by IL `cpblk`. The MOS6502 legalizer lowers it to a call to
+    ///   the memcpy libcall.
+    /// </summary>
+    Copy,
+
+    /// <summary>
+    /// mem.set %dst, %byte, %count
+    ///   Set %count bytes at %dst to %byte. use[0] = ptr vreg, use[1] = i8 vreg
+    ///   (the byte), use[2] = i16 vreg (byte count; unlike mem.fill's, not a
+    ///   constant). Used by IL `initblk`. The MOS6502 legalizer lowers it to a
+    ///   call to the memset libcall.
+    /// </summary>
+    Set,
 }

@@ -42,6 +42,8 @@ public sealed class MemDialect : Dialect
         MemOp.PtrAdd      => "ptradd",
         MemOp.LoadPtr     => "load.ptr",
         MemOp.StorePtr    => "store.ptr",
+        MemOp.Copy        => "copy",
+        MemOp.Set         => "set",
         _ => throw new ArgumentOutOfRangeException(nameof(code), code, $"Unknown mem opcode {code}."),
     };
 
@@ -65,6 +67,8 @@ public sealed class MemDialect : Dialect
             case "ptradd":        code = (ushort)MemOp.PtrAdd;      return true;
             case "load.ptr":      code = (ushort)MemOp.LoadPtr;     return true;
             case "store.ptr":     code = (ushort)MemOp.StorePtr;    return true;
+            case "copy":          code = (ushort)MemOp.Copy;        return true;
+            case "set":           code = (ushort)MemOp.Set;         return true;
         }
         code = 0;
         return false;
@@ -86,12 +90,16 @@ public sealed class MemDialect : Dialect
             // mem.fill's pattern byte (i8) is the legality-driving operand;
             // the count is an Immediate that the Custom legalizer unrolls.
             MemOp.Fill        => FillInfo,
+            // mem.copy's byte count (i16) is the legality-driving operand.
+            MemOp.Copy        => CopyInfo,
+            MemOp.Set         => CopyInfo,
             _ => DialectInstructionInfo.Empty,
         };
 
     private static readonly DialectInstructionInfo StoreI8Info     = new(TypeOperandIndex: 1);
     private static readonly DialectInstructionInfo StoreByteAtInfo = new(TypeOperandIndex: 2);
     private static readonly DialectInstructionInfo FillInfo        = new(TypeOperandIndex: 1);
+    private static readonly DialectInstructionInfo CopyInfo        = new(TypeOperandIndex: 2);
 
     /// <summary>
     /// mem.symbol / mem.frame_addr are pure (they return a constant pointer

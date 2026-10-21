@@ -5,6 +5,8 @@
     <!-- The lit tests run the compiler in-process, and the JIT never optimizes a Debug assembly: it is several times
          slower there. Build with -p:Optimize=false to step through the compiler in a debugger. -->
     <Optimize>true</Optimize>
+    <!-- IntrinsicBodies hands the IL it synthesizes to a BlobReader, which reads from a pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

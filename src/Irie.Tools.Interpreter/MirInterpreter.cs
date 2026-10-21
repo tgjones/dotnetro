@@ -412,6 +412,26 @@ public sealed class MirInterpreter
                 break;
             }
 
+            case MemOp.Set:
+            {
+                var destination = Read(values, operands[0]);
+                var value = (byte)Read(values, operands[1]);
+                var count = (int)Read(values, operands[2]);
+                for (var i = 0; i < count; i++)
+                    StoreTo(function, destination + (ulong)i, value, 1);
+                break;
+            }
+
+            case MemOp.Copy:
+            {
+                var destination = Read(values, operands[0]);
+                var source = Read(values, operands[1]);
+                var count = (int)Read(values, operands[2]);
+                for (var i = 0; i < count; i++)
+                    StoreTo(function, destination + (ulong)i, LoadFrom(function, source + (ulong)i, 1), 1);
+                break;
+            }
+
             default:
                 throw new InterpreterException($"@{function.Name}: unsupported mem.{op} (the interpreter runs pre-pipeline MIR).");
         }

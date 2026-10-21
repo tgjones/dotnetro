@@ -252,7 +252,8 @@ internal sealed class EcmaType : TypeDescription
         if (IsGenericDefinition)
             throw new NotSupportedException($"{FullName} is an open generic type; only instantiations have a layout.");
 
-        var offset = 0;
+        // A class's fields follow those of its base class (a struct has no base to inherit from).
+        var offset = !IsValueType && BaseType is { } baseType ? baseType.InstanceSize : 0;
 
         foreach (var fieldDefinitionHandle in TypeDefinition.GetFields())
         {

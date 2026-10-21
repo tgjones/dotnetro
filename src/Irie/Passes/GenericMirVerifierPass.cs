@@ -157,6 +157,16 @@ public sealed class GenericMirVerifierPass : Pass
                     ExpectPtr(uses.FirstOrDefault(), "address");
                     ExpectPtr(uses.Skip(1).FirstOrDefault(), "stored value");
                     break;
+                case MemOp.Copy:
+                    ExpectPtr(uses.FirstOrDefault(), "destination");
+                    ExpectPtr(uses.Skip(1).FirstOrDefault(), "source");
+                    ExpectI16(uses.Skip(2).FirstOrDefault(), "byte count");
+                    break;
+                case MemOp.Set:
+                    ExpectPtr(uses.FirstOrDefault(), "destination");
+                    Expect(uses.Skip(1).FirstOrDefault(), "byte", t => t.Equals(IRType.I8), "i8");
+                    ExpectI16(uses.Skip(2).FirstOrDefault(), "byte count");
+                    break;
                 case MemOp.PtrAdd:
                     ExpectPtr(defs.FirstOrDefault(), "result");
                     ExpectPtr(uses.FirstOrDefault(), "base");

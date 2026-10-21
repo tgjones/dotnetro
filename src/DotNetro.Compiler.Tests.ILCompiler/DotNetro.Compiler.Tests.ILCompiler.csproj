@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ILAsmVersion>10.0.13</ILAsmVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- ilasm is a native binary shipped in a package per host RID; it lands in runtimes/<rid>/native beside the tool. -->
+    <PackageReference Include="runtime.$(NETCoreSdkPortableRuntimeIdentifier).Microsoft.NETCore.ILAsm" VersionOverride="$(ILAsmVersion)" />
+    <Compile Include="..\DotNetro.Compiler.Tests.CsCompiler\OpcodeScanner.cs" Link="OpcodeScanner.cs" />
+  </ItemGroup>
+
+</Project>

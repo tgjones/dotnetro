@@ -18,6 +18,12 @@ internal static partial class ManagedHeap
     private static unsafe byte* s_heapPtr = HeapStart();
 
     /// <summary>
+    /// The lowest address handed out by LocalAlloc: the localloc area grows down from the end
+    /// of the heap while the heap grows up from its start, and they meet when memory runs out.
+    /// </summary>
+    private static unsafe byte* s_localPtr = HeapEnd();
+
+    /// <summary>
     /// Allocate `size` bytes of zeroed object contents behind a vtable header.
     /// Returns a pointer to the contents.
     /// </summary>
@@ -26,7 +32,7 @@ internal static partial class ManagedHeap
         var result = s_heapPtr;
 
         // Out of memory: there are no exceptions, so stop.
-        if (size > (nint)(HeapEnd() - result) - sizeof(IntPtr))
+        if (size > (nint)(s_localPtr - result) - sizeof(IntPtr))
         {
             while (true)
             {
@@ -60,5 +66,54 @@ internal static partial class ManagedHeap
         var result = Alloc(sizeof(IntPtr) + contentSize, null);
         *(nint*)result = length;
         return result;
+    }
+
+    /// <summary>
+    /// The current top of the localloc area. A method that uses localloc takes this on entry and
+    /// hands it back to LocalAllocRelease when it returns, which frees what it allocated.
+    /// </summary>
+    public static unsafe byte* LocalAllocMark() => s_localPtr;
+
+    /// <summary>Free everything LocalAlloc handed out since `mark` was taken.</summary>
+    public static unsafe void LocalAllocRelease(byte* mark)
+    {
+        s_localPtr = mark;
+    }
+
+    /// <summary>
+    /// The localloc IL opcode in a method with initialised locals (the default; C# sets it unless
+    /// [SkipLocalsInit] is applied): `size` bytes of zeroed memory that live until the allocating
+    /// method returns. Returns a pointer to the first byte.
+    /// </summary>
+    public static unsafe byte* LocalAlloc(nint size)
+    {
+        var result = LocalAllocUninitialized(size);
+
+        var contents = result;
+        for (var remaining = size; remaining > 0; remaining--)
+        {
+            *contents = 0;
+            contents++;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// The localloc IL opcode in a method without initialised locals: like LocalAlloc, but the
+    /// memory keeps whatever it held before.
+    /// </summary>
+    public static unsafe byte* LocalAllocUninitialized(nint size)
+    {
+        // Out of memory: there are no exceptions, so stop.
+        if (size > (nint)(s_localPtr - s_heapPtr))
+        {
+            while (true)
+            {
+            }
+        }
+
+        s_localPtr -= size;
+        return s_localPtr;
     }
 }

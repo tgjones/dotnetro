@@ -8,8 +8,8 @@ enum), whether DotNetro's IL→MIR translator implements it, and whether at leas
 lit test under `src/DotNetro.Compiler.Tests/Lit/` exercises it.
 
 - **Total opcodes:** 218
-- **Implemented:** 151
-- **Implemented and lit-covered:** 147
+- **Implemented:** 169
+- **Implemented and lit-covered:** 163
 
 Legend: ✅ yes · ❌ no · — not applicable.
 
@@ -92,24 +92,24 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `conv.u2` | ✅ | ✅ |
 | `conv.u4` | ✅ | ✅ |
 | `conv.u8` | ✅ | ✅ |
-| `cpblk` | ❌ | — |
-| `cpobj` | ❌ | — |
+| `cpblk` | ✅ | ❌ |
+| `cpobj` | ✅ | ✅ |
 | `div` | ✅ | ✅ |
 | `div.un` | ✅ | ✅ |
 | `dup` | ✅ | ✅ |
 | `endfilter` | ❌ | — |
 | `endfinally` | ❌ | — |
-| `initblk` | ❌ | — |
+| `initblk` | ✅ | ❌ |
 | `initobj` | ✅ | ✅ |
 | `isinst` | ✅ | ✅ |
-| `jmp` | ❌ | — |
-| `ldarg` | ❌ | — |
+| `jmp` | ✅ | ✅ |
+| `ldarg` | ✅ | ✅ |
 | `ldarg.0` | ✅ | ✅ |
 | `ldarg.1` | ✅ | ✅ |
 | `ldarg.2` | ✅ | ✅ |
 | `ldarg.3` | ✅ | ✅ |
 | `ldarg.s` | ✅ | ✅ |
-| `ldarga` | ❌ | — |
+| `ldarga` | ✅ | ✅ |
 | `ldarga.s` | ✅ | ✅ |
 | `ldc.i4` | ✅ | ✅ |
 | `ldc.i4.0` | ✅ | ✅ |
@@ -154,25 +154,25 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `ldind.u2` | ✅ | ✅ |
 | `ldind.u4` | ✅ | ✅ |
 | `ldlen` | ✅ | ✅ |
-| `ldloc` | ❌ | — |
+| `ldloc` | ✅ | ✅ |
 | `ldloc.0` | ✅ | ✅ |
 | `ldloc.1` | ✅ | ✅ |
 | `ldloc.2` | ✅ | ✅ |
 | `ldloc.3` | ✅ | ✅ |
 | `ldloc.s` | ✅ | ✅ |
-| `ldloca` | ❌ | — |
+| `ldloca` | ✅ | ✅ |
 | `ldloca.s` | ✅ | ✅ |
 | `ldnull` | ✅ | ✅ |
 | `ldobj` | ✅ | ✅ |
 | `ldsfld` | ✅ | ✅ |
 | `ldsflda` | ❌ | — |
 | `ldstr` | ✅ | ✅ |
-| `ldtoken` | ❌ | — |
-| `ldvirtftn` | ❌ | — |
+| `ldtoken` | ✅ | ✅ |
+| `ldvirtftn` | ✅ | ✅ |
 | `leave` | ❌ | — |
 | `leave.s` | ❌ | — |
-| `localloc` | ❌ | — |
-| `mkrefany` | ❌ | — |
+| `localloc` | ✅ | ✅ |
+| `mkrefany` | ✅ | ✅ |
 | `mul` | ✅ | ✅ |
 | `mul.ovf` | ❌ | — |
 | `mul.ovf.un` | ❌ | — |
@@ -184,8 +184,8 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `or` | ✅ | ✅ |
 | `pop` | ✅ | ✅ |
 | `readonly` | ✅ | ✅ |
-| `refanytype` | ❌ | — |
-| `refanyval` | ❌ | — |
+| `refanytype` | ✅ | ✅ |
+| `refanyval` | ✅ | ✅ |
 | `rem` | ✅ | ✅ |
 | `rem.un` | ✅ | ✅ |
 | `ret` | ✅ | ✅ |
@@ -194,7 +194,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `shr` | ✅ | ✅ |
 | `shr.un` | ✅ | ✅ |
 | `sizeof` | ✅ | ✅ |
-| `starg` | ❌ | — |
+| `starg` | ✅ | ✅ |
 | `starg.s` | ✅ | ✅ |
 | `stelem` | ✅ | ✅ |
 | `stelem.i` | ✅ | ❌ |
@@ -214,7 +214,7 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `stind.r4` | ❌ | — |
 | `stind.r8` | ❌ | — |
 | `stind.ref` | ✅ | ✅ |
-| `stloc` | ❌ | — |
+| `stloc` | ✅ | ✅ |
 | `stloc.0` | ✅ | ✅ |
 | `stloc.1` | ✅ | ✅ |
 | `stloc.2` | ✅ | ✅ |
@@ -226,10 +226,10 @@ Legend: ✅ yes · ❌ no · — not applicable.
 | `sub.ovf` | ❌ | — |
 | `sub.ovf.un` | ❌ | — |
 | `switch` | ✅ | ✅ |
-| `tail` | ❌ | — |
+| `tail` | ✅ | ✅ |
 | `throw` | ❌ | — |
 | `unaligned` | ✅ | ❌ |
-| `unbox` | ❌ | — |
+| `unbox` | ✅ | ✅ |
 | `unbox.any` | ✅ | ✅ |
 | `volatile` | ✅ | ✅ |
 | `xor` | ✅ | ✅ |

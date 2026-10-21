@@ -161,6 +161,10 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
                 // the count is an Immediate that the Custom path unrolls into per-byte
                 // mem.store.byte_at.
                 MemOp.Fill        when intType.SizeInBits == 8  => LegalityAction.Custom,
+                // mem.copy's TypeOperandIndex points at the i16 byte count; the Custom
+                // path lowers the whole op to a memcpy libcall.
+                MemOp.Copy        when intType.SizeInBits == 16 => LegalityAction.Custom,
+                MemOp.Set         when intType.SizeInBits == 16 => LegalityAction.Custom,
                 _ => LegalityAction.Unsupported,
             };
         }
@@ -249,6 +253,14 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
 
                 case MemOp.Fill:
                     LowerMemFill(instr, builder);
+                    return;
+
+                case MemOp.Copy:
+                    LowerMemCopy(instr, builder);
+                    return;
+
+                case MemOp.Set:
+                    LowerMemSet(instr, builder);
                     return;
             }
             throw new NotSupportedException(
@@ -685,6 +697,41 @@ public sealed class MOS6502LegalizerInfo : Irie.Target.LegalizerInfo
     /// ops at offsets 0..count-1, all writing the same byte vreg. Loop-form for
     /// large counts is future work; the active tests use small struct sizes.
     /// </summary>
+    /// <summary>
+    /// mem.copy %dst, %src, %count → a call to the memcpy libcall (the name llvm-mos and
+    /// compiler-rt use; the routine is in libcalls.s). The count is not a constant, so there is
+    /// nothing to unroll as mem.fill does.
+    /// </summary>
+    private void LowerMemCopy(MirInstruction instr, MirBuilder builder)
+    {
+        if (instr.Operands is not [VirtualReg { IsDefinition: false } dst,
+                                   VirtualReg { IsDefinition: false } src,
+                                   VirtualReg { IsDefinition: false } count])
+            throw new InvalidOperationException(
+                "MOS6502LegalizerInfo: mem.copy must have shape `mem.copy %dst, %src, %count`.");
+
+        _callLowering.LowerCall("memcpy", [IRType.Pointer, IRType.Pointer, IRType.I16],
+            [dst.Id, src.Id, count.Id], [], [], builder);
+        builder.Remove(instr);
+    }
+
+    /// <summary>
+    /// mem.set %dst, %byte, %count → a call to the memset libcall (libcalls.s), as mem.copy
+    /// calls memcpy.
+    /// </summary>
+    private void LowerMemSet(MirInstruction instr, MirBuilder builder)
+    {
+        if (instr.Operands is not [VirtualReg { IsDefinition: false } dst,
+                                   VirtualReg { IsDefinition: false } value,
+                                   VirtualReg { IsDefinition: false } count])
+            throw new InvalidOperationException(
+                "MOS6502LegalizerInfo: mem.set must have shape `mem.set %dst, %byte, %count`.");
+
+        _callLowering.LowerCall("memset", [IRType.Pointer, IRType.I8, IRType.I16],
+            [dst.Id, value.Id, count.Id], [], [], builder);
+        builder.Remove(instr);
+    }
+
     private static void LowerMemFill(MirInstruction instr, MirBuilder builder)
     {
         if (instr.Operands.Length != 3

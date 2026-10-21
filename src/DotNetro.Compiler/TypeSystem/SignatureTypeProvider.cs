@@ -57,7 +57,14 @@ internal sealed class SignatureTypeProvider(EcmaAssembly assembly)
 
     public TypeDescription GetPointerType(TypeDescription elementType) => elementType.MakePointerType();
 
-    public TypeDescription GetPrimitiveType(PrimitiveTypeCode typeCode) => assembly.Context.GetPrimitiveType(typeCode);
+    /// <summary>
+    /// ELEMENT_TYPE_TYPEDBYREF is the primitive code of System.TypedReference, which is a struct of
+    /// the core library like any other.
+    /// </summary>
+    public TypeDescription GetPrimitiveType(PrimitiveTypeCode typeCode) =>
+        typeCode == PrimitiveTypeCode.TypedReference
+            ? assembly.Context.CoreAssembly.GetType("System", "TypedReference")
+            : assembly.Context.GetPrimitiveType(typeCode);
 
     public TypeDescription GetSZArrayType(TypeDescription elementType) => elementType.MakeSZArrayType();
 
