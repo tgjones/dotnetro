@@ -2371,6 +2371,15 @@ internal sealed class BeamPlacer(MirFunction function, BeamPlacementOptions opti
                 _nz = Empty;
             }
 
+            // A value built in a zero-page register as its own home may find another
+            // arrive there in the same run (a call's result bytes): that one moves
+            // home before the first one is stored.
+            foreach (var copy in run)
+            {
+                EvictDestinations(copy);
+                if (Failed) return null;
+            }
+
             foreach (var copy in toVreg)
             {
                 if (_placer.Unused(copy.Operands[0])) continue;
